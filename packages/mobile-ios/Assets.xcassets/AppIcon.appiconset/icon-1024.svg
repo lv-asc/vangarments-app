@@ -1,0 +1,9 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Navy blue background with rounded corners for iOS -->
+  <rect width="1024" height="1024" rx="228" fill="#1e3a5f"/>
+  
+  <!-- Cream/beige "U" letter with slight tilt -->
+  <g transform="translate(512, 512) rotate(-5) translate(-512, -512)">
+    <path d="M307 307 L307 614 Q307 717 410 717 L614 717 Q717 717 717 614 L717 307 L614 307 L614 614 Q614 614 512 614 L512 614 Q410 614 410 307 L307 307 Z" fill="#f5f1e8"/>
+  </g>
+</svg>

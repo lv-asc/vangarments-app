@@ -1,0 +1,410 @@
+import { BrandAccountModel, CreateBrandAccountData, UpdateBrandAccountData, BrandAccount } from '../models/BrandAccount';
+import { BrandCatalogModel, CreateBrandCatalogItemData, UpdateBrandCatalogItemData, BrandCatalogItem } from '../models/BrandCatalog';
+import { CommissionTrackingModel, CreateCommissionData } from '../models/CommissionTracking';
+import { UserModel } from '../models/User';
+
+export interface BrandRegistrationRequest {
+  brandName: string;
+  description?: string;
+  website?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  businessType: 'brand' | 'store' | 'designer' | 'manufacturer';
+  partnershipTier?: 'basic' | 'premium' | 'enterprise';
+}
+
+export interface BrandPageCustomization {
+  logo?: string;
+  banner?: string;
+  brandColors?: string[];
+  socialLinks?: Array<{
+    platform: string;
+    url: string;
+  }>;
+  customSections?: Array<{
+    title: string;
+    content: string;
+    type: 'text' | 'image' | 'video';
+  }>;
+}
+
+export class BrandService {
+  /**
+   * Register a new brand account
+   */
+  async registerBrand(userId: string, registrationData: BrandRegistrationRequest): Promise<BrandAccount> {
+    // Verify user exists and doesn't already have a brand account
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const existingBrand = await BrandAccountModel.findByUserId(userId);
+    if (existingBrand) {
+      throw new Error('User already has a brand account');
+    }
+
+    const brandInfo = {
+      name: registrationData.brandName,
+      description: registrationData.description,
+      website: registrationData.website,
+      contactInfo: {
+        email: registrationData.contactEmail,
+        phone: registrationData.contactPhone,
+      },
+    };
+
+    const brandData: CreateBrandAccountData = {
+      userId,
+      brandInfo,
+      partnershipTier: registrationData.partnershipTier || 'basic',
+    };
+
+    const brand = await BrandAccountModel.create(brandData);
+
+    // Add appropriate role to user
+    await UserModel.addRole(userId, 'brand_owner');
+
+    return brand;
+  }
+
+  /**
+   * Update brand page customization
+   */
+  async updateBrandPage(brandId: string, customization: BrandPageCustomization): Promise<BrandAccount> {
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) {
+      throw new Error('Brand not found');
+    }
+
+    const updatedBrandInfo = {
+      ...brand.brandInfo,
+      logo: customization.logo || brand.brandInfo.logo,
+      banner: customization.banner || brand.brandInfo.banner,
+      brandColors: customization.brandColors || brand.brandInfo.brandColors,
+      socialLinks: customization.socialLinks || brand.brandInfo.socialLinks,
+    };
+
+    const updateData: UpdateBrandAccountData = {
+      brandInfo: updatedBrandInfo,
+    };
+
+    const updatedBrand = await BrandAccountModel.update(brandId, updateData);
+    if (!updatedBrand) {
+      throw new Error('Failed to update brand');
+    }
+
+    return updatedBrand;
+  }
+
+  /**
+   * Add item to brand catalog
+   */
+  async addToCatalog(brandId: string, catalogData: CreateBrandCatalogItemData): Promise<BrandCatalogItem> {
+    // Verify brand exists and is verified
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) {
+      throw new Error('Brand not found');
+    }
+
+    if (brand.verificationStatus !== 'verified') {
+      throw new Error('Brand must be verified to add catalog items');
+    }
+
+    return await BrandCatalogModel.create({
+      ...catalogData,
+      brandId,
+    });
+  }
+
+  /**
+   * Update catalog item
+   */
+  async updateCatalogItem(
+    brandId: string,
+    itemId: string,
+    updateData: UpdateBrandCatalogItemData
+  ): Promise<BrandCatalogItem> {
+    const item = await BrandCatalogModel.findById(itemId);
+    if (!item || item.brandId !== brandId) {
+      throw new Error('Catalog item not found or access denied');
+    }
+
+    const updatedItem = await BrandCatalogModel.update(itemId, updateData);
+    if (!updatedItem) {
+      throw new Error('Failed to update catalog item');
+    }
+
+    return updatedItem;
+  }
+
+  /**
+   * Get brand catalog with filters
+   */
+  async getBrandCatalog(
+    brandId: string,
+    filters: {
+      availabilityStatus?: 'available' | 'out_of_stock' | 'discontinued' | 'pre_order';
+      priceRange?: { min?: number; max?: number };
+      collection?: string;
+      season?: string;
+      search?: string;
+    } = {},
+    page = 1,
+    limit = 20
+  ): Promise<{ items: BrandCatalogItem[]; total: number; hasMore: boolean }> {
+    const offset = (page - 1) * limit;
+    const { items, total } = await BrandCatalogModel.findByBrandId(brandId, filters, limit + 1, offset);
+
+    const hasMore = items.length > limit;
+    if (hasMore) {
+      items.pop();
+    }
+
+    return { items, total, hasMore };
+  }
+
+  /**
+   * Create commission tracking for a transaction
+   */
+  async trackCommission(
+    transactionId: string,
+    brandId: string,
+    amount: number,
+    commissionRate: number
+  ): Promise<void> {
+    const commissionData: CreateCommissionData = {
+      transactionId,
+      brandId,
+      amount,
+      commissionRate,
+    };
+
+    await CommissionTrackingModel.create(commissionData);
+  }
+
+  /**
+   * Get brand analytics and performance metrics
+   */
+  async getBrandAnalytics(
+    brandId: string,
+    period: 'week' | 'month' | 'quarter' | 'year' = 'month'
+  ): Promise<{
+    overview: {
+      totalCatalogItems: number;
+      totalSales: number;
+      totalCommission: number;
+      monthlyViews: number;
+    };
+    commissions: {
+      totalCommissions: number;
+      totalPaid: number;
+      totalPending: number;
+      averageCommissionRate: number;
+      transactionCount: number;
+      periodBreakdown: Array<{
+        period: string;
+        commissions: number;
+        transactions: number;
+      }>;
+    };
+    catalog: {
+      collections: Array<{ collection: string; itemCount: number }>;
+      seasons: Array<{ season: string; itemCount: number }>;
+    };
+  }> {
+    const [overview, commissions, collections, seasons] = await Promise.all([
+      BrandAccountModel.getAnalytics(brandId),
+      CommissionTrackingModel.getCommissionSummary(brandId, period),
+      BrandCatalogModel.getCollections(brandId),
+      BrandCatalogModel.getSeasons(brandId),
+    ]);
+
+    return {
+      overview: {
+        totalCatalogItems: overview.catalogItems,
+        totalSales: overview.totalSales,
+        totalCommission: overview.totalCommission,
+        monthlyViews: overview.monthlyViews,
+      },
+      commissions,
+      catalog: {
+        collections,
+        seasons,
+      },
+    };
+  }
+
+  /**
+   * Verify brand account
+   */
+  async verifyBrand(brandId: string, status: 'verified' | 'rejected', notes?: string): Promise<BrandAccount> {
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) {
+      throw new Error('Brand not found');
+    }
+
+    const updateData: UpdateBrandAccountData = {
+      verificationStatus: status,
+    };
+
+    const updatedBrand = await BrandAccountModel.update(brandId, updateData);
+    if (!updatedBrand) {
+      throw new Error('Failed to update brand verification status');
+    }
+
+    // Add verified badge if approved
+    if (status === 'verified') {
+      await BrandAccountModel.addBadge(brandId, 'verified_brand');
+    }
+
+    return updatedBrand;
+  }
+
+  /**
+   * Upgrade brand partnership tier
+   */
+  async upgradeBrandTier(
+    brandId: string,
+    newTier: 'basic' | 'premium' | 'enterprise'
+  ): Promise<BrandAccount> {
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) {
+      throw new Error('Brand not found');
+    }
+
+    if (brand.verificationStatus !== 'verified') {
+      throw new Error('Brand must be verified to upgrade tier');
+    }
+
+    const updateData: UpdateBrandAccountData = {
+      partnershipTier: newTier,
+    };
+
+    const updatedBrand = await BrandAccountModel.update(brandId, updateData);
+    if (!updatedBrand) {
+      throw new Error('Failed to upgrade brand tier');
+    }
+
+    // Add premium partner badge for premium/enterprise tiers
+    if (newTier === 'premium' || newTier === 'enterprise') {
+      await BrandAccountModel.addBadge(brandId, 'premium_partner');
+    }
+
+    return updatedBrand;
+  }
+
+  /**
+   * Search brands
+   */
+  async searchBrands(
+    query: string,
+    filters: {
+      verificationStatus?: 'verified' | 'pending' | 'rejected';
+      partnershipTier?: 'basic' | 'premium' | 'enterprise';
+    } = {},
+    page = 1,
+    limit = 20
+  ): Promise<{ brands: BrandAccount[]; total: number; hasMore: boolean }> {
+    const offset = (page - 1) * limit;
+    const searchFilters = {
+      ...filters,
+      search: query,
+    };
+
+    const { brands, total } = await BrandAccountModel.findMany(searchFilters, limit + 1, offset);
+
+    const hasMore = brands.length > limit;
+    if (hasMore) {
+      brands.pop();
+    }
+
+    return { brands, total, hasMore };
+  }
+
+  /**
+   * Get brand public profile
+   */
+  async getBrandProfile(brandId: string): Promise<{
+    brand: BrandAccount;
+    featuredItems: BrandCatalogItem[];
+    collections: Array<{ collection: string; itemCount: number }>;
+    stats: {
+      catalogItems: number;
+      followers: number; // TODO: Implement brand following
+    };
+  }> {
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) {
+      throw new Error('Brand not found');
+    }
+
+    // Get featured items (latest available items)
+    const { items: featuredItems } = await BrandCatalogModel.findByBrandId(
+      brandId,
+      { availabilityStatus: 'available' },
+      8,
+      0
+    );
+
+    const collections = await BrandCatalogModel.getCollections(brandId);
+
+    return {
+      brand,
+      featuredItems,
+      collections,
+      stats: {
+        catalogItems: brand.analytics.totalCatalogItems,
+        followers: 0, // TODO: Implement brand following system
+      },
+    };
+  }
+
+  /**
+   * Bulk update catalog availability
+   */
+  async bulkUpdateAvailability(
+    brandId: string,
+    updates: Array<{ vufsItemId: string; availabilityStatus: string }>
+  ): Promise<void> {
+    // Verify brand ownership
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) {
+      throw new Error('Brand not found');
+    }
+
+    await BrandCatalogModel.bulkUpdateAvailability(brandId, updates);
+  }
+
+  /**
+   * Get commission history for brand
+   */
+  async getCommissionHistory(
+    brandId: string,
+    filters: {
+      status?: 'pending' | 'approved' | 'paid' | 'disputed';
+      dateRange?: { start: string; end: string };
+    } = {},
+    page = 1,
+    limit = 20
+  ): Promise<{ commissions: any[]; total: number; hasMore: boolean }> {
+    const offset = (page - 1) * limit;
+    const commissionFilters = {
+      ...filters,
+      brandId,
+    };
+
+    const { commissions, total } = await CommissionTrackingModel.findMany(
+      commissionFilters,
+      limit + 1,
+      offset
+    );
+
+    const hasMore = commissions.length > limit;
+    if (hasMore) {
+      commissions.pop();
+    }
+
+    return { commissions, total, hasMore };
+  }
+}

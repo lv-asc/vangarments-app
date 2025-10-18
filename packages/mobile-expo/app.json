@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Vangarments",
+    "slug": "vangarments-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#00132d"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vangarments.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#00132d"
+      },
+      "package": "com.vangarments.mobile"
+    },
+    "web": {},
+    "plugins": [
+      "expo-camera",
+      "expo-media-library"
+    ]
+  }
+}

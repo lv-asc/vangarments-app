@@ -1,0 +1,95 @@
+{
+  "timestamp": "2025-10-18T17:24:46.059Z",
+  "testConfiguration": {
+    "totalUsers": 3,
+    "apiBaseUrl": "http://localhost:3001",
+    "databaseHost": "localhost"
+  },
+  "results": {
+    "userRegistration": [
+      {
+        "user": "Maria Silva",
+        "registration": "failed",
+        "error": ""
+      },
+      {
+        "user": "João Santos",
+        "registration": "failed",
+        "error": ""
+      },
+      {
+        "user": "Ana Costa",
+        "registration": "failed",
+        "error": ""
+      }
+    ],
+    "wardrobeBuilding": [
+      {
+        "user": "Maria Silva",
+        "item": "Blusa Floral Zara",
+        "creation": "failed",
+        "error": ""
+      },
+      {
+        "user": "João Santos",
+        "item": "Camisa Social Hugo Boss",
+        "creation": "failed",
+        "error": ""
+      },
+      {
+        "user": "Ana Costa",
+        "item": "Vestido Midi Farm",
+        "creation": "failed",
+        "error": ""
+      }
+    ],
+    "marketplaceInteractions": [
+      {
+        "test": "search_functionality",
+        "status": "failed",
+        "error": ""
+      }
+    ],
+    "dataPersistence": [
+      {
+        "test": "app_restart_simulation",
+        "status": "failed",
+        "error": "role \"postgres\" does not exist"
+      },
+      {
+        "test": "cross_session_availability",
+        "status": "failed",
+        "error": ""
+      }
+    ],
+    "adminFunctionality": [
+      {
+        "test": "admin_authentication",
+        "status": "failed",
+        "error": ""
+      },
+      {
+        "test": "configuration_persistence",
+        "status": "failed",
+        "error": ""
+      }
+    ],
+    "crossPlatformValidation": [
+      {
+        "test": "api_endpoints",
+        "status": "failed",
+        "error": ""
+      }
+    ],
+    "overallSuccess": false
+  },
+  "summary": {
+    "userRegistrationSuccess": 0,
+    "wardrobeBuildingSuccess": 0,
+    "marketplaceInteractionSuccess": 0,
+    "dataPersistenceSuccess": 0,
+    "adminFunctionalitySuccess": 0,
+    "crossPlatformValidationSuccess": 0,
+    "overallSuccess": false
+  }
+}

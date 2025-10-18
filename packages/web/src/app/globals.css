@@ -1,0 +1,421 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import custom styles */
+@import '../styles/animations.css';
+@import '../styles/responsive.css';
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --font-inter: 'Inter', sans-serif;
+  --font-poppins: 'Poppins', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Custom animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f1f5f9 0px, #e2e8f0 40px, #f1f5f9 80px);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.4s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Fashion-specific styles */
+.fashion-card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-200 hover:shadow-md hover:scale-[1.02];
+}
+
+.fashion-button {
+  @apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.fashion-button-primary {
+  @apply fashion-button bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500;
+}
+
+.fashion-button-secondary {
+  @apply fashion-button bg-secondary-100 text-secondary-700 hover:bg-secondary-200 focus:ring-secondary-500;
+}
+
+.fashion-input {
+  @apply block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200;
+}
+
+/* Pinterest-like grid */
+.masonry-grid {
+  column-count: 1;
+  column-gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .masonry-grid {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 768px) {
+  .masonry-grid {
+    column-count: 3;
+  }
+}
+
+@media (min-width: 1024px) {
+  .masonry-grid {
+    column-count: 4;
+  }
+}
+
+@media (min-width: 1280px) {
+  .masonry-grid {
+    column-count: 5;
+  }
+}
+
+.masonry-item {
+  @apply break-inside-avoid mb-4;
+}
+
+/* Outfit creation styles */
+.outfit-canvas {
+  @apply relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl min-h-[400px] border-2 border-dashed border-gray-300;
+}
+
+.outfit-item {
+  @apply absolute cursor-move transition-transform duration-200 hover:scale-105;
+}
+
+/* Social feed styles */
+.feed-item {
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6;
+}
+
+.feed-item-header {
+  @apply flex items-center p-4 border-b border-gray-100;
+}
+
+.feed-item-content {
+  @apply relative;
+}
+
+.feed-item-actions {
+  @apply flex items-center justify-between p-4 border-t border-gray-100;
+}
+
+/* Marketplace styles */
+.marketplace-item {
+  @apply fashion-card cursor-pointer;
+}
+
+.marketplace-item:hover {
+  @apply shadow-lg transform scale-[1.03];
+}
+
+.price-tag {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800;
+}
+
+/* Loading states */
+.loading-skeleton {
+  @apply animate-pulse bg-gray-200 rounded;
+}
+
+.loading-shimmer {
+  @apply shimmer rounded;
+}
+
+/* Smooth transitions */
+.transition-smooth {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.transition-fast {
+  @apply transition-all duration-150 ease-in-out;
+}
+
+.transition-slow {
+  @apply transition-all duration-500 ease-in-out;
+}
+
+/* Page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
+}
+
+.page-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
+}
+
+/* Stagger animations for lists */
+.stagger-item {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: slideInUp 0.4s ease-out forwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0.1s; }
+.stagger-item:nth-child(2) { animation-delay: 0.2s; }
+.stagger-item:nth-child(3) { animation-delay: 0.3s; }
+.stagger-item:nth-child(4) { animation-delay: 0.4s; }
+.stagger-item:nth-child(5) { animation-delay: 0.5s; }
+.stagger-item:nth-child(6) { animation-delay: 0.6s; }
+.stagger-item:nth-child(7) { animation-delay: 0.7s; }
+.stagger-item:nth-child(8) { animation-delay: 0.8s; }
+
+/* Responsive utilities */
+.container-fashion {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Custom focus styles */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-[#00132d] focus:ring-offset-2;
+}
+
+/* Override any remaining pink colors */
+input:focus,
+select:focus,
+textarea:focus,
+button:focus {
+  @apply ring-[#00132d] border-[#00132d];
+}
+
+/* Ensure all hover states use navy blue and cream */
+a:hover,
+button:hover {
+  @apply text-[#00132d];
+  transition: all 0.2s ease-in-out;
+}
+
+/* Override any pink hover colors globally */
+.hover\:text-pink-600:hover,
+.hover\:text-pink-500:hover,
+.hover\:bg-pink-50:hover,
+.hover\:bg-pink-100:hover,
+.text-pink-600,
+.text-pink-500,
+.bg-pink-50,
+.bg-pink-100,
+.bg-pink-500,
+.bg-pink-600,
+.border-pink-200,
+.border-pink-300,
+.ring-pink-200,
+.ring-pink-300 {
+  @apply text-[#00132d] bg-[#fff7d7] border-[#00132d]/20 ring-[#00132d]/20;
+}
+
+/* Fix all link hover colors with animations */
+a {
+  transition: all 0.2s ease-in-out;
+}
+
+a:hover,
+.hover\:text-pink-600:hover,
+.hover\:text-pink-500:hover {
+  color: #00132d !important;
+  background-color: #fff7d7 !important;
+  transform: translateY(-1px);
+}
+
+/* Fix all button hover colors with animations */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  color: #00132d !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 19, 45, 0.1);
+}
+
+/* Override focus states */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #00132d !important;
+  ring-color: #00132d !important;
+}
+
+/* Ensure navigation links work properly */
+.navigation-link {
+  display: block;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.navigation-link:hover {
+  background-color: #fff7d7 !important;
+  color: #00132d !important;
+  transform: translateY(-1px);
+}
+
+/* Brazilian flag colors for special occasions */
+.brazil-gradient {
+  background: linear-gradient(135deg, #009739 0%, #fedd00 50%, #012169 100%);
+}
+
+/* Fashion category colors */
+.category-tops { @apply bg-[#fff7d7] text-[#00132d]; }
+.category-bottoms { @apply bg-[#00132d]/10 text-[#00132d]; }
+.category-dresses { @apply bg-[#fff7d7]/70 text-[#00132d]; }
+.category-shoes { @apply bg-[#00132d]/20 text-[#00132d]; }
+.category-accessories { @apply bg-[#fff7d7]/50 text-[#00132d]; }
+.category-outerwear { @apply bg-[#00132d]/15 text-[#00132d]; }
+
+/* Condition status colors */
+.condition-new { @apply bg-green-100 text-green-800; }
+.condition-excellent { @apply bg-emerald-100 text-emerald-800; }
+.condition-good { @apply bg-yellow-100 text-yellow-800; }
+.condition-fair { @apply bg-orange-100 text-orange-800; }
+.condition-poor { @apply bg-red-100 text-red-800; }
+
+/* Premium feature highlights */
+.premium-glow {
+  @apply relative;
+}
+
+.premium-glow::before {
+  content: '';
+  @apply absolute -inset-1 bg-gradient-to-r from-primary-400 to-accent-400 rounded-lg blur opacity-25;
+}
+
+.premium-badge {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-primary-500 to-accent-500 text-white;
+}
+
+/* Mobile-first responsive design */
+@media (max-width: 640px) {
+  .mobile-padding {
+    @apply px-4;
+  }
+  
+  .mobile-text {
+    @apply text-sm;
+  }
+  
+  .mobile-button {
+    @apply w-full py-3;
+  }
+}
+
+/* Dark mode support (future enhancement) */
+@media (prefers-color-scheme: dark) {
+  .dark-mode {
+    @apply bg-gray-900 text-gray-100;
+  }
+}

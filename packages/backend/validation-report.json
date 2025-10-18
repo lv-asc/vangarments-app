@@ -1,0 +1,153 @@
+{
+  "timestamp": "2025-10-18T16:55:35.827Z",
+  "summary": {
+    "passed": 14,
+    "failed": 2,
+    "total": 16,
+    "successRate": 87.5
+  },
+  "results": [
+    {
+      "test": "Database Connection",
+      "passed": true,
+      "message": "Successfully connected to database"
+    },
+    {
+      "test": "Required Tables",
+      "passed": true,
+      "message": "All required tables exist",
+      "details": {
+        "existing": [
+          "users",
+          "user_roles",
+          "vufs_catalog",
+          "anteroom_items",
+          "financial_records",
+          "platform_exports",
+          "model_performance",
+          "outfits",
+          "ai_training_data",
+          "outfit_photos",
+          "marketplace_listings",
+          "outfit_creation_sessions",
+          "marketplace_transactions",
+          "transaction_events",
+          "listing_likes",
+          "marketplace_reviews",
+          "marketplace_watchlist",
+          "marketplace_offers",
+          "social_posts",
+          "user_follows",
+          "post_comments",
+          "post_likes",
+          "brand_accounts",
+          "brand_catalog_items",
+          "commissions",
+          "partnership_agreements",
+          "brand_analytics",
+          "user_badges",
+          "brand_badges",
+          "inventory_items",
+          "inventory_movements",
+          "brand_clients",
+          "brand_portfolio",
+          "beta_participants",
+          "beta_feedback",
+          "advertising_campaigns",
+          "referral_rewards",
+          "industry_partnerships",
+          "ad_impressions",
+          "ad_clicks",
+          "ad_conversions",
+          "market_intelligence_reports",
+          "user_behavior_analytics",
+          "fashion_trend_reports",
+          "vufs_items",
+          "schema_migrations",
+          "content_reports",
+          "content_flags",
+          "user_feed_preferences",
+          "security_audit_log",
+          "item_images",
+          "user_consents",
+          "data_processing_records",
+          "data_subject_requests",
+          "data_retention_tracking",
+          "rate_limit_tracking",
+          "system_configurations"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "test": "VUFS Configuration File",
+      "passed": true,
+      "message": "VUFS configuration file exists"
+    },
+    {
+      "test": "VUFS Configuration Content",
+      "passed": true,
+      "message": "Configuration contains required sections"
+    },
+    {
+      "test": "Configuration Service",
+      "passed": false,
+      "message": "Configuration service methods missing"
+    },
+    {
+      "test": "Configuration Database Storage",
+      "passed": true,
+      "message": "Found 1 configuration entries in database"
+    },
+    {
+      "test": "Admin User Existence",
+      "passed": true,
+      "message": "Admin user \"lv\" exists"
+    },
+    {
+      "test": "Admin Role Assignment",
+      "passed": true,
+      "message": "Admin user has admin role"
+    },
+    {
+      "test": "Admin Auth Service",
+      "passed": false,
+      "message": "Admin authentication service methods missing"
+    },
+    {
+      "test": "Foreign Key Constraints",
+      "passed": true,
+      "message": "Found 79 foreign key constraints"
+    },
+    {
+      "test": "Data Consistency Check",
+      "passed": true,
+      "message": "Database contains 2 users and 0 items"
+    },
+    {
+      "test": "Storage Directory: storage/images/uploads",
+      "passed": true,
+      "message": "Directory exists and is accessible"
+    },
+    {
+      "test": "Storage Directory: storage/images/processed",
+      "passed": true,
+      "message": "Directory exists and is accessible"
+    },
+    {
+      "test": "Storage Directory: storage/images/thumbnails",
+      "passed": true,
+      "message": "Directory exists and is accessible"
+    },
+    {
+      "test": "Storage Directory: storage/backups",
+      "passed": true,
+      "message": "Directory exists and is accessible"
+    },
+    {
+      "test": "Configuration Write Permissions",
+      "passed": true,
+      "message": "Can write configuration files"
+    }
+  ]
+}
