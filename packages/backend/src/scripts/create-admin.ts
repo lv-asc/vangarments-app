@@ -1,8 +1,3 @@
-#!/usr/bin/env node
-
-import { Pool } from 'pg';
-import { UserModel } from '../models/User';
-import { AuthUtils } from '../utils/auth';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
@@ -15,6 +10,13 @@ if (require('fs').existsSync(envFile)) {
 } else {
   dotenv.config();
 }
+
+import { Pool } from 'pg';
+// import { UserModel } from '../models/User'; // Converted to require
+// import { AuthUtils } from '../utils/auth'; // Converted to require
+
+const { UserModel } = require('../models/User');
+const { AuthUtils } = require('../utils/auth');
 
 interface AdminUserConfig {
   email: string;
@@ -38,7 +40,7 @@ export class AdminUserInitializer {
       const existingUser = await UserModel.findByEmail(config.email);
       if (existingUser) {
         console.log(`⚠️ Admin user ${config.email} already exists`);
-        
+
         // Ensure admin role is assigned
         const roles = await UserModel.getUserRoles(existingUser.id);
         if (!roles.includes('admin')) {
@@ -65,7 +67,7 @@ export class AdminUserInitializer {
 
       // Add admin role
       await UserModel.addRole(adminUser.id, 'admin');
-      
+
       // Add consumer role as well (for basic functionality)
       await UserModel.addRole(adminUser.id, 'consumer');
 
@@ -101,7 +103,7 @@ export class AdminUserInitializer {
     }
 
     const roles = await UserModel.getUserRoles(user.id);
-    
+
     if (!roles.includes('admin')) {
       await UserModel.addRole(user.id, 'admin');
       console.log(`✅ Admin role granted to ${email}`);
@@ -112,7 +114,7 @@ export class AdminUserInitializer {
 
   async listAdminUsers(): Promise<void> {
     console.log('👑 Current admin users:');
-    
+
     const query = `
       SELECT u.id, u.email, u.profile, u.created_at
       FROM users u
@@ -122,7 +124,7 @@ export class AdminUserInitializer {
     `;
 
     const result = await this.pool.query(query);
-    
+
     if (result.rows.length === 0) {
       console.log('   No admin users found');
       return;
@@ -159,7 +161,7 @@ async function main() {
       case 'init':
         await initializer.initializeDefaultAdmin();
         break;
-      
+
       case 'grant':
         if (!email) {
           console.error('❌ Email is required for grant command');
@@ -167,11 +169,11 @@ async function main() {
         }
         await initializer.ensureAdminPrivileges(email);
         break;
-      
+
       case 'list':
         await initializer.listAdminUsers();
         break;
-      
+
       default:
         console.log(`
 Usage: npm run create-admin <command> [options]

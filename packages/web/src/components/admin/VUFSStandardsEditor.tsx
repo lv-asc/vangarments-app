@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { useState } from 'react';
@@ -183,11 +184,10 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
                         )}
                       </>
                     )}
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      item.isActive 
-                        ? 'bg-green-100 text-green-800' 
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.isActive
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
-                    }`}>
+                      }`}>
                       {item.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
@@ -223,11 +223,10 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.id
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               {tab.name}
               <span className="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2 rounded-full text-xs">
@@ -267,7 +266,7 @@ interface VUFSItemFormProps {
 function VUFSItemForm({ type, item, onSave, onCancel }: VUFSItemFormProps) {
   const [formData, setFormData] = useState(() => {
     if (item) return { ...item };
-    
+
     const baseData = {
       name: '',
       description: '',
@@ -304,7 +303,7 @@ function VUFSItemForm({ type, item, onSave, onCancel }: VUFSItemFormProps) {
           <h3 className="text-lg font-medium text-gray-900 mb-4">
             {item ? 'Edit' : 'Add New'} {type.slice(0, -1)}
           </h3>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -9,18 +9,18 @@ export const translations = {
     marketplace: 'Marketplace',
     analytics: 'Analytics',
     advertising: 'Advertising',
-    beta: 'Beta',
-    
+
+
     // Auth
     login: 'Entrar',
     register: 'Cadastrar',
     logout: 'Sair',
-    
+
     // Profile
     myProfile: 'Meu Perfil',
     myWardrobe: 'Meu Guarda-roupa',
     editProfile: 'Editar Perfil',
-    
+
     // Hero Section
     heroTitle: 'Organize seu',
     heroHighlight: 'guarda-roupa',
@@ -28,7 +28,7 @@ export const translations = {
     getStarted: 'Começar gratuitamente',
     learnMore: 'Ver como funciona',
     appPreview: 'Interface da aplicação',
-    
+
     // Common
     save: 'Salvar',
     cancel: 'Cancelar',
@@ -44,18 +44,18 @@ export const translations = {
     marketplace: 'Marketplace',
     analytics: 'Analytics',
     advertising: 'Advertising',
-    beta: 'Beta',
-    
+
+
     // Auth
     login: 'Login',
     register: 'Sign Up',
     logout: 'Logout',
-    
+
     // Profile
     myProfile: 'My Profile',
     myWardrobe: 'My Wardrobe',
     editProfile: 'Edit Profile',
-    
+
     // Hero Section
     heroTitle: 'Organize your',
     heroHighlight: 'wardrobe',
@@ -63,7 +63,7 @@ export const translations = {
     getStarted: 'Get Started Free',
     learnMore: 'Learn More',
     appPreview: 'Application Interface',
-    
+
     // CTA Section
     ctaTitle: 'Your fashion journey starts now',
     ctaSubtitle: 'Join thousands of people who have already discovered a new way to organize, express and monetize their personal style.',
@@ -72,7 +72,7 @@ export const translations = {
       community: 'Active and welcoming community',
       technology: 'Cutting-edge technology'
     },
-    
+
     // Common
     save: 'Save',
     cancel: 'Cancel',
@@ -88,18 +88,18 @@ export const translations = {
     marketplace: 'Marketplace',
     analytics: 'Analytics',
     advertising: 'Publicidad',
-    beta: 'Beta',
-    
+
+
     // Auth
     login: 'Iniciar Sesión',
     register: 'Registrarse',
     logout: 'Cerrar Sesión',
-    
+
     // Profile
     myProfile: 'Mi Perfil',
     myWardrobe: 'Mi Guardarropa',
     editProfile: 'Editar Perfil',
-    
+
     // Hero Section
     heroTitle: 'Organiza tu',
     heroHighlight: 'guardarropa',
@@ -107,7 +107,7 @@ export const translations = {
     getStarted: 'Comenzar Gratis',
     learnMore: 'Saber Más',
     appPreview: 'Interfaz de la Aplicación',
-    
+
     // Common
     save: 'Guardar',
     cancel: 'Cancelar',
@@ -123,18 +123,18 @@ export const translations = {
     marketplace: 'Marketplace',
     analytics: 'Analytics',
     advertising: 'Publicité',
-    beta: 'Beta',
-    
+
+
     // Auth
     login: 'Connexion',
     register: 'S\'inscrire',
     logout: 'Déconnexion',
-    
+
     // Profile
     myProfile: 'Mon Profil',
     myWardrobe: 'Ma Garde-robe',
     editProfile: 'Modifier le Profil',
-    
+
     // Hero Section
     heroTitle: 'Organisez votre',
     heroHighlight: 'garde-robe',
@@ -142,7 +142,7 @@ export const translations = {
     getStarted: 'Commencer Gratuitement',
     learnMore: 'En Savoir Plus',
     appPreview: 'Interface de l\'Application',
-    
+
     // Common
     save: 'Enregistrer',
     cancel: 'Annuler',

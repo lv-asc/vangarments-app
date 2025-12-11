@@ -12,9 +12,9 @@ interface SyncStatus {
 export function useOfflineSync() {
   // Disable sync in development mode
   const isDevMode = process.env.NODE_ENV === 'development';
-  
+
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
-    isOnline: isDevMode ? true : navigator.onLine,
+    isOnline: isDevMode ? true : (typeof navigator !== 'undefined' ? navigator.onLine : true),
     isSyncing: false,
     pendingItems: 0,
   });
@@ -24,7 +24,7 @@ export function useOfflineSync() {
     if (isDevMode) {
       return;
     }
-    
+
     const handleOnline = () => {
       setSyncStatus(prev => ({ ...prev, isOnline: true }));
     };
@@ -52,7 +52,7 @@ export function useOfflineSync() {
       console.log('🔧 DEV: Sync disabled in development mode');
       return;
     }
-    
+
     if (!syncStatus.isOnline || syncStatus.isSyncing) {
       return;
     }
@@ -61,15 +61,15 @@ export function useOfflineSync() {
 
     try {
       await syncManager.syncNow();
-      setSyncStatus(prev => ({ 
-        ...prev, 
-        isSyncing: false, 
+      setSyncStatus(prev => ({
+        ...prev,
+        isSyncing: false,
         lastSyncTime: new Date(),
-        error: undefined 
+        error: undefined
       }));
     } catch (error) {
-      setSyncStatus(prev => ({ 
-        ...prev, 
+      setSyncStatus(prev => ({
+        ...prev,
         isSyncing: false,
         error: error instanceof Error ? error.message : 'Sync failed'
       }));

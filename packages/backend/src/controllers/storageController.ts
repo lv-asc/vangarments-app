@@ -1,15 +1,75 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import { LocalStorageService } from '../services/localStorageService';
+import { AuthenticatedRequest } from '../utils/auth';
+import multer from 'multer';
 
 export class StorageController {
+  /**
+   * Middleware for handling image uploads
+   */
+  static uploadMiddleware = LocalStorageService.uploadMiddleware;
+
+  /**
+   * Upload an image to storage
+   */
+  static async uploadImage(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        res.status(400).json({
+          error: {
+            code: 'NO_FILE',
+            message: 'No file provided',
+          },
+        });
+        return;
+      }
+
+      const file = files[0];
+      const category = (req.body.category as 'wardrobe' | 'profiles' | 'marketplace' | 'social') || 'social';
+
+      const result = await LocalStorageService.uploadImage(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+        category,
+        req.user.userId
+      );
+
+      res.status(201).json({
+        success: true,
+        data: result,
+        url: result.url // Backward compatibility
+      });
+    } catch (error) {
+      console.error('Upload image error:', error);
+      res.status(500).json({
+        error: {
+          code: 'UPLOAD_FAILED',
+          message: error instanceof Error ? error.message : 'Image upload failed',
+        },
+      });
+    }
+  }
+
   /**
    * Serve image files from local storage
    */
   static async serveImage(req: Request, res: Response): Promise<void> {
     try {
       const { category, userId, filename } = req.params;
-      
+
       // Construct the relative path
       let relativePath: string;
       if (userId) {
@@ -17,10 +77,10 @@ export class StorageController {
       } else {
         relativePath = path.join('images', category, filename);
       }
-      
+
       // Check if image exists and get info
       const imageInfo = await LocalStorageService.getImageInfo(relativePath);
-      
+
       if (!imageInfo.exists) {
         res.status(404).json({
           error: {
@@ -30,14 +90,14 @@ export class StorageController {
         });
         return;
       }
-      
+
       // Set appropriate headers
       res.set({
         'Content-Type': imageInfo.mimetype || 'image/jpeg',
         'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
         'Last-Modified': imageInfo.lastModified?.toUTCString(),
       });
-      
+
       // Check if client has cached version
       const ifModifiedSince = req.headers['if-modified-since'];
       if (ifModifiedSince && imageInfo.lastModified) {
@@ -47,10 +107,10 @@ export class StorageController {
           return;
         }
       }
-      
+
       // Stream the image
       const imageStream = LocalStorageService.createImageStream(relativePath);
-      
+
       imageStream.on('error', (error) => {
         console.error('Error streaming image:', error);
         if (!res.headersSent) {
@@ -62,7 +122,7 @@ export class StorageController {
           });
         }
       });
-      
+
       imageStream.pipe(res);
     } catch (error) {
       console.error('Serve image error:', error);
@@ -81,7 +141,7 @@ export class StorageController {
   static async getStorageStats(req: Request, res: Response): Promise<void> {
     try {
       const stats = await LocalStorageService.getStorageStats();
-      
+
       res.json({
         message: 'Storage statistics retrieved successfully',
         stats: {
@@ -106,9 +166,9 @@ export class StorageController {
   static async cleanupTempFiles(req: Request, res: Response): Promise<void> {
     try {
       const { olderThanHours = 24 } = req.body;
-      
+
       const deletedCount = await LocalStorageService.cleanupTempFiles(olderThanHours);
-      
+
       res.json({
         message: 'Temporary files cleaned up successfully',
         deletedCount,

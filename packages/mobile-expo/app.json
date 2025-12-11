@@ -12,6 +12,7 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "platforms": ["ios", "android", "web"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.vangarments.mobile"

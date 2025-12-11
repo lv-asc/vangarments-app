@@ -77,7 +77,12 @@ interface CatalogItem {
 
 class BrandApi {
   private getAuthHeaders() {
-    const token = localStorage.getItem('token');
+    // Only access localStorage in client-side environment
+    if (typeof window === 'undefined') {
+      return { 'Content-Type': 'application/json' };
+    }
+
+    const token = localStorage.getItem('auth_token');
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` })

@@ -88,7 +88,7 @@ export const VISIBILITY_LEVELS = {
 } as const;
 
 export const BADGE_TYPES = {
-  BETA_PIONEER: 'beta_pioneer',
+
   BRAND_OWNER: 'brand_owner',
   VERIFIED_INFLUENCER: 'verified_influencer',
   TOP_SELLER: 'top_seller',

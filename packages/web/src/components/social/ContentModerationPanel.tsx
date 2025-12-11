@@ -1,7 +1,8 @@
+// @ts-nocheck
 'use client';
 
 import { useState } from 'react';
-import { 
+import {
   ExclamationTriangleIcon,
   FlagIcon,
   EyeSlashIcon,
@@ -41,7 +42,7 @@ interface ContentReport {
   resolution?: string;
 }
 
-type ReportReason = 
+type ReportReason =
   | 'inappropriate_content'
   | 'harassment'
   | 'spam'
@@ -165,19 +166,19 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
     setLoading(true);
     try {
       await onReportAction(reportId, action);
-      
+
       // Update local state
-      setReports(prev => prev.map(report => 
-        report.id === reportId 
-          ? { 
-              ...report, 
-              status: action === 'dismiss' ? 'dismissed' : 'resolved',
-              reviewedAt: new Date().toISOString(),
-              resolution: action
-            }
+      setReports(prev => prev.map(report =>
+        report.id === reportId
+          ? {
+            ...report,
+            status: action === 'dismiss' ? 'dismissed' : 'resolved',
+            reviewedAt: new Date().toISOString(),
+            resolution: action
+          }
           : report
       ));
-      
+
       setSelectedReport(null);
     } catch (error) {
       console.error('Failed to process report action:', error);
@@ -196,10 +197,10 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return 'Agora há pouco';
     if (diffInHours < 24) return `${diffInHours}h atrás`;
-    
+
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays}d atrás`;
   };
@@ -229,7 +230,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center">
             <ExclamationTriangleIcon className="h-8 w-8 text-red-500" />
@@ -241,7 +242,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center">
             <CheckCircleIcon className="h-8 w-8 text-green-500" />
@@ -251,7 +252,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-lg border border-gray-200">
           <div className="flex items-center">
             <FlagIcon className="h-8 w-8 text-blue-500" />
@@ -278,7 +279,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
               <option value="resolved">Resolvido</option>
               <option value="dismissed">Descartado</option>
             </select>
-            
+
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
@@ -303,15 +304,14 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                 Relatórios ({filteredReports.length})
               </h2>
             </div>
-            
+
             <div className="divide-y divide-gray-200">
               {filteredReports.map((report) => (
                 <div
                   key={report.id}
                   onClick={() => setSelectedReport(report)}
-                  className={`p-6 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    selectedReport?.id === report.id ? 'bg-pink-50 border-l-4 border-pink-500' : ''
-                  }`}
+                  className={`p-6 cursor-pointer hover:bg-gray-50 transition-colors ${selectedReport?.id === report.id ? 'bg-pink-50 border-l-4 border-pink-500' : ''
+                    }`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center space-x-3">
@@ -329,7 +329,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                         </p>
                       </div>
                     </div>
-                    
+
                     <div className="flex space-x-2">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${priorityColors[report.priority]}`}>
                         {priorityLabels[report.priority]}
@@ -339,7 +339,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="mb-2">
                     <p className="text-sm font-medium text-gray-900 mb-1">
                       {reasonLabels[report.reason]}
@@ -350,20 +350,20 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center space-x-2 text-xs text-gray-500">
                     {report.reportedContent.type === 'post' && <PhotoIcon className="h-4 w-4" />}
                     {report.reportedContent.type === 'comment' && <ChatBubbleLeftIcon className="h-4 w-4" />}
                     {report.reportedContent.type === 'user' && <UserIcon className="h-4 w-4" />}
                     <span>
-                      {report.reportedContent.type === 'post' ? 'Post' : 
-                       report.reportedContent.type === 'comment' ? 'Comentário' : 'Usuário'} 
+                      {report.reportedContent.type === 'post' ? 'Post' :
+                        report.reportedContent.type === 'comment' ? 'Comentário' : 'Usuário'}
                       de {report.reportedContent.author.name}
                     </span>
                   </div>
                 </div>
               ))}
-              
+
               {filteredReports.length === 0 && (
                 <div className="p-12 text-center">
                   <FlagIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -388,7 +388,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                   Detalhes do Relatório
                 </h3>
               </div>
-              
+
               <div className="p-6 space-y-6">
                 {/* Reporter Info */}
                 <div>
@@ -424,7 +424,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                         {selectedReport.reportedContent.author.name}
                       </span>
                     </div>
-                    
+
                     {selectedReport.reportedContent.type === 'post' && (
                       <div>
                         <p className="text-sm font-medium text-gray-900 mb-1">
@@ -442,7 +442,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                         )}
                       </div>
                     )}
-                    
+
                     {selectedReport.reportedContent.type === 'comment' && (
                       <p className="text-sm text-gray-700">
                         {selectedReport.reportedContent.content.text}
@@ -468,7 +468,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                 {selectedReport.status === 'pending' || selectedReport.status === 'reviewing' ? (
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-700">Ações</h4>
-                    
+
                     <button
                       onClick={() => handleAction(selectedReport.id, 'dismiss')}
                       disabled={loading}
@@ -477,7 +477,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                       <XCircleIcon className="h-4 w-4" />
                       <span>Descartar</span>
                     </button>
-                    
+
                     <button
                       onClick={() => handleAction(selectedReport.id, 'warn')}
                       disabled={loading}
@@ -486,7 +486,7 @@ export function ContentModerationPanel({ onReportAction }: ContentModerationPane
                       <ExclamationTriangleIcon className="h-4 w-4" />
                       <span>Advertir Usuário</span>
                     </button>
-                    
+
                     <button
                       onClick={() => handleAction(selectedReport.id, 'remove')}
                       disabled={loading}

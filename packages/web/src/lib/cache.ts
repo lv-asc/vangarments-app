@@ -19,7 +19,9 @@ class MemoryCache {
     // Remove oldest items if cache is full
     if (this.cache.size >= this.maxSize) {
       const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
     }
 
     this.cache.set(key, {
@@ -31,7 +33,7 @@ class MemoryCache {
 
   get<T>(key: string): T | null {
     const item = this.cache.get(key);
-    
+
     if (!item) {
       return null;
     }
@@ -60,11 +62,11 @@ class MemoryCache {
   // Clean up expired items
   cleanup(): void {
     const now = Date.now();
-    for (const [key, item] of this.cache.entries()) {
+    this.cache.forEach((item, key) => {
       if (now - item.timestamp > item.ttl) {
         this.cache.delete(key);
       }
-    }
+    });
   }
 }
 
@@ -133,7 +135,7 @@ export class LocalStorageCache {
 
   clear(): void {
     if (typeof window === 'undefined') return;
-    
+
     const keys = Object.keys(localStorage);
     keys.forEach(key => {
       if (key.startsWith(this.prefix)) {
@@ -154,7 +156,7 @@ export class LocalStorageCache {
   // Get cache size
   getSize(): number {
     if (typeof window === 'undefined') return 0;
-    
+
     let size = 0;
     const keys = Object.keys(localStorage);
     keys.forEach(key => {
@@ -168,10 +170,10 @@ export class LocalStorageCache {
   // Cleanup expired items
   cleanup(): void {
     if (typeof window === 'undefined') return;
-    
+
     const keys = Object.keys(localStorage);
     const now = Date.now();
-    
+
     keys.forEach(key => {
       if (key.startsWith(this.prefix)) {
         try {
@@ -179,7 +181,7 @@ export class LocalStorageCache {
           if (compressed) {
             const decompressed = this.decompress(compressed);
             const item: CacheItem<any> = JSON.parse(decompressed);
-            
+
             if (now - item.timestamp > item.ttl) {
               localStorage.removeItem(key);
             }
@@ -211,10 +213,10 @@ export class IndexedDBCache {
   private async openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
-      
+
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
-      
+
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains(this.storeName)) {
@@ -229,20 +231,20 @@ export class IndexedDBCache {
       const db = await this.openDB();
       const transaction = db.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
-      
+
       const item = {
         key,
         data,
         timestamp: Date.now(),
         ttl,
       };
-      
+
       await new Promise<void>((resolve, reject) => {
         const request = store.put(item);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
       });
-      
+
       db.close();
     } catch (error) {
       console.warn('Failed to cache item in IndexedDB:', error);
@@ -254,23 +256,23 @@ export class IndexedDBCache {
       const db = await this.openDB();
       const transaction = db.transaction([this.storeName], 'readonly');
       const store = transaction.objectStore(this.storeName);
-      
+
       const item = await new Promise<any>((resolve, reject) => {
         const request = store.get(key);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      
+
       db.close();
-      
+
       if (!item) return null;
-      
+
       // Check if item has expired
       if (Date.now() - item.timestamp > item.ttl) {
         await this.delete(key);
         return null;
       }
-      
+
       return item.data;
     } catch (error) {
       console.warn('Failed to retrieve cached item from IndexedDB:', error);
@@ -283,13 +285,13 @@ export class IndexedDBCache {
       const db = await this.openDB();
       const transaction = db.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
-      
+
       await new Promise<void>((resolve, reject) => {
         const request = store.delete(key);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
       });
-      
+
       db.close();
     } catch (error) {
       console.warn('Failed to delete cached item from IndexedDB:', error);
@@ -301,13 +303,13 @@ export class IndexedDBCache {
       const db = await this.openDB();
       const transaction = db.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
-      
+
       await new Promise<void>((resolve, reject) => {
         const request = store.clear();
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
       });
-      
+
       db.close();
     } catch (error) {
       console.warn('Failed to clear IndexedDB cache:', error);
@@ -333,10 +335,10 @@ export class MultiLevelCache {
 
     // Store in memory cache for fastest access
     memoryCache.set(key, data, memoryTTL);
-    
+
     // Store in localStorage for medium-term persistence
     localStorageCache.set(key, data, localStorageTTL);
-    
+
     // Store in IndexedDB for long-term persistence
     await indexedDBCache.set(key, data, indexedDBTTL);
   }
@@ -386,22 +388,22 @@ export const cache = new MultiLevelCache();
 
 // Cache key generators
 export const cacheKeys = {
-  wardrobeItems: (userId: string, filters?: any) => 
+  wardrobeItems: (userId: string, filters?: any) =>
     `wardrobe_${userId}_${JSON.stringify(filters || {})}`,
-  
-  outfits: (userId: string, filters?: any) => 
+
+  outfits: (userId: string, filters?: any) =>
     `outfits_${userId}_${JSON.stringify(filters || {})}`,
-  
-  socialFeed: (userId: string, page: number) => 
+
+  socialFeed: (userId: string, page: number) =>
     `social_feed_${userId}_${page}`,
-  
-  marketplaceItems: (filters?: any, page?: number) => 
+
+  marketplaceItems: (filters?: any, page?: number) =>
     `marketplace_${JSON.stringify(filters || {})}_${page || 0}`,
-  
-  userProfile: (userId: string) => 
+
+  userProfile: (userId: string) =>
     `user_profile_${userId}`,
-  
-  brandCatalog: (brandId: string) => 
+
+  brandCatalog: (brandId: string) =>
     `brand_catalog_${brandId}`,
 };
 
@@ -414,20 +416,20 @@ export const invalidateCache = {
       `outfits_${userId}`,
       `social_feed_${userId}`,
     ];
-    
+
     patterns.forEach(pattern => {
       // This is a simplified approach - in production you'd want more sophisticated pattern matching
       cache.delete(pattern);
     });
   },
-  
+
   socialFeed: (userId: string) => {
     // Invalidate social feed cache
     for (let page = 0; page < 10; page++) { // Assume max 10 pages cached
       cache.delete(cacheKeys.socialFeed(userId, page));
     }
   },
-  
+
   all: () => {
     cache.clear();
   },

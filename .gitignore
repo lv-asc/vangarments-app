@@ -93,7 +93,7 @@ jspm_packages/
 
 # Local development
 uploads/
-storage/
+packages/backend/storage/
 
 # Embedded repositories
 vangarments-mobile/

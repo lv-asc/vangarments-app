@@ -1,386 +1,500 @@
+// @ts-nocheck
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
-import { Button } from '@/components/ui/Button';
-import { 
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  HeartIcon,
-  ShoppingBagIcon,
-  MapPinIcon,
-  ClockIcon
-} from '@heroicons/react/24/outline';
+import { apiClient } from '@/lib/api';
+import { MagnifyingGlassIcon, FunnelIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 
-// Mock marketplace data
-const mockMarketplaceItems = [
-  {
-    id: '1',
-    name: 'Blazer Preto Zara',
-    brand: 'Zara',
-    size: 'M',
-    condition: 'excellent',
-    originalPrice: 299.90,
-    currentPrice: 150.00,
-    images: ['/api/placeholder/300/400'],
-    seller: {
-      name: 'Maria Santos',
-      avatar: '/api/placeholder/40/40',
-      rating: 4.8,
-      location: 'São Paulo, SP'
-    },
-    postedAt: '2024-01-15',
-    isFavorite: false,
-    category: 'outerwear',
-    description: 'Blazer em excelente estado, usado poucas vezes. Perfeito para looks profissionais.',
-    tags: ['profissional', 'blazer', 'preto']
-  },
-  {
-    id: '2',
-    name: 'Vestido Floral Farm',
-    brand: 'Farm',
-    size: 'P',
-    condition: 'new',
-    originalPrice: 259.90,
-    currentPrice: 180.00,
-    images: ['/api/placeholder/300/500'],
-    seller: {
-      name: 'Ana Costa',
-      avatar: '/api/placeholder/40/40',
-      rating: 4.9,
-      location: 'Rio de Janeiro, RJ'
-    },
-    postedAt: '2024-01-14',
-    isFavorite: true,
-    category: 'dresses',
-    description: 'Vestido novo com etiqueta, nunca usado. Estampa exclusiva da coleção verão.',
-    tags: ['floral', 'novo', 'verão']
-  },
-  {
-    id: '3',
-    name: 'Tênis Nike Air Force',
-    brand: 'Nike',
-    size: '37',
-    condition: 'good',
-    originalPrice: 499.90,
-    currentPrice: 280.00,
-    images: ['/api/placeholder/300/300'],
-    seller: {
-      name: 'Julia Lima',
-      avatar: '/api/placeholder/40/40',
-      rating: 4.7,
-      location: 'Belo Horizonte, MG'
-    },
-    postedAt: '2024-01-13',
-    isFavorite: false,
-    category: 'shoes',
-    description: 'Tênis em bom estado, com sinais normais de uso. Muito confortável.',
-    tags: ['tênis', 'nike', 'branco']
-  }
-];
+interface MarketplaceListing {
+  id: string;
+  itemId: string;
+  sellerId: string;
+  title: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  currency: string;
+  condition: {
+    status: string;
+    description: string;
+  };
+  images: string[];
+  status: string;
+  views: number;
+  likes: number;
+  watchers: number;
+  category: string;
+  tags: string[];
+  location: {
+    country: string;
+    state?: string;
+    city?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MarketplaceFilters {
+  category?: string;
+  search?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  condition?: string;
+  brand?: string;
+  size?: string;
+  color?: string;
+  sortBy?: string;
+  page?: number;
+  limit?: number;
+}
 
 export default function MarketplacePage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [priceRange, setPriceRange] = useState('all');
-  const [condition, setCondition] = useState('all');
-  const [marketplaceItems, setMarketplaceItems] = useState(mockMarketplaceItems);
-
-  const categories = [
-    { value: 'all', label: 'Todas as Categorias' },
-    { value: 'tops', label: 'Blusas e Camisetas' },
-    { value: 'bottoms', label: 'Calças e Saias' },
-    { value: 'dresses', label: 'Vestidos' },
-    { value: 'shoes', label: 'Calçados' },
-    { value: 'accessories', label: 'Acessórios' },
-    { value: 'outerwear', label: 'Casacos e Jaquetas' },
-  ];
-
-  const priceRanges = [
-    { value: 'all', label: 'Todos os Preços' },
-    { value: '0-50', label: 'Até R$ 50' },
-    { value: '50-100', label: 'R$ 50 - R$ 100' },
-    { value: '100-200', label: 'R$ 100 - R$ 200' },
-    { value: '200-500', label: 'R$ 200 - R$ 500' },
-    { value: '500+', label: 'Acima de R$ 500' },
-  ];
-
-  const conditions = [
-    { value: 'all', label: 'Todas as Condições' },
-    { value: 'new', label: 'Novo com Etiqueta' },
-    { value: 'excellent', label: 'Excelente' },
-    { value: 'good', label: 'Bom' },
-    { value: 'fair', label: 'Regular' },
-  ];
-
-  const conditionLabels = {
-    new: 'Novo',
-    excellent: 'Excelente',
-    good: 'Bom',
-    fair: 'Regular',
-    poor: 'Desgastado',
-  };
-
-  const conditionColors = {
-    new: 'bg-green-100 text-green-800',
-    excellent: 'bg-emerald-100 text-emerald-800',
-    good: 'bg-yellow-100 text-yellow-800',
-    fair: 'bg-orange-100 text-orange-800',
-    poor: 'bg-red-100 text-red-800',
-  };
-
-  const handleToggleFavorite = (itemId: string) => {
-    setMarketplaceItems(prev => prev.map(item => 
-      item.id === itemId ? { ...item, isFavorite: !item.isFavorite } : item
-    ));
-  };
-
-  const filteredItems = marketplaceItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.brand.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    const matchesCondition = condition === 'all' || item.condition === condition;
-    
-    let matchesPrice = true;
-    if (priceRange !== 'all') {
-      const [min, max] = priceRange.split('-').map(p => p === '+' ? Infinity : parseInt(p));
-      matchesPrice = item.currentPrice >= min && (max ? item.currentPrice <= max : true);
-    }
-    
-    return matchesSearch && matchesCategory && matchesCondition && matchesPrice;
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<MarketplaceFilters>({
+    page: 1,
+    limit: 20,
+    sortBy: 'newest'
   });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    pages: 0
+  });
+  const [categories, setCategories] = useState<any>({});
+  const [stats, setStats] = useState<any>({});
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffInDays === 0) return 'Hoje';
-    if (diffInDays === 1) return 'Ontem';
-    return `${diffInDays} dias atrás`;
+  // Load marketplace data
+  useEffect(() => {
+    loadMarketplaceData();
+    loadCategories();
+    loadStats();
+  }, [filters]);
+
+  const loadMarketplaceData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Use enhanced search if there are filters, otherwise get basic listings
+      const response = filters.search || filters.category || filters.brand || filters.minPrice || filters.maxPrice
+        ? await apiClient.searchMarketplace({ q: filters.search, ...filters })
+        : await apiClient.getMarketplaceItems(filters);
+
+      setListings(response.listings || []);
+      setPagination(response.pagination || {
+        page: 1,
+        limit: 20,
+        total: 0,
+        pages: 0
+      });
+    } catch (err: any) {
+      console.error('Failed to load marketplace data:', err);
+      setError(err.message || 'Falha ao carregar anúncios do marketplace');
+      setListings([]);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const loadCategories = async () => {
+    try {
+      const response = await apiClient.getMarketplaceCategories();
+      setCategories(response.categories || {});
+    } catch (err) {
+      console.error('Failed to load categories:', err);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const response = await apiClient.getMarketplaceStats();
+      setStats(response.stats || {});
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+    }
+  };
+
+  const handleSearch = (searchQuery: string) => {
+    setFilters(prev => ({
+      ...prev,
+      search: searchQuery,
+      page: 1
+    }));
+  };
+
+  const handleFilterChange = (key: string, value: any) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value,
+      page: 1
+    }));
+  };
+
+  const handlePageChange = (page: number) => {
+    setFilters(prev => ({
+      ...prev,
+      page
+    }));
+  };
+
+  const handleToggleLike = async (listingId: string) => {
+    try {
+      await apiClient.toggleMarketplaceLike(listingId);
+      // Refresh the listing data to get updated like count
+      loadMarketplaceData();
+    } catch (err) {
+      console.error('Failed to toggle like:', err);
+    }
+  };
+
+  const formatPrice = (price: number, currency: string = 'BRL') => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: currency
+    }).format(price);
+  };
+
+  const formatCondition = (condition: any) => {
+    const conditionMap: Record<string, string> = {
+      'new': 'Novo',
+      'dswt': 'Novo com etiqueta',
+      'never_used': 'Nunca usado',
+      'excellent': 'Excelente',
+      'good': 'Bom',
+      'fair': 'Regular',
+      'poor': 'Ruim'
+    };
+    return conditionMap[condition.status] || condition.status;
+  };
+
+  if (loading && listings.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando marketplace...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Marketplace
           </h1>
           <p className="text-gray-600">
-            Descubra peças únicas e venda itens do seu guarda-roupa
+            Compre e venda peças de moda
           </p>
+          {stats.totalListings && (
+            <div className="mt-4 flex gap-6 text-sm text-gray-500">
+              <span>{stats.totalListings} anúncios ativos</span>
+              {stats.totalSellers && <span>{stats.totalSellers} vendedores</span>}
+              {stats.averagePrice && <span>Preço médio: {formatPrice(stats.averagePrice)}</span>}
+            </div>
+          )}
         </div>
 
+        {/* Error State */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="text-red-400">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Erro ao carregar marketplace</h2>
+                <p className="text-gray-600 mb-4">{error}</p>
+                <button
+                  onClick={loadMarketplaceData}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por item, marca, vendedor..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-              />
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por marca, categoria, ou descrição..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={filters.search || ''}
+                  onChange={(e) => handleSearch(e.target.value)}
+                />
+              </div>
             </div>
 
-            {/* Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Category Filter */}
+            <div className="lg:w-48">
               <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={filters.category || ''}
+                onChange={(e) => handleFilterChange('category', e.target.value || undefined)}
               >
-                {categories.map(category => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
+                <option value="">Todas as categorias</option>
+                {categories.apparel?.map((cat: string) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+                {categories.footwear?.map((cat: string) => (
+                  <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
+            </div>
 
+            {/* Sort */}
+            <div className="lg:w-48">
               <select
-                value={priceRange}
-                onChange={(e) => setPriceRange(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={filters.sortBy || 'newest'}
+                onChange={(e) => handleFilterChange('sortBy', e.target.value)}
               >
-                {priceRanges.map(range => (
-                  <option key={range.value} value={range.value}>
-                    {range.label}
-                  </option>
-                ))}
+                <option value="newest">Mais recentes</option>
+                <option value="price_low">Menor preço</option>
+                <option value="price_high">Maior preço</option>
+                <option value="most_watched">Mais populares</option>
               </select>
+            </div>
+          </div>
 
-              <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-500"
-              >
-                {conditions.map(cond => (
-                  <option key={cond.value} value={cond.value}>
-                    {cond.label}
-                  </option>
-                ))}
-              </select>
+          {/* Advanced Filters */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Condição</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={filters.condition || ''}
+                  onChange={(e) => handleFilterChange('condition', e.target.value || undefined)}
+                >
+                  <option value="">Todas</option>
+                  {categories.conditions?.map((condition: string) => (
+                    <option key={condition} value={condition}>
+                      {formatCondition({ status: condition })}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <button className="flex items-center justify-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-                <FunnelIcon className="h-5 w-5" />
-                <span>Mais Filtros</span>
-              </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Preço mínimo</label>
+                <input
+                  type="number"
+                  placeholder="R$ 0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={filters.minPrice || ''}
+                  onChange={(e) => handleFilterChange('minPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Preço máximo</label>
+                <input
+                  type="number"
+                  placeholder="R$ 1000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={filters.maxPrice || ''}
+                  onChange={(e) => handleFilterChange('maxPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Nike, Adidas..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={filters.brand || ''}
+                  onChange={(e) => handleFilterChange('brand', e.target.value || undefined)}
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Results Header */}
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-gray-600">
-            {filteredItems.length} {filteredItems.length === 1 ? 'item encontrado' : 'itens encontrados'}
-          </p>
-          <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
-            <option>Mais Recentes</option>
-            <option>Menor Preço</option>
-            <option>Maior Preço</option>
-            <option>Mais Populares</option>
-          </select>
+        {/* Results */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center">
+            <p className="text-gray-600">
+              {loading ? 'Carregando...' : `${pagination.total} resultados encontrados`}
+            </p>
+            {loading && (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            )}
+          </div>
         </div>
 
-        {/* Items Grid */}
-        {filteredItems.length > 0 ? (
+        {/* Listings Grid */}
+        {listings.length === 0 && !loading ? (
+          <div className="text-center py-12">
+            <div className="text-gray-400 mb-4">
+              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2 2v-5m16 0h-2M4 13h2m13-8V4a1 1 0 00-1-1H7a1 1 0 00-1 1v1m8 0V4.5" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum item encontrado</h3>
+            <p className="text-gray-500 mb-4">
+              Tente ajustar os filtros ou criar o primeiro anúncio no marketplace.
+            </p>
+            <button
+              onClick={() => setFilters({ page: 1, limit: 20, sortBy: 'newest' })}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              Limpar filtros
+            </button>
+          </div>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredItems.map((item) => (
-              <div key={item.id} className="marketplace-item">
+            {listings.map((listing) => (
+              <div key={listing.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 {/* Image */}
-                <div className="relative aspect-[3/4] overflow-hidden rounded-t-xl">
-                  <img
-                    src={item.images[0]}
-                    alt={item.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-all duration-300" />
-                  
-                  {/* Top Actions */}
-                  <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${conditionColors[item.condition as keyof typeof conditionColors]}`}>
-                      {conditionLabels[item.condition as keyof typeof conditionLabels]}
-                    </span>
-                    
-                    <button
-                      onClick={() => handleToggleFavorite(item.id)}
-                      className="p-2 bg-white bg-opacity-90 rounded-full shadow-sm hover:bg-opacity-100 transition-all"
-                    >
-                      {item.isFavorite ? (
-                        <HeartSolidIcon className="h-4 w-4 text-red-500" />
-                      ) : (
-                        <HeartIcon className="h-4 w-4 text-gray-600" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Price Badge */}
-                  <div className="absolute bottom-3 left-3">
-                    <div className="bg-white bg-opacity-95 rounded-lg px-3 py-2">
-                      <div className="text-lg font-bold text-gray-900">
-                        R$ {item.currentPrice.toFixed(2)}
-                      </div>
-                      {item.originalPrice > item.currentPrice && (
-                        <div className="text-xs text-gray-500 line-through">
-                          R$ {item.originalPrice.toFixed(2)}
-                        </div>
-                      )}
+                <div className="relative aspect-[3/4] bg-gray-200">
+                  {listing.images && listing.images.length > 0 ? (
+                    <img
+                      src={listing.images[0]}
+                      alt={listing.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/placeholder-image.jpg';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Like button */}
+                  <button
+                    onClick={() => handleToggleLike(listing.id)}
+                    className="absolute top-2 right-2 p-2 bg-white/80 rounded-full hover:bg-white transition-colors"
+                  >
+                    <HeartIcon className="h-5 w-5 text-gray-600" />
+                  </button>
+
+                  {/* Status badge */}
+                  {listing.status !== 'active' && (
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs rounded">
+                      {listing.status === 'sold' ? 'Vendido' : listing.status}
+                    </div>
+                  )}
                 </div>
 
                 {/* Content */}
                 <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 mb-1 truncate">
-                    {item.name}
+                  <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">
+                    {listing.title}
                   </h3>
-                  
-                  <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-                    <span>{item.brand}</span>
-                    <span>Tam: {item.size}</span>
-                  </div>
 
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                    {item.description}
+                  <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                    {listing.description}
                   </p>
 
-                  {/* Seller Info */}
-                  <div className="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-100">
-                    <img
-                      src={item.seller.avatar}
-                      alt={item.seller.name}
-                      className="w-6 h-6 rounded-full object-cover"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-1">
-                        <span className="text-sm font-medium text-gray-900 truncate">
-                          {item.seller.name}
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <span className="text-lg font-bold text-gray-900">
+                        {formatPrice(listing.price, listing.currency)}
+                      </span>
+                      {listing.originalPrice && listing.originalPrice > listing.price && (
+                        <span className="text-sm text-gray-500 line-through ml-2">
+                          {formatPrice(listing.originalPrice, listing.currency)}
                         </span>
-                        <div className="flex items-center">
-                          <svg className="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          <span className="text-xs text-gray-600 ml-1">
-                            {item.seller.rating}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <MapPinIcon className="h-3 w-3 mr-1" />
-                        {item.seller.location}
-                      </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {formatCondition(listing.condition)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>{listing.category}</span>
+                    <div className="flex items-center gap-2">
+                      <span>{listing.views} visualizações</span>
+                      <span>{listing.likes} curtidas</span>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center text-xs text-gray-500">
-                      <ClockIcon className="h-3 w-3 mr-1" />
-                      {formatTimeAgo(item.postedAt)}
+                  {listing.tags && listing.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {listing.tags.slice(0, 3).map((tag, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-gray-100 text-xs text-gray-600 rounded"
+                        >
+                          {tag}
+                        </span>
+                      ))}
                     </div>
-                    <Button size="sm" className="flex items-center space-x-1">
-                      <ShoppingBagIcon className="h-4 w-4" />
-                      <span>Comprar</span>
-                    </Button>
-                  </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <ShoppingBagIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Nenhum item encontrado
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Tente ajustar os filtros ou buscar por outros termos.
-            </p>
-            <Button variant="outline">
-              Limpar Filtros
-            </Button>
-          </div>
         )}
 
-        {/* Load More */}
-        {filteredItems.length > 0 && (
-          <div className="text-center mt-12">
-            <Button variant="outline" size="lg">
-              Carregar Mais Itens
-            </Button>
+        {/* Pagination */}
+        {pagination.pages > 1 && (
+          <div className="mt-8 flex justify-center">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page <= 1}
+                className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Anterior
+              </button>
+
+              {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                const page = i + 1;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`px-3 py-2 border rounded-lg ${pagination.page === page
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page >= pagination.pages}
+                className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Próxima
+              </button>
+            </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

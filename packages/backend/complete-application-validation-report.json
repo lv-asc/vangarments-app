@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-10-18T17:24:46.059Z",
+  "timestamp": "2025-12-09T00:29:55.644Z",
   "testConfiguration": {
     "totalUsers": 3,
     "apiBaseUrl": "http://localhost:3001",
@@ -10,17 +10,17 @@
       {
         "user": "Maria Silva",
         "registration": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m400\u001b[39m"
       },
       {
         "user": "João Santos",
         "registration": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m400\u001b[39m"
       },
       {
         "user": "Ana Costa",
         "registration": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m400\u001b[39m"
       }
     ],
     "wardrobeBuilding": [
@@ -28,26 +28,26 @@
         "user": "Maria Silva",
         "item": "Blusa Floral Zara",
         "creation": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m403\u001b[39m"
       },
       {
         "user": "João Santos",
         "item": "Camisa Social Hugo Boss",
         "creation": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m403\u001b[39m"
       },
       {
         "user": "Ana Costa",
         "item": "Vestido Midi Farm",
         "creation": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m403\u001b[39m"
       }
     ],
     "marketplaceInteractions": [
       {
         "test": "search_functionality",
-        "status": "failed",
-        "error": ""
+        "status": "success",
+        "details": "All search types working correctly"
       }
     ],
     "dataPersistence": [
@@ -59,26 +59,26 @@
       {
         "test": "cross_session_availability",
         "status": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m401\u001b[39m"
       }
     ],
     "adminFunctionality": [
       {
         "test": "admin_authentication",
         "status": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mundefined\u001b[39m"
       },
       {
         "test": "configuration_persistence",
         "status": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m404\u001b[39m"
       }
     ],
     "crossPlatformValidation": [
       {
         "test": "api_endpoints",
         "status": "failed",
-        "error": ""
+        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: < \u001b[32m400\u001b[39m\nReceived:   \u001b[31m403\u001b[39m"
       }
     ],
     "overallSuccess": false
@@ -86,7 +86,7 @@
   "summary": {
     "userRegistrationSuccess": 0,
     "wardrobeBuildingSuccess": 0,
-    "marketplaceInteractionSuccess": 0,
+    "marketplaceInteractionSuccess": 1,
     "dataPersistenceSuccess": 0,
     "adminFunctionalitySuccess": 0,
     "crossPlatformValidationSuccess": 0,

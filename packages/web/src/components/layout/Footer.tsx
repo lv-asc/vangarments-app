@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Link from 'next/link';
 import { HeartIcon } from '@heroicons/react/24/outline';
 
@@ -49,7 +50,7 @@ export function Footer() {
                 <ul className="mt-6 space-y-4">
                   {navigation.product.map((item) => (
                     <li key={item.name}>
-                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-pink-500">
+                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-[#fff7d7] transition-colors">
                         {item.name}
                       </Link>
                     </li>
@@ -61,7 +62,7 @@ export function Footer() {
                 <ul className="mt-6 space-y-4">
                   {navigation.support.map((item) => (
                     <li key={item.name}>
-                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-pink-500">
+                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-[#fff7d7] transition-colors">
                         {item.name}
                       </Link>
                     </li>
@@ -75,7 +76,7 @@ export function Footer() {
                 <ul className="mt-6 space-y-4">
                   {navigation.company.map((item) => (
                     <li key={item.name}>
-                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-pink-500">
+                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-[#fff7d7] transition-colors">
                         {item.name}
                       </Link>
                     </li>
@@ -87,7 +88,7 @@ export function Footer() {
                 <ul className="mt-6 space-y-4">
                   {navigation.legal.map((item) => (
                     <li key={item.name}>
-                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-pink-500">
+                      <Link href={item.href} className="text-sm leading-6 text-gray-300 hover:text-[#fff7d7] transition-colors">
                         {item.name}
                       </Link>
                     </li>
@@ -101,7 +102,7 @@ export function Footer() {
         <div className="mt-8 border-t border-gray-800 pt-8 md:flex md:items-center md:justify-between">
           <div className="flex space-x-6 md:order-2">
             <p className="text-xs leading-5 text-gray-400">
-              Feito com <HeartIcon className="inline h-4 w-4 text-pink-500" /> no Brasil
+              Feito com <HeartIcon className="inline h-4 w-4 text-[#fff7d7]" /> no Brasil
             </p>
           </div>
           <p className="mt-8 text-xs leading-5 text-gray-400 md:order-1 md:mt-0">

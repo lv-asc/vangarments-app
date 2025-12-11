@@ -9,6 +9,9 @@ const router = Router();
 router.get('/images/:category/:userId/:filename', StorageController.serveImage);
 router.get('/images/:category/:filename', StorageController.serveImage);
 
+// Upload generic image
+router.post('/upload', authenticateToken, StorageController.uploadMiddleware, StorageController.uploadImage);
+
 // Admin-only storage management routes
 router.get('/stats', authenticateToken, requireAdmin, StorageController.getStorageStats);
 router.post('/cleanup', authenticateToken, requireAdmin, StorageController.cleanupTempFiles);

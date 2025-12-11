@@ -9,11 +9,14 @@ export interface UserProfile {
     birthDate: Date;
     location: Location;
     gender: Gender;
+    avatarUrl?: string;
+    bio?: string;
   };
   measurements: UserMeasurements;
   preferences: FashionPreferences;
   badges: Badge[];
   socialLinks: SocialLink[];
+  roles: UserRole[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,7 +90,18 @@ export interface AIProcessingResult {
 
 // Additional type definitions
 export type Gender = 'male' | 'female' | 'non-binary' | 'prefer-not-to-say';
-export type UserRole = 'consumer' | 'influencer' | 'brand_owner' | 'store_owner' | 'model' | 'stylist' | 'designer';
+export type UserRole =
+  | 'common_user'
+  | 'influencer'
+  | 'model'
+  | 'journalist'
+  | 'brand_owner'
+  | 'supplier'
+  | 'stylist'
+  | 'independent_reseller'
+  | 'store_owner'
+  | 'fashion_designer'
+  | 'sewer';
 
 export interface Location {
   country: string;

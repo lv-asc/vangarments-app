@@ -94,18 +94,18 @@ class ApiClient {
     // Request interceptor for adding auth headers
     this.addRequestInterceptor((config) => {
       const headers = new Headers(config.headers);
-      
+
       if (this.token) {
         headers.set('Authorization', `Bearer ${this.token}`);
       }
-      
+
       // Add default headers
       if (!headers.has('Content-Type') && config.body && typeof config.body === 'string') {
         headers.set('Content-Type', 'application/json');
       }
-      
+
       headers.set('X-Requested-With', 'XMLHttpRequest');
-      
+
       return {
         ...config,
         headers,
@@ -116,11 +116,11 @@ class ApiClient {
     this.addResponseInterceptor({
       onRejected: async (error) => {
         const originalRequest = error.config;
-        
+
         // Don't try to refresh token for login/register requests or if no token exists
-        const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') || 
-                              originalRequest?.url?.includes('/auth/register');
-        
+        const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
+          originalRequest?.url?.includes('/auth/register');
+
         if (error.status === 401 && !originalRequest?._retry && this.token && !isAuthEndpoint) {
           if (this.isRefreshing) {
             // If already refreshing, queue this request
@@ -170,7 +170,7 @@ class ApiClient {
         resolve(token!);
       }
     });
-    
+
     this.failedQueue = [];
   }
 
@@ -188,7 +188,7 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     const startTime = performance.now();
-    
+
     // Apply request interceptors
     let config = { ...options };
     for (const interceptor of this.requestInterceptors) {
@@ -198,7 +198,7 @@ class ApiClient {
     try {
       let response = await fetch(url, config);
       const duration = performance.now() - startTime;
-      
+
       // Record performance metric
       performanceMonitor.measureApiRequest(
         endpoint,
@@ -231,10 +231,10 @@ class ApiClient {
           errorData.details,
           response.status
         );
-        
+
         // Store original request config for retry logic
         (apiError as any).config = { ...config, url };
-        
+
         // Apply response error interceptors
         for (const interceptor of this.responseInterceptors) {
           if (interceptor.onRejected) {
@@ -245,14 +245,14 @@ class ApiClient {
             }
           }
         }
-        
+
         throw apiError;
       }
 
       return data;
     } catch (error) {
       const duration = performance.now() - startTime;
-      
+
       // Record failed request performance
       performanceMonitor.measureApiRequest(
         endpoint,
@@ -260,11 +260,11 @@ class ApiClient {
         duration,
         0 // Network error
       );
-      
+
       if (error instanceof ApiErrorClass) {
         throw error;
       }
-      
+
       // Handle network errors
       const networkError = new ApiErrorClass(
         error instanceof Error ? error.message : 'Network error occurred',
@@ -272,7 +272,7 @@ class ApiClient {
         undefined,
         0
       );
-      
+
       // Apply response error interceptors for network errors
       for (const interceptor of this.responseInterceptors) {
         if (interceptor.onRejected) {
@@ -283,7 +283,7 @@ class ApiClient {
           }
         }
       }
-      
+
       throw networkError;
     }
   }
@@ -319,7 +319,7 @@ class ApiClient {
   }> {
     // Format CPF for backend validation
     const formattedCPF = this.formatCPF(userData.cpf);
-    
+
     const requestData = {
       ...userData,
       cpf: formattedCPF,
@@ -371,12 +371,12 @@ class ApiClient {
   private formatCPF(cpf: string): string {
     // Remove all non-numeric characters
     const cleanCPF = cpf.replace(/\D/g, '');
-    
+
     // Add formatting if not already formatted
     if (cleanCPF.length === 11) {
       return cleanCPF.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
-    
+
     return cpf; // Return as-is if already formatted or invalid length
   }
 
@@ -384,17 +384,17 @@ class ApiClient {
   public static validateCPF(cpf: string): boolean {
     // Remove non-numeric characters
     const cleanCPF = cpf.replace(/\D/g, '');
-    
+
     // Check if it has 11 digits
     if (cleanCPF.length !== 11) return false;
-    
+
     // Check if all digits are the same
     if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
-    
+
     // Validate CPF algorithm
     let sum = 0;
     let remainder;
-    
+
     // Validate first digit
     for (let i = 1; i <= 9; i++) {
       sum += parseInt(cleanCPF.substring(i - 1, i)) * (11 - i);
@@ -402,7 +402,7 @@ class ApiClient {
     remainder = (sum * 10) % 11;
     if (remainder === 10 || remainder === 11) remainder = 0;
     if (remainder !== parseInt(cleanCPF.substring(9, 10))) return false;
-    
+
     // Validate second digit
     sum = 0;
     for (let i = 1; i <= 10; i++) {
@@ -411,22 +411,30 @@ class ApiClient {
     remainder = (sum * 10) % 11;
     if (remainder === 10 || remainder === 11) remainder = 0;
     if (remainder !== parseInt(cleanCPF.substring(10, 11))) return false;
-    
+
     return true;
   }
 
   // User Profile Methods
+  async getUserProfile(userId: string): Promise<{ profile: any }> {
+    const response = await this.request<any>(`/users/${userId}/profile`);
+    return response as any;
+  }
+
   async updateProfile(profileData: {
     name?: string;
     location?: any;
     measurements?: any;
     preferences?: any;
+    bio?: string;
+    socialLinks?: any[];
+    roles?: string[];
   }): Promise<any> {
-    const response = await this.request<any>('/auth/profile', {
+    const response = await this.request<any>('/users/profile', {
       method: 'PUT',
       body: JSON.stringify(profileData),
     });
-    return response.user;
+    return response.data || response.user;
   }
 
   async uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
@@ -438,16 +446,21 @@ class ApiClient {
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
     }
-    
-    const response = await fetch(`${this.baseURL}/users/avatar`, {
+
+    const url = `${this.baseURL}/users/avatar`;
+    console.log('[API] uploadAvatar calling:', url);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers,
       body: formData,
     });
 
+    console.log('[API] uploadAvatar response status:', response.status);
     const data = await response.json();
 
     if (!response.ok) {
+      console.error('[API] uploadAvatar failed data:', data);
       const errorData = data.error || data;
       throw new ApiErrorClass(
         errorData.message || 'Avatar upload failed',
@@ -483,7 +496,65 @@ class ApiClient {
 
     const endpoint = `/wardrobe/items${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await this.request<any>(endpoint);
+    return response as any; // Cast to any to bypass ApiResponse type definition mismatch
+  }
+
+  async getWardrobeItem(itemId: string): Promise<{ item: any }> {
+    const response = await this.request<any>(`/wardrobe/items/${itemId}`);
     return response.data;
+  }
+
+
+  async analyzeImage(file: File): Promise<{ analysis: any }> {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/wardrobe/analyze`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new ApiErrorClass(data.message || 'Analysis failed');
+    }
+
+    return data;
+  }
+
+  async createWardrobeItemMultipart(formData: FormData): Promise<any> {
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/wardrobe/items`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Parse error details if available
+      const errorData = data.error || data;
+      throw new ApiErrorClass(
+        errorData.message || 'Failed to create item',
+        errorData.code || 'CREATE_ERROR',
+        errorData.details,
+        response.status
+      );
+    }
+
+    return data.data || data.item;
   }
 
   async createWardrobeItem(itemData: any): Promise<any> {
@@ -516,7 +587,7 @@ class ApiClient {
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
     }
-    
+
     const response = await fetch(`${this.baseURL}/wardrobe/items/${itemId}/images`, {
       method: 'POST',
       headers,
@@ -564,9 +635,152 @@ class ApiClient {
       });
     }
 
-    const endpoint = `/marketplace/listings${params.toString() ? `?${params.toString()}` : ''}`;
+    const endpoint = `/marketplace/items?${params.toString()}`;
     const response = await this.request<any>(endpoint);
-    return response;
+    return response as any;
+  }
+
+  async addVUFSCategory(data: { name: string; level: string; parentId?: string }) {
+    return this.request('/vufs-management/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteVUFSCategory(id: string) {
+    return this.request(`/vufs-management/categories/${id}`, { method: 'DELETE' });
+  }
+
+  async updateVUFSCategory(id: string, name: string) {
+    return this.request(`/vufs-management/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+  }
+
+  async getVUFSCategories() {
+    const response = await this.request<any>('/vufs-management/categories');
+    return (response as any).categories || response.data || response;
+  }
+
+  // --- BRANDS ---
+  async getVUFSBrands() {
+    const response = await this.request<any>('/vufs-management/brands');
+    return (response as any).brands || response.data || response;
+  }
+  async addVUFSBrand(name: string, type: string = 'brand', parentId?: string) {
+    return this.request('/vufs-management/brands', { method: 'POST', body: JSON.stringify({ name, type, parentId }) });
+  }
+  async deleteVUFSBrand(id: string) { return this.request(`/vufs-management/brands/${id}`, { method: 'DELETE' }); }
+  async updateVUFSBrand(id: string, name: string) { return this.request(`/vufs-management/brands/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+
+  // --- COLORS ---
+  async getVUFSColors() {
+    const response = await this.request<any>('/vufs-management/colors');
+    return (response as any).colors || response.data || response;
+  }
+  async addVUFSColor(name: string, hex: string = '#000000') {
+    return this.request('/vufs-management/colors', { method: 'POST', body: JSON.stringify({ name, hex }) });
+  }
+  async deleteVUFSColor(id: string) { return this.request(`/vufs-management/colors/${id}`, { method: 'DELETE' }); }
+  async updateVUFSColor(id: string, name: string) { return this.request(`/vufs-management/colors/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+
+  // --- MATERIALS ---
+  async getVUFSMaterials() {
+    const response = await this.request<any>('/vufs-management/materials');
+    return (response as any).materials || response.data || response;
+  }
+  async addVUFSMaterial(name: string, category: string = 'natural') {
+    return this.request('/vufs-management/materials', { method: 'POST', body: JSON.stringify({ name, category }) });
+  }
+  async deleteVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'DELETE' }); }
+  async updateVUFSMaterial(id: string, name: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+
+  // --- PATTERNS ---
+  async getVUFSPatterns() {
+    const response = await this.request<any>('/vufs-management/patterns');
+    return (response as any).patterns || response.data || response;
+  }
+  async addVUFSPattern(name: string) {
+    return this.request('/vufs-management/patterns', { method: 'POST', body: JSON.stringify({ name }) });
+  }
+  async deleteVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'DELETE' }); }
+  async updateVUFSPattern(id: string, name: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+
+  // --- FITS ---
+  async getVUFSFits() {
+    const response = await this.request<any>('/vufs-management/fits');
+    return (response as any).fits || response.data || response;
+  }
+  async addVUFSFit(name: string) {
+    return this.request('/vufs-management/fits', { method: 'POST', body: JSON.stringify({ name }) });
+  }
+  async deleteVUFSFit(id: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'DELETE' }); }
+  async updateVUFSFit(id: string, name: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+
+  // --- SIZES ---
+  async getVUFSSizes() {
+    const response = await this.request<any>('/vufs-management/sizes');
+    return (response as any).sizes || response.data || response;
+  }
+  async addVUFSSize(name: string) {
+    return this.request('/vufs-management/sizes', { method: 'POST', body: JSON.stringify({ name }) });
+  }
+  async deleteVUFSSize(id: string) { return this.request(`/vufs-management/sizes/${id}`, { method: 'DELETE' }); }
+  async updateVUFSSize(id: string, name: string) { return this.request(`/vufs-management/sizes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+
+  async bulkAddVUFSItems(type: string, items: string[]) {
+    return this.request('/vufs-management/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ type, items })
+    });
+  }
+
+  // --- DYNAMIC ATTRIBUTES ---
+  async getVUFSAttributeTypes() {
+    const response = await this.request<any>('/vufs-management/attributes');
+    return (response as any).types || response.data || response;
+  }
+  async addVUFSAttributeType(name: string) {
+    return this.request('/vufs-management/attributes', { method: 'POST', body: JSON.stringify({ name }) });
+  }
+  async updateVUFSAttributeType(slug: string, name: string) {
+    return this.request(`/vufs-management/attributes/${slug}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+  }
+  async deleteVUFSAttributeType(slug: string) { return this.request(`/vufs-management/attributes/${slug}`, { method: 'DELETE' }); }
+
+  async getVUFSAttributeValues(typeSlug: string) {
+    const response = await this.request<any>(`/vufs-management/attributes/${typeSlug}/values`);
+    return (response as any).values || response.data || response;
+  }
+  async addVUFSAttributeValue(typeSlug: string, name: string) {
+    return this.request(`/vufs-management/attributes/${typeSlug}/values`, { method: 'POST', body: JSON.stringify({ name }) });
+  }
+  async updateVUFSAttributeValue(id: string, name: string) {
+    return this.request(`/vufs-management/attributes/values/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+  }
+  async deleteVUFSAttributeValue(id: string) { return this.request(`/vufs-management/attributes/values/${id}`, { method: 'DELETE' }); }
+
+  // --- MATRIX VIEW ---
+  async getAllCategoryAttributes() {
+    const response = await this.request<any>('/vufs-management/matrix');
+    return (response as any).attributes || response.data || response;
+  }
+
+  async setCategoryAttribute(categoryId: string | number, attributeSlug: string, value: string) {
+    return this.request('/vufs-management/matrix', {
+      method: 'POST',
+      body: JSON.stringify({ categoryId, attributeSlug, value })
+    });
+  }
+
+  async getAllBrandAttributes() {
+    const response = await this.request<any>('/vufs-management/matrix/brands');
+    return (response as any).attributes || response.data || response;
+  }
+
+  async setBrandAttribute(brandId: string, attributeSlug: string, value: string) {
+    return this.request('/vufs-management/matrix/brands', {
+      method: 'POST',
+      body: JSON.stringify({ brandId, attributeSlug, value })
+    });
   }
 
   async createMarketplaceListing(listingData: any): Promise<any> {
@@ -576,7 +790,6 @@ class ApiClient {
     });
     return response;
   }
-
   async getMarketplaceListing(id: string): Promise<any> {
     const response = await this.request<any>(`/marketplace/listings/${id}`);
     return response;
@@ -622,7 +835,7 @@ class ApiClient {
 
   async searchMarketplace(filters: any): Promise<any> {
     const params = new URLSearchParams();
-    
+
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         if (Array.isArray(value)) {
@@ -664,13 +877,18 @@ class ApiClient {
   }
 
   // Social Methods
-  async getSocialFeed(page = 1, limit = 20): Promise<{
+  async getSocialFeed(params?: { feedType?: string; page?: number; limit?: number }): Promise<{
     posts: any[];
     total: number;
     page: number;
     totalPages: number;
   }> {
-    const response = await this.request<any>(`/social/feed?page=${page}&limit=${limit}`);
+    const searchParams = new URLSearchParams();
+    if (params?.feedType) searchParams.set('feedType', params.feedType);
+    if (params?.page) searchParams.set('page', params.page.toString());
+    if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+    const response = await this.request<any>(`/social/feed?${searchParams.toString()}`);
     return response.data;
   }
 
@@ -680,6 +898,12 @@ class ApiClient {
       body: JSON.stringify(postData),
     });
     return response.data;
+  }
+
+  async togglePostLike(postId: string, like: boolean): Promise<void> {
+    await this.request(`/social/posts/${postId}/like`, {
+      method: like ? 'POST' : 'DELETE',
+    });
   }
 
   async likePost(postId: string): Promise<void> {
@@ -755,11 +979,11 @@ export const handleApiError = (error: unknown): string => {
   if (error instanceof ApiErrorClass) {
     return error.message;
   }
-  
+
   if (error instanceof Error) {
     return error.message;
   }
-  
+
   return 'An unexpected error occurred';
 };
 
@@ -769,7 +993,7 @@ export const isNetworkError = (error: unknown): boolean => {
 
 export const isAuthError = (error: unknown): boolean => {
   return error instanceof ApiErrorClass && (
-    error.status === 401 || 
+    error.status === 401 ||
     error.code === 'UNAUTHORIZED' ||
     error.code === 'INVALID_CREDENTIALS' ||
     error.code === 'TOKEN_EXPIRED'

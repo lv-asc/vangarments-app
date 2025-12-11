@@ -107,18 +107,7 @@ export function SystemSettingsEditor({ type, data, onUpdate }: SystemSettingsEdi
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="showBetaFeatures"
-            checked={formData.showBetaFeatures || false}
-            onChange={(e) => handleChange('showBetaFeatures', e.target.checked)}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          />
-          <label htmlFor="showBetaFeatures" className="ml-2 block text-sm text-gray-900">
-            Show Beta Features
-          </label>
-        </div>
+
 
         <div className="flex items-center">
           <input
@@ -246,7 +235,7 @@ export function SystemSettingsEditor({ type, data, onUpdate }: SystemSettingsEdi
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <h4 className="text-lg font-medium text-gray-900">Core Features</h4>
-          
+
           <div className="flex items-center">
             <input
               type="checkbox"
@@ -302,19 +291,8 @@ export function SystemSettingsEditor({ type, data, onUpdate }: SystemSettingsEdi
 
         <div className="space-y-4">
           <h4 className="text-lg font-medium text-gray-900">Advanced Features</h4>
-          
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="enableBetaProgram"
-              checked={formData.enableBetaProgram || false}
-              onChange={(e) => handleChange('enableBetaProgram', e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="enableBetaProgram" className="ml-2 block text-sm text-gray-900">
-              Enable Beta Program
-            </label>
-          </div>
+
+
 
           <div className="flex items-center">
             <input
@@ -362,7 +340,7 @@ export function SystemSettingsEditor({ type, data, onUpdate }: SystemSettingsEdi
   return (
     <div>
       {renderContent()}
-      
+
       {hasChanges && (
         <div className="mt-8 flex justify-end gap-3 pt-6 border-t border-gray-200">
           <button

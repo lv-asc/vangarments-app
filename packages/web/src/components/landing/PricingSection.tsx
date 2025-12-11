@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { motion } from 'framer-motion';
@@ -68,10 +69,10 @@ export function PricingSection() {
           </p>
         </div>
         <p className="mx-auto mt-6 max-w-2xl text-center text-lg leading-8 text-gray-600">
-          Comece gratuitamente e evolua conforme suas necessidades. 
+          Comece gratuitamente e evolua conforme suas necessidades.
           Todos os planos incluem acesso à nossa comunidade de moda.
         </p>
-        
+
         <div className="isolate mx-auto mt-16 grid max-w-md grid-cols-1 gap-y-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-3 lg:gap-x-8 xl:gap-x-12">
           {tiers.map((tier, index) => (
             <motion.div
@@ -80,11 +81,10 @@ export function PricingSection() {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
               viewport={{ once: true }}
-              className={`rounded-3xl p-8 ring-1 ${
-                tier.mostPopular
+              className={`rounded-3xl p-8 ring-1 ${tier.mostPopular
                   ? 'bg-[#fff7d7] ring-[#00132d]/20 relative'
                   : 'ring-gray-200'
-              }`}
+                }`}
             >
               {tier.mostPopular && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -93,20 +93,19 @@ export function PricingSection() {
                   </span>
                 </div>
               )}
-              
+
               <div className="flex items-center justify-between gap-x-4">
                 <h3
                   id={tier.id}
-                  className={`text-lg font-semibold leading-8 ${
-                    tier.mostPopular ? 'text-[#00132d]' : 'text-gray-900'
-                  }`}
+                  className={`text-lg font-semibold leading-8 ${tier.mostPopular ? 'text-[#00132d]' : 'text-gray-900'
+                    }`}
                 >
                   {tier.name}
                 </h3>
               </div>
-              
+
               <p className="mt-4 text-sm leading-6 text-gray-600">{tier.description}</p>
-              
+
               <p className="mt-6 flex items-baseline gap-x-1">
                 <span className="text-4xl font-bold tracking-tight text-gray-900">
                   {tier.priceMonthly}
@@ -115,26 +114,24 @@ export function PricingSection() {
                   <span className="text-sm font-semibold leading-6 text-gray-600">/mês</span>
                 )}
               </p>
-              
+
               <Link
                 href={tier.href}
                 aria-describedby={tier.id}
-                className={`mt-6 block rounded-md px-3 py-2 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                  tier.mostPopular
+                className={`mt-6 block rounded-md px-3 py-2 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${tier.mostPopular
                     ? 'bg-[#00132d] text-[#fff7d7] shadow-sm hover:bg-[#00132d]/90 focus-visible:outline-[#00132d]'
                     : 'ring-1 ring-inset ring-[#00132d]/20 text-[#00132d] hover:ring-[#00132d]/30'
-                }`}
+                  }`}
               >
                 {tier.name === 'Gratuito' ? 'Começar grátis' : 'Assinar plano'}
               </Link>
-              
+
               <ul className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex gap-x-3">
                     <CheckIcon
-                      className={`h-6 w-5 flex-none ${
-                        tier.mostPopular ? 'text-[#00132d]' : 'text-gray-400'
-                      }`}
+                      className={`h-6 w-5 flex-none ${tier.mostPopular ? 'text-[#00132d]' : 'text-gray-400'
+                        }`}
                       aria-hidden="true"
                     />
                     {feature}

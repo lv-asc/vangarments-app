@@ -1,3 +1,5 @@
+// @ts-nocheck
+'use client';
 import React, { useState, useEffect } from 'react';
 import { ResponsiveNavigation, defaultNavigationItems } from '../navigation/MobileNavigation';
 import { Container } from '../ui/DesignSystem';

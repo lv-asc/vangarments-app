@@ -36,11 +36,11 @@ async function main() {
       case 'all':
         await seeder.seedAll(force);
         break;
-      
-      case 'sample':
-        await seeder.createSampleData();
+
+      case 'structural':
+        await seeder.seedStructuralData();
         break;
-      
+
       case 'file':
         const filename = process.argv[3];
         if (!filename) {
@@ -49,14 +49,14 @@ async function main() {
         }
         await seeder.seedFile(filename);
         break;
-      
+
       default:
         console.log(`
 Usage: npm run seed <command> [options]
 
 Commands:
   all [--force]    Run all seed files (skip already seeded unless --force)
-  sample          Create sample data for development
+  structural      Create structural data (categories, etc.)
   file <name>     Run specific seed file
 
 Examples:
@@ -67,8 +67,8 @@ Examples:
         `);
         break;
     }
-  } catch (error) {
-    console.error('❌ Seeding failed:', error.message);
+  } catch (error: any) {
+    console.error('❌ Seeding failed:', error?.message);
     process.exit(1);
   } finally {
     await pool.end();

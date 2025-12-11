@@ -50,7 +50,7 @@ function showUpdateNotification() {
       tag: 'app-update',
     });
   }
-  
+
   // Also show in-app notification
   const event = new CustomEvent('sw-update-available');
   window.dispatchEvent(event);
@@ -84,14 +84,14 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
 
   try {
     const registration = await navigator.serviceWorker.ready;
-    
+
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
     });
 
     console.log('Push subscription:', subscription);
-    
+
     // Send subscription to server
     await fetch('/api/v1/push/subscribe', {
       method: 'POST',
@@ -111,7 +111,7 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
 // Check if app is running in standalone mode (installed as PWA)
 export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
-  
+
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
     (window.navigator as any).standalone === true ||
@@ -132,12 +132,12 @@ export function getInstallationStatus() {
 
 // Background sync for offline actions
 export function registerBackgroundSync(tag: string, data?: any) {
-  if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
+  if ('serviceWorker' in navigator && 'sync' in (window.ServiceWorkerRegistration.prototype as any)) {
     navigator.serviceWorker.ready.then((registration) => {
-      return registration.sync.register(tag);
+      return (registration as any).sync.register(tag);
     }).catch((error) => {
       console.error('Background sync registration failed:', error);
-      
+
       // Fallback: store data locally and try to sync later
       if (data) {
         const offlineActions = JSON.parse(localStorage.getItem('offline-actions') || '[]');
@@ -151,12 +151,12 @@ export function registerBackgroundSync(tag: string, data?: any) {
 // Retry offline actions when back online
 export function retryOfflineActions() {
   const offlineActions = JSON.parse(localStorage.getItem('offline-actions') || '[]');
-  
+
   if (offlineActions.length > 0) {
     offlineActions.forEach((action: any) => {
       registerBackgroundSync(action.tag, action.data);
     });
-    
+
     // Clear offline actions after attempting to sync
     localStorage.removeItem('offline-actions');
   }
@@ -168,13 +168,13 @@ export function monitorNetworkStatus() {
 
   const updateOnlineStatus = () => {
     const isOnline = navigator.onLine;
-    
+
     // Dispatch custom event
     const event = new CustomEvent('network-status-change', {
       detail: { isOnline }
     });
     window.dispatchEvent(event);
-    
+
     // If back online, retry offline actions
     if (isOnline) {
       retryOfflineActions();
@@ -183,7 +183,7 @@ export function monitorNetworkStatus() {
 
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
-  
+
   // Initial status
   updateOnlineStatus();
 }

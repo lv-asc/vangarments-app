@@ -122,7 +122,7 @@ export class SecurityInitializer {
     try {
       // Test audit logging functionality
       const mockRequest = {
-        user: { id: 'system' },
+        // user: undefined - Allow system (null) user
         ip: '127.0.0.1',
         get: () => 'SecurityInitializer/1.0',
         path: '/system/init',
@@ -204,7 +204,7 @@ export class SecurityInitializer {
   private async checkSecurityTables(): Promise<void> {
     try {
       const { db } = await import('../database/connection');
-      
+
       const requiredTables = [
         'user_consents',
         'data_processing_records',

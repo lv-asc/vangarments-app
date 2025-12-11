@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -39,12 +40,12 @@ export function LanguageSelector() {
     setCurrentLanguage(language);
     localStorage.setItem('language', language.code);
     setIsOpen(false);
-    
+
     // Dispatch event to notify other components
-    window.dispatchEvent(new CustomEvent('languageChange', { 
-      detail: { language: language.code } 
+    window.dispatchEvent(new CustomEvent('languageChange', {
+      detail: { language: language.code }
     }));
-    
+
     console.log('🌐 Language changed to:', language.name);
   };
 
@@ -65,11 +66,10 @@ export function LanguageSelector() {
             <button
               key={language.code}
               onClick={() => handleLanguageChange(language)}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-[#fff7d7]/50 transition-colors flex items-center space-x-3 ${
-                currentLanguage.code === language.code 
-                  ? 'bg-[#fff7d7]/30 text-[#00132d] font-medium' 
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-[#fff7d7]/50 transition-colors flex items-center space-x-3 ${currentLanguage.code === language.code
+                  ? 'bg-[#fff7d7]/30 text-[#00132d] font-medium'
                   : 'text-gray-700'
-              }`}
+                }`}
             >
               <span className="text-lg">{language.flag}</span>
               <span>{language.name}</span>

@@ -16,7 +16,7 @@ import dataDrivenRoutes from './dataDriven';
 import freemiumRoutes from './freemium';
 import upgradeRoutes from './upgrade';
 import lgpdRoutes from './lgpd';
-import betaRoutes from './betaRoutes';
+
 import socialRoutes from './social';
 import securityRoutes from './security';
 import { contentDiscoveryRoutes } from './contentDiscovery';
@@ -46,7 +46,7 @@ router.use('/data-driven', dataDrivenRoutes);
 router.use('/freemium', freemiumRoutes);
 router.use('/upgrade', upgradeRoutes);
 router.use('/lgpd', lgpdRoutes);
-router.use('/beta', betaRoutes);
+
 router.use('/social', socialRoutes);
 router.use('/security', securityRoutes);
 router.use('/content-discovery', contentDiscoveryRoutes);
@@ -58,10 +58,10 @@ router.use('/configuration', configurationRoutes);
 
 // Health check for API
 router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     version: '1.0.0',
-    timestamp: new Date().toISOString() 
+    timestamp: new Date().toISOString()
   });
 });
 

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-10-18T17:26:26.898Z",
+  "timestamp": "2025-12-09T00:29:55.765Z",
   "testType": "Complete Application Validation Demo",
   "testConfiguration": {
     "totalUsers": 3,
@@ -33,21 +33,21 @@
         "item": "Blusa Floral Zara",
         "creation": "success",
         "persistence": "success",
-        "itemId": "item_0_1760808386893"
+        "itemId": "item_0_1765240195762"
       },
       {
         "user": "João Santos",
         "item": "Camisa Social Hugo Boss",
         "creation": "success",
         "persistence": "success",
-        "itemId": "item_1_1760808386893"
+        "itemId": "item_1_1765240195762"
       },
       {
         "user": "Ana Costa",
         "item": "Vestido Midi Farm",
         "creation": "success",
         "persistence": "success",
-        "itemId": "item_2_1760808386894"
+        "itemId": "item_2_1765240195762"
       }
     ],
     "marketplaceInteractions": [
@@ -55,13 +55,13 @@
         "user": "Test User",
         "item": "Blusa Floral Zara - Venda",
         "listing": "success",
-        "listingId": "listing_1760808386895_0.6420851605552831"
+        "listingId": "listing_1765240195762_0.23645181492309564"
       },
       {
         "user": "Test User",
         "item": "Camisa Social Hugo Boss - Venda",
         "listing": "success",
-        "listingId": "listing_1760808386895_0.7820036695950283"
+        "listingId": "listing_1765240195763_0.6341598118475364"
       },
       {
         "test": "search_functionality",

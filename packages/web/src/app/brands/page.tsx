@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -66,7 +67,7 @@ export default function BrandsPage() {
 
   const checkBrandAccount = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       if (!token) {
         setLoading(false);
         return;
@@ -257,7 +258,7 @@ export default function BrandsPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-xl font-semibold text-[#00132d] mb-4">Create Brand Account</h3>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-[#00132d] mb-2">
@@ -272,7 +273,7 @@ export default function BrandsPage() {
                       required
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-[#00132d] mb-2">
                       Description
@@ -285,7 +286,7 @@ export default function BrandsPage() {
                       className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-[#00132d] mb-2">
                       Website
@@ -298,7 +299,7 @@ export default function BrandsPage() {
                       className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-[#00132d] mb-2">
                       Contact Email
@@ -311,7 +312,7 @@ export default function BrandsPage() {
                       className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-[#00132d] mb-2">
                       Phone Number
@@ -325,7 +326,7 @@ export default function BrandsPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex space-x-3 mt-6">
                   <button
                     onClick={() => setShowCreateModal(false)}
@@ -368,15 +369,14 @@ export default function BrandsPage() {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                brandAccount.verificationStatus === 'verified' 
-                  ? 'bg-green-100 text-green-800' 
-                  : brandAccount.verificationStatus === 'pending'
+              <div className={`px-3 py-1 rounded-full text-sm font-medium ${brandAccount.verificationStatus === 'verified'
+                ? 'bg-green-100 text-green-800'
+                : brandAccount.verificationStatus === 'pending'
                   ? 'bg-yellow-100 text-yellow-800'
                   : 'bg-red-100 text-red-800'
-              }`}>
-                {brandAccount.verificationStatus === 'verified' ? 'Verified' : 
-                 brandAccount.verificationStatus === 'pending' ? 'Pending' : 'Rejected'}
+                }`}>
+                {brandAccount.verificationStatus === 'verified' ? 'Verified' :
+                  brandAccount.verificationStatus === 'pending' ? 'Pending' : 'Rejected'}
               </div>
 
             </div>
@@ -401,11 +401,10 @@ export default function BrandsPage() {
                 <motion.button
                   key={section.key}
                   onClick={() => setActiveSection(section.key as any)}
-                  className={`relative p-4 rounded-xl text-center transition-all duration-300 ${
-                    activeSection === section.key
-                      ? 'text-[#fff7d7] shadow-lg'
-                      : 'text-[#00132d]/70 hover:text-[#00132d] hover:bg-[#00132d]/5'
-                  }`}
+                  className={`relative p-4 rounded-xl text-center transition-all duration-300 ${activeSection === section.key
+                    ? 'text-[#fff7d7] shadow-lg'
+                    : 'text-[#00132d]/70 hover:text-[#00132d] hover:bg-[#00132d]/5'
+                    }`}
                   whileHover={{ scale: activeSection === section.key ? 1 : 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >

@@ -17,7 +17,7 @@ export function NavigationTest() {
     try {
       addResult('✅ Testing navigation service...');
       addResult(`Current path: ${currentPath}`);
-      
+
       const success = await navigate('/discover');
       if (success) {
         addResult('✅ Navigation service executed successfully');
@@ -32,7 +32,7 @@ export function NavigationTest() {
   const testWindowLocation = async () => {
     try {
       addResult('✅ Testing window.location fallback...');
-      const success = await navigate('/wardrobe-simple');
+      const success = await navigate('/wardrobe');
       if (success) {
         addResult('✅ Navigation to wardrobe executed successfully');
       } else {
@@ -47,7 +47,7 @@ export function NavigationTest() {
     try {
       addResult('✅ Testing direct navigation...');
       const testUrl = '/test';
-      
+
       const success = await navigate(testUrl);
       if (success) {
         addResult(`✅ Navigation to ${testUrl} executed successfully`);
@@ -59,10 +59,10 @@ export function NavigationTest() {
     }
   };
 
-  const testBackNavigation = () => {
+  const testBackNavigation = async () => {
     try {
       addResult('✅ Testing back navigation...');
-      const success = goBack();
+      const success = await goBack();
       if (success) {
         addResult('✅ Back navigation executed successfully');
       } else {
@@ -96,12 +96,12 @@ export function NavigationTest() {
   return (
     <div className="bg-white p-6 rounded-lg border border-[#00132d]/20 mb-6">
       <h3 className="text-lg font-semibold text-[#00132d] mb-4">Navigation Diagnostic</h3>
-      
+
       <div className="space-y-3 mb-4">
         <div className="mb-2 p-2 bg-blue-50 rounded text-sm">
           <strong>Current Path:</strong> {currentPath}
         </div>
-        
+
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={testNavigation}
@@ -109,42 +109,42 @@ export function NavigationTest() {
           >
             Test Navigation Service
           </button>
-          
+
           <button
             onClick={testWindowLocation}
             className="bg-[#00132d]/80 text-[#fff7d7] px-4 py-2 rounded-lg hover:bg-[#00132d]/70 transition-all duration-200 hover:shadow-md hover:scale-105"
           >
             Test Wardrobe Navigation
           </button>
-          
+
           <button
             onClick={testDirectNavigation}
             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all duration-200 hover:shadow-md hover:scale-105"
           >
             Test Direct Navigation
           </button>
-          
+
           <button
             onClick={testBackNavigation}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 hover:shadow-md hover:scale-105"
           >
             Test Back Navigation
           </button>
-          
+
           <button
             onClick={testRefresh}
             className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-all duration-200 hover:shadow-md hover:scale-105"
           >
             Test Refresh
           </button>
-          
+
           <button
             onClick={testConsole}
             className="bg-[#00132d]/60 text-[#fff7d7] px-4 py-2 rounded-lg hover:bg-[#00132d]/50 transition-all duration-200 hover:shadow-md hover:scale-105"
           >
             Debug Console
           </button>
-          
+
           <button
             onClick={clearResults}
             className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-all duration-200 hover:shadow-md hover:scale-105 col-span-2"

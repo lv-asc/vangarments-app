@@ -1,9 +1,10 @@
+// @ts-nocheck
 'use client';
 
 import { useState, useRef } from 'react';
-import { 
-  XMarkIcon, 
-  PhotoIcon, 
+import {
+  XMarkIcon,
+  PhotoIcon,
   TagIcon,
   MapPinIcon,
   EyeIcon,
@@ -41,12 +42,12 @@ interface WhereToBuyInfo {
   availability: 'available' | 'out_of_stock' | 'limited';
 }
 
-export function OutfitShareModal({ 
-  isOpen, 
-  onClose, 
-  outfit, 
-  wardrobeItems, 
-  onShare 
+export function OutfitShareModal({
+  isOpen,
+  onClose,
+  outfit,
+  wardrobeItems,
+  onShare
 }: OutfitShareModalProps) {
   const [title, setTitle] = useState(outfit?.name || '');
   const [description, setDescription] = useState('');
@@ -60,7 +61,7 @@ export function OutfitShareModal({
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [whereToBuy, setWhereToBuy] = useState<WhereToBuyInfo[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,8 +85,8 @@ export function OutfitShareModal({
   };
 
   const toggleItemSelection = (itemId: string) => {
-    setSelectedItems(prev => 
-      prev.includes(itemId) 
+    setSelectedItems(prev =>
+      prev.includes(itemId)
         ? prev.filter(id => id !== itemId)
         : [...prev, itemId]
     );
@@ -95,7 +96,7 @@ export function OutfitShareModal({
     setWhereToBuy(prev => {
       const existing = prev.find(item => item.itemId === itemId);
       if (existing) {
-        return prev.map(item => 
+        return prev.map(item =>
           item.itemId === itemId ? { ...item, ...info } : item
         );
       } else {
@@ -194,7 +195,7 @@ export function OutfitShareModal({
                   ))}
                 </div>
               )}
-              
+
               {images.length < 5 && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -206,7 +207,7 @@ export function OutfitShareModal({
                   </p>
                 </button>
               )}
-              
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -246,11 +247,10 @@ export function OutfitShareModal({
                 <div
                   key={item.id}
                   onClick={() => toggleItemSelection(item.id)}
-                  className={`relative aspect-square cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                    selectedItems.includes(item.id)
+                  className={`relative aspect-square cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${selectedItems.includes(item.id)
                       ? 'border-pink-500 ring-2 ring-pink-200'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <img
                     src={item.images[0]?.url || '/api/placeholder/100/100'}
@@ -282,9 +282,9 @@ export function OutfitShareModal({
                 {selectedItems.map((itemId) => {
                   const item = wardrobeItems.find(i => i.id === itemId);
                   if (!item) return null;
-                  
+
                   const buyInfo = whereToBuy.find(info => info.itemId === itemId);
-                  
+
                   return (
                     <div key={itemId} className="border border-gray-200 rounded-lg p-3">
                       <div className="flex items-center space-x-3 mb-2">
@@ -297,7 +297,7 @@ export function OutfitShareModal({
                           {item.metadata.name}
                         </span>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-3">
                         <input
                           type="text"

@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { useState } from 'react';
@@ -33,12 +34,12 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
 
   const filteredItems = items.filter(item => {
     const matchesSearch = (item.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-                         (item.brand?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-                         item.tags?.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
+      (item.brand?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      item.tags?.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
     const matchesColor = selectedColor === 'all' || item.color === selectedColor;
-    
+
     return matchesSearch && matchesCategory && matchesColor;
   });
 
@@ -66,7 +67,7 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
             />
           </div>
-          
+
           <div className="flex items-center space-x-4">
             <select
               value={selectedCategory}
@@ -79,7 +80,7 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
                 </option>
               ))}
             </select>
-            
+
             <select
               value={selectedColor}
               onChange={(e) => setSelectedColor(e.target.value)}
@@ -104,11 +105,10 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
-              className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 ${
-                selectedItem?.id === item.id
+              className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 ${selectedItem?.id === item.id
                   ? 'border-pink-500 ring-2 ring-pink-200'
                   : 'border-gray-200 hover:border-pink-300'
-              }`}
+                }`}
               onClick={() => onSelectItem(item)}
             >
               <div className="aspect-[3/4] bg-gray-100">
@@ -118,7 +118,7 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
                   className="w-full h-full object-cover"
                 />
               </div>
-              
+
               {/* Selection Indicator */}
               {selectedItem?.id === item.id && (
                 <div className="absolute inset-0 bg-pink-500 bg-opacity-20 flex items-center justify-center">

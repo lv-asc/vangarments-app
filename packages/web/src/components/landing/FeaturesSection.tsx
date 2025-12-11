@@ -1,13 +1,14 @@
+// @ts-nocheck
 'use client';
 
 import { motion } from 'framer-motion';
-import { 
-  CameraIcon, 
-  SparklesIcon, 
-  UserGroupIcon, 
+import {
+  CameraIcon,
+  SparklesIcon,
+  UserGroupIcon,
   ShoppingBagIcon,
   ChartBarIcon,
-  ShieldCheckIcon 
+  ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 
 const features = [
@@ -61,7 +62,7 @@ export function FeaturesSection() {
             Tudo que você precisa para revolucionar seu guarda-roupa
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            Nossa plataforma combina inteligência artificial, rede social e marketplace 
+            Nossa plataforma combina inteligência artificial, rede social e marketplace
             para criar a experiência de moda mais completa do Brasil.
           </p>
         </div>

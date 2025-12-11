@@ -3,8 +3,220 @@ import { UserModel } from '../models/User';
 import { AuthenticatedRequest } from '../utils/auth';
 import { AddressUtils, BrazilianAddress } from '../utils/address';
 import { MeasurementUtils } from '../utils/measurements';
+import { VUFSItemModel } from '../models/VUFSItem';
+import multer from 'multer';
+import { LocalStorageService } from '../services/localStorageService';
+
+// Configure multer for avatar uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024, // 15MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 export class UserController {
+  static uploadAvatarMiddleware = upload.single('avatar');
+
+  static async uploadAvatar(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          error: {
+            code: 'NO_FILE',
+            message: 'No image file provided'
+          }
+        });
+      }
+
+      const uploadResult = await LocalStorageService.uploadImage(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        'profiles',
+        req.user.userId
+      );
+
+      const avatarUrl = uploadResult.optimizedUrl || uploadResult.url;
+
+      // Update user profile with new avatar URL
+      // Pass avatarUrl as a profile field that will be merged with existing profile data
+      const updateData: any = {
+        profile: {
+          avatarUrl
+        }
+      };
+
+      const updatedUser = await UserModel.update(req.user.userId, updateData);
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        });
+      }
+
+      res.json({
+        message: 'Avatar uploaded successfully',
+        avatarUrl
+      });
+    } catch (error) {
+      console.error('Upload avatar error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while uploading avatar'
+        }
+      });
+    }
+  }
+
+  static async updateBasicProfile(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }
+        });
+      }
+
+      const { name, bio, socialLinks, roles } = req.body;
+      const updateData: any = {};
+
+      if (name) updateData.name = name;
+      if (bio !== undefined) {
+        updateData.profile = {
+          bio,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      if (socialLinks) {
+        updateData.socialLinks = socialLinks;
+      }
+
+      // Update roles if provided
+      if (roles) {
+        await UserModel.setRoles(req.user.userId, roles);
+      }
+
+      await UserModel.update(req.user.userId, updateData);
+
+      // Fetch updated user to return complete profile
+      const updatedUser = await UserModel.findById(req.user.userId);
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        });
+      }
+
+      res.json({
+        message: 'Profile updated successfully',
+        user: {
+          name: updatedUser.personalInfo.name,
+          bio: updatedUser.personalInfo.bio,
+          roles: updatedUser.roles
+        }
+      });
+
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while updating profile'
+        }
+      });
+    }
+  }
+
+  static async getProfile(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const user = await UserModel.findById(id);
+
+      if (!user) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        });
+      }
+
+      // Get stats
+      const stats = await VUFSItemModel.getStatsByOwner(id);
+
+      // Calculate followers/following (mock for now as Social model isn't imported yet)
+      const socialStats = {
+        followers: 0,
+        following: 0,
+        outfitsCreated: 0
+      };
+
+      const profile = {
+        id: user.id,
+        name: user.personalInfo.name,
+        username: user.email.split('@')[0], // Mock username from email
+        email: user.email,
+        cpf: user.cpf,
+        birthDate: user.personalInfo.birthDate,
+        bio: user.personalInfo.bio || '',
+        profileImage: user.personalInfo.avatarUrl,
+        bannerImage: null,
+        socialLinks: user.socialLinks || [],
+        roles: user.roles || [],
+        createdAt: user.createdAt,
+        stats: {
+          wardrobeItems: stats.totalItems || 0,
+          ...socialStats
+        },
+        preferences: {
+          style: user.preferences?.styleProfile || [],
+          brands: user.preferences?.preferredBrands || [],
+          colors: user.preferences?.favoriteColors || [],
+          priceRange: user.preferences?.priceRange || { min: 0, max: 1000 }
+        }
+      };
+
+      res.json({
+        message: 'Profile retrieved successfully',
+        profile
+      });
+    } catch (error) {
+      console.error('Get profile error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching profile'
+        }
+      });
+    }
+  }
+
   static async updateMeasurements(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
@@ -107,16 +319,16 @@ export class UserController {
 
       // Format and clean CEP
       const cleanCEP = addressData.cep ? AddressUtils.cleanCEP(addressData.cep) : '';
-      
+
       const location = {
         country: 'Brazil',
-        state: addressData.state?.toUpperCase(),
-        city: addressData.city,
-        neighborhood: addressData.neighborhood,
+        state: addressData.state?.toUpperCase() || '',
+        city: addressData.city || '',
+        neighborhood: addressData.neighborhood || '',
         cep: cleanCEP,
-        street: addressData.street,
-        number: addressData.number,
-        complement: addressData.complement,
+        street: addressData.street || '',
+        number: addressData.number || '',
+        complement: addressData.complement || '',
       };
 
       const updatedUser = await UserModel.update(req.user.userId, {
@@ -230,8 +442,8 @@ export class UserController {
       }
 
       const validStandards = ['BR', 'US', 'EU', 'UK'];
-      if (!validStandards.includes(fromStandard as string) || 
-          !validStandards.includes(toStandard as string)) {
+      if (!validStandards.includes(fromStandard as string) ||
+        !validStandards.includes(toStandard as string)) {
         return res.status(400).json({
           error: {
             code: 'INVALID_STANDARD',

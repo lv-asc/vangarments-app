@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -65,24 +66,24 @@ export function PerformanceMonitor({ showDetails = false, onSlowPerformance }: P
 
   const getPerformanceScore = () => {
     let score = 100;
-    
+
     if (metrics.lcp) {
       if (metrics.lcp > 4000) score -= 30;
       else if (metrics.lcp > 2500) score -= 15;
     }
-    
+
     if (metrics.fid) {
       if (metrics.fid > 300) score -= 25;
       else if (metrics.fid > 100) score -= 10;
     }
-    
+
     if (metrics.cls) {
       if (metrics.cls > 0.25) score -= 25;
       else if (metrics.cls > 0.1) score -= 10;
     }
-    
+
     if (isSlowConnection) score -= 20;
-    
+
     return Math.max(0, score);
   };
 

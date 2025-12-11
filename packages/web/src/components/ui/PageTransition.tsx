@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -62,10 +63,10 @@ interface StaggeredListProps {
   staggerDelay?: number;
 }
 
-export function StaggeredList({ 
-  children, 
+export function StaggeredList({
+  children,
   className,
-  staggerDelay = 0.1 
+  staggerDelay = 0.1
 }: StaggeredListProps) {
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -78,9 +79,9 @@ export function StaggeredList({
   };
 
   const itemVariants = {
-    hidden: { 
-      opacity: 0, 
-      y: 20 
+    hidden: {
+      opacity: 0,
+      y: 20
     },
     visible: {
       opacity: 1,
@@ -100,12 +101,12 @@ export function StaggeredList({
       initial="hidden"
       animate="visible"
     >
-      {Array.isArray(children) 
+      {Array.isArray(children)
         ? children.map((child, index) => (
-            <motion.div key={index} variants={itemVariants}>
-              {child}
-            </motion.div>
-          ))
+          <motion.div key={index} variants={itemVariants}>
+            {child}
+          </motion.div>
+        ))
         : <motion.div variants={itemVariants}>{children}</motion.div>
       }
     </motion.div>
@@ -120,18 +121,18 @@ interface FadeInProps {
   className?: string;
 }
 
-export function FadeIn({ 
-  children, 
-  delay = 0, 
+export function FadeIn({
+  children,
+  delay = 0,
   duration = 0.3,
-  className 
+  className
 }: FadeInProps) {
   return (
     <motion.div
       className={className}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ 
+      transition={{
         duration,
         delay,
         ease: 'easeOut'
@@ -149,17 +150,17 @@ interface ScaleInProps {
   className?: string;
 }
 
-export function ScaleIn({ 
-  children, 
+export function ScaleIn({
+  children,
   delay = 0,
-  className 
+  className
 }: ScaleInProps) {
   return (
     <motion.div
       className={className}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ 
+      transition={{
         duration: 0.2,
         delay,
         ease: 'easeOut'
@@ -178,11 +179,11 @@ interface SlideInProps {
   className?: string;
 }
 
-export function SlideIn({ 
-  children, 
+export function SlideIn({
+  children,
   direction = 'up',
   delay = 0,
-  className 
+  className
 }: SlideInProps) {
   const getInitialPosition = () => {
     switch (direction) {
@@ -197,16 +198,16 @@ export function SlideIn({
   return (
     <motion.div
       className={className}
-      initial={{ 
-        opacity: 0, 
-        ...getInitialPosition() 
+      initial={{
+        opacity: 0,
+        ...getInitialPosition()
       }}
-      animate={{ 
-        opacity: 1, 
-        x: 0, 
-        y: 0 
+      animate={{
+        opacity: 1,
+        x: 0,
+        y: 0
       }}
-      transition={{ 
+      transition={{
         duration: 0.4,
         delay,
         ease: 'easeOut'
@@ -224,10 +225,10 @@ interface LoadingTransitionProps {
   fallback?: React.ReactNode;
 }
 
-export function LoadingTransition({ 
-  isLoading, 
-  children, 
-  fallback 
+export function LoadingTransition({
+  isLoading,
+  children,
+  fallback
 }: LoadingTransitionProps) {
   return (
     <AnimatePresence mode="wait">

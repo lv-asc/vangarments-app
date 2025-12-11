@@ -1,6 +1,25 @@
 import { db } from '../database/connection';
-import { VUFSItem, CategoryHierarchy, BrandHierarchy, ItemMetadata, ItemCondition, OwnershipInfo } from '@vangarments/shared/types/vufs';
+import { CategoryHierarchy, BrandHierarchy, ItemMetadata, ItemCondition, OwnershipInfo } from '@vangarments/shared/types/vufs';
 import { VUFSUtils } from '../utils/vufs';
+
+// Local interface matching the actual DB structure and Frontend expectations
+export interface BackendVUFSItem {
+  id: string;
+  vufsCode: string;
+  ownerId: string;
+  category: CategoryHierarchy;
+  brand: BrandHierarchy;
+  metadata: ItemMetadata;
+  images: Array<{
+    url: string;
+    type: string;
+    isPrimary: boolean;
+  }>;
+  condition: ItemCondition;
+  ownership: OwnershipInfo;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface CreateVUFSItemData {
   ownerId: string;
@@ -29,7 +48,7 @@ export interface VUFSItemFilters {
 }
 
 export class VUFSItemModel {
-  static async create(itemData: CreateVUFSItemData): Promise<VUFSItem> {
+  static async create(itemData: CreateVUFSItemData): Promise<BackendVUFSItem> {
     const { ownerId, category, brand, metadata, condition, ownership } = itemData;
 
     // Normalize hierarchies
@@ -71,7 +90,7 @@ export class VUFSItemModel {
     return this.mapToVUFSItem(result.rows[0]);
   }
 
-  static async findById(id: string): Promise<VUFSItem | null> {
+  static async findById(id: string): Promise<BackendVUFSItem | null> {
     const query = 'SELECT * FROM vufs_items WHERE id = $1';
     const result = await db.query(query, [id]);
 
@@ -82,7 +101,7 @@ export class VUFSItemModel {
     return this.mapToVUFSItem(result.rows[0]);
   }
 
-  static async findByVUFSCode(vufsCode: string): Promise<VUFSItem | null> {
+  static async findByVUFSCode(vufsCode: string): Promise<BackendVUFSItem | null> {
     const query = 'SELECT * FROM vufs_items WHERE vufs_code = $1';
     const result = await db.query(query, [vufsCode]);
 
@@ -93,7 +112,7 @@ export class VUFSItemModel {
     return this.mapToVUFSItem(result.rows[0]);
   }
 
-  static async findByOwner(ownerId: string, filters?: VUFSItemFilters): Promise<VUFSItem[]> {
+  static async findByOwner(ownerId: string, filters?: VUFSItemFilters): Promise<BackendVUFSItem[]> {
     let query = 'SELECT * FROM vufs_items WHERE owner_id = $1';
     const values: any[] = [ownerId];
     let paramCount = 2;
@@ -138,10 +157,38 @@ export class VUFSItemModel {
     query += ' ORDER BY created_at DESC';
 
     const result = await db.query(query, values);
-    return result.rows.map(row => this.mapToVUFSItem(row));
+    const items = result.rows.map(row => this.mapToVUFSItem(row));
+
+    if (items.length > 0) {
+      const itemIds = items.map(item => item.id);
+      const imagesQuery = `
+        SELECT * FROM item_images 
+        WHERE item_id = ANY($1) AND processing_status = 'completed'
+        ORDER BY is_primary DESC, created_at DESC
+      `;
+      const imagesResult = await db.query(imagesQuery, [itemIds]);
+
+      const imagesByItemIdx = new Map<string, any[]>();
+      imagesResult.rows.forEach(row => {
+        if (!imagesByItemIdx.has(row.item_id)) {
+          imagesByItemIdx.set(row.item_id, []);
+        }
+        imagesByItemIdx.get(row.item_id)?.push({
+          url: row.image_url,
+          type: row.image_type,
+          isPrimary: row.is_primary
+        });
+      });
+
+      items.forEach(item => {
+        item.images = imagesByItemIdx.get(item.id) || [];
+      });
+    }
+
+    return items;
   }
 
-  static async update(id: string, updateData: UpdateVUFSItemData): Promise<VUFSItem | null> {
+  static async update(id: string, updateData: UpdateVUFSItemData): Promise<BackendVUFSItem | null> {
     const updates: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -221,7 +268,7 @@ export class VUFSItemModel {
     return (result.rowCount || 0) > 0;
   }
 
-  static async search(searchTerm: string, filters?: VUFSItemFilters): Promise<VUFSItem[]> {
+  static async search(searchTerm: string, filters?: VUFSItemFilters): Promise<BackendVUFSItem[]> {
     let query = `
       SELECT * FROM vufs_items 
       WHERE (
@@ -305,7 +352,7 @@ export class VUFSItemModel {
     return stats;
   }
 
-  private static mapToVUFSItem(row: any): VUFSItem {
+  private static mapToVUFSItem(row: any): BackendVUFSItem {
     const categoryHierarchy = typeof row.category_hierarchy === 'string'
       ? JSON.parse(row.category_hierarchy)
       : row.category_hierarchy;
@@ -333,7 +380,7 @@ export class VUFSItemModel {
       category: categoryHierarchy,
       brand: brandHierarchy,
       metadata: metadata,
-      images: [], // Will be populated when image system is implemented
+      images: [], // Will be populated by findByOwner/byId if queried
       condition: condition,
       ownership: ownership,
       createdAt: new Date(row.created_at),

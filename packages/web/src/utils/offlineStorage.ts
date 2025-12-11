@@ -82,7 +82,7 @@ class OfflineStorageManager {
 
     const transaction = this.db.transaction(['wardrobeItems'], 'readwrite');
     const store = transaction.objectStore('wardrobeItems');
-    
+
     const itemToSave = {
       ...item,
       lastModified: new Date().toISOString(),
@@ -112,23 +112,23 @@ class OfflineStorageManager {
     return new Promise((resolve, reject) => {
       const request = store.getAll();
       request.onsuccess = () => {
-        let items = request.result.filter((item: WardrobeItem) => !item.isDeleted);
+        let items = (request.result as WardrobeItem[]).filter(item => !item.isDeleted);
 
         // Apply filters
         if (filters) {
           if (filters.category && filters.category !== 'all') {
             items = items.filter(item => item.category === filters.category);
           }
-          
+
           if (filters.searchQuery) {
             const query = filters.searchQuery.toLowerCase();
-            items = items.filter(item => 
+            items = items.filter(item =>
               item.name.toLowerCase().includes(query) ||
               item.brand?.toLowerCase().includes(query) ||
               item.tags.some(tag => tag.toLowerCase().includes(query))
             );
           }
-          
+
           if (filters.onlyFavorites) {
             items = items.filter(item => item.isFavorite);
           }
@@ -347,20 +347,22 @@ export const offlineStorage = new OfflineStorageManager();
 
 // Sync Manager for handling online/offline synchronization
 export class SyncManager {
-  private isOnline = navigator.onLine;
+  private isOnline = typeof navigator !== 'undefined' ? navigator.onLine : false;
   private syncInProgress = false;
   private syncInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Listen for online/offline events
-    window.addEventListener('online', () => {
-      this.isOnline = true;
-      this.syncNow();
-    });
+    if (typeof window !== 'undefined') {
+      // Listen for online/offline events
+      window.addEventListener('online', () => {
+        this.isOnline = true;
+        this.syncNow();
+      });
 
-    window.addEventListener('offline', () => {
-      this.isOnline = false;
-    });
+      window.addEventListener('offline', () => {
+        this.isOnline = false;
+      });
+    }
   }
 
   async startPeriodicSync(intervalMs = 30000): Promise<void> {
@@ -391,17 +393,17 @@ export class SyncManager {
 
     try {
       const syncQueue = await offlineStorage.getSyncQueue();
-      
+
       for (const syncItem of syncQueue) {
         try {
           await this.processSyncItem(syncItem);
           await offlineStorage.removeSyncQueueItem(syncItem.id);
         } catch (error) {
           console.error('Sync error for item:', syncItem.id, error);
-          
+
           // Increment retry count
           syncItem.retryCount++;
-          
+
           // Remove from queue if too many retries
           if (syncItem.retryCount >= 3) {
             await offlineStorage.removeSyncQueueItem(syncItem.id);

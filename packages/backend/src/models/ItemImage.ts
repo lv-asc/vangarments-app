@@ -36,10 +36,9 @@ export class ItemImageModel {
     const query = `
       INSERT INTO item_images (
         item_id, image_url, image_type, is_primary, 
-        processing_status, ai_analysis, is_processed,
-        file_size, mime_type, width, height
+        processing_status, ai_analysis, is_processed
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
@@ -51,10 +50,6 @@ export class ItemImageModel {
       'completed',
       aiAnalysis ? JSON.stringify(aiAnalysis) : null,
       !!aiAnalysis,
-      fileSize || null,
-      mimeType || null,
-      width || null,
-      height || null,
     ];
 
     const result = await db.query(query, values);
@@ -67,7 +62,7 @@ export class ItemImageModel {
       WHERE item_id = $1 
       ORDER BY is_primary DESC, created_at ASC
     `;
-    
+
     const result = await db.query(query, [itemId]);
     return result.rows.map(row => this.mapToItemImage(row));
   }
@@ -84,7 +79,7 @@ export class ItemImageModel {
   }
 
   static async updateProcessingStatus(
-    id: string, 
+    id: string,
     status: 'pending' | 'processing' | 'completed' | 'failed',
     aiAnalysis?: any
   ): Promise<ItemImage | null> {
@@ -112,7 +107,7 @@ export class ItemImageModel {
 
   static async setPrimary(itemId: string, imageId: string): Promise<boolean> {
     const client = await db.getClient();
-    
+
     try {
       await client.query('BEGIN');
 
@@ -151,8 +146,8 @@ export class ItemImageModel {
   }
 
   private static mapToItemImage(row: any): ItemImage {
-    const aiAnalysis = row.ai_analysis ? 
-      (typeof row.ai_analysis === 'string' ? JSON.parse(row.ai_analysis) : row.ai_analysis) : 
+    const aiAnalysis = row.ai_analysis ?
+      (typeof row.ai_analysis === 'string' ? JSON.parse(row.ai_analysis) : row.ai_analysis) :
       null;
 
     return {

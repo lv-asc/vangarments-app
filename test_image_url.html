@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image URL Test</title>
+</head>
+<body>
+    <h1>Testing Image URLs</h1>
+    <div id="results"></div>
+    
+    <script>
+        function getImageUrl(path) {
+            if (!path) return '';
+            if (path.startsWith('http://') || path.startsWith('https://')) {
+                return path;
+            }
+            let cleanPath = path.startsWith('/storage/') ? path.substring(9) : path;
+            cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+            const proxiedUrl = `/api/storage/${cleanPath}`;
+            console.log('[getImageUrl]', { input: path, output: proxiedUrl });
+            return proxiedUrl;
+        }
+
+        const testCases = [
+            '/storage/images/wardrobe/6a0b5116-8b9c-4ea9-97c5-8cb7b484699a/d3de51eb-3d82-4362-ac1d-ed9e95a20421.JPG',
+            'images/wardrobe/test.jpg',
+            '/images/wardrobe/test.jpg',
+            'http://example.com/image.jpg'
+        ];
+
+        const resultsDiv = document.getElementById('results');
+        testCases.forEach(testPath => {
+            const result = getImageUrl(testPath);
+            const div = document.createElement('div');
+            div.innerHTML = `<strong>Input:</strong> ${testPath}<br><strong>Output:</strong> ${result}<br><br>`;
+            resultsDiv.appendChild(div);
+        });
+
+        // Test actual image loading
+        const testImageUrl = '/api/storage/images/wardrobe/6a0b5116-8b9c-4ea9-97c5-8cb7b484699a/d3de51eb-3d82-4362-ac1d-ed9e95a20421.JPG';
+        const img = document.createElement('img');
+        img.src = testImageUrl;
+        img.onload = () => console.log('✅ Image loaded successfully:', testImageUrl);
+        img.onerror = () => console.error('❌ Image failed to load:', testImageUrl);
+        document.body.appendChild(img);
+    </script>
+</body>
+</html>

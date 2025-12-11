@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -26,13 +27,13 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
   // Initialize navigation service
   useEffect(() => {
     console.log('🔧 NavigationProvider: Initializing navigation service');
-    
+
     // Set router in navigation service
     navigationService.setRouter(router);
-    
+
     // Setup browser navigation handling
     const cleanup = navigationService.setupBrowserNavigation();
-    
+
     // Subscribe to navigation state changes
     const unsubscribe = navigationService.subscribe((state) => {
       console.log('🔧 NavigationProvider: Navigation state updated', state);

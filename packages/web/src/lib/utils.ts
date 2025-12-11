@@ -89,10 +89,10 @@ export function slugify(text: string): string {
 
 export function getImageUrl(path: string, size?: 'sm' | 'md' | 'lg' | 'xl'): string {
   if (!path) return '';
-  
+
   const baseUrl = process.env.NEXT_PUBLIC_CDN_URL || '';
   const sizeParam = size ? `?w=${getSizeWidth(size)}` : '';
-  
+
   return `${baseUrl}${path}${sizeParam}`;
 }
 
@@ -109,13 +109,13 @@ function getSizeWidth(size: string): number {
 export function isValidCPF(cpf: string): boolean {
   // Remove non-numeric characters
   const cleanCPF = cpf.replace(/\D/g, '');
-  
+
   // Check if it has 11 digits
   if (cleanCPF.length !== 11) return false;
-  
+
   // Check if all digits are the same
   if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
-  
+
   // Validate CPF algorithm
   let sum = 0;
   for (let i = 0; i < 9; i++) {
@@ -124,7 +124,7 @@ export function isValidCPF(cpf: string): boolean {
   let remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cleanCPF.charAt(9))) return false;
-  
+
   sum = 0;
   for (let i = 0; i < 10; i++) {
     sum += parseInt(cleanCPF.charAt(i)) * (11 - i);
@@ -132,7 +132,7 @@ export function isValidCPF(cpf: string): boolean {
   remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cleanCPF.charAt(10))) return false;
-  
+
   return true;
 }
 
@@ -154,20 +154,26 @@ export function getFileSize(bytes: number): string {
 }
 
 export function compressImage(file: File, maxWidth = 1920, quality = 0.8): Promise<Blob> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
     const img = new Image();
-    
+
     img.onload = () => {
       const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
       canvas.width = img.width * ratio;
       canvas.height = img.height * ratio;
-      
+
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(resolve, 'image/jpeg', quality);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Image compression failed'));
+        }
+      }, 'image/jpeg', quality);
     };
-    
+
     img.src = URL.createObjectURL(file);
   });
 }

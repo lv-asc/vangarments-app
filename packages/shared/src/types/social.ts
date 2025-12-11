@@ -19,7 +19,7 @@ export interface SocialPost {
   visibility: 'public' | 'followers' | 'private';
   createdAt: string;
   updatedAt: string;
-  
+
   // Populated fields
   user?: UserProfile;
   comments?: PostComment[];
@@ -35,7 +35,7 @@ export interface PostComment {
   parentCommentId?: string;
   createdAt: string;
   updatedAt: string;
-  
+
   // Populated fields
   user?: UserProfile;
   parentComment?: PostComment;
@@ -47,7 +47,7 @@ export interface PostLike {
   postId: string;
   userId: string;
   createdAt: string;
-  
+
   // Populated fields
   user?: UserProfile;
 }
@@ -57,7 +57,7 @@ export interface UserFollow {
   followerId: string;
   followingId: string;
   createdAt: string;
-  
+
   // Populated fields
   follower?: UserProfile;
   following?: UserProfile;
@@ -84,7 +84,7 @@ export interface SocialLink {
 
 export interface Badge {
   id: string;
-  type: 'beta_pioneer' | 'brand_owner' | 'influencer' | 'stylist' | 'model' | 'designer' | 'creative_director';
+  type: 'brand_owner' | 'influencer' | 'stylist' | 'model' | 'designer' | 'creative_director';
   name: string;
   description: string;
   iconUrl?: string;

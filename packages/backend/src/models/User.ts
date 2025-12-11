@@ -1,5 +1,5 @@
 import { db } from '../database/connection';
-import { UserProfile, UserMeasurements, FashionPreferences, Location } from '@vangarments/shared';
+import { UserProfile, UserMeasurements, FashionPreferences, Location, SocialLink } from '@vangarments/shared';
 
 export interface CreateUserData {
   cpf?: string; // Optional for OAuth users
@@ -18,12 +18,14 @@ export interface UpdateUserData {
   location?: Location;
   measurements?: UserMeasurements;
   preferences?: FashionPreferences;
+  profile?: any;
+  socialLinks?: SocialLink[];
 }
 
 export class UserModel {
   static async create(userData: CreateUserData): Promise<UserProfile> {
     const { cpf, email, passwordHash, name, birthDate, gender, location } = userData;
-    
+
     const profile = {
       name,
       birthDate: birthDate.toISOString(),
@@ -97,7 +99,7 @@ export class UserModel {
   static async getPasswordHash(userId: string): Promise<string | null> {
     const query = 'SELECT password_hash FROM users WHERE id = $1';
     const result = await db.query(query, [userId]);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
@@ -110,15 +112,21 @@ export class UserModel {
     const values: any[] = [];
     let paramCount = 1;
 
-    if (updateData.name || updateData.location) {
+    if (updateData.name || updateData.location || updateData.profile || updateData.socialLinks) {
       // Update profile JSON
       const currentUser = await this.findById(userId);
       if (!currentUser) return null;
 
+      const currentProfile = typeof (currentUser as any)._rawProfile === 'string'
+        ? JSON.parse((currentUser as any)._rawProfile)
+        : (currentUser as any)._rawProfile || {};
+
       const updatedProfile = {
-        ...currentUser.personalInfo,
+        ...currentProfile,
         ...(updateData.name && { name: updateData.name }),
         ...(updateData.location && { location: updateData.location }),
+        ...(updateData.profile || {}), // Merge generic profile updates (bio, avatarUrl)
+        ...(updateData.socialLinks && { socialLinks: updateData.socialLinks }),
       };
 
       updates.push(`profile = $${paramCount}`);
@@ -164,7 +172,7 @@ export class UserModel {
       VALUES ($1, $2)
       ON CONFLICT (user_id, role) DO NOTHING
     `;
-    
+
     await db.query(query, [userId, role]);
   }
 
@@ -173,19 +181,41 @@ export class UserModel {
     await db.query(query, [userId, role]);
   }
 
+  static async setRoles(userId: string, roles: string[]): Promise<void> {
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Delete existing roles
+      await client.query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
+
+      // Insert new roles
+      if (roles.length > 0) {
+        const values = roles.map((role, index) => `($1, $${index + 2})`).join(', ');
+        const query = `INSERT INTO user_roles (user_id, role) VALUES ${values}`;
+        await client.query(query, [userId, ...roles]);
+      }
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   static async getUserRoles(userId: string): Promise<string[]> {
     const query = 'SELECT role FROM user_roles WHERE user_id = $1';
     const result = await db.query(query, [userId]);
     return result.rows.map(row => row.role);
   }
 
-
-
-  private static mapToUserProfile(row: any): UserProfile & { roles?: string[] } {
+  private static mapToUserProfile(row: any): UserProfile {
     const profile = typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile;
-    const measurements = row.measurements ? 
+    const measurements = row.measurements ?
       (typeof row.measurements === 'string' ? JSON.parse(row.measurements) : row.measurements) : {};
-    const preferences = row.preferences ? 
+    const preferences = row.preferences ?
       (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {};
 
     return {
@@ -197,14 +227,17 @@ export class UserModel {
         birthDate: new Date(profile.birthDate),
         location: profile.location || {},
         gender: profile.gender,
+        avatarUrl: profile.avatarUrl,
+        bio: profile.bio,
       },
       measurements: measurements,
       preferences: preferences,
       badges: [], // Will be populated when badge system is implemented
-      socialLinks: [], // Will be populated when social features are implemented
+      socialLinks: profile.socialLinks || [],
       roles: row.roles ? row.roles.filter((role: string) => role !== null) : [],
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
-    };
+      _rawProfile: profile,
+    } as UserProfile & { roles?: string[], _rawProfile?: any };
   }
 }

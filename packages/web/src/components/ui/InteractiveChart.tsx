@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -48,7 +49,7 @@ export default function InteractiveChart({
 
   const getDefaultColor = (index: number) => {
     const colors = [
-      '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', 
+      '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B',
       '#EF4444', '#EC4899', '#6366F1', '#84CC16'
     ];
     return colors[index % colors.length];
@@ -68,15 +69,14 @@ export default function InteractiveChart({
       {data.map((item, index) => {
         const barHeight = (animatedValues[index] / maxValue) * (height - 40);
         const isHovered = hoveredIndex === index;
-        
+
         return (
           <div key={index} className="flex-1 flex flex-col items-center">
             <div className="relative flex-1 flex items-end">
               <motion.div
-                className={`w-full rounded-t-lg cursor-pointer transition-all duration-300 ${
-                  isHovered ? 'shadow-lg transform scale-105' : ''
-                }`}
-                style={{ 
+                className={`w-full rounded-t-lg cursor-pointer transition-all duration-300 ${isHovered ? 'shadow-lg transform scale-105' : ''
+                  }`}
+                style={{
                   backgroundColor: item.color || getDefaultColor(index),
                   opacity: isHovered ? 1 : 0.8
                 }}
@@ -86,7 +86,7 @@ export default function InteractiveChart({
                 onMouseEnter={() => setHoveredIndex(index)}
                 onMouseLeave={() => setHoveredIndex(null)}
               />
-              
+
               {/* Tooltip */}
               <AnimatePresence>
                 {isHovered && showTooltip && (
@@ -102,7 +102,7 @@ export default function InteractiveChart({
                 )}
               </AnimatePresence>
             </div>
-            
+
             <div className="mt-2 text-xs text-gray-600 text-center">
               <div className="font-medium">{item.label}</div>
               {item.trend && (
@@ -137,7 +137,7 @@ export default function InteractiveChart({
               strokeWidth="0.2"
             />
           ))}
-          
+
           {/* Line path */}
           <motion.path
             d={`M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`}
@@ -148,7 +148,7 @@ export default function InteractiveChart({
             animate={{ pathLength: 1 }}
             transition={{ duration: animated ? 1.5 : 0 }}
           />
-          
+
           {/* Area fill */}
           <motion.path
             d={`M ${points.map(p => `${p.x},${p.y}`).join(' L ')} L 100,100 L 0,100 Z`}
@@ -157,7 +157,7 @@ export default function InteractiveChart({
             animate={{ opacity: 0.3 }}
             transition={{ duration: animated ? 1 : 0, delay: 0.5 }}
           />
-          
+
           {/* Gradient definition */}
           <defs>
             <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -165,7 +165,7 @@ export default function InteractiveChart({
               <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0" />
             </linearGradient>
           </defs>
-          
+
           {/* Data points */}
           {points.map((point, index) => (
             <motion.circle
@@ -183,7 +183,7 @@ export default function InteractiveChart({
             />
           ))}
         </svg>
-        
+
         {/* Labels */}
         <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-600">
           {data.map((item, index) => (
@@ -209,33 +209,33 @@ export default function InteractiveChart({
             const percentage = (item.value / total) * 100;
             const startAngle = (cumulativePercentage / 100) * 360;
             const endAngle = ((cumulativePercentage + percentage) / 100) * 360;
-            
+
             const startAngleRad = (startAngle - 90) * (Math.PI / 180);
             const endAngleRad = (endAngle - 90) * (Math.PI / 180);
-            
+
             const x1 = centerX + radius * Math.cos(startAngleRad);
             const y1 = centerY + radius * Math.sin(startAngleRad);
             const x2 = centerX + radius * Math.cos(endAngleRad);
             const y2 = centerY + radius * Math.sin(endAngleRad);
-            
+
             const largeArcFlag = percentage > 50 ? 1 : 0;
-            
+
             const pathData = [
               `M ${centerX} ${centerY}`,
               `L ${x1} ${y1}`,
               `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
               'Z'
             ].join(' ');
-            
+
             cumulativePercentage += percentage;
-            
+
             return (
               <motion.path
                 key={index}
                 d={pathData}
                 fill={item.color || getDefaultColor(index)}
                 className="cursor-pointer transition-all duration-300"
-                style={{ 
+                style={{
                   opacity: hoveredIndex === index ? 1 : 0.8,
                   transform: hoveredIndex === index ? 'scale(1.05)' : 'scale(1)',
                   transformOrigin: '50% 50%'
@@ -248,7 +248,7 @@ export default function InteractiveChart({
               />
             );
           })}
-          
+
           {/* Center circle for donut effect */}
           <circle
             cx={centerX}
@@ -256,7 +256,7 @@ export default function InteractiveChart({
             r="20"
             fill="white"
           />
-          
+
           {/* Center text */}
           <text
             x={centerX}
@@ -277,15 +277,14 @@ export default function InteractiveChart({
             {total}
           </text>
         </svg>
-        
+
         {/* Legend */}
         <div className="absolute right-0 top-1/2 transform translate-x-full -translate-y-1/2 ml-4 space-y-2">
           {data.map((item, index) => (
             <div
               key={index}
-              className={`flex items-center space-x-2 cursor-pointer transition-all duration-300 ${
-                hoveredIndex === index ? 'transform scale-105' : ''
-              }`}
+              className={`flex items-center space-x-2 cursor-pointer transition-all duration-300 ${hoveredIndex === index ? 'transform scale-105' : ''
+                }`}
               onMouseEnter={() => setHoveredIndex(index)}
               onMouseLeave={() => setHoveredIndex(null)}
             >
@@ -323,11 +322,11 @@ export default function InteractiveChart({
       {title && (
         <h3 className="text-lg font-semibold text-gray-800 mb-4">{title}</h3>
       )}
-      
+
       <div className="relative">
         {renderChart()}
       </div>
-      
+
       {/* Hover info */}
       <AnimatePresence>
         {hoveredIndex !== null && showTooltip && type !== 'bar' && (

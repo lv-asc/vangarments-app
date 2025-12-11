@@ -15,11 +15,12 @@ interface UserAvatarProps {
 
 export function UserAvatar({ user, size = 'md', className = '' }: UserAvatarProps) {
   const getInitials = (name: string): string => {
-    const words = name.trim().split(' ');
+    const safeName = name || '';
+    const words = safeName.trim().split(' ');
     if (words.length >= 2) {
       return (words[0][0] + words[words.length - 1][0]).toUpperCase();
     }
-    return name.slice(0, 2).toUpperCase();
+    return safeName.slice(0, 2).toUpperCase();
   };
 
   const sizeClasses = {
@@ -64,19 +65,19 @@ interface UserDisplayProps {
   className?: string;
 }
 
-export function UserDisplay({ 
-  user, 
-  showEmail = false, 
-  showAvatar = true, 
+export function UserDisplay({
+  user,
+  showEmail = false,
+  showAvatar = true,
   avatarSize = 'md',
-  className = '' 
+  className = ''
 }: UserDisplayProps) {
   // Use provided username or extract from email or use first name
   const getUsername = (name: string, email?: string, username?: string): string => {
     if (username) {
       return `@${username}`;
     }
-    
+
     if (email) {
       const emailUsername = email.split('@')[0];
       // If email username is meaningful, use it
@@ -84,7 +85,7 @@ export function UserDisplay({
         return `@${emailUsername}`;
       }
     }
-    
+
     // Otherwise use first name
     const firstName = name.split(' ')[0];
     return `@${firstName.toLowerCase()}`;

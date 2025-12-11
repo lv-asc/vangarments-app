@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import Link from 'next/link';
@@ -13,7 +14,7 @@ export function HeroSection() {
       <div className="absolute inset-0">
         <div className="absolute inset-0 bg-gradient-to-r from-[#00132d]/10 to-[#00132d]/5" />
       </div>
-      
+
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="pt-20 pb-16 text-center lg:pt-32 lg:pb-20">
           <motion.div

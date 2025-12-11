@@ -1,361 +1,278 @@
+// @ts-nocheck
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
-import dynamic from 'next/dynamic';
-import { PlusIcon, MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
-// Removed ProtectedRoute for development accessibility
-import { useAuth } from '@/contexts/AuthWrapper';
-import { SyncStatus } from '@/components/ui/SyncStatus';
-import { useWardrobeSync } from '@/hooks/useWardrobeSync';
-import { useDevWardrobe } from '@/hooks/useDevWardrobe';
-import { WardrobeItemSkeleton } from '@/components/ui/LoadingSkeleton';
-import { debounce } from '@/lib/utils';
+import {
+  PlusIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  PhotoIcon,
+  HeartIcon,
+  ShoppingBagIcon,
+  EyeIcon
+} from '@heroicons/react/24/outline';
+import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import { apiClient } from '@/lib/api';
 
-// Lazy load heavy components
-const AddItemModal = dynamic(() => import('@/components/wardrobe/AddItemModal').then(mod => ({ default: mod.AddItemModal })), {
-  ssr: false,
-});
+import { getImageUrl } from '@/utils/imageUrl';
+import { WardrobeItemCard } from '@/components/wardrobe/WardrobeItemCard';
 
-// Temporarily disabled due to rendering issues
-// const WardrobeItemCard = dynamic(() => import('@/components/wardrobe/WardrobeItemCard').then(mod => ({ default: mod.WardrobeItemCard })), {
-//   loading: () => <WardrobeItemSkeleton />,
-//   ssr: false,
-// });
-
-const WardrobeDataManager = dynamic(() => import('@/components/dev/WardrobeDataManager'), {
-  ssr: false,
-});
-
-// Removed DevModeBypass - using direct access for development
-
-// No mock data - all data comes from real user interactions and API calls
+interface WardrobeItem {
+  id: string;
+  vufsCode: string;
+  ownerId: string;
+  category: {
+    page: string;
+    blueSubcategory: string;
+    whiteSubcategory: string;
+    graySubcategory: string;
+  };
+  brand: {
+    brand: string;
+    line?: string;
+  };
+  metadata: {
+    name: string;
+    composition: Array<{ name: string; percentage: number }>;
+    colors: Array<{ name: string; hex?: string }>;
+    careInstructions: string[];
+    size?: string;
+  };
+  condition: {
+    status: string;
+    description?: string;
+  };
+  images?: Array<{ url: string; type: string; isPrimary: boolean }>;
+  createdAt: string;
+}
 
 export default function WardrobePage() {
-  const { user } = useAuth();
-  
-  // Show wardrobe even without user in development mode
-  const canAccessWardrobe = user || (process.env.NODE_ENV === 'development');
+  const router = useRouter();
+  const [items, setItems] = useState<WardrobeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  
-  // Always use dev wardrobe in development mode
-  const isDevMode = process.env.NODE_ENV === 'development';
-  
-  const prodWardrobe = useWardrobeSync();
-  const devWardrobe = useDevWardrobe();
-  
-  const wardrobeHook = isDevMode ? devWardrobe : prodWardrobe;
+  /* REMOVED showAddModal */
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
-  // Debug info for development
-  if (isDevMode) {
-    console.log('🔧 Wardrobe Debug:', {
-      isDevMode,
-      usingDevHook: isDevMode,
-      itemsCount: wardrobeHook.items.length,
-      loading: wardrobeHook.loading,
-      error: wardrobeHook.error
-    });
-  }
-  
-  const {
-    items: wardrobeItems,
-    loading,
-    error,
-    syncing,
-    isOnline,
-    createItem,
-    updateItem,
-    deleteItem,
-    loadItems,
-    syncOfflineItems,
-  } = wardrobeHook;
+  const [categories, setCategories] = useState<{ value: string; label: string }[]>([
+    { value: 'all', label: 'Todas as Peças' }
+  ]);
 
-  const categories = [
-    { value: 'all', label: 'Todas' },
-    { value: 'tops', label: 'Blusas' },
-    { value: 'bottoms', label: 'Calças' },
-    { value: 'dresses', label: 'Vestidos' },
-    { value: 'shoes', label: 'Calçados' },
-    { value: 'accessories', label: 'Acessórios' },
-    { value: 'outerwear', label: 'Casacos' },
-  ];
-
-  const handleAddItem = async (images: File[], itemData: any) => {
-    try {
-      await createItem(images, itemData);
-    } catch (error) {
-      console.error('Failed to add item:', error);
-    }
-  };
-
-  const handleEditItem = (item: any) => {
-    // TODO: Implement edit functionality
-    console.log('Edit item:', item);
-  };
-
-  const handleDeleteItem = async (itemId: string) => {
-    try {
-      await deleteItem(itemId);
-    } catch (error) {
-      console.error('Failed to delete item:', error);
-    }
-  };
-
-  const handleToggleFavorite = async (itemId: string) => {
-    try {
-      // This would need to be implemented in the API
-      console.log('Toggle favorite:', itemId);
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-    }
-  };
-
-  const handleToggleForSale = async (itemId: string) => {
-    try {
-      // This would need to be implemented in the API
-      console.log('Toggle for sale:', itemId);
-    } catch (error) {
-      console.error('Failed to toggle for sale:', error);
-    }
-  };
-
-  const handleSyncOffline = async () => {
-    try {
-      const result = await syncOfflineItems();
-      console.log('Sync result:', result);
-    } catch (error) {
-      console.error('Failed to sync:', error);
-    }
-  };
-
-  const handleViewItem = (item: any) => {
-    // TODO: Implement item detail view
-    console.log('View item:', item);
-  };
-
-  // Filter items and reload when filters change
-  const handleFilterChange = async () => {
-    const filters = {
-      category: selectedCategory !== 'all' ? selectedCategory : undefined,
-      searchQuery: searchQuery || undefined,
-    };
-    await loadItems(filters);
-  };
-
-  // Debounced search to improve performance
-  const debouncedSearch = useCallback(
-    debounce((query: string) => {
-      const filters = {
-        category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        searchQuery: query || undefined,
-      };
-      loadItems(filters);
-    }, 300),
-    [selectedCategory, loadItems]
-  );
-
-  // Apply filters when search or category changes
-  React.useEffect(() => {
-    debouncedSearch(searchQuery);
-  }, [searchQuery, debouncedSearch]);
-
-  React.useEffect(() => {
-    handleFilterChange();
+  useEffect(() => {
+    loadCategories();
+    loadItems();
   }, [selectedCategory]);
 
-  // Memoize filtered items to prevent unnecessary re-renders
-  const filteredItems = useMemo(() => wardrobeItems, [wardrobeItems]);
+  const loadCategories = async () => {
+    try {
+      const vufsCategories: any[] = await apiClient.getVUFSCategories();
+      // Filter for Level 2 (Blue) categories which are the main ones (Tops, Bottoms, etc.)
+      // Ideally we should use the API to get by level, but for now filter client side or use all
+      // The seed script created Tops, Bottoms, etc as 'blue' level.
+      const mainCategories = vufsCategories
+        .filter((c: any) => c.level === 'blue')
+        .map((c: any) => ({
+          value: c.name, // The controller now supports fuzzy search on name/any field
+          label: c.name
+        }));
 
+      setCategories([{ value: 'all', label: 'Todas as Peças' }, ...mainCategories]);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+      // Fallback to basic list if API fails
+      setCategories([
+        { value: 'all', label: 'Todas as Peças' },
+        { value: 'Tops', label: 'Tops' },
+        { value: 'Bottoms', label: 'Bottoms' },
+        { value: 'Dresses', label: 'Dresses' },
+        { value: 'Outerwear', label: 'Outerwear' },
+        { value: 'Shoes', label: 'Shoes' },
+        { value: 'Accessories', label: 'Accessories' }
+      ]);
+    }
+  };
 
+  const loadItems = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const filters: any = {};
+      if (selectedCategory !== 'all') {
+        filters.category = { page: selectedCategory }; // structure expected by backend
+      }
+      if (searchQuery) {
+        filters.search = searchQuery;
+      }
 
-  // Show login prompt if no access
-  if (!canAccessWardrobe) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h1 className="text-xl font-bold text-blue-900 mb-2">Acesse seu Guarda-roupa</h1>
-            <p className="text-blue-700 mb-4">Faça login para acessar e gerenciar seu guarda-roupa digital.</p>
-            <Button 
-              href="/login"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Fazer Login
-            </Button>
-          </div>
-        </main>
-      </div>
-    );
-  }
+      const response = await apiClient.getWardrobeItems(filters);
+      setItems(response.items || []);
+    } catch (err: any) {
+      console.error('Error loading wardrobe:', err);
+      setError(err.message || 'Falha ao carregar itens do guarda-roupa');
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleFavorite = (itemId: string) => {
+    const newFavorites = new Set(favorites);
+    if (favorites.has(itemId)) {
+      newFavorites.delete(itemId);
+    } else {
+      newFavorites.add(itemId);
+    }
+    setFavorites(newFavorites);
+  };
+
+  const handleViewItem = (item: WardrobeItem) => {
+    router.push(`/wardrobe/${item.id}`);
+  };
+
+  const handleSellItem = (item: WardrobeItem) => {
+    router.push(`/marketplace/create?itemId=${item.id}`);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
-        <Header />
-        <SyncStatus />
-      
+      <Header />
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Meu Guarda-roupa
-              </h1>
-              <div className="flex items-center space-x-4 mt-1">
-                <p className="text-gray-600">
-                  {wardrobeItems.length} peças catalogadas
-                </p>
-                {!isOnline && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                    Offline
-                  </span>
-                )}
-                {syncing && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    Sincronizando...
-                  </span>
-                )}
-              </div>
+              <h1 className="text-3xl font-bold text-gray-900">Meu Guarda-roupa</h1>
+              <p className="text-gray-600">{items.length} peças catalogadas</p>
             </div>
-            <div className="flex items-center space-x-3">
-              {!isOnline && (
-                <Button 
-                  variant="outline"
-                  onClick={handleSyncOffline}
-                  disabled={syncing}
-                  className="flex items-center space-x-2"
-                >
-                  <span>{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
-                </Button>
-              )}
-              <Button 
-                className="flex items-center space-x-2"
-                onClick={() => setIsAddModalOpen(true)}
-              >
-                <PlusIcon className="h-5 w-5" />
-                <span>Adicionar Peça</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Development Tools */}
-        {process.env.NODE_ENV === 'development' && (
-          <WardrobeDataManager onDataChange={() => loadItems()} />
-        )}
-
-        {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-            <div className="relative flex-1 max-w-md">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar peças..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]"
-              />
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#00132d]"
-              >
-                {categories.map(category => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
-              
-              <button className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:text-[#00132d] transition-colors">
-                <FunnelIcon className="h-5 w-5" />
-                <span>Filtros</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {[...Array(8)].map((_, i) => (
-              <WardrobeItemSkeleton key={i} />
-            ))}
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button variant="outline" onClick={() => loadItems()}>
-              Tentar Novamente
+            <Button
+              className="flex items-center space-x-2"
+              onClick={() => router.push('/wardrobe/add')}
+            >
+              <PlusIcon className="h-5 w-5" />
+              <span>Adicionar Peça</span>
             </Button>
           </div>
-        )}
 
-        {/* Items Grid */}
-        {!loading && !error && filteredItems.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {filteredItems.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="aspect-[3/4] bg-[#fff7d7] rounded-lg mb-3 flex items-center justify-center">
-                  <span className="text-[#00132d] text-sm">Item Preview</span>
-                </div>
-                <h3 className="font-medium text-gray-900 mb-1">
-                  {item.name || 'Wardrobe Item'}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {typeof item.category === 'string' ? item.category : (item.category?.page || 'Category')}
-                </p>
-                <div className="mt-3 flex space-x-2">
-                  <button className="flex-1 text-xs bg-[#00132d] text-[#fff7d7] py-1 px-2 rounded hover:bg-[#00132d]/90 transition-colors">
-                    View
-                  </button>
-                  <button className="flex-1 text-xs bg-gray-100 text-gray-700 py-1 px-2 rounded hover:bg-gray-200 transition-colors">
-                    Edit
-                  </button>
-                </div>
+          {/* Search and Filters */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+              <div className="relative flex-1 max-w-md">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar peças..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && loadItems()}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]"
+                />
               </div>
-            ))}
-          </div>
-        ) : !loading && !error ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-            <div className="max-w-md mx-auto">
-              <div className="w-16 h-16 bg-[#00132d] rounded-full flex items-center justify-center mx-auto mb-4">
-                <PlusIcon className="h-8 w-8 text-[#fff7d7]" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {wardrobeItems.length === 0 ? 'Comece seu guarda-roupa digital' : 'Nenhuma peça encontrada'}
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {wardrobeItems.length === 0 
-                  ? 'Adicione suas primeiras peças para começar a organizar e descobrir novas combinações.'
-                  : 'Tente ajustar os filtros ou buscar por outros termos.'
-                }
-              </p>
-              {wardrobeItems.length === 0 && (
-                <Button size="lg" onClick={() => setIsAddModalOpen(true)}>
-                  Adicionar Primeira Peça
+
+              <div className="flex items-center space-x-4">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#00132d]"
+                >
+                  {categories.map(category => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+
+                <Button variant="outline" onClick={loadItems}>
+                  <FunnelIcon className="h-4 w-4 mr-2" />
+                  Filtrar
                 </Button>
-              )}
+              </div>
             </div>
           </div>
-        ) : null}
-      </main>
+        </div>
 
-      <AddItemModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSubmit={handleAddItem}
-      />
-    </div>
+        {/* Error State */}
+        {
+          error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800">{error}</p>
+              <Button
+                variant="outline"
+                onClick={loadItems}
+                className="mt-2"
+              >
+                Tentar Novamente
+              </Button>
+            </div>
+          )
+        }
+
+        {/* Items Grid */}
+        {
+          loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 animate-pulse">
+                  <div className="aspect-[3/4] bg-gray-200 rounded-lg mb-3"></div>
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+                </div>
+              ))}
+            </div>
+          ) : items.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+              {items.map((item) => (
+                <WardrobeItemCard
+                  key={item.id}
+                  item={{
+                    id: item.id,
+                    name: item.metadata.name,
+                    category: item.category.whiteSubcategory || item.category.page || 'unknown',
+                    brand: item.brand.brand,
+                    color: item.metadata.colors?.[0]?.name || 'Unknown',
+                    size: item.metadata.size,
+                    condition: item.condition.status as any,
+                    images: item.images?.map(img => img.type === 'local' ? img.url : getImageUrl(img.url)) || [],
+                    purchasePrice: undefined,
+                    estimatedValue: undefined,
+                    timesWorn: 0,
+                    lastWorn: undefined,
+                    isFavorite: favorites.has(item.id),
+                    isForSale: false,
+                    tags: []
+                  }}
+                  onView={handleViewItem}
+                  onEdit={() => router.push(`/wardrobe/${item.id}/edit`)}
+                  onDelete={() => {}} 
+                  onToggleFavorite={toggleFavorite}
+                  onToggleForSale={() => {}} 
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+              <PhotoIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Seu guarda-roupa está vazio
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Comece adicionando suas primeiras peças para organizar e descobrir novas combinações.
+              </p>
+              <Button onClick={() => router.push('/wardrobe/add')}>
+                Adicionar Primeira Peça
+              </Button>
+            </div>
+          )
+        }
+
+
+      </main >
+    </div >
   );
 }

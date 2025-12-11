@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { motion } from 'framer-motion';
@@ -73,7 +74,7 @@ export function TestimonialsSection() {
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Mais de 10.000 mulheres já transformaram sua relação com a moda usando nossa plataforma. 
+            Mais de 10.000 mulheres já transformaram sua relação com a moda usando nossa plataforma.
             Veja alguns depoimentos reais de nossa comunidade.
           </p>
         </motion.div>

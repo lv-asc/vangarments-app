@@ -127,12 +127,12 @@ export class WardrobeAPI {
     };
   }> {
     const formData = new FormData();
-    
+
     // Add images
     images.forEach((image, index) => {
       formData.append('images', image);
     });
-    
+
     // Add item data
     Object.entries(itemData).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -140,7 +140,7 @@ export class WardrobeAPI {
       }
     });
 
-    const response = await apiClient.post('/wardrobe/items', formData);
+    const response = await apiClient.post<any>('/wardrobe/items', formData);
 
     return response.data;
   }
@@ -158,14 +158,14 @@ export class WardrobeAPI {
     };
   }> {
     const params = new URLSearchParams();
-    
+
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined) {
         params.append(key, String(value));
       }
     });
 
-    const response = await apiClient.get(`/wardrobe/items?${params.toString()}`);
+    const response = await apiClient.get<any>(`/wardrobe/items?${params.toString()}`);
     return response.data;
   }
 
@@ -176,7 +176,7 @@ export class WardrobeAPI {
     itemId: string,
     updates: Partial<CreateWardrobeItemRequest>
   ): Promise<{ item: WardrobeItem }> {
-    const response = await apiClient.put(`/wardrobe/items/${itemId}`, updates);
+    const response = await apiClient.put<any>(`/wardrobe/items/${itemId}`, updates);
     return response.data;
   }
 
@@ -201,7 +201,7 @@ export class WardrobeAPI {
     itemId: string,
     imageUrl: string
   ): Promise<{ suggestions: any }> {
-    const response = await apiClient.post(`/wardrobe/items/${itemId}/reprocess`, {
+    const response = await apiClient.post<any>(`/wardrobe/items/${itemId}/reprocess`, {
       imageUrl,
     });
     return response.data;
@@ -218,7 +218,7 @@ export class WardrobeAPI {
       itemsByCondition: Record<string, number>;
     };
   }> {
-    const response = await apiClient.get('/wardrobe/stats');
+    const response = await apiClient.get<any>('/wardrobe/stats');
     return response.data;
   }
 

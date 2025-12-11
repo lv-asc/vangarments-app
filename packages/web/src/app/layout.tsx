@@ -116,30 +116,8 @@ export default function RootLayout({
             </Providers>
           </PWAProvider>
         </ErrorBoundary>
-        
-        {/* Development Mode Initialization */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              // Initialize development mode
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('devMode', 'true');
-                console.log('🚀 Development mode enabled');
-                
-                // Debug navigation
-                console.log('🔧 Navigation debug enabled');
-                window.addEventListener('click', function(e) {
-                  if (e.target.tagName === 'A' || e.target.closest('a')) {
-                    console.log('🔗 Link clicked:', e.target.href || e.target.closest('a').href);
-                  }
-                  if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
-                    console.log('🔘 Button clicked:', e.target);
-                  }
-                });
-              }
-            `,
-          }}
-        />
+
+        {/* Development Mode Initialization Script Removed */}
       </body>
     </html>
   );

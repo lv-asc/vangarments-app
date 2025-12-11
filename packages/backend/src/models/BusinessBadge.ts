@@ -4,7 +4,7 @@ export interface BusinessBadge {
   id: string;
   name: string;
   description: string;
-  badgeType: 'beta_pioneer' | 'verified_brand' | 'premium_partner' | 'custom';
+  badgeType: 'verified_brand' | 'premium_partner' | 'custom';
   iconUrl?: string;
   color?: string;
   criteria?: {
@@ -20,7 +20,7 @@ export interface BusinessBadge {
 export interface CreateBusinessBadgeData {
   name: string;
   description: string;
-  badgeType: 'beta_pioneer' | 'verified_brand' | 'premium_partner' | 'custom';
+  badgeType: 'verified_brand' | 'premium_partner' | 'custom';
   iconUrl?: string;
   color?: string;
   criteria?: {
@@ -100,7 +100,7 @@ export class BusinessBadgeModel {
     // Check if user already has this badge
     const existingQuery = 'SELECT id FROM user_badges WHERE user_id = $1 AND badge_id = $2';
     const existingResult = await db.query(existingQuery, [userId, badgeId]);
-    
+
     if (existingResult.rows.length > 0) {
       throw new Error('User already has this badge');
     }
@@ -146,7 +146,7 @@ export class BusinessBadgeModel {
         SELECT verification_status FROM brand_accounts WHERE user_id = $1
       `;
       const verificationResult = await db.query(verificationQuery, [userId]);
-      
+
       if (verificationResult.rows.length === 0 || verificationResult.rows[0].verification_status !== 'verified') {
         missingCriteria.push('Brand verification required');
       }

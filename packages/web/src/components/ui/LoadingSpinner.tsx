@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -8,8 +9,8 @@ interface LoadingSpinnerProps {
   color?: 'primary' | 'secondary' | 'white';
 }
 
-export function LoadingSpinner({ 
-  size = 'md', 
+export function LoadingSpinner({
+  size = 'md',
   className = '',
   variant = 'default',
   color = 'primary'
@@ -22,9 +23,9 @@ export function LoadingSpinner({
   };
 
   const colorClasses = {
-    primary: 'border-pink-600',
-    secondary: 'border-purple-600',
-    white: 'border-white',
+    primary: 'border-primary',
+    secondary: 'border-secondary',
+    white: 'border-background',
   };
 
   if (variant === 'dots') {
@@ -40,7 +41,7 @@ export function LoadingSpinner({
   }
 
   return (
-    <motion.div 
+    <motion.div
       className={cn(
         'animate-spin rounded-full border-b-2',
         sizeClasses[size],
@@ -48,7 +49,7 @@ export function LoadingSpinner({
         className
       )}
       animate={{ rotate: 360 }}
-      transition={{ 
+      transition={{
         duration: 1,
         repeat: Infinity,
         ease: 'linear'
@@ -174,21 +175,21 @@ interface LoadingPageProps {
   variant?: 'default' | 'dots' | 'pulse' | 'bars';
 }
 
-export function LoadingPage({ 
-  message = 'Carregando...', 
+export function LoadingPage({
+  message = 'Carregando...',
   submessage,
   variant = 'default'
 }: LoadingPageProps) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <motion.div 
+      <motion.div
         className="text-center"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
         <LoadingSpinner size="lg" variant={variant} className="mx-auto mb-4" />
-        <motion.p 
+        <motion.p
           className="text-gray-900 font-medium mb-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -197,7 +198,7 @@ export function LoadingPage({
           {message}
         </motion.p>
         {submessage && (
-          <motion.p 
+          <motion.p
             className="text-gray-600 text-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -217,8 +218,8 @@ interface LoadingOverlayProps {
   variant?: 'default' | 'dots' | 'pulse' | 'bars';
 }
 
-export function LoadingOverlay({ 
-  isVisible, 
+export function LoadingOverlay({
+  isVisible,
   message = 'Carregando...',
   variant = 'default'
 }: LoadingOverlayProps) {

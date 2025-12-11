@@ -11,22 +11,22 @@ export interface UseNavigationReturn {
   previousPath: string | null;
   isNavigating: boolean;
   navigationHistory: string[];
-  
+
   // Navigation methods
   navigate: (path: string, options?: { replace?: boolean; scroll?: boolean }) => Promise<boolean>;
-  goBack: () => boolean;
+  goBack: () => Promise<boolean>;
   refresh: () => void;
-  
+
   // Route information
   currentRoute: NavigationRoute | undefined;
   canNavigateTo: (path: string) => boolean;
-  
+
   // Route collections
   allRoutes: NavigationRoute[];
   publicRoutes: NavigationRoute[];
   authenticatedRoutes: NavigationRoute[];
   adminRoutes: NavigationRoute[];
-  
+
   // Utilities
   isCurrentPath: (path: string) => boolean;
   isInPath: (path: string) => boolean;
@@ -44,7 +44,7 @@ export function useNavigation(): UseNavigationReturn {
   // Initialize navigation service with router
   useEffect(() => {
     navigationService.setRouter(router);
-    navigationService.setupBrowserNavigation();
+    return navigationService.setupBrowserNavigation();
   }, [router]);
 
   // Update navigation state when pathname changes
@@ -76,9 +76,9 @@ export function useNavigation(): UseNavigationReturn {
 
   // Route information
   const currentRoute = navigationService.getRouteByPath(navigationState.currentPath);
-  
+
   const canNavigateTo = useCallback((path: string) => {
-    const isAdmin = user?.roles?.some(role => role.role === 'admin') || false;
+    const isAdmin = user?.roles?.includes('admin') || false;
     return navigationService.canNavigateToRoute(path, isAuthenticated, isAdmin);
   }, [isAuthenticated, user]);
 
@@ -107,22 +107,22 @@ export function useNavigation(): UseNavigationReturn {
     previousPath: navigationState.previousPath,
     isNavigating: navigationState.isNavigating,
     navigationHistory: navigationState.navigationHistory,
-    
+
     // Navigation methods
     navigate,
     goBack,
     refresh,
-    
+
     // Route information
     currentRoute,
     canNavigateTo,
-    
+
     // Route collections
     allRoutes,
     publicRoutes,
     authenticatedRoutes,
     adminRoutes,
-    
+
     // Utilities
     isCurrentPath,
     isInPath,
@@ -137,13 +137,13 @@ export function useNavigationGuard() {
 
   const checkRouteAccess = useCallback((path: string): { canAccess: boolean; redirectTo?: string; reason?: string } => {
     const route = navigationService.getRouteByPath(path);
-    
+
     if (!route) {
       return { canAccess: true }; // Allow unknown routes
     }
 
     // Check admin access
-    const isAdmin = user?.roles?.some(role => role.role === 'admin') || false;
+    const isAdmin = user?.roles?.includes('admin') || false;
     if (route.adminOnly && !isAdmin) {
       return {
         canAccess: false,
@@ -166,7 +166,7 @@ export function useNavigationGuard() {
 
   const guardedNavigate = useCallback(async (path: string, options?: { replace?: boolean; scroll?: boolean }) => {
     const accessCheck = checkRouteAccess(path);
-    
+
     if (!accessCheck.canAccess) {
       console.warn('🔧 Navigation Guard: Access denied', { path, reason: accessCheck.reason });
       if (accessCheck.redirectTo) {
@@ -205,7 +205,7 @@ export function useBreadcrumbs() {
     pathSegments.forEach((segment, index) => {
       currentSegmentPath += `/${segment}`;
       const route = navigationService.getRouteByPath(currentSegmentPath);
-      
+
       breadcrumbs.push({
         path: currentSegmentPath,
         name: route?.name || segment.charAt(0).toUpperCase() + segment.slice(1),

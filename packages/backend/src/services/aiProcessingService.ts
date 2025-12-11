@@ -1,16 +1,16 @@
 import { AWSService } from './awsService';
-import { 
-  VUFS_BRANDS, 
-  VUFS_COLORS, 
-  APPAREL_PIECE_TYPES, 
+import {
+  VUFS_BRANDS,
+  VUFS_COLORS,
+  APPAREL_PIECE_TYPES,
   FOOTWEAR_TYPES,
   APPAREL_MATERIALS,
-  FOOTWEAR_MATERIALS 
+  FOOTWEAR_MATERIALS
 } from '@vangarments/shared/constants/vufs';
-import { 
-  VUFSDomain, 
-  CategoryHierarchy, 
-  BrandHierarchy, 
+import {
+  VUFSDomain,
+  CategoryHierarchy,
+  BrandHierarchy,
   ItemMetadata,
   ItemCondition,
   VUFSColor,
@@ -24,6 +24,7 @@ export interface AIAnalysisResult {
   detectedPieceType: string | null;
   detectedColor: string | null;
   detectedMaterial: string | null;
+  detectedViewpoint?: string;
   confidence: {
     overall: number;
     brand: number;
@@ -82,7 +83,7 @@ export class AIProcessingService {
     try {
       // 1. Remove background
       const processedBuffer = await AWSService.removeBackground(imageBuffer);
-      
+
       // 2. Upload processed image
       const imageKey = `processed/${Date.now()}-${originalFilename}`;
       const processedImageUrl = await AWSService.uploadImage(
@@ -93,13 +94,13 @@ export class AIProcessingService {
 
       // 3. Detect labels using AWS Rekognition
       const labels = await AWSService.detectLabels(processedBuffer);
-      
+
       // 4. Detect text (for brand/size detection)
       const textDetections = await AWSService.detectText(processedBuffer);
-      
+
       // 5. Try custom fashion model
       const customModelResult = await AWSService.invokeFashionModel(processedBuffer);
-      
+
       // 6. Analyze and extract fashion attributes
       const analysis = this.analyzeFashionAttributes(
         labels,
@@ -114,13 +115,13 @@ export class AIProcessingService {
       };
     } catch (error) {
       console.error('AI processing error:', error);
-      
+
       // Fallback: basic analysis without processing
       const labels = await AWSService.detectLabels(imageBuffer);
       const textDetections = await AWSService.detectText(imageBuffer);
-      
+
       const analysis = this.analyzeFashionAttributes(labels, textDetections, null);
-      
+
       return {
         ...analysis,
         backgroundRemoved: false,
@@ -136,25 +137,25 @@ export class AIProcessingService {
     originalFilename: string
   ): Promise<VUFSExtractionResult> {
     const aiAnalysis = await this.processItemImage(imageBuffer, originalFilename);
-    
+
     // Extract VUFS category hierarchy
     const category = this.extractCategoryHierarchy(aiAnalysis);
-    
+
     // Extract brand hierarchy
     const brand = this.extractBrandHierarchy(aiAnalysis);
-    
+
     // Extract metadata
     const metadata = this.extractItemMetadata(aiAnalysis);
-    
+
     // Extract condition assessment
     const condition = this.extractConditionAssessment(aiAnalysis);
-    
+
     // Calculate confidence scores
     const confidence = this.calculateVUFSConfidence(aiAnalysis, category, brand, metadata, condition);
-    
+
     // Generate suggestions for user review
     const suggestions = this.generateSuggestions(aiAnalysis);
-    
+
     return {
       category,
       brand,
@@ -173,7 +174,7 @@ export class AIProcessingService {
       // Store feedback in database for model training
       // This would be used to improve AI accuracy over time
       console.log('Storing AI feedback for training:', feedback);
-      
+
       // In production, this would:
       // 1. Store feedback in training database
       // 2. Queue for model retraining
@@ -194,7 +195,7 @@ export class AIProcessingService {
   ): number {
     // Base confidence from AI analysis
     let baseConfidence = aiAnalysis.confidence.overall;
-    
+
     // Adjust based on property type and detection quality
     switch (property) {
       case 'brand':
@@ -226,18 +227,21 @@ export class AIProcessingService {
 
     // Determine domain (APPAREL vs FOOTWEAR)
     const domain = this.detectDomain(labels, customModelResult);
-    
+
     // Detect brand
     const detectedBrand = this.detectBrand(labels, detectedText, customModelResult);
-    
+
     // Detect piece type
     const detectedPieceType = this.detectPieceType(labels, domain, customModelResult);
-    
+
     // Detect color
     const detectedColor = this.detectColor(labels, customModelResult);
-    
+
     // Detect material
     const detectedMaterial = this.detectMaterial(labels, domain, customModelResult);
+
+    // Detect viewpoint/label
+    const detectedViewpoint = this.detectViewpoint(labels, detectedText, customModelResult);
 
     // Calculate confidence scores
     const confidence = this.calculateConfidence(
@@ -255,10 +259,61 @@ export class AIProcessingService {
       detectedPieceType,
       detectedColor,
       detectedMaterial,
+      detectedViewpoint,
       confidence,
       rawLabels: labels,
       detectedText,
     };
+  }
+
+  /**
+   * Detect viewpoint/label from text and labels
+   */
+  private static detectViewpoint(
+    labels: any[],
+    detectedText: string[],
+    customModelResult: any
+  ): string {
+    const labelNames = labels.map(l => l.Name.toLowerCase());
+    const allText = detectedText.join(' ').toLowerCase();
+
+    // 1. Check for Tags
+    // Composition/Care Tag
+    const careKeywords = ['wash', 'dry', 'iron', 'bleach', 'cotton', 'polyester', 'wool', '%'];
+    if (careKeywords.filter(k => allText.includes(k)).length >= 2) {
+      return 'Composition Tag';
+    }
+
+    // Main Brand Tag
+    const sizeKeywords = ['s', 'm', 'l', 'xl', 'xxl', 'small', 'medium', 'large'];
+    const brandTagKeywords = ['made in', 'rn', 'ca'];
+    if (
+      (sizeKeywords.some(k => new RegExp(`\\b${k}\\b`).test(allText)) && labelNames.some(l => l.includes('text'))) ||
+      brandTagKeywords.some(k => allText.includes(k)) ||
+      (labelNames.some(l => l.includes('label') && !l.includes('clothing')))
+    ) {
+      return 'Main Tag';
+    }
+
+    // 2. Check for Specific Details
+    if (labelNames.includes('zipper')) return 'Zipper';
+    if (labelNames.includes('button')) return 'Button';
+    if (labelNames.includes('pocket')) return 'Pocket';
+
+    // Damage
+    const damageKeywords = ['stain', 'hole', 'tear', 'damage', 'rip'];
+    if (damageKeywords.some(k => labelNames.some(l => l.includes(k)))) {
+      return 'Damage';
+    }
+
+    // 3. Close-up / Texture
+    if (labelNames.some(l => l.includes('texture') || l.includes('pattern') || l.includes('macro'))) {
+      return 'Details';
+    }
+
+    // 4. Default to Front (standard view)
+    // We could try to distinguish Back if we had a specific model, but heuristics are risky.
+    return 'Front';
   }
 
   /**
@@ -270,17 +325,17 @@ export class AIProcessingService {
     }
 
     const labelNames = labels.map(label => label.Name.toLowerCase());
-    
+
     // Check for footwear indicators
     const footwearKeywords = [
-      'shoe', 'boot', 'sneaker', 'sandal', 'heel', 'loafer', 
+      'shoe', 'boot', 'sneaker', 'sandal', 'heel', 'loafer',
       'footwear', 'sole', 'lace', 'athletic shoe'
     ];
-    
+
     const hasFootwearIndicators = footwearKeywords.some(keyword =>
       labelNames.some(label => label.includes(keyword))
     );
-    
+
     if (hasFootwearIndicators) {
       return 'FOOTWEAR';
     }
@@ -290,11 +345,11 @@ export class AIProcessingService {
       'clothing', 'shirt', 'jacket', 'dress', 'pants', 'skirt',
       'top', 'blouse', 'sweater', 'coat', 'vest', 'shorts'
     ];
-    
+
     const hasApparelIndicators = apparelKeywords.some(keyword =>
       labelNames.some(label => label.includes(keyword))
     );
-    
+
     if (hasApparelIndicators) {
       return 'APPAREL';
     }
@@ -306,8 +361,8 @@ export class AIProcessingService {
    * Detect brand from text and labels
    */
   private static detectBrand(
-    labels: any[], 
-    detectedText: string[], 
+    labels: any[],
+    detectedText: string[],
     customModelResult: any
   ): string | null {
     if (customModelResult?.brand) {
@@ -316,7 +371,7 @@ export class AIProcessingService {
 
     // Check detected text for brand names
     const allText = detectedText.join(' ').toLowerCase();
-    
+
     for (const brand of VUFS_BRANDS) {
       const brandName = brand.replace('®', '').toLowerCase();
       if (allText.includes(brandName)) {
@@ -325,7 +380,7 @@ export class AIProcessingService {
     }
 
     // Check labels for brand-related terms
-    const brandLabels = labels.filter(label => 
+    const brandLabels = labels.filter(label =>
       label.Name.toLowerCase().includes('logo') ||
       label.Name.toLowerCase().includes('brand') ||
       label.Name.toLowerCase().includes('text')
@@ -339,8 +394,8 @@ export class AIProcessingService {
    * Detect piece type based on domain
    */
   private static detectPieceType(
-    labels: any[], 
-    domain: VUFSDomain | null, 
+    labels: any[],
+    domain: VUFSDomain | null,
     customModelResult: any
   ): string | null {
     if (customModelResult?.pieceType) {
@@ -348,11 +403,11 @@ export class AIProcessingService {
     }
 
     const labelNames = labels.map(label => label.Name.toLowerCase());
-    
+
     if (domain === 'APPAREL') {
       for (const pieceType of APPAREL_PIECE_TYPES) {
         const typeKeywords = this.getPieceTypeKeywords(pieceType);
-        if (typeKeywords.some(keyword => 
+        if (typeKeywords.some(keyword =>
           labelNames.some(label => label.includes(keyword.toLowerCase()))
         )) {
           return pieceType;
@@ -361,7 +416,7 @@ export class AIProcessingService {
     } else if (domain === 'FOOTWEAR') {
       for (const footwearType of FOOTWEAR_TYPES) {
         const typeKeywords = this.getFootwearTypeKeywords(footwearType);
-        if (typeKeywords.some(keyword => 
+        if (typeKeywords.some(keyword =>
           labelNames.some(label => label.includes(keyword.toLowerCase()))
         )) {
           return footwearType;
@@ -381,10 +436,10 @@ export class AIProcessingService {
     }
 
     const labelNames = labels.map(label => label.Name.toLowerCase());
-    
+
     for (const color of VUFS_COLORS) {
       const colorKeywords = color.toLowerCase().split(' ');
-      if (colorKeywords.every(keyword => 
+      if (colorKeywords.every(keyword =>
         labelNames.some(label => label.includes(keyword))
       )) {
         return color;
@@ -398,8 +453,8 @@ export class AIProcessingService {
    * Detect material based on domain and labels
    */
   private static detectMaterial(
-    labels: any[], 
-    domain: VUFSDomain | null, 
+    labels: any[],
+    domain: VUFSDomain | null,
     customModelResult: any
   ): string | null {
     if (customModelResult?.material) {
@@ -408,7 +463,7 @@ export class AIProcessingService {
 
     const labelNames = labels.map(label => label.Name.toLowerCase());
     const materials = domain === 'FOOTWEAR' ? FOOTWEAR_MATERIALS : APPAREL_MATERIALS;
-    
+
     for (const material of materials) {
       if (labelNames.some(label => label.includes(material.toLowerCase()))) {
         return material;
@@ -430,7 +485,7 @@ export class AIProcessingService {
     customModelResult: any
   ) {
     const baseConfidence = customModelResult?.confidence || 0.5;
-    
+
     return {
       overall: Math.round(baseConfidence * 100),
       brand: detectedBrand ? (customModelResult?.brandConfidence || 70) : 0,
@@ -457,7 +512,7 @@ export class AIProcessingService {
       'Jewelry': ['jewelry', 'necklace', 'bracelet', 'ring'],
       'Eyewear': ['glasses', 'sunglasses'],
     };
-    
+
     return keywordMap[pieceType] || [pieceType.toLowerCase()];
   }
 
@@ -472,7 +527,7 @@ export class AIProcessingService {
       'Dress Shoes': ['dress shoe', 'oxford', 'loafer'],
       'Athletic': ['athletic', 'sport', 'running'],
     };
-    
+
     return keywordMap[footwearType] || [footwearType.toLowerCase()];
   }
 
@@ -481,7 +536,7 @@ export class AIProcessingService {
    */
   private static extractCategoryHierarchy(aiAnalysis: AIAnalysisResult): Partial<CategoryHierarchy> {
     const category: Partial<CategoryHierarchy> = {};
-    
+
     if (aiAnalysis.domain === 'APPAREL') {
       // Map detected piece type to VUFS hierarchy
       if (aiAnalysis.detectedPieceType) {
@@ -496,7 +551,7 @@ export class AIProcessingService {
       category.whiteSubcategory = aiAnalysis.detectedPieceType || 'Shoes';
       category.graySubcategory = this.inferFootwearGraySubcategory(aiAnalysis);
     }
-    
+
     return category;
   }
 
@@ -505,7 +560,7 @@ export class AIProcessingService {
    */
   private static extractBrandHierarchy(aiAnalysis: AIAnalysisResult): Partial<BrandHierarchy> {
     const brand: Partial<BrandHierarchy> = {};
-    
+
     if (aiAnalysis.detectedBrand) {
       brand.brand = aiAnalysis.detectedBrand;
       // Try to detect line/collaboration from text
@@ -513,7 +568,7 @@ export class AIProcessingService {
       brand.line = this.detectBrandLine(aiAnalysis.detectedBrand, detectedText);
       brand.collaboration = this.detectCollaboration(detectedText);
     }
-    
+
     return brand;
   }
 
@@ -522,7 +577,7 @@ export class AIProcessingService {
    */
   private static extractItemMetadata(aiAnalysis: AIAnalysisResult): Partial<ItemMetadata> {
     const metadata: Partial<ItemMetadata> = {};
-    
+
     // Extract composition
     if (aiAnalysis.detectedMaterial) {
       metadata.composition = [{
@@ -530,7 +585,7 @@ export class AIProcessingService {
         percentage: 100 // Default, user can adjust
       }];
     }
-    
+
     // Extract colors
     if (aiAnalysis.detectedColor) {
       metadata.colors = [{
@@ -538,12 +593,12 @@ export class AIProcessingService {
         undertones: this.detectUndertones(aiAnalysis)
       }];
     }
-    
+
     // Extract care instructions (basic defaults based on material)
     if (aiAnalysis.detectedMaterial) {
       metadata.careInstructions = this.generateCareInstructions(aiAnalysis.detectedMaterial);
     }
-    
+
     return metadata;
   }
 
@@ -552,11 +607,11 @@ export class AIProcessingService {
    */
   private static extractConditionAssessment(aiAnalysis: AIAnalysisResult): Partial<ItemCondition> {
     const condition: Partial<ItemCondition> = {};
-    
+
     // Analyze image quality and visible wear
     const qualityScore = this.assessImageQuality(aiAnalysis);
     const wearIndicators = this.detectWearIndicators(aiAnalysis);
-    
+
     if (qualityScore > 0.8 && wearIndicators.length === 0) {
       condition.status = 'Excellent Used';
     } else if (qualityScore > 0.6 && wearIndicators.length <= 1) {
@@ -566,9 +621,9 @@ export class AIProcessingService {
     } else {
       condition.status = 'Poor';
     }
-    
+
     condition.defects = wearIndicators;
-    
+
     return condition;
   }
 
@@ -582,21 +637,21 @@ export class AIProcessingService {
     metadata: Partial<ItemMetadata>,
     condition: Partial<ItemCondition>
   ) {
-    const categoryConfidence = Object.keys(category).length > 0 ? 
+    const categoryConfidence = Object.keys(category).length > 0 ?
       Math.min(aiAnalysis.confidence.pieceType + 10, 90) : 0;
-    
-    const brandConfidence = brand.brand ? 
+
+    const brandConfidence = brand.brand ?
       Math.min(aiAnalysis.confidence.brand + 15, 95) : 0;
-    
-    const metadataConfidence = (metadata.composition || metadata.colors) ? 
+
+    const metadataConfidence = (metadata.composition || metadata.colors) ?
       Math.min((aiAnalysis.confidence.color + aiAnalysis.confidence.material) / 2 + 10, 85) : 0;
-    
+
     const conditionConfidence = condition.status ? 75 : 0; // Base confidence for condition assessment
-    
+
     const overall = Math.round(
       (categoryConfidence + brandConfidence + metadataConfidence + conditionConfidence) / 4
     );
-    
+
     return {
       category: categoryConfidence,
       brand: brandConfidence,
@@ -636,7 +691,7 @@ export class AIProcessingService {
 
   private static mapFootwearToBlueSubcategory(pieceType: string | null): string {
     if (!pieceType) return 'Shoes';
-    
+
     const mapping: Record<string, string> = {
       'Sneakers': 'Athletic',
       'Boots': 'Boots',
@@ -650,7 +705,7 @@ export class AIProcessingService {
   private static inferGraySubcategory(aiAnalysis: AIAnalysisResult): string {
     // Infer style/occasion from labels and context
     const labels = aiAnalysis.rawLabels.map(l => l.Name.toLowerCase());
-    
+
     if (labels.some(l => l.includes('formal') || l.includes('business'))) {
       return 'Formal';
     } else if (labels.some(l => l.includes('sport') || l.includes('athletic'))) {
@@ -658,19 +713,19 @@ export class AIProcessingService {
     } else if (labels.some(l => l.includes('casual'))) {
       return 'Casual';
     }
-    
+
     return 'Casual'; // Default
   }
 
   private static inferFootwearGraySubcategory(aiAnalysis: AIAnalysisResult): string {
     const labels = aiAnalysis.rawLabels.map(l => l.Name.toLowerCase());
-    
+
     if (labels.some(l => l.includes('running') || l.includes('sport'))) {
       return 'Athletic';
     } else if (labels.some(l => l.includes('dress') || l.includes('formal'))) {
       return 'Formal';
     }
-    
+
     return 'Casual';
   }
 
@@ -681,7 +736,7 @@ export class AIProcessingService {
       'Nike': ['air', 'dunk', 'jordan', 'sb'],
       'Zara': ['basic', 'trf', 'woman'],
     };
-    
+
     const lines = brandLines[brand] || [];
     return lines.find(line => detectedText.includes(line));
   }
@@ -701,10 +756,10 @@ export class AIProcessingService {
   private static detectUndertones(aiAnalysis: AIAnalysisResult): string[] {
     // Analyze color undertones from labels
     const colorLabels = aiAnalysis.rawLabels
-      .filter(l => l.Name.toLowerCase().includes('color') || 
-                   VUFS_COLORS.some(c => l.Name.toLowerCase().includes(c.toLowerCase())))
+      .filter(l => l.Name.toLowerCase().includes('color') ||
+        VUFS_COLORS.some(c => l.Name.toLowerCase().includes(c.toLowerCase())))
       .map(l => l.Name);
-    
+
     return colorLabels.slice(0, 2); // Max 2 undertones
   }
 
@@ -716,7 +771,7 @@ export class AIProcessingService {
       'Silk': ['Hand wash cold', 'Air dry', 'Dry clean only'],
       'Denim': ['Machine wash cold', 'Hang dry', 'Iron medium heat'],
     };
-    
+
     return careMap[material] || ['Follow care label instructions'];
   }
 
@@ -728,8 +783,8 @@ export class AIProcessingService {
   private static detectWearIndicators(aiAnalysis: AIAnalysisResult): string[] {
     const wearKeywords = ['worn', 'faded', 'stain', 'hole', 'tear', 'damage'];
     const labels = aiAnalysis.rawLabels.map(l => l.Name.toLowerCase());
-    
-    return wearKeywords.filter(keyword => 
+
+    return wearKeywords.filter(keyword =>
       labels.some(label => label.includes(keyword))
     );
   }

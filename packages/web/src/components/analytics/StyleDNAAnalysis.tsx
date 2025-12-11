@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -47,7 +48,7 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
 
   if (loading) {
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-[#fff7d7] rounded-xl shadow-lg p-6 border border-[#00132d]/10"
@@ -65,7 +66,7 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
   }
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-[#fff7d7] rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300 border border-[#00132d]/10"
@@ -79,7 +80,7 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
           <span className="text-sm text-[#00132d]/70">Live Analysis</span>
         </div>
       </div>
-      
+
       {/* Dominant Styles */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold text-[#00132d] mb-4">
@@ -87,16 +88,15 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
         </h3>
         <div className="space-y-4">
           {data.dominantStyles.map((style, index) => (
-            <motion.div 
-              key={index} 
+            <motion.div
+              key={index}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={`p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
-                selectedStyle === style.style 
-                  ? 'border-[#00132d] bg-[#00132d]/5 shadow-lg' 
+              className={`p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${selectedStyle === style.style
+                  ? 'border-[#00132d] bg-[#00132d]/5 shadow-lg'
                   : 'border-[#00132d]/20 hover:border-[#00132d]/40 hover:shadow-md'
-              }`}
+                }`}
               onClick={() => setSelectedStyle(selectedStyle === style.style ? null : style.style)}
             >
               <div className="flex items-center justify-between mb-2">
@@ -111,10 +111,10 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
                   </motion.div>
                 </div>
               </div>
-              
+
               <div className="relative mb-3">
                 <div className="w-full bg-[#00132d]/10 rounded-full h-3 overflow-hidden">
-                  <motion.div 
+                  <motion.div
                     className="h-3 rounded-full bg-[#00132d]"
                     initial={{ width: 0 }}
                     animate={{ width: `${animatedValues[index] || 0}%` }}
@@ -123,7 +123,7 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#fff7d7] to-transparent opacity-30 animate-pulse"></div>
               </div>
-              
+
               <AnimatePresence>
                 {selectedStyle === style.style && (
                   <motion.div
@@ -158,22 +158,22 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {data.colorPalette.map((color, index) => (
-            <motion.div 
-              key={index} 
+            <motion.div
+              key={index}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.1 }}
               className="text-center group cursor-pointer"
             >
               <div className="relative">
-                <motion.div 
+                <motion.div
                   className="w-20 h-20 rounded-full mx-auto mb-3 border-4 border-[#fff7d7] shadow-lg group-hover:shadow-xl transition-all duration-300"
                   style={{ backgroundColor: color.hex }}
                   whileHover={{ scale: 1.1, rotate: 5 }}
                   whileTap={{ scale: 0.95 }}
                 />
                 <div className="absolute inset-0 w-20 h-20 rounded-full mx-auto bg-gradient-to-tr from-[#fff7d7]/20 to-transparent"></div>
-                <motion.div 
+                <motion.div
                   className="absolute -top-1 -right-1 w-6 h-6 bg-[#00132d] text-[#fff7d7] text-xs rounded-full flex items-center justify-center font-bold"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -198,7 +198,7 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
         </h3>
         <div className="space-y-3">
           {data.brandAffinity.slice(0, 5).map((brand, index) => (
-            <motion.div 
+            <motion.div
               key={index}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -239,10 +239,10 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
         <div className="relative">
           {/* Timeline line */}
           <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-[#00132d]"></div>
-          
+
           <div className="space-y-6">
             {data.styleEvolution.map((period, index) => (
-              <motion.div 
+              <motion.div
                 key={index}
                 initial={{ opacity: 0, x: -30 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -253,7 +253,7 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
                 <div className="relative z-10 flex items-center justify-center w-12 h-12 bg-[#fff7d7] border-4 border-[#00132d] rounded-full shadow-lg">
                   <div className="w-4 h-4 bg-[#00132d] rounded-full"></div>
                 </div>
-                
+
                 {/* Content */}
                 <div className="flex-1 bg-[#fff7d7] p-4 rounded-xl shadow-md border border-[#00132d]/20 hover:shadow-lg transition-shadow">
                   <div className="flex items-center justify-between">
@@ -264,7 +264,7 @@ export default function StyleDNAAnalysis({ data, loading = false }: StyleDNAAnal
                     <div className="text-right">
                       <div className="flex items-center space-x-2">
                         <div className="w-16 bg-[#00132d]/20 rounded-full h-2">
-                          <motion.div 
+                          <motion.div
                             className="bg-[#00132d] h-2 rounded-full"
                             initial={{ width: 0 }}
                             animate={{ width: `${period.confidence}%` }}

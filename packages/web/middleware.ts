@@ -24,20 +24,20 @@ const apiRoutes = [
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
+
   console.log('🔧 Middleware: Processing request', { pathname });
 
   // Handle API routes - proxy to backend
   if (pathname.startsWith('/api/')) {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
     const targetUrl = `${apiUrl}${pathname.replace('/api', '')}`;
-    
+
     console.log('🔧 Middleware: API proxy', { from: pathname, to: targetUrl });
-    
+
     // Create a new URL for the API request
     const url = request.nextUrl.clone();
     url.href = targetUrl;
-    
+
     return NextResponse.rewrite(url);
   }
 
@@ -54,16 +54,16 @@ export function middleware(request: NextRequest) {
   // Get authentication status from cookies or headers
   const authToken = request.cookies.get('auth-token')?.value;
   const isAuthenticated = !!authToken;
-  
+
   // Check if user is admin (simplified check)
   const userRole = request.cookies.get('user-role')?.value;
   const isAdmin = userRole === 'admin';
 
-  console.log('🔧 Middleware: Auth check', { 
-    pathname, 
-    isAuthenticated, 
+  console.log('🔧 Middleware: Auth check', {
+    pathname,
+    isAuthenticated,
     isAdmin,
-    hasToken: !!authToken 
+    hasToken: !!authToken
   });
 
   // Handle admin routes
@@ -85,11 +85,11 @@ export function middleware(request: NextRequest) {
       '/profile',
       '/analytics',
       '/advertising',
-      '/beta',
+
       '/discover'
     ];
 
-    const isProtectedRoute = protectedPatterns.some(pattern => 
+    const isProtectedRoute = protectedPatterns.some(pattern =>
       pathname.startsWith(pattern)
     );
 
@@ -103,21 +103,21 @@ export function middleware(request: NextRequest) {
 
   // Handle redirect after login
   if (pathname === '/login' && isAuthenticated) {
-    const redirectTo = request.nextUrl.searchParams.get('redirect') || '/beta';
+    const redirectTo = request.nextUrl.searchParams.get('redirect') || '/wardrobe';
     console.log('🔧 Middleware: Already authenticated, redirecting', { redirectTo });
     return NextResponse.redirect(new URL(redirectTo, request.url));
   }
 
   // Add security headers
   const response = NextResponse.next();
-  
+
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('X-Navigation-Processed', 'true');
 
   console.log('✅ Middleware: Request processed successfully', { pathname });
-  
+
   return response;
 }
 

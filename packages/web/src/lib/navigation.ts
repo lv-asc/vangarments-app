@@ -24,7 +24,7 @@ export const APP_ROUTES: NavigationRoute[] = [
     description: 'Discover fashion trends and content'
   },
   {
-    path: '/wardrobe-simple',
+    path: '/wardrobe',
     name: 'Wardrobe',
     requiresAuth: true,
     description: 'Manage your digital wardrobe'
@@ -36,7 +36,7 @@ export const APP_ROUTES: NavigationRoute[] = [
     description: 'Create and manage outfit combinations'
   },
   {
-    path: '/marketplace-simple',
+    path: '/marketplace',
     name: 'Marketplace',
     requiresAuth: true,
     description: 'Buy and sell fashion items'
@@ -48,7 +48,7 @@ export const APP_ROUTES: NavigationRoute[] = [
     description: 'Connect with the fashion community'
   },
   {
-    path: '/profile-simple',
+    path: '/profile',
     name: 'Profile',
     requiresAuth: true,
     description: 'Manage your profile and settings'
@@ -65,12 +65,7 @@ export const APP_ROUTES: NavigationRoute[] = [
     requiresAuth: true,
     description: 'Manage advertising campaigns'
   },
-  {
-    path: '/beta',
-    name: 'Beta',
-    requiresAuth: true,
-    description: 'Beta features and testing'
-  },
+
   {
     path: '/admin/configuration',
     name: 'Configuration',
@@ -191,7 +186,7 @@ export class NavigationService {
     }
   }
 
-  goBack(): boolean {
+  async goBack(): Promise<boolean> {
     try {
       if (this.state.previousPath) {
         return this.navigate(this.state.previousPath);
@@ -256,7 +251,7 @@ export class NavigationService {
   }
 
   // Deep linking support
-  handleDeepLink(url: string): boolean {
+  async handleDeepLink(url: string): Promise<boolean> {
     try {
       const urlObj = new URL(url);
       const path = urlObj.pathname + urlObj.search + urlObj.hash;
@@ -268,8 +263,8 @@ export class NavigationService {
   }
 
   // Browser navigation event handling
-  setupBrowserNavigation(): void {
-    if (typeof window === 'undefined') return;
+  setupBrowserNavigation(): () => void {
+    if (typeof window === 'undefined') return () => { };
 
     // Handle browser back/forward buttons
     const handlePopState = (event: PopStateEvent) => {

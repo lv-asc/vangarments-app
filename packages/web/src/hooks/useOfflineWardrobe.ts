@@ -36,10 +36,10 @@ export function useOfflineWardrobe() {
     try {
       setLoading(true);
       setError(null);
-      
+
       await offlineStorage.initialize();
       const offlineItems = await offlineStorage.getWardrobeItems(filters);
-      
+
       // Convert offline items to wardrobe items format
       const wardrobeItems: WardrobeItem[] = offlineItems.map(item => ({
         id: item.id,
@@ -48,7 +48,7 @@ export function useOfflineWardrobe() {
         brand: item.brand,
         color: item.color,
         size: item.size,
-        condition: item.condition,
+        condition: item.condition as WardrobeItem['condition'],
         images: item.imageUrl ? [item.imageUrl] : [],
         timesWorn: item.wearCount,
         lastWorn: item.lastWorn ? new Date(item.lastWorn) : undefined,
@@ -92,7 +92,7 @@ export function useOfflineWardrobe() {
       };
 
       await offlineStorage.saveWardrobeItem(newItem);
-      
+
       // If there's a local image blob, save it
       if (itemData.localImageBlob) {
         await offlineStorage.saveImage(newItem.id, itemData.localImageBlob);
@@ -113,9 +113,14 @@ export function useOfflineWardrobe() {
         throw new Error('Item not found');
       }
 
+      const sanitizedUpdates = {
+        ...updates,
+        lastWorn: updates.lastWorn instanceof Date ? updates.lastWorn.toISOString() : updates.lastWorn
+      };
+
       const updatedItem = {
         ...existingItem,
-        ...updates,
+        ...sanitizedUpdates,
         lastModified: new Date().toISOString(),
         needsSync: true,
       };

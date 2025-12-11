@@ -14,8 +14,18 @@ router.post(
   WardrobeController.createItemWithAI
 );
 
+// Analyze item image (for pre-filling form)
+router.post(
+  '/analyze',
+  WardrobeController.uploadMiddleware,
+  WardrobeController.analyzeItem
+);
+
 // Get user's wardrobe items
 router.get('/items', WardrobeController.getUserWardrobe);
+
+// Get single wardrobe item
+router.get('/items/:id', WardrobeController.getItem);
 
 // Update wardrobe item
 router.put('/items/:id', WardrobeController.updateItem);

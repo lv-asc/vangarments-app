@@ -6,11 +6,8 @@ import { AuthWrapper } from '@/contexts/AuthWrapper';
 import { DataProvider } from '@/contexts/DataContext';
 import { ToastProvider } from './ToastProvider';
 import { NavigationProvider } from './NavigationProvider';
-// Development components disabled
-// import DevModeToggle from '../dev/DevModeToggle';
-// import DevModeIndicator from '../dev/DevModeIndicator';
-// import DevModeGuide from '../dev/DevModeGuide';
-// import DevModeBanner from '../dev/DevModeBanner';
+// Development components removed
+
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({

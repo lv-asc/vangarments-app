@@ -5,7 +5,7 @@ const nextConfig = {
     optimizeCss: true,
     scrollRestoration: true,
   },
-  
+
   // Optimize images with better compression and formats
   images: {
     domains: [
@@ -23,10 +23,10 @@ const nextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  
+
   // Enable compression
   compress: true,
-  
+
   // Optimize bundle splitting
   webpack: (config, { isServer, dev }) => {
     if (!isServer) {
@@ -76,26 +76,26 @@ const nextConfig = {
     return config;
   },
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
     NEXT_PUBLIC_APP_NAME: 'Vangarments',
     NEXT_PUBLIC_APP_VERSION: '1.0.0',
   },
-  
+
   // Enable SWC minification for better performance
   swcMinify: true,
-  
+
   // Enable React strict mode
   reactStrictMode: true,
-  
+
   // Optimize fonts
   optimizeFonts: true,
-  
+
   // Enable modern JavaScript features
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
     return [
       {
         source: '/api/:path*',
@@ -124,17 +124,7 @@ const nextConfig = {
       },
     ];
   },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-      };
-    }
-    return config;
-  },
+
 };
 
 module.exports = nextConfig;

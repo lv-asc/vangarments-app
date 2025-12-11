@@ -28,19 +28,19 @@ export const createRateLimit = (windowMs: number, max: number, message?: string)
 // Different rate limits for different endpoints
 export const authRateLimit = createRateLimit(
   15 * 60 * 1000, // 15 minutes
-  5, // 5 attempts per window
+  1000, // 1000 attempts per window (dev)
   'Too many authentication attempts, please try again later.'
 );
 
 export const apiRateLimit = createRateLimit(
   15 * 60 * 1000, // 15 minutes
-  100, // 100 requests per window
+  5000, // 5000 requests per window (dev)
   'API rate limit exceeded, please try again later.'
 );
 
 export const uploadRateLimit = createRateLimit(
   60 * 60 * 1000, // 1 hour
-  20, // 20 uploads per hour
+  1000, // 1000 uploads per hour (dev)
   'Upload rate limit exceeded, please try again later.'
 );
 
@@ -117,7 +117,7 @@ export const lgpdCompliance = (req: Request, res: Response, next: NextFunction) 
   res.setHeader('X-Data-Protection', 'LGPD-Compliant');
   res.setHeader('X-Privacy-Policy', 'https://vangarments.com/privacy');
   res.setHeader('X-Data-Controller', 'Vangarments Ltda');
-  
+
   // Log data processing activities for LGPD audit trail
   if (req.method !== 'GET' && req.user) {
     console.log(`[LGPD-AUDIT] ${new Date().toISOString()} - User ${req.user.id} - ${req.method} ${req.path}`);
@@ -146,7 +146,7 @@ export const dataMinimization = (allowedFields: string[]) => {
 export const validateConsent = (requiredConsents: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const userConsents = req.headers['x-user-consents'];
-    
+
     if (!userConsents) {
       return res.status(400).json({
         success: false,
@@ -159,7 +159,7 @@ export const validateConsent = (requiredConsents: string[]) => {
     try {
       const consents = JSON.parse(userConsents as string);
       const missingConsents = requiredConsents.filter(consent => !consents[consent]);
-      
+
       if (missingConsents.length > 0) {
         return res.status(400).json({
           success: false,
@@ -185,7 +185,7 @@ export const dataRetentionCheck = (req: Request, res: Response, next: NextFuncti
   // Add data retention information to response headers
   res.setHeader('X-Data-Retention-Policy', 'https://vangarments.com/data-retention');
   res.setHeader('X-Data-Retention-Period', '5-years');
-  
+
   next();
 };
 
@@ -205,7 +205,7 @@ export const auditLogger = (action: string) => {
 
     // In production, this would be sent to a secure audit log service
     console.log(`[AUDIT] ${JSON.stringify(auditLog)}`);
-    
+
     next();
   };
 };
@@ -241,7 +241,7 @@ export const validateCPF = (cpf: string): boolean => {
     '44444444444', '55555555555', '66666666666', '77777777777',
     '88888888888', '99999999999'
   ];
-  
+
   if (invalidCPFs.includes(cpf)) return false;
 
   // Validate CPF algorithm
@@ -249,7 +249,7 @@ export const validateCPF = (cpf: string): boolean => {
   for (let i = 0; i < 9; i++) {
     sum += parseInt(cpf.charAt(i)) * (10 - i);
   }
-  
+
   let remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cpf.charAt(9))) return false;
@@ -258,7 +258,7 @@ export const validateCPF = (cpf: string): boolean => {
   for (let i = 0; i < 10; i++) {
     sum += parseInt(cpf.charAt(i)) * (11 - i);
   }
-  
+
   remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cpf.charAt(10))) return false;
@@ -294,13 +294,13 @@ export const securityMonitoring = (req: Request, res: Response, next: NextFuncti
     params: req.params,
   });
 
-  const suspiciousActivity = suspiciousPatterns.some(pattern => 
+  const suspiciousActivity = suspiciousPatterns.some(pattern =>
     pattern.test(requestString)
   );
 
   if (suspiciousActivity) {
     console.warn(`[SECURITY-ALERT] Suspicious activity detected from IP ${req.ip}: ${requestString}`);
-    
+
     // In production, this would trigger security alerts
     return res.status(400).json({
       success: false,
@@ -328,7 +328,7 @@ export const fileUploadSecurity = (req: Request, res: Response, next: NextFuncti
       if (!allowedMimeTypes.includes(file.mimetype)) {
         throw new Error(`File type ${file.mimetype} not allowed`);
       }
-      
+
       if (file.size > maxFileSize) {
         throw new Error('File size exceeds 10MB limit');
       }
@@ -338,7 +338,7 @@ export const fileUploadSecurity = (req: Request, res: Response, next: NextFuncti
       if (req.file) {
         validateFile(req.file);
       }
-      
+
       if (req.files) {
         if (Array.isArray(req.files)) {
           req.files.forEach(validateFile);

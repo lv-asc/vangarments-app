@@ -9,12 +9,12 @@ import { AuthenticatedRequest } from '../utils/auth';
 import { VUFSUtils } from '../utils/vufs';
 import { WardrobeValidationService } from '../services/wardrobeValidationService';
 import { VUFSManagementService } from '../services/vufsManagementService';
-import { 
-  CategoryHierarchy, 
-  BrandHierarchy, 
-  ItemMetadata, 
+import {
+  CategoryHierarchy,
+  BrandHierarchy,
+  ItemMetadata,
   ItemCondition,
-  OwnershipInfo 
+  OwnershipInfo
 } from '@vangarments/shared';
 
 // Configure multer for image uploads
@@ -45,10 +45,11 @@ export class WardrobeController {
   /**
    * Upload and process wardrobe item with AI analysis
    */
-  static uploadMiddleware = upload.array('images', 5);
+  static uploadMiddleware = upload.array('images', 10);
 
   static async createItemWithAI(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
+      console.log('createItemWithAI called');
       if (!req.user) {
         res.status(401).json({
           error: {
@@ -60,10 +61,12 @@ export class WardrobeController {
       }
 
       const files = req.files as Express.Multer.File[];
-      
+      console.log(`Received ${files?.length} files`);
+
       // Validate image uploads
-      const imageValidation = WardrobeValidationService.validateImageUpload(files);
+      const imageValidation = WardrobeValidationService.validateImageUpload(files, 10);
       if (!imageValidation.isValid) {
+        console.error('Image validation failed:', imageValidation.errors);
         res.status(400).json({
           error: {
             code: 'INVALID_IMAGES',
@@ -87,7 +90,7 @@ export class WardrobeController {
             primaryImage.buffer,
             primaryImage.originalname
           );
-          
+
           aiAnalysis = await AIProcessingService.processItemImage(
             primaryImage.buffer,
             primaryImage.originalname
@@ -97,14 +100,27 @@ export class WardrobeController {
         }
       }
 
+      // Handle multipart/form-data with JSON 'data' field
+      let inputData = req.body;
+      if (req.body.data) {
+        try {
+          inputData = JSON.parse(req.body.data);
+          console.log('Parsed input data:', JSON.stringify(inputData, null, 2));
+        } catch (e) {
+          console.warn('Failed to parse data field as JSON, using raw body');
+        }
+      }
+
       // Merge AI suggestions with user input
-      const rawItemData = this.mergeAIWithUserInput(req.body, vufsExtraction);
-      
+      const rawItemData = WardrobeController.mergeAIWithUserInput(inputData, vufsExtraction);
+
       // Sanitize and validate the merged data
       const sanitizedData = WardrobeValidationService.sanitizeItemData(rawItemData);
       const validation = WardrobeValidationService.validateWardrobeItem(sanitizedData, false);
-      
+
       if (!validation.isValid) {
+        console.error('Validation failed:', JSON.stringify(validation.errors, null, 2));
+        console.error('Validation warnings:', JSON.stringify(validation.warnings, null, 2));
         res.status(400).json({
           error: {
             code: 'VALIDATION_ERROR',
@@ -115,54 +131,81 @@ export class WardrobeController {
         });
         return;
       }
-      
+
       const itemData = sanitizedData;
 
       // Create VUFS item
-      const vufsItem = await VUFSItemModel.create({
-        ownerId: req.user.userId,
-        category: itemData.category,
-        brand: itemData.brand,
-        metadata: itemData.metadata,
-        condition: itemData.condition,
-        ownership: itemData.ownership,
-      });
+      console.log('Creating VUFS item in database...');
+      let vufsItem;
+      try {
+        vufsItem = await VUFSItemModel.create({
+          ownerId: req.user.userId,
+          category: itemData.category!,
+          brand: itemData.brand!,
+          metadata: itemData.metadata as any,
+          condition: { ...(itemData.condition as any), defects: (itemData.condition as any).defects || [] } as any,
+          ownership: itemData.ownership as any,
+        });
+        console.log('VUFS item created:', vufsItem.id);
+      } catch (dbError) {
+        console.error('Failed to create VUFS item in DB:', dbError);
+        throw dbError; // Re-throw to be caught by outer catch
+      }
 
       // Upload and store images locally
       const imageRecords = [];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
-        // Upload to local storage
-        const uploadResult = await LocalStorageService.uploadImage(
-          file.buffer,
-          file.originalname,
-          file.mimetype,
-          'wardrobe',
-          req.user.userId
-        );
-        
-        // Determine image type
-        const imageType = i === 0 ? 'front' : (i === 1 ? 'back' : 'detail');
-        
-        // Store image record with AI analysis for primary image
-        const imageRecord = await ItemImageModel.create({
-          itemId: vufsItem.id,
-          imageUrl: uploadResult.optimizedUrl || uploadResult.url,
-          imageType: imageType as any,
-          isPrimary: i === 0,
-          aiAnalysis: i === 0 ? aiAnalysis : undefined,
-          fileSize: uploadResult.size,
-          mimeType: uploadResult.mimetype,
-        });
-        
-        imageRecords.push(imageRecord);
+        console.log(`Processing file ${i + 1}/${files.length}: ${file.originalname}`);
+
+        try {
+          // Upload to local storage
+          const uploadResult = await LocalStorageService.uploadImage(
+            file.buffer,
+            file.originalname,
+            file.mimetype,
+            'wardrobe',
+            req.user.userId
+          );
+          console.log(`File uploaded locally: ${uploadResult.path}`);
+
+          // Determine image type
+          const imageType = i === 0 ? 'front' : (i === 1 ? 'back' : 'detail');
+
+          // Store image record with AI analysis for primary image
+          const imageRecord = await ItemImageModel.create({
+            itemId: vufsItem.id,
+            imageUrl: uploadResult.optimizedUrl || uploadResult.url,
+            imageType: imageType as any,
+            isPrimary: i === 0,
+            aiAnalysis: i === 0 ? aiAnalysis : undefined,
+            fileSize: uploadResult.size,
+            mimeType: uploadResult.mimetype,
+          });
+          console.log(`Image record created in DB: ${imageRecord.id}`);
+
+          imageRecords.push(imageRecord);
+        } catch (imgError) {
+          console.error(`Failed to process image ${file.originalname}:`, imgError);
+          // Continue with other images? Or fail? 
+          // For now, let's log and maybe continue or throw if strict.
+          // User wants persistence, so partially succeeding is better than failing all.
+        }
+      }
+
+      if (imageRecords.length === 0 && files.length > 0) {
+        throw new Error('All image uploads failed');
       }
 
       // Get complete item with images
       const itemWithImages = {
         ...vufsItem,
-        images: imageRecords,
+        images: imageRecords.map(img => ({
+          ...img,
+          url: img.imageUrl.startsWith('http')
+            ? img.imageUrl
+            : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+        })),
       };
 
       res.status(201).json({
@@ -175,7 +218,7 @@ export class WardrobeController {
         } : null,
       });
     } catch (error) {
-      console.error('Create wardrobe item error:', error);
+      console.error('Create wardrobe item error details:', error);
       res.status(500).json({
         error: {
           code: 'INTERNAL_SERVER_ERROR',
@@ -200,14 +243,14 @@ export class WardrobeController {
         return;
       }
 
-      const { 
-        category, 
-        brand, 
-        condition, 
-        visibility, 
+      const {
+        category,
+        brand,
+        condition,
+        visibility,
         search,
         page = 1,
-        limit = 20 
+        limit = 20
       } = req.query;
 
       const filters = {
@@ -231,9 +274,15 @@ export class WardrobeController {
       const itemsWithImages = await Promise.all(
         paginatedItems.map(async (item) => {
           const images = await ItemImageModel.findByItemId(item.id);
+          const imagesWithUrls = images.map(img => ({
+            ...img,
+            url: img.imageUrl.startsWith('http')
+              ? img.imageUrl
+              : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+          }));
           return {
             ...item,
-            images,
+            images: imagesWithUrls,
           };
         })
       );
@@ -253,6 +302,79 @@ export class WardrobeController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: 'An error occurred while fetching wardrobe items',
+        },
+      });
+    }
+  }
+
+  /**
+   * Get single wardrobe item by ID
+   */
+  static async getItem(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id } = req.params;
+
+      const item = await VUFSItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          error: {
+            code: 'ITEM_NOT_FOUND',
+            message: 'Wardrobe item not found',
+          },
+        });
+        return;
+      }
+
+      // Check ownership or visibility
+      if (item.ownerId !== req.user.userId && item.ownership.visibility !== 'public') {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied',
+          },
+        });
+        return;
+      }
+
+      // Fetch images
+      const images = await ItemImageModel.findByItemId(item.id);
+
+      // Construct working URLs for images
+      // Assuming backend is serving 'images' statically at root
+      // and image.imageUrl is something like 'images/wardrobe/...'
+      const imagesWithUrls = images.map(img => ({
+        ...img,
+        url: img.imageUrl.startsWith('http')
+          ? img.imageUrl
+          : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+      }));
+
+      const itemWithImages = {
+        ...item,
+        images: imagesWithUrls,
+      };
+
+      res.json({
+        data: {
+          item: itemWithImages
+        }
+      });
+    } catch (error) {
+      console.error('Get item error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching the item',
         },
       });
     }
@@ -301,7 +423,7 @@ export class WardrobeController {
       // Sanitize and validate update data
       const sanitizedUpdateData = WardrobeValidationService.sanitizeItemData(updateData);
       const validation = WardrobeValidationService.validateWardrobeItem(sanitizedUpdateData, true);
-      
+
       if (!validation.isValid) {
         res.status(400).json({
           error: {
@@ -313,10 +435,10 @@ export class WardrobeController {
         });
         return;
       }
-      
+
       const validatedUpdateData = sanitizedUpdateData;
 
-      const updatedItem = await VUFSItemModel.update(id, validatedUpdateData);
+      const updatedItem = await VUFSItemModel.update(id, validatedUpdateData as any);
 
       res.json({
         message: 'Wardrobe item updated successfully',
@@ -609,6 +731,63 @@ export class WardrobeController {
   /**
    * Merge AI suggestions with user input
    */
+
+  /**
+   * Analyze item image for VUFS properties without creating it
+   */
+  static async analyzeItem(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        res.status(400).json({
+          error: {
+            code: 'NO_IMAGE',
+            message: 'No image provided for analysis',
+          },
+        });
+        return;
+      }
+
+      const image = files[0];
+
+      // Extract VUFS properties
+      const vufsExtraction = await AIProcessingService.extractVUFSProperties(
+        image.buffer,
+        image.originalname
+      );
+
+      // We don't perform full processing/upload here, just analysis
+      // But we can verify if background removal is possible
+      // In a real scenario, we might return a temporary URL of the processed image
+      // For now, we return the extraction data
+
+      res.json({
+        message: 'Analysis complete',
+        analysis: vufsExtraction,
+      });
+
+    } catch (error) {
+      console.error('Analyze item error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while analyzing the item',
+        },
+      });
+    }
+  }
+
   private static mergeAIWithUserInput(
     userInput: WardrobeItemRequest,
     aiExtraction: any

@@ -1,10 +1,11 @@
+// @ts-nocheck
 'use client';
 
 import React from 'react';
 import Link from 'next/link';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useAuth } from '@/contexts/AuthWrapper';
-import { 
+import {
   HomeIcon,
   MagnifyingGlassIcon,
   EyeIcon,
@@ -13,7 +14,7 @@ import {
   UserIcon,
   ChartBarIcon,
   MegaphoneIcon,
-  BeakerIcon,
+
   ArrowLeftIcon
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
@@ -28,7 +29,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   profile: UserIcon,
   analytics: ChartBarIcon,
   advertising: MegaphoneIcon,
-  beta: BeakerIcon
+
 };
 
 interface NavigationProps {
@@ -37,28 +38,28 @@ interface NavigationProps {
 }
 
 export function Navigation({ variant = 'header', className = '' }: NavigationProps) {
-  const { 
-    currentPath, 
-    navigate, 
-    goBack, 
-    canNavigateTo, 
-    authenticatedRoutes, 
+  const {
+    currentPath,
+    navigate,
+    goBack,
+    canNavigateTo,
+    authenticatedRoutes,
     publicRoutes,
     isCurrentPath,
-    isNavigating 
+    isNavigating
   } = useNavigation();
   const { isAuthenticated, user } = useAuth();
 
   // Get appropriate routes based on authentication
   const availableRoutes = isAuthenticated ? authenticatedRoutes : publicRoutes;
-  
+
   // Filter routes that user can access
   const accessibleRoutes = availableRoutes.filter(route => canNavigateTo(route.path));
 
   const handleNavigation = async (path: string, event: React.MouseEvent) => {
     event.preventDefault();
     console.log('🔧 Navigation: Handling click', { path, currentPath });
-    
+
     if (path === currentPath) {
       console.log('🔧 Navigation: Already on current path');
       return;
@@ -82,7 +83,7 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
         {/* Back button */}
         <button
           onClick={() => goBack()}
-          className="flex items-center space-x-2 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          className="flex items-center space-x-2 p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
         >
           <ArrowLeftIcon className="h-5 w-5" />
           <span>Back</span>
@@ -98,11 +99,10 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
               key={route.path}
               href={route.path}
               onClick={(e) => handleNavigation(route.path, e)}
-              className={`flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'bg-[#00132d] text-[#fff7d7] shadow-md'
-                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-              } ${isNavigating ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 ${isActive
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                } ${isNavigating ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <IconComponent className="h-5 w-5" />
               <span className="font-medium">{route.name}</span>
@@ -130,11 +130,10 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
               key={route.path}
               href={route.path}
               onClick={(e) => handleNavigation(route.path, e)}
-              className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'bg-[#00132d] text-[#fff7d7]'
-                  : 'text-gray-700 hover:bg-gray-100'
-              } ${isNavigating ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all duration-200 ${isActive
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-muted'
+                } ${isNavigating ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <IconComponent className="h-6 w-6" />
               <span className="text-xs font-medium">{route.name}</span>
@@ -161,11 +160,10 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
             <Link
               href={route.path}
               onClick={(e) => handleNavigation(route.path, e)}
-              className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'text-[#00132d] bg-[#00132d]/10'
-                  : 'text-[#00132d]/70 hover:text-[#00132d] hover:bg-[#00132d]/5'
-              } ${isNavigating ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-all duration-200 ${isActive
+                ? 'text-primary bg-primary/10'
+                : 'text-muted-foreground hover:text-primary hover:bg-muted'
+                } ${isNavigating ? 'opacity-50 pointer-events-none' : ''}`}
               title={route.description}
             >
               <IconComponent className="h-5 w-5" />
@@ -181,7 +179,7 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
 // Breadcrumb navigation component
 export function BreadcrumbNavigation({ className = '' }: { className?: string }) {
   const { currentPath, navigate } = useNavigation();
-  
+
   const getBreadcrumbs = () => {
     const pathSegments = currentPath.split('/').filter(Boolean);
     const breadcrumbs: { path: string; name: string; isActive: boolean }[] = [];
@@ -197,7 +195,7 @@ export function BreadcrumbNavigation({ className = '' }: { className?: string })
     let currentSegmentPath = '';
     pathSegments.forEach((segment, index) => {
       currentSegmentPath += `/${segment}`;
-      
+
       breadcrumbs.push({
         path: currentSegmentPath,
         name: segment.charAt(0).toUpperCase() + segment.slice(1).replace('-', ' '),

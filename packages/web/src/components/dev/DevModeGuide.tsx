@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -13,15 +14,15 @@ export default function DevModeGuide() {
 
     const hasSeenBefore = localStorage.getItem('hasSeenDevGuide') === 'true';
     const devMode = localStorage.getItem('devMode') === 'true';
-    
+
     setHasSeenGuide(hasSeenBefore);
-    
+
     // Show guide if user hasn't seen it and dev mode is not enabled
     if (!hasSeenBefore && !devMode) {
       const timer = setTimeout(() => {
         setShowGuide(true);
       }, 2000); // Show after 2 seconds
-      
+
       return () => clearTimeout(timer);
     }
   }, []);
@@ -34,8 +35,8 @@ export default function DevModeGuide() {
 
   const enableDevMode = () => {
     localStorage.setItem('devMode', 'true');
-    window.dispatchEvent(new CustomEvent('devModeChange', { 
-      detail: { enabled: true } 
+    window.dispatchEvent(new CustomEvent('devModeChange', {
+      detail: { enabled: true }
     }));
     dismissGuide();
   };

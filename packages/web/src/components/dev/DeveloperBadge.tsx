@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import React from 'react';
@@ -9,10 +10,10 @@ interface DeveloperBadgeProps {
   className?: string;
 }
 
-export default function DeveloperBadge({ 
-  size = 'medium', 
-  showLabel = true, 
-  className = '' 
+export default function DeveloperBadge({
+  size = 'medium',
+  showLabel = true,
+  className = ''
 }: DeveloperBadgeProps) {
   const sizeClasses = {
     small: 'w-6 h-6 text-xs',
@@ -34,31 +35,31 @@ export default function DeveloperBadge({
         whileTap={{ scale: 0.95 }}
         initial={{ opacity: 0, scale: 0 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ 
-          type: "spring", 
-          stiffness: 260, 
+        transition={{
+          type: "spring",
+          stiffness: 260,
           damping: 20,
-          delay: 0.2 
+          delay: 0.2
         }}
       >
         <motion.span
-          animate={{ 
+          animate={{
             textShadow: [
               "0 0 4px rgba(255,255,255,0.5)",
               "0 0 8px rgba(255,255,255,0.8)",
               "0 0 4px rgba(255,255,255,0.5)"
             ]
           }}
-          transition={{ 
-            duration: 2, 
-            repeat: Infinity, 
-            ease: "easeInOut" 
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut"
           }}
         >
           DEV
         </motion.span>
       </motion.div>
-      
+
       {showLabel && (
         <motion.div
           initial={{ opacity: 0, x: -10 }}

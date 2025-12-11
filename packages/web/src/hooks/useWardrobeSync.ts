@@ -8,7 +8,7 @@ const extractItemName = (item: WardrobeItem): string => {
   const brand = item.brand.brand;
   const category = item.category.whiteSubcategory || item.category.blueSubcategory;
   const color = item.metadata.colors?.[0]?.primary;
-  
+
   return [brand, category, color].filter(Boolean).join(' ') || 'Unnamed Item';
 };
 
@@ -16,18 +16,18 @@ const extractNameFromItemData = (itemData: CreateWardrobeItemRequest): string =>
   const brand = itemData.brand?.brand;
   const category = itemData.category?.whiteSubcategory || itemData.category?.blueSubcategory;
   const color = itemData.metadata?.colors?.[0]?.primary;
-  
+
   return [brand, category, color].filter(Boolean).join(' ') || 'Unnamed Item';
 };
 
 const mapCategoryFromVUFS = (category: any): string => {
   if (!category) return 'other';
-  
+
   const categoryMap: Record<string, string> = {
     'Apparel': 'tops', // Default for apparel
     'Footwear': 'shoes',
   };
-  
+
   return categoryMap[category.page] || 'other';
 };
 
@@ -83,7 +83,7 @@ export function useWardrobeSync() {
   });
 
   const { syncStatus } = useOfflineSync();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   /**
    * Load items from API or offline storage
@@ -146,7 +146,7 @@ export function useWardrobeSync() {
   const loadOfflineItems = async (filters?: WardrobeFilters) => {
     await offlineStorage.initialize();
     const offlineItems = await offlineStorage.getWardrobeItems(filters);
-    
+
     // Convert offline items to WardrobeItem format (simplified)
     const convertedItems: WardrobeItem[] = offlineItems.map(item => ({
       id: item.id,
@@ -221,7 +221,7 @@ export function useWardrobeSync() {
 
   const createOfflineItem = async (images: File[], itemData: CreateWardrobeItemRequest) => {
     await offlineStorage.initialize();
-    
+
     const offlineItem = {
       id: 'dev-' + Date.now().toString(),
       name: extractNameFromItemData(itemData),
@@ -242,13 +242,13 @@ export function useWardrobeSync() {
     };
 
     await offlineStorage.saveWardrobeItem(offlineItem);
-    
+
     if (images[0]) {
       await offlineStorage.saveImage(offlineItem.id, images[0]);
     }
 
     await loadItems();
-    
+
     return { item: null, aiAnalysis: null };
   };
 
@@ -280,7 +280,7 @@ export function useWardrobeSync() {
   const updateOfflineItem = async (itemId: string, updates: Partial<CreateWardrobeItemRequest>) => {
     await offlineStorage.initialize();
     const existingItem = await offlineStorage.getWardrobeItem(itemId);
-    
+
     if (existingItem) {
       const updatedItem = {
         ...existingItem,
@@ -288,7 +288,7 @@ export function useWardrobeSync() {
         lastModified: new Date().toISOString(),
         needsSync: true, // Mark for sync when online
       };
-      
+
       await offlineStorage.saveWardrobeItem(updatedItem);
       await loadItems();
     }
@@ -339,8 +339,8 @@ export function useWardrobeSync() {
       const itemsToSync = offlineItems.filter(item => item.needsSync);
 
       if (itemsToSync.length === 0) {
-        setState(prev => ({ 
-          ...prev, 
+        setState(prev => ({
+          ...prev,
           syncing: false,
           lastSync: new Date(),
         }));
@@ -359,8 +359,8 @@ export function useWardrobeSync() {
         }
       }
 
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         syncing: false,
         lastSync: new Date(),
       }));
@@ -438,7 +438,7 @@ export function useWardrobeSync() {
     };
   }, []);
 
-    // Auto-sync when coming online
+  // Auto-sync when coming online
   useEffect(() => {
     if (isOnline) {
       syncOfflineItems().catch(console.error);
