@@ -651,8 +651,10 @@ class ApiClient {
     return this.request(`/vufs-management/categories/${id}`, { method: 'DELETE' });
   }
 
-  async updateVUFSCategory(id: string, name: string) {
-    return this.request(`/vufs-management/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+  async updateVUFSCategory(id: string, updates: string | { name?: string; parentId?: string | null }) {
+    // Backward compatibility for existing calls passing just a string
+    const body = typeof updates === 'string' ? { name: updates } : updates;
+    return this.request(`/vufs-management/categories/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
   }
 
   async getVUFSCategories() {
@@ -726,10 +728,10 @@ class ApiClient {
   async deleteVUFSSize(id: string) { return this.request(`/vufs-management/sizes/${id}`, { method: 'DELETE' }); }
   async updateVUFSSize(id: string, name: string) { return this.request(`/vufs-management/sizes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
 
-  async bulkAddVUFSItems(type: string, items: string[]) {
+  async bulkAddVUFSItems(type: string, items: string[], attributeSlug?: string) {
     return this.request('/vufs-management/bulk', {
       method: 'POST',
-      body: JSON.stringify({ type, items })
+      body: JSON.stringify({ type, items, attributeSlug })
     });
   }
 
@@ -780,6 +782,24 @@ class ApiClient {
     return this.request('/vufs-management/matrix/brands', {
       method: 'POST',
       body: JSON.stringify({ brandId, attributeSlug, value })
+    });
+  }
+
+  async copyMatrixValueToSimilar(sourceType: 'category' | 'brand', sourceId: string, attrSlug: string) {
+    return this.request('/vufs-management/matrix/copy-to-similar', {
+      method: 'POST',
+      body: JSON.stringify({ sourceType, sourceId, attrSlug })
+    });
+  }
+
+  // --- GLOBAL SETTINGS ---
+  async getVUFSSettings() {
+    return this.request<Record<string, any>>('/vufs-management/settings');
+  }
+  async updateVUFSSettings(key: string, value: any) {
+    return this.request('/vufs-management/settings', {
+      method: 'POST',
+      body: JSON.stringify({ key, value })
     });
   }
 

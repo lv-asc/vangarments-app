@@ -45,6 +45,27 @@ export interface VUFSCareInstructionOption {
 
 export class VUFSManagementService {
   /**
+   * Global Settings (Aliases & Visibility)
+   */
+  static async getGlobalSettings(): Promise<Record<string, any>> {
+    const result = await db.query('SELECT key, value FROM vufs_global_settings');
+    const settings: Record<string, any> = {};
+    result.rows.forEach(row => {
+      settings[row.key] = row.value;
+    });
+    return settings;
+  }
+
+  static async updateGlobalSetting(key: string, value: any): Promise<void> {
+    await db.query(
+      `INSERT INTO vufs_global_settings (key, value)
+       VALUES ($1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP`,
+      [key, value]
+    );
+  }
+
+  /**
    * Add a new category
    */
   static async addCategory(
@@ -98,14 +119,26 @@ export class VUFSManagementService {
     );
   }
 
-  static async updateCategory(id: string, name: string): Promise<VUFSCategoryOption> {
-    const query = `
-      UPDATE vufs_categories
-      SET name = $2
-      WHERE id = $1
-      RETURNING *
-    `;
-    const result = await db.query(query, [id, name]);
+  static async updateCategory(id: string, name?: string, parentId?: string | null): Promise<VUFSCategoryOption> {
+    let query = 'UPDATE vufs_categories SET updated_at = CURRENT_TIMESTAMP';
+    const params: any[] = [id];
+    let paramCount = 1;
+
+    if (name !== undefined) {
+      paramCount++;
+      query += `, name = $${paramCount}`;
+      params.push(name);
+    }
+
+    if (parentId !== undefined) {
+      paramCount++;
+      query += `, parent_id = $${paramCount}`;
+      params.push(parentId ? parseInt(parentId) : null);
+    }
+
+    query += ` WHERE id = $1 RETURNING *`;
+
+    const result = await db.query(query, params);
     const row = result.rows[0];
     if (!row) throw new Error('Category not found');
 
@@ -162,19 +195,28 @@ export class VUFSManagementService {
    * Generic Bulk Add Items
    * Returns count of successfully added items
    */
-  static async bulkAddItems(type: string, items: string[]): Promise<{ added: number, duplicates: number, errors: number }> {
+  static async bulkAddItems(type: string, items: string[], attributeSlug?: string): Promise<{ added: number, duplicates: number, errors: number }> {
     let table = '';
     let extraData: any = {};
+    let isAttribute = false;
 
-    switch (type) {
-      case 'category': table = 'vufs_categories'; extraData = { level: 1 }; break; // Defaulting to page level for bulk
+    // Check if it's a standard type
+    switch (type.toLowerCase()) {
+      case 'category': case 'style / category': table = 'vufs_categories'; extraData = { level: 1 }; break;
       case 'brand': table = 'vufs_brands'; extraData = { type: 'brand' }; break;
       case 'color': table = 'vufs_colors'; break;
       case 'material': table = 'vufs_materials'; extraData = { category: 'natural' }; break;
       case 'pattern': table = 'vufs_patterns'; break;
       case 'fit': table = 'vufs_fits'; break;
       case 'size': table = 'vufs_sizes'; break;
-      default: throw new Error('Invalid type for bulk add');
+      default:
+        // If attributeSlug is provided, we assume it's a custom attribute
+        if (attributeSlug) {
+          isAttribute = true;
+        } else {
+          // It might be that 'type' IS the slug if we passed it that way, but let's rely on explicit attributeSlug arg for clarity
+          throw new Error(`Invalid type for bulk add: ${type}`);
+        }
     }
 
     let added = 0;
@@ -184,7 +226,11 @@ export class VUFSManagementService {
     for (const item of items) {
       if (!item || !item.trim()) continue;
       try {
-        await this.addItem(table, item.trim(), extraData);
+        if (isAttribute && attributeSlug) {
+          await this.addAttributeValue(attributeSlug, item.trim());
+        } else {
+          await this.addItem(table, item.trim(), extraData);
+        }
         added++;
       } catch (err: any) {
         if (err.message && err.message.includes('already exists')) {

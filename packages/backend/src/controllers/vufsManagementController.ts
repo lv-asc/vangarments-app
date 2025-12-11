@@ -3,11 +3,37 @@ import { VUFSManagementService } from '../services/vufsManagementService';
 
 export class VUFSManagementController {
   /**
+   * Global Settings
+   */
+  static async getSettings(req: Request, res: Response): Promise<void> {
+    try {
+      const settings = await VUFSManagementService.getGlobalSettings();
+      res.json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async updateSettings(req: Request, res: Response): Promise<void> {
+    try {
+      const { key, value } = req.body;
+      if (!key) {
+        res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Key is required' } });
+        return;
+      }
+      await VUFSManagementService.updateGlobalSetting(key, value);
+      res.json({ message: 'Setting updated' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  /**
    * Bulk add items
    */
   static async bulkAdd(req: Request, res: Response): Promise<void> {
     try {
-      const { type, items } = req.body;
+      const { type, items, attributeSlug } = req.body;
       if (!type || !items || !Array.isArray(items)) {
         res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'Type and items array are required' } });
         return;
@@ -23,7 +49,7 @@ export class VUFSManagementController {
       else if (type.includes('Fit')) normalizedType = 'fit';
       else if (type.includes('Size')) normalizedType = 'size';
 
-      const result = await VUFSManagementService.bulkAddItems(normalizedType, items);
+      const result = await VUFSManagementService.bulkAddItems(normalizedType, items, attributeSlug);
       res.json({ message: 'Bulk add completed', result });
     } catch (error: any) {
       console.error('Bulk add error:', error);
@@ -75,12 +101,12 @@ export class VUFSManagementController {
   static async updateCategory(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name } = req.body;
-      if (!name) {
-        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
+      const { name, parentId } = req.body;
+      if (!name && parentId === undefined) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name or parentId is required' } });
         return;
       }
-      const category = await VUFSManagementService.updateCategory(id, name);
+      const category = await VUFSManagementService.updateCategory(id, name, parentId);
       res.json({ message: 'Category updated successfully', category });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -536,6 +562,8 @@ export class VUFSManagementController {
   }
 
   // --- COLOR MANAGEMENT ---
+
+
 
   static async addColor(req: Request, res: Response): Promise<void> {
     try {
