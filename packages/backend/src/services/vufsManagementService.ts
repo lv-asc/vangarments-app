@@ -445,6 +445,49 @@ export class VUFSManagementService {
     return res.rows;
   }
 
+  // --- Size Attribute Matrix ---
+
+  /**
+   * Set a value for a specific attribute on a size
+   */
+  static async setSizeAttribute(sizeId: string, attributeSlug: string, value: string) {
+    const query = `
+            INSERT INTO vufs_size_attributes (size_id, attribute_slug, value)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (size_id, attribute_slug)
+            DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+            RETURNING *;
+        `;
+    const res = await db.query(query, [sizeId, attributeSlug, value]);
+    return res.rows[0];
+  }
+
+  /**
+   * Get all attributes for a specific size
+   */
+  static async getSizeAttributes(sizeId: string) {
+    const query = `
+            SELECT sa.*, at.name as attribute_name 
+            FROM vufs_size_attributes sa
+            JOIN vufs_attribute_types at ON sa.attribute_slug = at.slug
+            WHERE sa.size_id = $1
+        `;
+    const res = await db.query(query, [sizeId]);
+    return res.rows;
+  }
+
+  /**
+   * Get ALL size attributes (efficiently for the grid view)
+   */
+  static async getAllSizeAttributes() {
+    const query = `
+            SELECT size_id, attribute_slug, value
+            FROM vufs_size_attributes
+        `;
+    const res = await db.query(query);
+    return res.rows;
+  }
+
   /**
    * Get materials by category
    */

@@ -92,6 +92,9 @@ router.post('/matrix', AuthUtils.authenticateToken, AuthUtils.requireRole(['admi
 router.get('/matrix/brands', VUFSManagementController.getAllBrandAttributes);
 router.post('/matrix/brands', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.setBrandAttribute);
 
+router.get('/matrix/sizes', VUFSManagementController.getAllSizeAttributes);
+router.post('/matrix/sizes', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.setSizeAttribute);
+
 // --- GLOBAL SETTINGS ---
 router.get('/settings', VUFSManagementController.getSettings);
 router.post('/settings', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateSettings);

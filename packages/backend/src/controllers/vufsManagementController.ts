@@ -981,4 +981,26 @@ export class VUFSManagementController {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }
+  static async getAllSizeAttributes(req: Request, res: Response) {
+    try {
+      const attrs = await VUFSManagementService.getAllSizeAttributes();
+      res.json({ attributes: attrs });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async setSizeAttribute(req: Request, res: Response) {
+    try {
+      const { sizeId, attributeSlug, value } = req.body;
+      if (!sizeId || !attributeSlug) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Missing sizeId or attributeSlug' } });
+        return;
+      }
+      const result = await VUFSManagementService.setSizeAttribute(sizeId, attributeSlug, value);
+      res.json({ success: true, attribute: result });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
 }

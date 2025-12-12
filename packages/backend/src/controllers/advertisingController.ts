@@ -31,16 +31,16 @@ export class AdvertisingController {
         return;
       }
 
-      const campaign = await advertisingService.createCampaign({
-        advertiserId: userId,
-        campaignName,
-        campaignType,
-        budget,
-        targeting: targeting || {},
-        creativeAssets,
-        placements: placements || ['feed'],
-        schedule,
-      });
+      const campaign = await advertisingService.createCampaign(
+        userId,
+        {
+          name: campaignName,
+          objective: campaignType,
+          budget: { totalBudget: budget, dailyBudget: budget / 30 }, // Simple assumption
+          startDate: schedule?.startDate || new Date().toISOString(),
+          endDate: schedule?.endDate,
+        }
+      );
 
       res.status(201).json({
         success: true,
@@ -74,9 +74,8 @@ export class AdvertisingController {
 
       const ads = await advertisingService.getTargetedAds(
         userId,
-        placement as string,
-        context,
-        parseInt(limit as string)
+        {}, // Mock user profile
+        { ...context, limit: parseInt(limit as string) }
       );
 
       res.json({
@@ -255,8 +254,7 @@ export class AdvertisingController {
 
       const report = await advertisingService.generateTrendReport(
         reportType,
-        { start: startDate, end: endDate },
-        accessLevel
+        accessLevel as any
       );
 
       res.status(201).json({

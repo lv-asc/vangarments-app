@@ -205,7 +205,15 @@ class ApiClient {
     const startTime = performance.now();
 
     // Apply request interceptors
-    let config = { ...options };
+    let config: RequestInit = {
+      cache: 'no-store', // Disable caching to prevent stale data
+      ...options,
+      headers: {
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        ...options.headers
+      }
+    };
     for (const interceptor of this.requestInterceptors) {
       config = await interceptor(config);
     }
@@ -826,10 +834,15 @@ class ApiClient {
   }
 
   async setBrandAttribute(brandId: string, attributeSlug: string, value: string) {
-    return this.request('/vufs-management/matrix/brands', {
-      method: 'POST',
-      body: JSON.stringify({ brandId, attributeSlug, value })
-    });
+    return this.post<{ id: string }>(`/vufs-management/matrix/brands`, { brandId, attributeSlug, value });
+  }
+
+  async getAllSizeAttributes() {
+    return this.get<{ attributes: any[] }>(`/vufs-management/matrix/sizes`);
+  }
+
+  async setSizeAttribute(sizeId: string, attributeSlug: string, value: string) {
+    return this.post<{ id: string }>(`/vufs-management/matrix/sizes`, { sizeId, attributeSlug, value });
   }
 
   async copyMatrixValueToSimilar(sourceType: 'category' | 'brand', sourceId: string, attrSlug: string) {

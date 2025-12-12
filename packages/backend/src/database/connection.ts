@@ -4,6 +4,8 @@ class Database {
   private pool: Pool;
 
   constructor() {
+    console.log('🔌 Initializing database pool with URL:', this.maskUrl(process.env.DATABASE_URL));
+
     this.pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       max: 20,
@@ -13,9 +15,20 @@ class Database {
 
     // Handle pool errors
     this.pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err);
-      process.exit(-1);
+      console.error('❌ Unexpected error on idle client', err);
+      // process.exit(-1); // Don't crash the server on pool errors
     });
+  }
+
+  private maskUrl(url?: string): string {
+    if (!url) return 'undefined';
+    try {
+      const parsed = new URL(url);
+      parsed.password = '****';
+      return parsed.toString();
+    } catch {
+      return 'invalid-url';
+    }
   }
 
   async query(text: string, params?: any[]) {

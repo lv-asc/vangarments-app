@@ -1,4 +1,5 @@
 // Simple translation system for basic UI elements
+import { useState, useEffect } from 'react';
 
 export const translations = {
   pt: {
@@ -154,19 +155,28 @@ export const translations = {
 
 export type Language = keyof typeof translations;
 
+
+
 export function useTranslation() {
-  const getLanguage = (): Language => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('language') as Language;
-      return saved && saved in translations ? saved : 'en';
+  const [language, setLanguage] = useState<Language>('en');
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    const saved = localStorage.getItem('language') as Language;
+    if (saved && saved in translations) {
+      setLanguage(saved);
     }
-    return 'en';
-  };
+
+    // Optional: Listen for storage changes to sync across tabs/components if needed
+    // But for now, simple hydration fix is priority.
+  }, []);
 
   const t = (key: keyof typeof translations.pt): string => {
-    const lang = getLanguage();
-    return translations[lang][key] || translations.pt[key] || key;
+    // If not hydrated yet, use 'en' to match server
+    // After hydration (isClient=true), 'language' state will hold the localStorage value
+    return translations[language][key] || translations.pt[key] || key;
   };
 
-  return { t, language: getLanguage() };
+  return { t, language };
 }

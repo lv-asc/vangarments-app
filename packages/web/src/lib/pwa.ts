@@ -3,41 +3,52 @@
 // Service Worker registration and PWA utilities
 export function registerServiceWorker() {
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-    window.addEventListener('load', async () => {
-      try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-          scope: '/',
-        });
+    // Only register service worker in production
+    if (process.env.NODE_ENV === 'production') {
+      window.addEventListener('load', async () => {
+        try {
+          const registration = await navigator.serviceWorker.register('/sw.js', {
+            scope: '/',
+          });
 
-        console.log('SW registered: ', registration);
+          console.log('SW registered: ', registration);
 
-        // Handle service worker updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New content is available, show update notification
-                showUpdateNotification();
-              }
-            });
-          }
-        });
+          // Handle service worker updates
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New content is available, show update notification
+                  showUpdateNotification();
+                }
+              });
+            }
+          });
 
-        // Listen for messages from service worker
-        navigator.serviceWorker.addEventListener('message', (event) => {
-          console.log('Message from SW:', event.data);
-        });
+          // Listen for messages from service worker
+          navigator.serviceWorker.addEventListener('message', (event) => {
+            console.log('Message from SW:', event.data);
+          });
 
-        // Check for updates periodically
-        setInterval(() => {
-          registration.update();
-        }, 60000); // Check every minute
+          // Check for updates periodically
+          setInterval(() => {
+            registration.update();
+          }, 60000); // Check every minute
 
-      } catch (error) {
-        console.log('SW registration failed: ', error);
-      }
-    });
+        } catch (error) {
+          console.log('SW registration failed: ', error);
+        }
+      });
+    } else {
+      // In development, unregister any existing service workers to avoid caching issues
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          console.log('Unregistering SW in dev mode:', registration);
+          registration.unregister();
+        }
+      });
+    }
   }
 }
 

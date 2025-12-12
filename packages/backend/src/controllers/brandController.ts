@@ -48,6 +48,81 @@ export class BrandController {
   }
 
   /**
+   * Get current user's brand account
+   */
+  async getBrandAccount(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const brandAccount = await brandService.getBrandByUserId(userId);
+
+      if (!brandAccount) {
+        res.status(404).json({
+          error: {
+            code: 'BRAND_NOT_FOUND',
+            message: 'Brand account not found for this user',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        brandAccount,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'GET_BRAND_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Create brand account (Admin)
+   */
+  async createBrand(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      // TODO: Add admin role check if not done in middleware
+      const { userId, brandName, description, website, contactEmail, contactPhone, businessType, partnershipTier } = req.body;
+
+      if (!userId || !brandName) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'User ID and Brand Name are required',
+          },
+        });
+        return;
+      }
+
+      const brand = await brandService.registerBrand(userId, {
+        brandName,
+        description,
+        website,
+        contactEmail,
+        contactPhone,
+        businessType: businessType || 'brand',
+        partnershipTier: partnershipTier || 'basic',
+      });
+
+      res.status(201).json({
+        success: true,
+        data: { brand },
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        error: {
+          code: 'CREATE_BRAND_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+
+  /**
    * Get brand profile
    */
   async getBrandProfile(req: Request, res: Response): Promise<void> {

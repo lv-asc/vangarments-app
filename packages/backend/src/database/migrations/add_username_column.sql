@@ -20,7 +20,7 @@ DECLARE
     counter INTEGER;
 BEGIN
     FOR dup IN 
-        SELECT username, array_agg(id ORDER BY created_at) as ids
+        SELECT LOWER(username) as username, array_agg(id ORDER BY created_at) as ids
         FROM users
         WHERE username IS NOT NULL
         GROUP BY LOWER(username)

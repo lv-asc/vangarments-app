@@ -26,6 +26,18 @@ interface User {
     description: string;
     imageUrl?: string;
   }>;
+  socialLinks?: Array<{
+    platform: string;
+    url: string;
+  }>;
+  privacySettings?: {
+    height: boolean;
+    weight: boolean;
+    birthDate: boolean;
+    country?: boolean;
+    state?: boolean;
+    city?: boolean;
+  };
   roles?: string[];
   createdAt: Date;
   updatedAt: Date;

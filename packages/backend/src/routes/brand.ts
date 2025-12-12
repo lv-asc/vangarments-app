@@ -197,6 +197,31 @@ router.post(
   brandController.registerBrand.bind(brandController)
 );
 
+// Alias for frontend compatibility (public creation)
+router.post(
+  '/account',
+  AuthUtils.authenticateToken,
+  registerBrandValidation,
+  validateRequest,
+  brandController.registerBrand.bind(brandController)
+);
+
+// Get current user's brand account
+router.get(
+  '/account',
+  AuthUtils.authenticateToken,
+  brandController.getBrandAccount.bind(brandController)
+);
+
+// Admin create brand
+router.post(
+  '/',
+  AuthUtils.authenticateToken,
+  // TODO: Add admin validation logic here if needed
+  validateRequest,
+  brandController.createBrand.bind(brandController)
+);
+
 router.get(
   '/search',
   query('q')

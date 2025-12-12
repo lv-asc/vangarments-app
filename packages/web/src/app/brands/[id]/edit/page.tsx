@@ -111,7 +111,32 @@ export default function BrandProfileEditPage() {
   };
 
   if (loading) return <LoadingSpinner />;
-  if (error || !profile) return <ErrorDisplay error={error || 'Profile not found'} />;
+  if (loading) return <LoadingSpinner />;
+
+  if (error || !profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto p-8 bg-white rounded-lg shadow-lg">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Brand Profile Not Found</h2>
+          <p className="text-gray-500 mb-6">{error || 'The brand profile could not be loaded. It may not exist yet or has been deleted.'}</p>
+          <div className="flex flex-col gap-3">
+            <Link
+              href="/admin/brands"
+              className="inline-flex justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+            >
+              Return to Brands List
+            </Link>
+            {/* Optional: Add create link if we have context */}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">

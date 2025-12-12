@@ -131,7 +131,8 @@ export class UserController {
         });
       }
 
-      const { name, bio, socialLinks, roles, username } = req.body;
+      const { name, bio, socialLinks, roles, username, privacySettings, measurements, birthDate, location } = req.body;
+      console.log('DEBUG: updateBasicProfile req.body', { name, bio, privacySettings, measurements, birthDate, location });
       const updateData: any = {};
       let usernameUpdateResult: { success: boolean; error?: string; daysRemaining?: number } | null = null;
 
@@ -150,16 +151,26 @@ export class UserController {
       }
 
       if (name) updateData.name = name;
-      if (bio !== undefined) {
-        updateData.profile = {
-          bio,
-          updatedAt: new Date().toISOString()
-        };
+      if (bio !== undefined || birthDate !== undefined) {
+        updateData.profile = updateData.profile || {};
+        if (bio !== undefined) updateData.profile.bio = bio;
+        if (birthDate !== undefined) updateData.profile.birthDate = birthDate;
+        updateData.profile.updatedAt = new Date().toISOString();
       }
+
+      if (privacySettings !== undefined) {
+        updateData.privacySettings = privacySettings;
+      }
+
       if (socialLinks) {
         updateData.socialLinks = socialLinks;
       }
-
+      if (measurements) {
+        updateData.measurements = measurements;
+      }
+      if (location) {
+        updateData.location = location;
+      }
       // Update roles if provided
       if (roles) {
         await UserModel.setRoles(req.user.userId, roles);
@@ -582,6 +593,197 @@ export class UserController {
           message: 'An error occurred while fetching size chart',
         },
       });
+    }
+  }
+
+  static async getAllUsers(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { search, page = 1, limit = 20 } = req.query;
+
+      // Ensure user is admin
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. Admin role required.',
+          },
+        });
+      }
+
+      const filters = {
+        search: search as string,
+        limit: parseInt(limit as string),
+        offset: (parseInt(page as string) - 1) * parseInt(limit as string),
+      };
+
+      const { users, total } = await UserModel.findAll(filters);
+
+      res.json({
+        success: true,
+        users,
+        pagination: {
+          total,
+          page: parseInt(page as string),
+          limit: parseInt(limit as string),
+        }
+      });
+    } catch (error) {
+      console.error('Get all users error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching users',
+        },
+      });
+    }
+  }
+
+  static async getUserById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. Admin role required.',
+          },
+        });
+      }
+
+      const user = await UserModel.findById(id);
+      if (!user) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found',
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        user,
+      });
+    } catch (error) {
+      console.error('Get user by id error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching user',
+        },
+      });
+    }
+  }
+
+  static async adminUpdateUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const { name, bio, roles } = req.body;
+
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. Admin role required.',
+          },
+        });
+      }
+
+      // Update basic info
+      await UserModel.update(id, { name, profile: { bio } });
+
+      // Update roles if provided
+      if (roles && Array.isArray(roles)) {
+        await UserModel.setRoles(id, roles);
+      }
+
+      const updatedUser = await UserModel.findById(id);
+
+      res.json({
+        success: true,
+        user: updatedUser,
+      });
+      res.json({
+        success: true,
+        user: updatedUser,
+      });
+    } catch (error) {
+      console.error('Admin update user error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while updating user',
+        },
+      });
+    }
+  }
+
+  static async banUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const { duration, reason } = req.body;
+
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+      }
+
+      let banExpiresAt: Date | undefined;
+      const now = new Date();
+
+      if (duration && duration !== 'permanent') {
+        const durations: Record<string, number> = {
+          '1d': 24 * 60 * 60 * 1000,
+          '1w': 7 * 24 * 60 * 60 * 1000,
+          '1m': 30 * 24 * 60 * 60 * 1000,
+          '3m': 90 * 24 * 60 * 60 * 1000,
+          '6m': 180 * 24 * 60 * 60 * 1000,
+          '1y': 365 * 24 * 60 * 60 * 1000,
+          '2y': 730 * 24 * 60 * 60 * 1000,
+        };
+        if (durations[duration]) {
+          banExpiresAt = new Date(now.getTime() + durations[duration]);
+        }
+      }
+
+      await UserModel.updateStatus(id, 'banned', banExpiresAt, reason);
+
+      res.json({ success: true, message: 'User banned' });
+    } catch (error) {
+      console.error('Ban user error:', error);
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to ban user' } });
+    }
+  }
+
+  static async deactivateUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+      }
+
+      await UserModel.updateStatus(id, 'deactivated');
+      res.json({ success: true, message: 'User deactivated' });
+    } catch (error) {
+      console.error('Deactivate user error:', error);
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to deactivate user' } });
+    }
+  }
+
+  static async reactivateUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+      }
+
+      await UserModel.updateStatus(id, 'active');
+      res.json({ success: true, message: 'User reactivated' });
+    } catch (error) {
+      console.error('Reactivate user error:', error);
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to reactivate user' } });
     }
   }
 }

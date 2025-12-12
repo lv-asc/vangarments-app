@@ -27,6 +27,8 @@ import vufsManagementRoutes from './vufsManagement';
 import configurationRoutes from './configuration';
 import adminRoutes from './admin';
 
+import brandRoutes from './brand';
+
 const router = Router();
 
 // API version 1 routes
@@ -35,6 +37,7 @@ router.use('/oauth', simpleOAuthRoutes);
 router.use('/users', userRoutes);
 router.use('/admin', adminRoutes);
 router.use('/vufs', vufsRoutes);
+router.use('/brands', brandRoutes);
 router.use('/wardrobe', wardrobeRoutes);
 router.use('/anteroom', anteroomRoutes);
 router.use('/tracking', trackingRoutes);

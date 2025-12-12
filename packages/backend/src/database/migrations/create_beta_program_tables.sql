@@ -1,0 +1,2 @@
+-- Dummy file to fix migration history mismatch
+-- This file was apparently deleted but still referenced in DB migrations table.

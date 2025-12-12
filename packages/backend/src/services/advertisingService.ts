@@ -748,4 +748,57 @@ export class AdvertisingService {
     });
     return campaign;
   }
+
+  /**
+   * Track ad click
+   */
+  async trackAdClick(impressionId: string, campaignId: string, userId: string, destinationUrl: string): Promise<void> {
+    await AdvertisingModel.recordClick({
+      impressionId,
+      campaignId,
+      userId,
+      destinationUrl,
+      conversionTracked: false,
+    });
+  }
+
+  /**
+   * Track ad conversion
+   */
+  async trackAdConversion(clickId: string, campaignId: string, userId: string, conversionType: string, conversionValue: number, conversionData: any): Promise<void> {
+    // Mock record conversion
+    console.log('Recording conversion:', { clickId, campaignId, userId, conversionType, conversionValue });
+  }
+
+  /**
+   * Get campaign analytics
+   */
+  async getCampaignAnalytics(campaignId: string, dateRange?: { start: string; end: string }): Promise<any> {
+    // Mock analytics
+    return {
+      campaignId,
+      impressions: 1000,
+      clicks: 50,
+      conversions: 5,
+      spend: 100.00,
+      dateRange
+    };
+  }
+
+  /**
+   * Generate market intelligence
+   */
+  async generateMarketIntelligence(category: string, accessLevel: string): Promise<any> {
+    return {
+      category,
+      accessLevel,
+      insights: [
+        {
+          title: `Market Intelligence for ${category}`,
+          data: {},
+          generatedAt: new Date().toISOString(),
+        }
+      ]
+    };
+  }
 }

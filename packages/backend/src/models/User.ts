@@ -20,6 +20,11 @@ export interface UpdateUserData {
   preferences?: FashionPreferences;
   profile?: any;
   socialLinks?: SocialLink[];
+  privacySettings?: {
+    height: boolean;
+    weight: boolean;
+    birthDate: boolean;
+  };
 }
 
 export class UserModel {
@@ -51,7 +56,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.id = $1
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [id]);
@@ -68,7 +73,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.email = $1
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [email]);
@@ -85,7 +90,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.cpf = $1
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [cpf]);
@@ -112,10 +117,12 @@ export class UserModel {
     const values: any[] = [];
     let paramCount = 1;
 
+    // Fetch current user once for merging
+    const currentUser = await this.findById(userId);
+    if (!currentUser) return null;
+
     if (updateData.name || updateData.location || updateData.profile || updateData.socialLinks) {
-      // Update profile JSON
-      const currentUser = await this.findById(userId);
-      if (!currentUser) return null;
+      console.log('DEBUG: UserModel.update updateData', JSON.stringify(updateData, null, 2));
 
       const currentProfile = typeof (currentUser as any)._rawProfile === 'string'
         ? JSON.parse((currentUser as any)._rawProfile)
@@ -125,7 +132,7 @@ export class UserModel {
         ...currentProfile,
         ...(updateData.name && { name: updateData.name }),
         ...(updateData.location && { location: updateData.location }),
-        ...(updateData.profile || {}), // Merge generic profile updates (bio, avatarUrl)
+        ...(updateData.profile || {}), // Merge generic profile updates (bio, avatarUrl, birthDate)
         ...(updateData.socialLinks && { socialLinks: updateData.socialLinks }),
       };
 
@@ -135,14 +142,35 @@ export class UserModel {
     }
 
     if (updateData.measurements) {
+      const currentMeasurements = currentUser.measurements || {};
+      const updatedMeasurements = {
+        ...currentMeasurements,
+        ...updateData.measurements
+      };
       updates.push(`measurements = $${paramCount}`);
-      values.push(JSON.stringify(updateData.measurements));
+      values.push(JSON.stringify(updatedMeasurements));
       paramCount++;
     }
 
     if (updateData.preferences) {
+      const currentPreferences = currentUser.preferences || {};
+      const updatedPreferences = {
+        ...currentPreferences,
+        ...updateData.preferences
+      };
       updates.push(`preferences = $${paramCount}`);
-      values.push(JSON.stringify(updateData.preferences));
+      values.push(JSON.stringify(updatedPreferences));
+      paramCount++;
+    }
+
+    if (updateData.privacySettings) {
+      const currentPrivacy = currentUser.privacySettings || {};
+      const updatedPrivacy = {
+        ...currentPrivacy,
+        ...updateData.privacySettings
+      };
+      updates.push(`privacy_settings = $${paramCount}`);
+      values.push(JSON.stringify(updatedPrivacy));
       paramCount++;
     }
 
@@ -287,7 +315,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       ${whereClause}
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
       ORDER BY u.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
@@ -312,6 +340,8 @@ export class UserModel {
       (typeof row.measurements === 'string' ? JSON.parse(row.measurements) : row.measurements) : {};
     const preferences = row.preferences ?
       (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {};
+    const privacySettings = row.privacy_settings ?
+      (typeof row.privacy_settings === 'string' ? JSON.parse(row.privacy_settings) : row.privacy_settings) : { height: false, weight: false, birthDate: false };
 
     return {
       id: row.id,
@@ -329,12 +359,27 @@ export class UserModel {
       },
       measurements: measurements,
       preferences: preferences,
+      privacySettings: privacySettings,
       badges: [], // Will be populated when badge system is implemented
       socialLinks: profile.socialLinks || [],
       roles: row.roles ? row.roles.filter((role: string) => role !== null) : [],
+      status: row.status || 'active',
+      banExpiresAt: row.ban_expires_at ? new Date(row.ban_expires_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       _rawProfile: profile,
-    } as UserProfile & { roles?: string[], _rawProfile?: any, username?: string, usernameLastChanged?: Date };
+    } as UserProfile & { roles?: string[], _rawProfile?: any, username?: string, usernameLastChanged?: Date, status: string, banExpiresAt?: Date };
+  }
+
+  static async updateStatus(userId: string, status: string, banExpiresAt?: Date, banReason?: string): Promise<void> {
+    const query = `
+      UPDATE users 
+      SET status = $1, 
+          ban_expires_at = $2,
+          ban_reason = $3,
+          updated_at = NOW()
+      WHERE id = $4
+    `;
+    await db.query(query, [status, banExpiresAt || null, banReason || null, userId]);
   }
 }

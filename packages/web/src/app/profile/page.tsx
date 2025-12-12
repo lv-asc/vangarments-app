@@ -16,8 +16,12 @@ import {
   MapPinIcon,
   CalendarIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  LockClosedIcon
 } from '@heroicons/react/24/outline';
+import { BRAZILIAN_STATES } from '../../constants/address';
 
 interface UserProfile {
   id: string;
@@ -31,6 +35,14 @@ interface UserProfile {
   cpf?: string;
   birthDate?: string;
   socialLinks?: { platform: string; url: string }[];
+  privacySettings?: {
+    height: boolean;
+    weight: boolean;
+    birthDate: boolean;
+    country?: boolean;
+    state?: boolean;
+    city?: boolean;
+  };
   roles?: string[];
   createdAt: string;
   stats: {
@@ -90,7 +102,26 @@ export default function ProfilePage() {
     bio: '',
     profileImage: '',
     socialLinks: [] as { platform: string; url: string }[],
-    roles: [] as string[]
+    roles: [] as string[],
+    privacySettings: {
+      height: false,
+      weight: false,
+      birthDate: false,
+      country: false,
+      state: false,
+      city: false
+    },
+    birthDate: '',
+    height: '',
+    weight: '',
+    country: '',
+    state: '',
+    city: '',
+    cep: '',
+    street: '',
+    neighborhood: '',
+    number: '',
+    complement: ''
   });
 
   useEffect(() => {
@@ -109,12 +140,31 @@ export default function ProfilePage() {
       setUserProfile(response.profile);
       if (response.profile) {
         setEditForm({
-          name: response.profile.name || '',
+          name: response.profile.name || response.profile.personalInfo?.name || '',
           username: response.profile.username || '',
-          bio: response.profile.bio || '',
-          profileImage: response.profile.profileImage || '',
+          bio: response.profile.bio || response.profile.personalInfo?.bio || '',
+          profileImage: response.profile.profileImage || response.profile.personalInfo?.avatarUrl || '',
           socialLinks: response.profile.socialLinks || [],
-          roles: response.profile.roles || ['common_user']
+          roles: response.profile.roles || ['common_user'],
+          privacySettings: response.profile.privacySettings || {
+            height: false,
+            weight: false,
+            birthDate: false,
+            country: false,
+            state: false,
+            city: false
+          },
+          birthDate: response.profile.personalInfo?.birthDate ? new Date(response.profile.personalInfo.birthDate).toISOString().split('T')[0] : '',
+          height: response.profile.measurements?.height || '',
+          weight: response.profile.measurements?.weight || '',
+          country: response.profile.personalInfo?.location?.country || '',
+          state: response.profile.personalInfo?.location?.state || '',
+          city: response.profile.personalInfo?.location?.city || '',
+          cep: response.profile.personalInfo?.location?.cep || '',
+          street: response.profile.personalInfo?.location?.street || '',
+          neighborhood: response.profile.personalInfo?.location?.neighborhood || '',
+          number: response.profile.personalInfo?.location?.number || '',
+          complement: response.profile.personalInfo?.location?.complement || ''
         });
       }
     } catch (err: any) {
@@ -189,15 +239,63 @@ export default function ProfilePage() {
     return Math.ceil(7 - daysSince);
   };
 
+  const handleCEPBlur = async () => {
+    // Remove non-digits
+    const cleanCEP = editForm.cep.replace(/\D/g, '');
+
+    if (cleanCEP.length === 8) {
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cleanCEP}/json/`);
+        const data = await response.json();
+
+        if (!data.erro) {
+          setEditForm(prev => ({
+            ...prev,
+            street: data.logradouro || prev.street,
+            neighborhood: data.bairro || prev.neighborhood,
+            city: data.localidade || prev.city,
+            state: data.uf || prev.state,
+            country: 'Brazil' // Assume Brazil for ViaCEP
+          }));
+          toast.success('Address found!');
+        } else {
+          toast.error('CEP not found.');
+        }
+      } catch (error) {
+        console.error('Error fetching CEP:', error);
+        toast.error('Error fetching address data.');
+      }
+    }
+  };
+
   const handleEditProfile = () => {
     if (userProfile) {
       setEditForm({
-        name: userProfile.name,
+        name: userProfile.name || userProfile.personalInfo?.name || '',
         username: userProfile.username || '',
-        bio: userProfile.bio || '',
-        profileImage: userProfile.profileImage || '',
+        bio: userProfile.bio || userProfile.personalInfo?.bio || '',
+        profileImage: userProfile.profileImage || userProfile.personalInfo?.avatarUrl || '',
         socialLinks: userProfile.socialLinks || [],
-        roles: userProfile.roles || ['common_user']
+        roles: userProfile.roles || ['common_user'],
+        privacySettings: userProfile.privacySettings || {
+          height: false,
+          weight: false,
+          birthDate: false,
+          country: false,
+          state: false,
+          city: false
+        },
+        birthDate: userProfile.personalInfo?.birthDate ? new Date(userProfile.personalInfo.birthDate).toISOString().split('T')[0] : '',
+        height: userProfile.measurements?.height || '',
+        weight: userProfile.measurements?.weight || '',
+        country: userProfile.personalInfo?.location?.country || '',
+        state: userProfile.personalInfo?.location?.state || '',
+        city: userProfile.personalInfo?.location?.city || '',
+        cep: userProfile.personalInfo?.location?.cep || '',
+        street: userProfile.personalInfo?.location?.street || '',
+        neighborhood: userProfile.personalInfo?.location?.neighborhood || '',
+        number: userProfile.personalInfo?.location?.number || '',
+        complement: userProfile.personalInfo?.location?.complement || ''
       });
       setUsernameStatus('idle');
       setUsernameError(null);
@@ -222,7 +320,23 @@ export default function ProfilePage() {
         username: usernameChanged ? editForm.username : undefined,
         bio: editForm.bio,
         socialLinks: editForm.socialLinks.filter(link => link.url && link.url.trim() !== ''),
-        roles: editForm.roles
+        roles: editForm.roles,
+        privacySettings: editForm.privacySettings,
+        birthDate: editForm.birthDate,
+        measurements: {
+          height: Number(editForm.height),
+          weight: Number(editForm.weight)
+        },
+        location: {
+          country: editForm.country,
+          state: editForm.state,
+          city: editForm.city,
+          cep: editForm.cep,
+          street: editForm.street,
+          neighborhood: editForm.neighborhood,
+          number: editForm.number,
+          complement: editForm.complement
+        }
       });
       await loadProfile();
       setIsEditing(false);
@@ -406,6 +520,268 @@ export default function ProfilePage() {
                     placeholder="Tell us about yourself..."
                   />
 
+                  {/* Personal Info Section */}
+                  <div className="space-y-4 pt-2 border-t border-gray-100">
+                    <h4 className="font-medium text-gray-700">Personal Info (Privacy Control)</h4>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Control visibility of your personal details.
+                      <span className="flex items-center gap-1 mt-1">
+                        <LockClosedIcon className="w-3 h-3" /> Locked items are private and cannot be made public.
+                      </span>
+                    </p>
+
+                    <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                      {/* Editable Toggleable Fields */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col flex-1 mr-4">
+                          <label className="text-sm font-medium text-gray-700">Birth Date</label>
+                          <input
+                            type="date"
+                            value={editForm.birthDate}
+                            onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
+                            className="text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 mt-1 focus:outline-none focus:border-[#00132d]"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setEditForm(prev => ({
+                            ...prev,
+                            privacySettings: {
+                              ...prev.privacySettings,
+                              birthDate: !prev.privacySettings.birthDate
+                            }
+                          }))}
+                          className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${editForm.privacySettings.birthDate ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                            }`}
+                        >
+                          {editForm.privacySettings.birthDate ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col flex-1 mr-4">
+                          <label className="text-sm font-medium text-gray-700">Height (cm)</label>
+                          <input
+                            type="number"
+                            value={editForm.height}
+                            onChange={(e) => setEditForm({ ...editForm, height: e.target.value })}
+                            className="text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 mt-1 focus:outline-none focus:border-[#00132d]"
+                            placeholder="e.g. 175"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setEditForm(prev => ({
+                            ...prev,
+                            privacySettings: {
+                              ...prev.privacySettings,
+                              height: !prev.privacySettings.height
+                            }
+                          }))}
+                          className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${editForm.privacySettings.height ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                            }`}
+                        >
+                          {editForm.privacySettings.height ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col flex-1 mr-4">
+                          <label className="text-sm font-medium text-gray-700">Weight (kg)</label>
+                          <input
+                            type="number"
+                            value={editForm.weight}
+                            onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+                            className="text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 mt-1 focus:outline-none focus:border-[#00132d]"
+                            placeholder="e.g. 70"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setEditForm(prev => ({
+                            ...prev,
+                            privacySettings: {
+                              ...prev.privacySettings,
+                              weight: !prev.privacySettings.weight
+                            }
+                          }))}
+                          className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${editForm.privacySettings.weight ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                            }`}
+                        >
+                          {editForm.privacySettings.weight ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      {/* Locked Fields */}
+                      <div className="border-t border-gray-200 my-2 pt-2"></div>
+
+                      {/* Locked Fields - CPF */}
+                      <div className="border-t border-gray-200 my-2 pt-2"></div>
+
+                      <div className="flex items-center justify-between opacity-70">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                            CPF <LockClosedIcon className="w-3 h-3 text-gray-400" />
+                          </span>
+                          <span className="text-xs text-gray-500">{userProfile.cpf ? userProfile.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4') : 'Not set'}</span>
+                        </div>
+                        <div className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-medium flex items-center gap-1 cursor-not-allowed">
+                          <LockClosedIcon className="w-3 h-3" />
+                          Private
+                        </div>
+                      </div>
+
+                      {/* Address Fields - Private but Editable */}
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                            Address
+                          </h5>
+                          {/* Some fields are permanently private */}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-1">
+                            <label className="text-xs text-gray-500">CEP (Postal Code)</label>
+                            <input
+                              type="text"
+                              value={editForm.cep}
+                              onChange={(e) => setEditForm({ ...editForm, cep: e.target.value })}
+                              onBlur={handleCEPBlur}
+                              className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                              placeholder="00000-000"
+                              maxLength={9}
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1">Type CEP to auto-fill address</p>
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-xs text-gray-500">Country</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editForm.country}
+                                onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
+                                className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                                placeholder="Country"
+                              />
+                              <button
+                                onClick={() => setEditForm(prev => ({
+                                  ...prev,
+                                  privacySettings: {
+                                    ...prev.privacySettings,
+                                    country: !prev.privacySettings.country
+                                  }
+                                }))}
+                                className={`p-1.5 rounded-lg transition-colors text-sm ${editForm.privacySettings.country ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'}`}
+                                title={editForm.privacySettings.country ? "Visible" : "Private"}
+                              >
+                                {editForm.privacySettings.country ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-xs text-gray-500">State</label>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={editForm.state}
+                                onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+                                className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                              >
+                                <option value="">Select State</option>
+                                {BRAZILIAN_STATES.map(state => (
+                                  <option key={state.value} value={state.value}>
+                                    {state.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => setEditForm(prev => ({
+                                  ...prev,
+                                  privacySettings: {
+                                    ...prev.privacySettings,
+                                    state: !prev.privacySettings.state
+                                  }
+                                }))}
+                                className={`p-1.5 rounded-lg transition-colors text-sm ${editForm.privacySettings.state ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'}`}
+                                title={editForm.privacySettings.state ? "Visible" : "Private"}
+                              >
+                                {editForm.privacySettings.state ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-xs text-gray-500">City</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editForm.city}
+                                onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                                className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                                placeholder="City"
+                              />
+                              <button
+                                onClick={() => setEditForm(prev => ({
+                                  ...prev,
+                                  privacySettings: {
+                                    ...prev.privacySettings,
+                                    city: !prev.privacySettings.city
+                                  }
+                                }))}
+                                className={`p-1.5 rounded-lg transition-colors text-sm ${editForm.privacySettings.city ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'}`}
+                                title={editForm.privacySettings.city ? "Visible" : "Private"}
+                              >
+                                {editForm.privacySettings.city ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-xs text-gray-500">Neighborhood</label>
+                            <input
+                              type="text"
+                              value={editForm.neighborhood}
+                              onChange={(e) => setEditForm({ ...editForm, neighborhood: e.target.value })}
+                              className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                              placeholder="Neighborhood"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="text-xs text-gray-500">Street</label>
+                            <input
+                              type="text"
+                              value={editForm.street}
+                              onChange={(e) => setEditForm({ ...editForm, street: e.target.value })}
+                              className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                              placeholder="Street Address"
+                            />
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-xs text-gray-500">Number</label>
+                            <input
+                              type="text"
+                              value={editForm.number}
+                              onChange={(e) => setEditForm({ ...editForm, number: e.target.value })}
+                              className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                              placeholder="No."
+                            />
+                          </div>
+
+                          <div className="col-span-1">
+                            <label className="text-xs text-gray-500">Complement</label>
+                            <input
+                              type="text"
+                              value={editForm.complement}
+                              onChange={(e) => setEditForm({ ...editForm, complement: e.target.value })}
+                              className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
+                              placeholder="Apt, Block, etc."
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-3 mt-4">
                     <h4 className="font-medium text-gray-700">Social Links</h4>
                     <div className="grid grid-cols-1 gap-3">
@@ -500,22 +876,18 @@ export default function ProfilePage() {
 
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
                     <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-1">
-                        <CalendarIcon className="h-4 w-4" />
-                        <span>Joined {new Date(userProfile.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      {userProfile.birthDate && (
-                        <div className="flex items-center space-x-1">
-                          <span className="text-gray-400">|</span>
-                          <span>Born {new Date(userProfile.birthDate).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                      {userProfile.cpf && (
-                        <div className="flex items-center space-x-1">
-                          <span className="text-gray-400">|</span>
-                          <span>CPF: {userProfile.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4')}</span>
-                        </div>
-                      )}
+                      <span className="text-sm text-gray-500 flex items-center">
+                        <CalendarIcon className="h-4 w-4 mr-1" />
+                        Joined {new Date(userProfile.createdAt).toLocaleDateString()}
+                        <span className="mx-2">|</span>
+                        Born {userProfile.personalInfo?.birthDate ? (() => {
+                          const d = new Date(userProfile.personalInfo.birthDate);
+                          // Display date using UTC parts to avoid timezone shift
+                          return `${d.getUTCDate().toString().padStart(2, '0')}/${(d.getUTCMonth() + 1).toString().padStart(2, '0')}/${d.getUTCFullYear()}`;
+                        })() : 'unknown'}
+                        <span className="mx-2">|</span>
+                        CPF: {userProfile.cpf ? userProfile.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4') : 'unknown'}
+                      </span>
                     </div>
 
                     {userProfile.socialLinks && userProfile.socialLinks.length > 0 && (

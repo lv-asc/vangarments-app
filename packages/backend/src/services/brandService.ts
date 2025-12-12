@@ -62,10 +62,16 @@ export class BrandService {
 
     const brand = await BrandAccountModel.create(brandData);
 
-    // Add appropriate role to user
     await UserModel.addRole(userId, 'brand_owner');
 
     return brand;
+  }
+
+  /**
+   * Get brand account by user ID
+   */
+  async getBrandByUserId(userId: string): Promise<BrandAccount | null> {
+    return await BrandAccountModel.findByUserId(userId);
   }
 
   /**

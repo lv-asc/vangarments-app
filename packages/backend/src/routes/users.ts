@@ -10,6 +10,7 @@ router.put('/address', AuthUtils.authenticateToken, UserController.updateAddress
 router.put('/preferences', AuthUtils.authenticateToken, UserController.updatePreferences);
 
 // Public user routes
+router.get('/', AuthUtils.authenticateToken, UserController.getAllUsers);
 router.get('/:id/profile', UserController.getProfile);
 router.put('/profile', AuthUtils.authenticateToken, UserController.updateBasicProfile);
 router.get('/check-username/:username', UserController.checkUsernameAvailability);
@@ -18,5 +19,12 @@ router.post('/avatar', AuthUtils.authenticateToken, UserController.uploadAvatarM
 // Public utility routes
 router.get('/size-conversion', UserController.convertSize);
 router.get('/size-chart', UserController.getSizeChart);
+
+// Admin user management (must be last to avoid conflict with static paths)
+router.get('/:id', AuthUtils.authenticateToken, UserController.getUserById);
+router.put('/:id', AuthUtils.authenticateToken, UserController.adminUpdateUser);
+router.post('/:id/ban', AuthUtils.authenticateToken, UserController.banUser);
+router.post('/:id/deactivate', AuthUtils.authenticateToken, UserController.deactivateUser);
+router.post('/:id/reactivate', AuthUtils.authenticateToken, UserController.reactivateUser);
 
 export default router;

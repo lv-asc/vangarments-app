@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/?$/, '');
 
 interface BrandAccount {
   id: string;
@@ -43,6 +43,7 @@ interface BrandAccount {
 }
 
 interface CreateBrandAccountData {
+  userId?: string; // Optional for admin creation
   brandInfo: {
     name: string;
     description?: string;
@@ -52,6 +53,8 @@ interface CreateBrandAccountData {
       phone?: string;
     };
   };
+  businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
+  partnershipTier?: 'basic' | 'premium' | 'enterprise';
 }
 
 interface CatalogItem {
@@ -155,6 +158,36 @@ class BrandApi {
     }
 
     return response.json();
+  }
+
+  // Admin Methods
+  async adminCreateBrand(data: CreateBrandAccountData & { userId: string }): Promise<BrandAccount> {
+    // Transform nested data to flat structure expected by backend
+    const payload = {
+      userId: data.userId,
+      brandName: data.brandInfo.name,
+      description: data.brandInfo.description,
+      website: data.brandInfo.website,
+      contactEmail: data.brandInfo.contactInfo?.email,
+      contactPhone: data.brandInfo.contactInfo?.phone,
+      businessType: data.businessType || 'brand',
+      partnershipTier: data.partnershipTier || 'basic'
+    };
+
+    const response = await fetch(`${API_BASE_URL}/api/brands`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to create brand account');
+    }
+
+    // Response wrapper handling might differ, let's assume standard { success: true, data: { brand } }
+    const result = await response.json();
+    return result.data?.brand || result;
   }
 
   // Catalog Management

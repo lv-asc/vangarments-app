@@ -97,22 +97,19 @@ export default function BrandsPage() {
 
   const handleCreateBrandAccount = async () => {
     try {
-      const response = await fetch('/api/brands/account', {
+      const response = await fetch('/api/brands/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
-          brandInfo: {
-            name: createForm.brandName,
-            description: createForm.description,
-            website: createForm.website,
-            contactInfo: {
-              email: createForm.email,
-              phone: createForm.phone
-            }
-          }
+          brandName: createForm.brandName,
+          description: createForm.description,
+          website: createForm.website,
+          contactEmail: createForm.email,
+          contactPhone: createForm.phone,
+          businessType: 'brand'
         })
       });
 

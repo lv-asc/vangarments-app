@@ -43,7 +43,7 @@ interface AttributeType {
 interface TabConfig {
     id: string;
     name: string;
-    mainColumn: 'Style / Category' | 'Brand';
+    mainColumn: 'Apparel' | 'Brand' | 'Size';
     columns: string[]; // slugs of visible columns
 }
 
@@ -82,6 +82,60 @@ function SortableColumn({ id, children }: { id: string, children: React.ReactNod
         </div>
     );
 }
+// Sortable Matrix Header
+function SortableMatrixHeader({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        cursor: 'grab'
+    };
+
+    return (
+        <th ref={setNodeRef} style={style} className={className} {...attributes} {...listeners}>
+            {children}
+        </th>
+    );
+}
+
+function SortableTab({ id, children, active }: { id: string, children: React.ReactNode, active: boolean }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Translate.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : 'auto',
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            className={`group flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-t border-l border-r border-b-0 cursor-pointer transition-colors relative top-[1px] select-none ${active ? 'bg-white text-blue-600 border-gray-200 z-10' : 'bg-gray-50 text-gray-500 border-transparent hover:bg-gray-100'}`}
+        >
+            {children}
+        </div>
+    );
+}
 
 export default function AdminVUFSPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -102,6 +156,8 @@ export default function AdminVUFSPage() {
     const [columnOrder, setColumnOrder] = useState<string[]>([
         'Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit'
     ]);
+
+
 
     // Persist Column Order
     useEffect(() => {
@@ -145,7 +201,9 @@ export default function AdminVUFSPage() {
             setColumnOrder((items) => {
                 const oldIndex = items.indexOf(active.id as string);
                 const newIndex = items.indexOf(over?.id as string);
-                return arrayMove(items, oldIndex, newIndex);
+                const newOrder = arrayMove(items, oldIndex, newIndex);
+                localStorage.setItem('vufs_list_column_order', JSON.stringify(newOrder));
+                return newOrder;
             });
         }
     };
@@ -177,7 +235,7 @@ export default function AdminVUFSPage() {
                 const defaultTab: TabConfig = {
                     id: 'default',
                     name: 'Default View',
-                    mainColumn: 'Style / Category',
+                    mainColumn: 'Apparel',
                     columns: [] // All
                 };
                 setTabs([defaultTab]);
@@ -202,6 +260,7 @@ export default function AdminVUFSPage() {
                 typesRes,
                 catMatrixRes,
                 brandMatrixRes,
+                sizeMatrixRes,
                 settingsRes
             ] = await Promise.all([
                 apiClient.getVUFSCategories(),
@@ -214,6 +273,7 @@ export default function AdminVUFSPage() {
                 apiClient.getVUFSAttributeTypes(),
                 apiClient.getAllCategoryAttributes(),
                 apiClient.getAllBrandAttributes(),
+                apiClient.getAllSizeAttributes(),
                 apiClient.getVUFSSettings().catch(e => { console.warn('Failed to load settings', e); return {}; })
             ]);
 
@@ -257,25 +317,28 @@ export default function AdminVUFSPage() {
             }));
             setCustomValues(valuesMap);
 
-            // Sync Column Order
-            setColumnOrder(prev => {
-                const currentSet = new Set(prev);
-                const newSlugs = typesData.map(t => t.slug).filter(s => !currentSet.has(s));
-                const validSlugs = new Set([...typesData.map(t => t.slug), 'Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit']);
+            // Default columns + Dynamic Types
+            const allColumns = ['Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit', ...typesData.map(t => t.slug)];
 
-                // If it's the first load, use a default order if prev is empty, or respect existing?
-                const filteredPrev = prev.length > 0 ? prev.filter(p => validSlugs.has(p)) : Array.from(validSlugs);
+            const storedOrder = localStorage.getItem('vufs_list_column_order');
+            if (storedOrder) {
+                try {
+                    const parsedOrder = JSON.parse(storedOrder);
+                    // Filter out any stale columns but respect order
+                    const currentSet = new Set(typesData.map(t => t.slug).concat(['Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit']));
+                    const validStored = parsedOrder.filter((s: string) => currentSet.has(s));
+                    // Append any new ones not in stored
+                    const storedSet = new Set(validStored);
+                    const missing = Array.from(currentSet).filter((s) => !storedSet.has(s as string));
 
-                let combined = [...filteredPrev, ...newSlugs];
-
-                // Filter out disabled
-                if (settingsData && settingsData['disabled_columns']) {
-                    const disabledSet = new Set(settingsData['disabled_columns']);
-                    combined = combined.filter(c => !disabledSet.has(c));
+                    setColumnOrder([...validStored, ...missing]);
+                } catch (e) {
+                    console.error('Failed to parse column order', e);
+                    setColumnOrder(allColumns);
                 }
-
-                return Array.from(new Set(combined));
-            });
+            } else {
+                setColumnOrder(allColumns);
+            }
 
             // Handle Matrix Values
             const matrixMap: Record<string, string> = {};
@@ -289,6 +352,12 @@ export default function AdminVUFSPage() {
             const brandMatrixData = Array.isArray(brandMatrixRes) ? brandMatrixRes : (brandMatrixRes?.attributes || []);
             brandMatrixData.forEach((item: any) => {
                 matrixMap[`${item.brand_id}:${item.attribute_slug}`] = item.value;
+            });
+
+            // Size Attributes
+            const sizeMatrixData = Array.isArray(sizeMatrixRes) ? sizeMatrixRes : (sizeMatrixRes?.attributes || []);
+            sizeMatrixData.forEach((item: any) => {
+                matrixMap[`${item.size_id}:${item.attribute_slug}`] = item.value;
             });
 
             setMatrixValues(matrixMap);
@@ -306,18 +375,20 @@ export default function AdminVUFSPage() {
         setMatrixValues(prev => ({ ...prev, [key]: value }));
 
         const activeTab = tabs.find(t => t.id === activeTabId);
-        const mainCol = activeTab?.mainColumn || 'Style / Category';
+        const mainCol = activeTab?.mainColumn || 'Apparel';
 
         try {
-            if (activeTab?.mainColumn === 'Style / Category' && attributeSlug === 'IS_SUBCATEGORY_1') {
+            if (activeTab?.mainColumn === 'Apparel' && attributeSlug === 'IS_SUBCATEGORY_1') {
                 // Handle mapped column update (Parent ID)
                 await apiClient.updateVUFSCategory(entityId, { parentId: value || null });
                 // We need to refresh categories to update the list view and other parts
                 await fetchAllData();
-            } else if (mainCol === 'Style / Category') {
+            } else if (mainCol === 'Apparel') {
                 await apiClient.setCategoryAttribute(entityId, attributeSlug, value);
             } else if (mainCol === 'Brand') {
                 await apiClient.setBrandAttribute(entityId, attributeSlug, value);
+            } else if (mainCol === 'Size') {
+                await apiClient.setSizeAttribute(entityId, attributeSlug, value);
             }
         } catch (err) {
             console.error('Failed to save attribute', err);
@@ -384,7 +455,7 @@ export default function AdminVUFSPage() {
             setEditingTab({
                 id: crypto.randomUUID(),
                 name: 'New Tab',
-                mainColumn: 'Style / Category',
+                mainColumn: 'Apparel',
                 columns: []
             });
         }
@@ -446,13 +517,12 @@ export default function AdminVUFSPage() {
         try {
             // Check if custom
             const isCustom = customTypes.some(t => t.slug === selectedSlug);
-
             if (isCustom) {
                 await apiClient.updateVUFSAttributeValue(selectedId, inputValue.trim());
             } else {
                 // Standard Types - Use selectedSlug (Internal ID) NOT selectedType (Display Alias)
-                switch (selectedSlug) {
-                    case 'Style / Category': await apiClient.updateVUFSCategory(selectedId, inputValue.trim()); break;
+                switch (selectedType) {
+                    case 'Apparel': await apiClient.updateVUFSCategory(selectedId, inputValue.trim()); break;
                     case 'Brand': await apiClient.updateVUFSBrand(selectedId, inputValue.trim()); break;
                     case 'Color': await apiClient.updateVUFSColor(selectedId, inputValue.trim()); break;
                     case 'Material': await apiClient.updateVUFSMaterial(selectedId, inputValue.trim()); break;
@@ -506,8 +576,8 @@ export default function AdminVUFSPage() {
                 await apiClient.deleteVUFSAttributeValue(selectedId);
             } else {
                 // Standard types - Use selectedSlug
-                switch (selectedSlug) {
-                    case 'Style / Category': await apiClient.deleteVUFSCategory(selectedId); break;
+                switch (selectedType) {
+                    case 'Apparel': await apiClient.deleteVUFSCategory(selectedId); break;
                     case 'Brand': await apiClient.deleteVUFSBrand(selectedId); break;
                     case 'Color': await apiClient.deleteVUFSColor(selectedId); break;
                     case 'Material': await apiClient.deleteVUFSMaterial(selectedId); break;
@@ -540,8 +610,8 @@ export default function AdminVUFSPage() {
             } else {
                 // Standard Types - Use selectedSlug logic
                 const stdType = selectedSlug || selectedType;
-                switch (stdType) {
-                    case 'Style / Category': await apiClient.addVUFSCategory({ name: inputValue, level: 'page' }); break;
+                switch (selectedType) {
+                    case 'Apparel': await apiClient.addVUFSCategory({ name: inputValue, level: 'page' }); break;
                     case 'Brand': await apiClient.addVUFSBrand(inputValue); break;
                     case 'Color': await apiClient.addVUFSColor(inputValue); break;
                     case 'Material': await apiClient.addVUFSMaterial(inputValue); break;
@@ -657,30 +727,42 @@ export default function AdminVUFSPage() {
                         </svg>
                     </button>
                     <button
-                        onClick={() => initiateBulk(title, slug)}
+                        onClick={(e) => { e.stopPropagation(); initiateBulk(title, slug); }}
                         className="text-[10px] bg-white/50 hover:bg-white text-gray-700 px-1.5 py-1 rounded transition-colors"
                         title="Bulk Add"
+                        onPointerDown={(e) => e.stopPropagation()}
                     >
                         + Bulk
                     </button>
                     <button
-                        onClick={() => initiateDeleteColumn(slug || title, title)}
+                        onClick={() => initiateDeleteColumn((slug || title), title)}
                         className="opacity-0 group-hover/header:opacity-100 text-[10px] bg-red-100 hover:bg-red-200 text-red-700 px-1.5 py-1 rounded transition-all"
                         title="Delete Column"
+                        onPointerDown={(e) => e.stopPropagation()}
                     >
                         Trash
                     </button>
+                    {/* Make sure Add Item works too - Verify Footer in next chunk or separate check? 
+                       Wait, the user said "Add Item" functions don't work.
+                       Let's check the footer button in renderList. It's usually at the bottom.
+                       I only see the top part in the previous view. I need to view the bottom of renderList.
+                       However, for 'Trash' and 'Bulk', I am fixing stopPropagation here too just in case drag interferes.
+                    */}
                 </div>
             </div>
-            <div className="overflow-y-auto flex-1">
-                {items.sort((a, b) => a.name.localeCompare(b.name)).map((item, idx) => (
+            <div className={`overflow-y-auto flex-1 ${items.length === 0 ? 'flex items-center justify-center' : ''}`}>
+                {items.length === 0 && (
+                    <div className="text-gray-400 italic text-xs py-10">No items found</div>
+                )}
+                {items.length > 0 && items.sort((a, b) => a.name.localeCompare(b.name)).map((item, idx) => (
                     <div key={item.id} className={`group p-3 border-b text-sm max-w-xs hover:bg-gray-100 flex justify-between items-center ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                         <div className="flex items-center overflow-hidden mr-2">
                             {/* Edit Icon Button for All Columns */}
                             <button
-                                onClick={() => initiateRenameItem(item, title, slug)}
+                                onClick={(e) => { e.stopPropagation(); initiateRenameItem(item, title, slug); }}
                                 className="mr-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity focus:opacity-100"
                                 title="Rename"
+                                onPointerDown={(e) => e.stopPropagation()}
                             >
                                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -699,8 +781,9 @@ export default function AdminVUFSPage() {
                                 </a>
                             )}
                             <button
-                                onClick={() => initiateDelete(title, item.id, slug)}
+                                onClick={(e) => { e.stopPropagation(); initiateDelete(title, item.id, slug); }}
                                 className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 font-bold px-1 rounded transition-all duration-200 focus:opacity-100"
+                                onPointerDown={(e) => e.stopPropagation()}
                             >
                                 &times;
                             </button>
@@ -713,8 +796,9 @@ export default function AdminVUFSPage() {
             </div>
             <div className="p-3 border-t bg-gray-50">
                 <button
-                    onClick={() => initiateAdd(title, slug)}
+                    onClick={(e) => { e.stopPropagation(); initiateAdd(title, slug); }}
                     className="w-full py-2 text-xs font-bold text-gray-600 hover:text-white hover:bg-blue-600 border border-gray-300 hover:border-blue-600 rounded transition-all duration-200 shadow-sm uppercase tracking-wide"
+                    onPointerDown={(e) => e.stopPropagation()}
                 >
                     + Add Item
                 </button>
@@ -722,55 +806,111 @@ export default function AdminVUFSPage() {
         </div>
     );
 
+    const handleMatrixDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const activeTab = tabs.find(t => t.id === activeTabId);
+        if (!activeTab) return;
+
+        const oldIndex = activeTab.columns.indexOf(active.id as string);
+        const newIndex = activeTab.columns.indexOf(over.id as string);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+            const newColumns = arrayMove(activeTab.columns, oldIndex, newIndex);
+            // Update Tabs State
+            const newTabs = tabs.map(t => t.id === activeTabId ? { ...t, columns: newColumns } : t);
+            setTabs(newTabs);
+            localStorage.setItem('vufs_matrix_tabs', JSON.stringify(newTabs));
+            // Note: If you want to persist this order immediately, call API here.
+            // For now, it stays in local state until "Configure Tab" -> Save? 
+            // Or we could auto-save tab config if we had an endpoint for "updateTab".
+            // Assuming Tabs are local/preference for now or saved later.
+        }
+    };
+
+    const handleTabDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = tabs.findIndex(t => t.id === active.id);
+        const newIndex = tabs.findIndex(t => t.id === over.id);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+            const newTabs = arrayMove(tabs, oldIndex, newIndex);
+            setTabs(newTabs);
+            localStorage.setItem('vufs_matrix_tabs', JSON.stringify(newTabs));
+        }
+    };
+
     const renderGridView = () => {
         const activeTab = tabs.find(t => t.id === activeTabId);
 
         // Filter rows
-        const rows = activeTab?.mainColumn === 'Brand' ? brands : categories;
-        const rowLabel = activeTab?.mainColumn === 'Brand' ? 'Brand' : 'Apparel';
+        // Filter rows
+        let rows = categories;
+        let rowLabel = 'Apparel';
+
+        if (activeTab?.mainColumn === 'Brand') {
+            rows = brands;
+            rowLabel = 'Brand';
+        } else if (activeTab?.mainColumn === 'Size') {
+            rows = sizes;
+            rowLabel = 'Size';
+        }
+
         const rowIdType = activeTab?.mainColumn;
 
         // Filter columns
         const visibleColumnSlugs = activeTab?.columns || [];
 
-        // Define Mapped Columns (Pseudo-columns)
+        // Define Mapped Columns
         const MAPPED_COLUMNS = [
             { slug: 'IS_SUBCATEGORY_1', name: 'Subcategory 1' }
         ];
 
-        // Determine which columns to show. 
-        // If "Subcategory 1" is in the visible list (or we enable it by default for testing), include it.
-        // For now, let's treat IS_SUBCATEGORY_1 as available if selected or if configured.
-
-        const visibleCustomTypes = customTypes.filter(t => visibleColumnSlugs.includes(t.slug));
-        const visibleMappedTypes = MAPPED_COLUMNS.filter(t => visibleColumnSlugs.includes(t.slug));
-
-        // Combine them for rendering headers
-        const allVisibleColumns = [...visibleMappedTypes, ...visibleCustomTypes];
+        // Determine which columns to show, RESPECTING ORDER
+        const allVisibleColumns = visibleColumnSlugs.map(slug => {
+            const mapped = MAPPED_COLUMNS.find(c => c.slug === slug);
+            if (mapped) return mapped;
+            const custom = customTypes.find(c => c.slug === slug);
+            if (custom) return custom;
+            return null;
+        }).filter((t): t is AttributeType | { slug: string, name: string } => !!t);
 
         return (
             <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col">
-                {/* Tabs Bar - Fixed at top */}
-                <div className="flex items-center gap-1 mb-0 border-b border-gray-200 bg-white px-2 pt-2 z-20 shrink-0">
-                    {tabs.map(tab => (
-                        <div
-                            key={tab.id}
-                            className={`group flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-t border-l border-r border-b-0 cursor-pointer transition-colors relative top-[1px] ${activeTabId === tab.id ? 'bg-white text-blue-600 border-gray-200 z-10' : 'bg-gray-50 text-gray-500 border-transparent hover:bg-gray-100'}`}
-                            onClick={() => setActiveTabId(tab.id)}
+                {/* Tabs Bar - Fixed at top, enforced height */}
+                <div className="flex items-center gap-1 mb-0 border-b border-gray-200 bg-white px-2 pt-2 z-20 shrink-0 min-h-[45px]">
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleTabDragEnd}
+                    >
+                        <SortableContext
+                            items={tabs.map(t => t.id)}
+                            strategy={horizontalListSortingStrategy}
                         >
-                            <span>{tab.name}</span>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); initiateConfigureTab(tab); }}
-                                className={`ml-1 p-0.5 rounded hover:bg-gray-200 ${activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                                title="Configure Tab"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                            </button>
-                        </div>
-                    ))}
+                            {tabs.map(tab => (
+                                <SortableTab key={tab.id} id={tab.id} active={activeTabId === tab.id}>
+                                    <div className="flex items-center gap-2" onClick={() => setActiveTabId(tab.id)}>
+                                        <span>{tab.name}</span>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); initiateConfigureTab(tab); }}
+                                            className={`ml-1 p-0.5 rounded hover:bg-gray-200 ${activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                            title="Configure Tab"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </SortableTab>
+                            ))}
+                        </SortableContext>
+                    </DndContext>
                     <button
                         onClick={() => initiateConfigureTab()}
                         className="p-1.5 ml-1 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -785,137 +925,165 @@ export default function AdminVUFSPage() {
                 {/* Table Container - Scrollable */}
                 <div className="flex-1 overflow-auto p-6 pt-0">
                     <div className="bg-white border rounded-b shadow-sm min-w-max border-t-0">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b">
-                                <tr>
-                                    <th className="px-4 py-3 font-bold border-r w-48 sticky left-0 top-0 bg-gray-100 z-30 shadow-[1px_1px_0_0_rgba(0,0,0,0.05)]">{rowLabel}</th>
-                                    {allVisibleColumns.length === 0 && (
-                                        <th className="px-4 py-3 border-r min-w-[200px] text-gray-400 italic font-normal normal-case">
-                                            No columns selected. Click "Configure Tab" to add columns.
-                                        </th>
-                                    )}
-                                    {allVisibleColumns.map(type => (
-                                        <th key={type.slug} className="px-4 py-3 border-r min-w-[200px] sticky top-0 bg-gray-100 z-20">
-                                            <div className="flex items-center justify-between group">
-                                                <span>{columnAliases[type.slug] || type.name}</span>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => initiateRenameColumn(type as any)}
-                                                        className="text-gray-500 hover:text-blue-600 p-1"
-                                                        title="Rename Column"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => initiateDeleteColumn(type.slug, type.name)}
-                                                        className="text-gray-400 hover:text-red-500 p-1 font-bold"
-                                                        title="Delete Column"
-                                                    >
-                                                        &times;
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows.sort((a, b) => a.name.localeCompare(b.name)).map((row, idx) => (
-                                    <tr key={row.id} className="border-b hover:bg-gray-50">
-                                        <td className="px-4 py-3 font-medium text-gray-900 border-r bg-white sticky left-0 z-10 font-bold group">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <span>{row.name}</span>
-                                                    {rowIdType === 'Brand' && (
-                                                        <a
-                                                            href={`/brands/${row.id}/edit`}
-                                                            target="_blank"
-                                                            className="text-xs text-blue-500 hover:text-blue-700 underline opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        >
-                                                            Profile
-                                                        </a>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => initiateRenameItem(row, rowLabel, rowIdType)} // Pass rowIdType as slug
-                                                        className="text-gray-400 hover:text-blue-600 p-1"
-                                                        title="Rename Item"
-                                                    >
-                                                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => initiateDelete(rowLabel, row.id, rowIdType)} // Pass rowIdType as slug
-                                                        className="text-gray-400 hover:text-red-500 p-1 font-bold text-lg leading-none"
-                                                        title="Delete Item"
-                                                    >
-                                                        &times;
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </td>
+                        {/* @ts-ignore */}
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleMatrixDragEnd}
+                        >
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b">
+                                    <tr>
+                                        <th className="px-4 py-3 font-bold border-r w-48 sticky left-0 top-0 bg-gray-100 z-30 shadow-[1px_1px_0_0_rgba(0,0,0,0.05)]">{rowLabel}</th>
                                         {allVisibleColumns.length === 0 && (
-                                            <td className="px-4 py-4 border-r bg-gray-50/50"></td>
+                                            <th className="px-4 py-3 border-r min-w-[200px] text-gray-400 italic font-normal normal-case">
+                                                No columns selected. Click "Configure Tab" to add columns.
+                                            </th>
                                         )}
-                                        {allVisibleColumns.map(type => {
-                                            // Is this a mapped column?
-                                            if (type.slug === 'IS_SUBCATEGORY_1') {
-                                                // Handle Parent ID Logic
-                                                // Find current parent
-                                                const currentParentId = (row as VUFSCategoryOption).parentId;
+                                        <SortableContext
+                                            items={allVisibleColumns.map(c => c.slug)}
+                                            strategy={horizontalListSortingStrategy}
+                                        >
+                                            {allVisibleColumns.map(type => (
+                                                <SortableMatrixHeader key={type.slug} id={type.slug} className="px-4 py-3 border-r min-w-[200px] sticky top-0 bg-gray-100 z-20">
+                                                    <div className="flex items-center justify-between group cursor-grab active:cursor-grabbing">
+                                                        <span>{columnAliases[type.slug] || type.name}</span>
+                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); initiateRenameColumn(type as any); }}
+                                                                className="text-gray-500 hover:text-blue-600 p-1"
+                                                                title="Rename Column"
+                                                                onPointerDown={e => e.stopPropagation()} // Prevent drag conflict
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); initiateDeleteColumn(type.slug, type.name); }}
+                                                                className="text-gray-400 hover:text-red-500 p-1 font-bold"
+                                                                title="Delete Column"
+                                                                onPointerDown={e => e.stopPropagation()} // Prevent drag conflict
+                                                            >
+                                                                &times;
+                                                            </button>
+                                                            <span className="text-gray-300 ml-1 cursor-grab" title="Drag to reorder">⋮⋮</span>
+                                                        </div>
+                                                    </div>
+                                                </SortableMatrixHeader>
+                                            ))}
+                                        </SortableContext>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows.sort((a, b) => a.name.localeCompare(b.name)).map((row, idx) => (
+                                        <tr key={row.id} className="border-b hover:bg-gray-50">
+                                            <td className="px-4 py-3 font-medium text-gray-900 border-r bg-white sticky left-0 z-10 font-bold group">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{row.name}</span>
+                                                        {rowIdType === 'Brand' && (
+                                                            <a
+                                                                href={`/brands/${row.id}/edit`}
+                                                                target="_blank"
+                                                                className="text-xs text-blue-500 hover:text-blue-700 underline opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            >
+                                                                Profile
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => initiateRenameItem(row, rowLabel, rowIdType)} // Pass rowIdType as slug
+                                                            className="text-gray-400 hover:text-blue-600 p-1"
+                                                            title="Rename Item"
+                                                        >
+                                                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => initiateDelete(rowLabel, row.id, rowIdType)} // Pass rowIdType as slug
+                                                            className="text-gray-400 hover:text-red-500 p-1 font-bold text-lg leading-none"
+                                                            title="Delete Item"
+                                                        >
+                                                            &times;
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            {allVisibleColumns.length === 0 && (
+                                                <td className="px-4 py-4 border-r bg-gray-50/50"></td>
+                                            )}
+                                            {allVisibleColumns.map(type => {
+                                                // Is this a mapped column?
+                                                if (type.slug === 'IS_SUBCATEGORY_1') {
+                                                    // Handle Parent ID Logic
+                                                    // Find current parent
+                                                    const currentParentId = (row as VUFSCategoryOption).parentId;
 
-                                                // Options for dropdown: prevent circular logic (can't be own child)
-                                                // For simplicity, let's just show all other categories for now, or filter by level if strict
-                                                const parentOptions = categories.filter(c => c.id !== row.id);
+                                                    // Options for dropdown: prevent circular logic (can't be own child)
+                                                    // For simplicity, let's just show all other categories for now, or filter by level if strict
+                                                    const parentOptions = categories.filter(c => c.id !== row.id);
+
+                                                    return (
+                                                        <td key={type.slug} className="px-2 py-2 border-r bg-blue-50/30 p-0">
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="text"
+                                                                    list={`list-${type.slug}-${row.id}`}
+                                                                    className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-900 font-medium placeholder-gray-400"
+                                                                    value={parentOptions.find(p => p.id === currentParentId)?.name || currentParentId || ''}
+                                                                    placeholder="-"
+                                                                    onChange={(e) => {
+                                                                        // Reverse lookup name -> id for parent
+                                                                        const selected = parentOptions.find(p => p.name === e.target.value);
+                                                                        if (selected) handleMatrixChange(row.id, type.slug, selected.id);
+                                                                    }}
+                                                                />
+                                                                <datalist id={`list-${type.slug}-${row.id}`}>
+                                                                    {parentOptions.map(opt => (
+                                                                        <option key={opt.id} value={opt.name} />
+                                                                    ))}
+                                                                </datalist>
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                // Standard Attribute Logic
+                                                const key = `${row.id}:${type.slug}`;
+                                                const currentVal = matrixValues[key] || '';
+                                                const options = customValues[type.slug] || [];
+                                                const listId = `list-${type.slug}`;
 
                                                 return (
-                                                    <td key={type.slug} className="px-2 py-2 border-r bg-blue-50/30 p-0">
+                                                    <td key={type.slug} className="px-2 py-2 border-r bg-white/50 p-0">
                                                         <div className="relative">
-                                                            <select
-                                                                className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-900 font-medium appearance-none"
-                                                                value={currentParentId || ''}
+                                                            <input
+                                                                type="text"
+                                                                list={options.length > 0 ? listId : undefined}
+                                                                className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-700 placeholder-gray-300"
+                                                                value={currentVal}
                                                                 onChange={(e) => handleMatrixChange(row.id, type.slug, e.target.value)}
-                                                            >
-                                                                <option value="">- Top Level -</option>
-                                                                {parentOptions.map(opt => (
-                                                                    <option key={opt.id} value={opt.id}>{opt.name}</option>
-                                                                ))}
-                                                            </select>
+                                                                placeholder="-"
+                                                            />
+                                                            {options.length > 0 && (
+                                                                <datalist id={listId}>
+                                                                    {options.map(opt => (
+                                                                        <option key={opt.id} value={opt.name} />
+                                                                    ))}
+                                                                </datalist>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 );
-                                            }
-
-                                            // Standard Attribute Logic
-                                            const key = `${row.id}:${type.slug}`;
-                                            const currentVal = matrixValues[key] || '';
-                                            const options = customValues[type.slug] || [];
-
-                                            return (
-                                                <td key={type.slug} className="px-2 py-2 border-r bg-white/50 p-0">
-                                                    <div className="relative">
-                                                        <select
-                                                            className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-700 appearance-none"
-                                                            value={currentVal}
-                                                            onChange={(e) => handleMatrixChange(row.id, type.slug, e.target.value)}
-                                                        >
-                                                            <option value="">- Select -</option>
-                                                            {options.map(opt => (
-                                                                <option key={opt.id} value={opt.name}>{opt.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </DndContext>
                     </div>
                 </div>
             </div>
@@ -991,7 +1159,6 @@ export default function AdminVUFSPage() {
 
             {viewMode === 'list' ? (
                 <div className="flex-1 overflow-x-auto">
-                    {/* @ts-ignore */}
                     <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
@@ -1017,238 +1184,254 @@ export default function AdminVUFSPage() {
                 </div>
             ) : (
                 renderGridView()
-            )}
+            )
+            }
 
             {/* Modals */}
-            {(modalAction === 'renameColumn' || modalAction === 'renameItem') && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all scale-100">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">
-                            {modalAction === 'renameItem' ? `Rename Item in "${selectedType}"` : 'Rename Column'}
-                        </h3>
-                        <p className="text-sm text-gray-500 mb-4">
-                            {modalAction === 'renameItem'
-                                ? 'Renaming this item will update it everywhere it is used.'
-                                : `Renaming "${selectedType}" will update the header for all users.`
-                            }
-                        </p>
-                        <input
-                            type="text"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none mb-6"
-                            placeholder="Enter new name"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            autoFocus
-                        />
-                        <div className="flex justify-end gap-3">
-                            <button
-                                onClick={closeModal}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={modalAction === 'renameItem' ? confirmRenameItem : confirmRenameColumn}
-                                disabled={actionLoading || !inputValue.trim()}
-                                className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-                            >
-                                {actionLoading ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {modalAction && modalAction !== 'renameColumn' && modalAction !== 'renameItem' && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="px-6 py-4 border-b bg-gray-50">
-                            <h3 className="text-lg font-bold text-gray-900">
-                                {modalAction === 'add' && `Add New ${selectedType}`}
-                                {modalAction === 'delete' && `Delete Item`}
-                                {modalAction === 'bulk' && `Bulk Add ${selectedType}`}
-                                {modalAction === 'addColumn' && `Add New Column`}
-                                {modalAction === 'addColumn' && `Add New Column`}
-                                {modalAction === 'deleteColumn' && `Delete Column "${selectedType}"`}
-                                {modalAction === 'configureTab' && `Configure Tab`}
+            {
+                (modalAction === 'renameColumn' || modalAction === 'renameItem') && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md transform transition-all scale-100">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4">
+                                {modalAction === 'renameItem' ? `Rename Item in "${selectedType}"` : 'Rename Column'}
                             </h3>
-                        </div>
-
-                        <div className="p-6">
-                            {(modalAction === 'add' || modalAction === 'addColumn') && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                                        placeholder={modalAction === 'addColumn' ? "e.g. Season, Occasion" : `Enter ${selectedType} name...`}
-                                        value={inputValue}
-                                        onChange={(e) => setInputValue(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && (modalAction === 'addColumn' ? confirmAddColumn() : confirmAdd())}
-                                    />
-                                </div>
-                            )}
-
-                            {(modalAction === 'delete') && (
-                                <p className="text-gray-600">
-                                    Are you sure you want to delete this item?
-                                </p>
-                            )}
-
-                            {(modalAction === 'deleteColumn') && (
-                                <p className="text-gray-600">
-                                    Are you sure you want to delete the column <strong>{selectedType}</strong>? This will delete all items within it.
-                                </p>
-                            )}
-
-                            {modalAction === 'configureTab' && editingTab && (
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Tab Name</label>
-                                        <input
-                                            type="text"
-                                            className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                                            value={editingTab?.name || ''}
-                                            onChange={(e) => editingTab && setEditingTab({ ...editingTab, name: e.target.value })}
-                                            placeholder="e.g. Seasonal View"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Row Entity (Main Column)</label>
-                                        <div className="flex gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="mainColumn"
-                                                    value="Style / Category"
-                                                    checked={editingTab?.mainColumn === 'Style / Category'}
-                                                    onChange={() => editingTab && setEditingTab({ ...editingTab, mainColumn: 'Style / Category' })}
-                                                    className="text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-sm">Style / Category</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="mainColumn"
-                                                    value="Brand"
-                                                    checked={editingTab?.mainColumn === 'Brand'}
-                                                    onChange={() => editingTab && setEditingTab({ ...editingTab, mainColumn: 'Brand' })}
-                                                    className="text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span className="text-sm">Brand</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Visible Attribute Columns</label>
-                                        <div className="max-h-48 overflow-y-auto border rounded p-2 bg-gray-50 space-y-1">
-                                            {/* Subcategory 1 Pseudo-Column */}
-                                            {editingTab?.mainColumn === 'Style / Category' && (
-                                                <label className="flex items-center gap-2 p-1 hover:bg-white rounded cursor-pointer font-semibold bg-blue-50">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={editingTab?.columns?.includes('IS_SUBCATEGORY_1') ?? false}
-                                                        onChange={(e) => {
-                                                            const newCols = e.target.checked
-                                                                ? ['IS_SUBCATEGORY_1', ...(editingTab?.columns || [])] // Add to start
-                                                                : (editingTab?.columns || []).filter(c => c !== 'IS_SUBCATEGORY_1');
-                                                            if (editingTab) setEditingTab({ ...editingTab, columns: newCols });
-                                                        }}
-                                                        className="rounded text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <span className="text-sm text-blue-800">Subcategory 1 (Hierarchy)</span>
-                                                </label>
-                                            )}
-
-                                            {customTypes.map(type => (
-                                                <label key={type.slug} className="flex items-center gap-2 p-1 hover:bg-white rounded cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={editingTab?.columns?.includes(type.slug) ?? false}
-                                                        onChange={(e) => {
-                                                            const newCols = e.target.checked
-                                                                ? [...(editingTab?.columns || []), type.slug]
-                                                                : (editingTab?.columns || []).filter(c => c !== type.slug);
-                                                            if (editingTab) setEditingTab({ ...editingTab, columns: newCols });
-                                                        }}
-                                                        className="rounded text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <span className="text-sm">{type.name}</span>
-                                                </label>
-                                            ))}
-                                            {customTypes.length === 0 && <div className="text-xs text-gray-400 italic">No custom attributes defined.</div>}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-
-
-                            {modalAction === 'bulk' && (
-                                <div>
-                                    <div className="mb-4">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Upload CSV</label>
-                                        <input
-                                            type="file"
-                                            accept=".csv,.txt"
-                                            onChange={handleFileUpload}
-                                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full"
-                                        />
-                                    </div>
-                                    <textarea
-                                        className="w-full h-32 px-3 py-2 border rounded font-mono text-sm"
-                                        placeholder={`Paste items here...`}
-                                        value={bulkInput}
-                                        onChange={(e) => setBulkInput(e.target.value)}
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
-                            <button
-                                onClick={closeModal}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
-                                disabled={actionLoading}
-                            >
-                                Cancel
-                            </button>
-
-                            {modalAction === 'configureTab' && editingTab && (
+                            <p className="text-sm text-gray-500 mb-4">
+                                {modalAction === 'renameItem'
+                                    ? 'Renaming this item will update it everywhere it is used.'
+                                    : `Renaming "${selectedType}" will update the header for all users.`
+                                }
+                            </p>
+                            <input
+                                type="text"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent outline-none mb-6"
+                                placeholder="Enter new name"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                autoFocus
+                            />
+                            <div className="flex justify-end gap-3">
                                 <button
-                                    onClick={() => initiateDeleteTab(editingTab.id)}
-                                    className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded mr-auto"
+                                    onClick={closeModal}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                                 >
-                                    Delete Tab
+                                    Cancel
                                 </button>
-                            )}
-
-                            <button
-                                onClick={() => {
-                                    if (modalAction === 'addColumn') confirmAddColumn();
-                                    else if (modalAction === 'deleteColumn') confirmDeleteColumn();
-                                    else if (modalAction === 'add') confirmAdd();
-                                    else if (modalAction === 'bulk') confirmBulkAdd();
-                                    else if (modalAction === 'configureTab' && editingTab) initiateSaveTab(editingTab);
-                                    else confirmDelete();
-                                }}
-                                className={`px-4 py-2 text-sm font-medium text-white rounded ${(modalAction === 'delete' || modalAction === 'deleteColumn') ? 'bg-red-600 hover:bg-red-700' :
-                                    modalAction === 'bulk' ? 'bg-green-600 hover:bg-green-700' :
-                                        'bg-blue-600 hover:bg-blue-700'
-                                    }`}
-                                disabled={actionLoading}
-                            >
-                                {actionLoading ? 'Processing...' :
-                                    (modalAction === 'bulk' ? 'Import Items' :
-                                        modalAction === 'configureTab' ? 'Save Configuration' :
-                                            'Confirm')}
-                            </button>
+                                <button
+                                    onClick={modalAction === 'renameItem' ? confirmRenameItem : confirmRenameColumn}
+                                    disabled={actionLoading || !inputValue.trim()}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                                >
+                                    {actionLoading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+
+            {
+                modalAction && modalAction !== 'renameColumn' && modalAction !== 'renameItem' && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
+                            <div className="px-6 py-4 border-b bg-gray-50">
+                                <h3 className="text-lg font-bold text-gray-900">
+                                    {modalAction === 'add' && `Add New ${selectedType}`}
+                                    {modalAction === 'delete' && `Delete Item`}
+                                    {modalAction === 'bulk' && `Bulk Add ${selectedType}`}
+                                    {modalAction === 'addColumn' && `Add New Column`}
+                                    {modalAction === 'addColumn' && `Add New Column`}
+                                    {modalAction === 'deleteColumn' && `Delete Column "${selectedType}"`}
+                                    {modalAction === 'configureTab' && `Configure Tab`}
+                                </h3>
+                            </div>
+
+                            <div className="p-6">
+                                {(modalAction === 'add' || modalAction === 'addColumn') && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                            placeholder={modalAction === 'addColumn' ? "e.g. Season, Occasion" : `Enter ${selectedType} name...`}
+                                            value={inputValue}
+                                            onChange={(e) => setInputValue(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && (modalAction === 'addColumn' ? confirmAddColumn() : confirmAdd())}
+                                        />
+                                    </div>
+                                )}
+
+                                {(modalAction === 'delete') && (
+                                    <p className="text-gray-600">
+                                        Are you sure you want to delete this item?
+                                    </p>
+                                )}
+
+                                {(modalAction === 'deleteColumn') && (
+                                    <p className="text-gray-600">
+                                        Are you sure you want to delete the column <strong>{selectedType}</strong>? This will delete all items within it.
+                                    </p>
+                                )}
+
+                                {modalAction === 'configureTab' && editingTab && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Tab Name</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={editingTab?.name || ''}
+                                                onChange={(e) => editingTab && setEditingTab({ ...editingTab, name: e.target.value })}
+                                                placeholder="e.g. Seasonal View"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Row Entity (Main Column)</label>
+                                            <div className="flex gap-4">
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="mainColumn"
+                                                        value="Apparel"
+                                                        checked={editingTab?.mainColumn === 'Apparel'}
+                                                        onChange={() => editingTab && setEditingTab({ ...editingTab, mainColumn: 'Apparel' })}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm">Apparel (Categories)</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="mainColumn"
+                                                        value="Brand"
+                                                        checked={editingTab?.mainColumn === 'Brand'}
+                                                        onChange={() => editingTab && setEditingTab({ ...editingTab, mainColumn: 'Brand' })}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm">Brand</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="mainColumn"
+                                                        value="Size"
+                                                        checked={editingTab?.mainColumn === 'Size'}
+                                                        onChange={() => editingTab && setEditingTab({ ...editingTab, mainColumn: 'Size' })}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm">Size</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Visible Attribute Columns</label>
+                                            <div className="max-h-48 overflow-y-auto border rounded p-2 bg-gray-50 space-y-1">
+                                                {/* Subcategory 1 Pseudo-Column */}
+                                                {editingTab.mainColumn === 'Apparel' && (
+                                                    <label className="flex items-center gap-2 p-1 hover:bg-white rounded cursor-pointer font-semibold bg-blue-50">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={editingTab?.columns?.includes('IS_SUBCATEGORY_1') ?? false}
+                                                            onChange={(e) => {
+                                                                const newCols = e.target.checked
+                                                                    ? ['IS_SUBCATEGORY_1', ...(editingTab?.columns || [])] // Add to start
+                                                                    : (editingTab?.columns || []).filter(c => c !== 'IS_SUBCATEGORY_1');
+                                                                if (editingTab) setEditingTab({ ...editingTab, columns: newCols });
+                                                            }}
+                                                            className="rounded text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                        <span className="text-sm text-blue-800">Subcategory 1 (Hierarchy)</span>
+                                                    </label>
+                                                )}
+
+                                                {customTypes.map(type => (
+                                                    <label key={type.slug} className="flex items-center gap-2 p-1 hover:bg-white rounded cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={editingTab?.columns?.includes(type.slug) ?? false}
+                                                            onChange={(e) => {
+                                                                const newCols = e.target.checked
+                                                                    ? [...(editingTab?.columns || []), type.slug]
+                                                                    : (editingTab?.columns || []).filter(c => c !== type.slug);
+                                                                if (editingTab) setEditingTab({ ...editingTab, columns: newCols });
+                                                            }}
+                                                            className="rounded text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                        <span className="text-sm">{type.name}</span>
+                                                    </label>
+                                                ))}
+                                                {customTypes.length === 0 && <div className="text-xs text-gray-400 italic">No custom attributes defined.</div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+
+
+                                {modalAction === 'bulk' && (
+                                    <div>
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Upload CSV</label>
+                                            <input
+                                                type="file"
+                                                accept=".csv,.txt"
+                                                onChange={handleFileUpload}
+                                                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full"
+                                            />
+                                        </div>
+                                        <textarea
+                                            className="w-full h-32 px-3 py-2 border rounded font-mono text-sm"
+                                            placeholder={`Paste items here...`}
+                                            value={bulkInput}
+                                            onChange={(e) => setBulkInput(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3">
+                                <button
+                                    onClick={closeModal}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+                                    disabled={actionLoading}
+                                >
+                                    Cancel
+                                </button>
+
+                                {modalAction === 'configureTab' && editingTab && (
+                                    <button
+                                        onClick={() => initiateDeleteTab(editingTab.id)}
+                                        className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded mr-auto"
+                                    >
+                                        Delete Tab
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        if (modalAction === 'addColumn') confirmAddColumn();
+                                        else if (modalAction === 'deleteColumn') confirmDeleteColumn();
+                                        else if (modalAction === 'add') confirmAdd();
+                                        else if (modalAction === 'bulk') confirmBulkAdd();
+                                        else if (modalAction === 'configureTab' && editingTab) initiateSaveTab(editingTab);
+                                        else confirmDelete();
+                                    }}
+                                    className={`px-4 py-2 text-sm font-medium text-white rounded ${(modalAction === 'delete' || modalAction === 'deleteColumn') ? 'bg-red-600 hover:bg-red-700' :
+                                        modalAction === 'bulk' ? 'bg-green-600 hover:bg-green-700' :
+                                            'bg-blue-600 hover:bg-blue-700'
+                                        }`}
+                                    disabled={actionLoading}
+                                >
+                                    {actionLoading ? 'Processing...' :
+                                        (modalAction === 'bulk' ? 'Import Items' :
+                                            modalAction === 'configureTab' ? 'Save Configuration' :
+                                                'Confirm')}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }

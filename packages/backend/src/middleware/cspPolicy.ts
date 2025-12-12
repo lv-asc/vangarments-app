@@ -325,6 +325,9 @@ export class CSPPolicyMiddleware {
         'X-User-Consents',
         'X-API-Key',
         'X-Request-ID',
+        'Cache-Control',
+        'Pragma',
+        'Expires'
       ].join(', '));
 
       res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours

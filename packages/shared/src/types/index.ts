@@ -16,7 +16,17 @@ export interface UserProfile {
   preferences: FashionPreferences;
   badges: Badge[];
   socialLinks: SocialLink[];
+  privacySettings?: {
+    height: boolean;
+    weight: boolean;
+    birthDate: boolean;
+    country?: boolean;
+    state?: boolean;
+    city?: boolean;
+  };
   roles: UserRole[];
+  status: 'active' | 'banned' | 'deactivated';
+  banExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -110,6 +120,9 @@ export interface Location {
   city: string;
   neighborhood?: string;
   cep?: string; // Brazilian postal code
+  street?: string;
+  number?: string;
+  complement?: string;
 }
 
 export interface Badge {
