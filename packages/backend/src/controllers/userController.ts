@@ -252,6 +252,10 @@ export class UserController {
         socialLinks: user.socialLinks || [],
         roles: (user as any).roles || [],
         createdAt: user.createdAt,
+        // Include full nested objects for frontend consumption
+        personalInfo: user.personalInfo,
+        measurements: user.measurements || {},
+        privacySettings: (user as any).privacySettings || { height: false, weight: false, birthDate: false },
         stats: {
           wardrobeItems: stats.totalItems || 0,
           ...socialStats

@@ -33,16 +33,13 @@ export class BrandService {
    * Register a new brand account
    */
   async registerBrand(userId: string, registrationData: BrandRegistrationRequest): Promise<BrandAccount> {
-    // Verify user exists and doesn't already have a brand account
+    // Verify user exists
     const user = await UserModel.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
 
-    const existingBrand = await BrandAccountModel.findByUserId(userId);
-    if (existingBrand) {
-      throw new Error('User already has a brand account');
-    }
+    // Users can have multiple brand accounts - no restriction
 
     const brandInfo = {
       name: registrationData.brandName,

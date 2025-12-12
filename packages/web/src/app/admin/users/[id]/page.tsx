@@ -273,7 +273,7 @@ export default function AdminEditUserPage() {
                         {userData.status === 'active' && (
                             <>
                                 <button
-                                    onClick={() => handleDeactivateUser()}
+                                    onClick={() => setIsDeactivateModalOpen(true)}
                                     className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                                 >
                                     Deactivate Account
@@ -357,6 +357,37 @@ export default function AdminEditUserPage() {
                                 className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700"
                             >
                                 Ban User
+                            </button>
+                        </div>
+                    </Dialog.Panel>
+                </div>
+            </Dialog>
+
+            {/* Deactivate Confirmation Modal */}
+            <Dialog open={isDeactivateModalOpen} onClose={() => setIsDeactivateModalOpen(false)} className="relative z-50">
+                <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+                <div className="fixed inset-0 flex items-center justify-center p-4">
+                    <Dialog.Panel className="mx-auto max-w-sm rounded bg-white p-6 shadow-xl">
+                        <Dialog.Title className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                            <ExclamationTriangleIcon className="h-6 w-6 text-gray-500" />
+                            Deactivate User
+                        </Dialog.Title>
+                        <Dialog.Description className="mt-2 text-sm text-gray-500">
+                            Are you sure you want to deactivate this user? They will not be able to log in until reactivated.
+                        </Dialog.Description>
+
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsDeactivateModalOpen(false)}
+                                className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeactivateUser}
+                                className="px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded hover:bg-gray-700"
+                            >
+                                Deactivate
                             </button>
                         </div>
                     </Dialog.Panel>

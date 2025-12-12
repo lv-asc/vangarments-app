@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState } from 'react';
 import { PlusIcon, MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
-import { Header } from '@/components/layout/Header';
+
 import { Button } from '@/components/ui/Button';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -115,7 +115,7 @@ export default function OutfitsPage() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        <Header />
+        
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">

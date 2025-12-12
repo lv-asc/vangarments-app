@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Header } from '@/components/layout/Header';
+
 import { useAuth } from '@/contexts/AuthWrapper';
 import { Button } from '@/components/ui/Button';
 import {
@@ -19,7 +19,7 @@ export default function SettingsPage() {
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-gray-50">
-                <Header />
+                
                 <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
                         <h1 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h1>
@@ -39,7 +39,7 @@ export default function SettingsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <Header />
+            
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-6 flex items-center justify-between">

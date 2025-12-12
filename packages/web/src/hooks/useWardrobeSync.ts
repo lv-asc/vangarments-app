@@ -95,33 +95,42 @@ export function useWardrobeSync() {
       if (isOnline) {
         try {
           // Load from real API (production mode only)
+          console.log('[useWardrobeSync] Loading items from API...');
           const response = await WardrobeAPI.getItems(filters);
+          console.log('[useWardrobeSync] API response:', response);
+
+          // Defensive check for response structure
+          const items = response?.items ?? [];
+          console.log('[useWardrobeSync] Extracted items:', items.length, 'items');
+
           setState(prev => ({
             ...prev,
-            items: response.items,
+            items: items,
             loading: false,
           }));
 
-          // Cache items offline for future use
-          await offlineStorage.initialize();
-          for (const item of response.items) {
-            await offlineStorage.saveWardrobeItem({
-              id: item.id,
-              name: extractItemName(item),
-              category: mapCategoryFromVUFS(item.category),
-              brand: item.brand.brand,
-              color: item.metadata.colors?.[0]?.primary || '',
-              size: '', // Would need to be extracted from metadata
-              condition: mapConditionFromVUFS(item.condition.status),
-              imageUrl: item.images.find(img => img.isPrimary)?.imageUrl,
-              tags: [],
-              isFavorite: false,
-              wearCount: 0,
-              vufsId: item.vufsCode,
-              lastModified: item.updatedAt.toISOString(),
-              needsSync: false,
-              isDeleted: false,
-            });
+          // Cache items offline for future use (only if we have items)
+          if (items.length > 0) {
+            await offlineStorage.initialize();
+            for (const item of items) {
+              await offlineStorage.saveWardrobeItem({
+                id: item.id,
+                name: extractItemName(item),
+                category: mapCategoryFromVUFS(item.category),
+                brand: item.brand.brand,
+                color: item.metadata.colors?.[0]?.primary || '',
+                size: '', // Would need to be extracted from metadata
+                condition: mapConditionFromVUFS(item.condition.status),
+                imageUrl: item.images.find(img => img.isPrimary)?.imageUrl,
+                tags: [],
+                isFavorite: false,
+                wearCount: 0,
+                vufsId: item.vufsCode,
+                lastModified: item.updatedAt.toISOString(),
+                needsSync: false,
+                isDeleted: false,
+              });
+            }
           }
         } catch (apiError) {
           console.warn('API call failed, falling back to offline storage:', apiError);

@@ -46,7 +46,7 @@ export function useOutfits() {
 
     try {
       const queryParams = new URLSearchParams();
-      
+
       if (filters?.occasion) queryParams.append('occasion', filters.occasion);
       if (filters?.season) queryParams.append('season', filters.season);
       if (filters?.style) filters.style.forEach(s => queryParams.append('style', s));
@@ -55,13 +55,13 @@ export function useOutfits() {
       if (filters?.isFavorite !== undefined) queryParams.append('isFavorite', filters.isFavorite.toString());
       if (filters?.search) queryParams.append('search', filters.search);
 
-      const response = await apiClient.get<{ outfits: Outfit[] }>(`/outfits?${queryParams.toString()}`);
+      const response = await apiClient.get<{ outfits: Outfit[] }>(`/outfits/my?${queryParams.toString()}`);
 
       setOutfits(response.outfits || []);
     } catch (err) {
       console.error('Load outfits error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load outfits');
-      
+
       // For development, use mock data
       setOutfits(getMockOutfits());
     } finally {
@@ -76,12 +76,12 @@ export function useOutfits() {
     try {
       const data = await apiClient.post<{ outfit: Outfit }>('/outfits', outfitData);
       const newOutfit = data.outfit;
-      
+
       setOutfits(prev => [newOutfit, ...prev]);
       return newOutfit;
     } catch (err) {
       console.error('Create outfit error:', err);
-      
+
       // For development, create mock outfit
       const mockOutfit = createMockOutfit(outfitData);
       setOutfits(prev => [mockOutfit, ...prev]);
@@ -96,11 +96,11 @@ export function useOutfits() {
     try {
       const data = await apiClient.put<{ outfit: Outfit }>(`/outfits/${outfitId}`, updateData);
       const updatedOutfit = data.outfit;
-      
-      setOutfits(prev => prev.map(outfit => 
+
+      setOutfits(prev => prev.map(outfit =>
         outfit.id === outfitId ? updatedOutfit : outfit
       ));
-      
+
       return updatedOutfit;
     } catch (err) {
       console.error('Update outfit error:', err);
@@ -118,7 +118,7 @@ export function useOutfits() {
       setOutfits(prev => prev.filter(outfit => outfit.id !== outfitId));
     } catch (err) {
       console.error('Delete outfit error:', err);
-      
+
       // For development, remove from local state
       setOutfits(prev => prev.filter(outfit => outfit.id !== outfitId));
     }
@@ -131,16 +131,16 @@ export function useOutfits() {
     try {
       const data = await apiClient.post<{ outfit: Outfit }>(`/outfits/${outfitId}/favorite`);
       const updatedOutfit = data.outfit;
-      
-      setOutfits(prev => prev.map(outfit => 
+
+      setOutfits(prev => prev.map(outfit =>
         outfit.id === outfitId ? updatedOutfit : outfit
       ));
     } catch (err) {
       console.error('Toggle favorite error:', err);
-      
+
       // For development, update local state
-      setOutfits(prev => prev.map(outfit => 
-        outfit.id === outfitId 
+      setOutfits(prev => prev.map(outfit =>
+        outfit.id === outfitId
           ? { ...outfit, isFavorite: !outfit.isFavorite }
           : outfit
       ));
@@ -154,21 +154,21 @@ export function useOutfits() {
     try {
       const data = await apiClient.post<{ outfit: Outfit }>(`/outfits/${outfitId}/wear`);
       const updatedOutfit = data.outfit;
-      
-      setOutfits(prev => prev.map(outfit => 
+
+      setOutfits(prev => prev.map(outfit =>
         outfit.id === outfitId ? updatedOutfit : outfit
       ));
     } catch (err) {
       console.error('Record wear error:', err);
-      
+
       // For development, update local state
-      setOutfits(prev => prev.map(outfit => 
-        outfit.id === outfitId 
-          ? { 
-              ...outfit, 
-              wearCount: outfit.wearCount + 1,
-              lastWorn: new Date()
-            }
+      setOutfits(prev => prev.map(outfit =>
+        outfit.id === outfitId
+          ? {
+            ...outfit,
+            wearCount: outfit.wearCount + 1,
+            lastWorn: new Date()
+          }
           : outfit
       ));
     }

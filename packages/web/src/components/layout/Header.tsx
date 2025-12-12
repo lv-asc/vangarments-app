@@ -10,9 +10,7 @@ import {
   HomeIcon,
   EyeIcon,
   ShoppingBagIcon,
-  ChartBarIcon,
-  MegaphoneIcon,
-
+  ClockIcon,
   UserGroupIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,13 +20,16 @@ import { Navigation } from './Navigation';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTranslation } from '@/utils/translations';
+import { useRecentPages } from '@/components/providers/RecentPagesProvider';
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isRecentPagesOpen, setIsRecentPagesOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const { navigate, currentPath, isNavigating } = useNavigation();
   const { t } = useTranslation();
+  const { recentPages } = useRecentPages();
 
   // Debug info for development
   if (process.env.NODE_ENV === 'development') {
@@ -48,9 +49,6 @@ export function Header() {
     { name: t('wardrobe'), href: '/wardrobe', icon: HomeIcon },
     { name: t('looks'), href: '/outfits', icon: EyeIcon },
     { name: t('marketplace'), href: '/marketplace', icon: ShoppingBagIcon },
-    { name: t('analytics'), href: '/analytics', icon: ChartBarIcon },
-    { name: t('advertising'), href: '/advertising', icon: MegaphoneIcon },
-
   ];
 
   const handleLogout = async () => {
@@ -114,6 +112,51 @@ export function Header() {
 
           {/* Desktop User Menu or Auth Buttons */}
           <div className="ml-10 hidden lg:flex items-center space-x-4">
+            {/* Recent Pages Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsRecentPagesOpen(!isRecentPagesOpen)}
+                className="flex items-center p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
+                title="Recent Pages"
+              >
+                <ClockIcon className="h-5 w-5" />
+              </button>
+
+              <AnimatePresence>
+                {isRecentPagesOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute right-0 mt-2 w-64 bg-card rounded-md shadow-lg py-1 z-50 border border-border"
+                  >
+                    <div className="px-3 py-2 border-b border-border">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase">Recent Pages</span>
+                    </div>
+                    {recentPages.length > 0 ? (
+                      recentPages.slice(0, 5).map((page, idx) => (
+                        <Link
+                          key={idx}
+                          href={page.path}
+                          onClick={(e) => {
+                            handleNavigation(page.path, e);
+                            setIsRecentPagesOpen(false);
+                          }}
+                          className={`block px-4 py-2 text-sm hover:bg-muted truncate ${currentPath === page.path ? 'text-primary font-medium' : 'text-foreground'}`}
+                        >
+                          {page.title}
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                        No recent pages
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <LanguageSelector />
 
             {isAuthenticated && user ? (

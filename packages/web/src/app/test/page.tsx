@@ -1,12 +1,12 @@
 'use client';
 
-import { Header } from '@/components/layout/Header';
+
 import Link from 'next/link';
 
 export default function TestPage() {
   return (
     <div className="min-h-screen bg-[#fff7d7]">
-      <Header />
+      
       
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="bg-white rounded-lg p-8 text-center">

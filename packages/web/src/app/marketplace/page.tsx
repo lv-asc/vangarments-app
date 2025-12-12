@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Header } from '@/components/layout/Header';
+
 import { apiClient } from '@/lib/api';
 import { MagnifyingGlassIcon, FunnelIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
@@ -175,7 +175,7 @@ export default function MarketplacePage() {
   if (loading && listings.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header />
+        
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -188,7 +188,7 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">

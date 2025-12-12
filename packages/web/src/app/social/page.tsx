@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Header } from '@/components/layout/Header';
+
 import { Button } from '@/components/ui/Button';
 import { socialApi } from '@/lib/socialApi';
 import {
@@ -127,7 +127,7 @@ export default function SocialPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}

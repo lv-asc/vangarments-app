@@ -132,7 +132,7 @@ export default function AdminNewBrandPage() {
                                 </option>
                             ))}
                         </select>
-                        <p className="mt-1 text-xs text-gray-500">Only users without existing brands should be selected.</p>
+                        <p className="mt-1 text-xs text-gray-500">Select the user who will own this brand account.</p>
                     </div>
 
                     {/* Brand Info */}

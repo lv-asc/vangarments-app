@@ -8,7 +8,7 @@ import { ItemSelector } from './ItemSelector';
 import { OutfitBuilder } from './OutfitBuilder';
 import { OutfitPreview } from './OutfitPreview';
 import { SizeRecommendations } from './SizeRecommendations';
-import { useWardrobeSync } from '@/hooks/useWardrobeSync';
+import { apiClient } from '@/lib/api';
 
 interface OutfitCreationModalProps {
   isOpen: boolean;
@@ -30,12 +30,27 @@ export function OutfitCreationModal({ isOpen, onClose, onSubmit }: OutfitCreatio
   const [isPublic, setIsPublic] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
+  const [wardrobeLoading, setWardrobeLoading] = useState(false);
 
-  const { items: wardrobeItems, loadItems } = useWardrobeSync();
+  // Load wardrobe items using apiClient directly (same as wardrobe page)
+  const loadWardrobeItems = async () => {
+    setWardrobeLoading(true);
+    try {
+      const response = await apiClient.getWardrobeItems({});
+      console.log('[OutfitCreationModal] API response:', response);
+      setWardrobeItems(response.items || []);
+    } catch (error) {
+      console.error('[OutfitCreationModal] Error loading wardrobe:', error);
+      setWardrobeItems([]);
+    } finally {
+      setWardrobeLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
-      loadItems();
+      loadWardrobeItems();
       resetForm();
     }
   }, [isOpen]);
@@ -200,10 +215,10 @@ export function OutfitCreationModal({ isOpen, onClose, onSubmit }: OutfitCreatio
                   <div
                     key={step}
                     className={`w-8 h-2 rounded-full ${step === currentStep
-                        ? 'bg-pink-500'
-                        : index < (['select_base', 'build_outfit', 'review', 'save'] as CreationStep[]).indexOf(currentStep)
-                          ? 'bg-pink-300'
-                          : 'bg-gray-200'
+                      ? 'bg-pink-500'
+                      : index < (['select_base', 'build_outfit', 'review', 'save'] as CreationStep[]).indexOf(currentStep)
+                        ? 'bg-pink-300'
+                        : 'bg-gray-200'
                       }`}
                   />
                 ))}

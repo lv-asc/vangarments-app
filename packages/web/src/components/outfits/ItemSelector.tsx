@@ -11,6 +11,38 @@ interface ItemSelectorProps {
   selectedItem?: any;
 }
 
+// Helper functions to extract data from VUFS format
+const getItemName = (item: any): string => {
+  if (item.name) return item.name;
+  const brand = item.brand?.brand || '';
+  const category = item.category?.whiteSubcategory || item.category?.blueSubcategory || '';
+  const color = item.metadata?.colors?.[0]?.primary || '';
+  return [brand, category, color].filter(Boolean).join(' ') || 'Unnamed Item';
+};
+
+const getItemBrand = (item: any): string => {
+  return item.brand?.brand || item.brand || '';
+};
+
+const getItemColor = (item: any): string => {
+  return item.metadata?.colors?.[0]?.primary || item.color || '';
+};
+
+const getItemCategory = (item: any): string => {
+  if (typeof item.category === 'string') return item.category;
+  return item.category?.blueSubcategory || item.category?.page || '';
+};
+
+const getItemImage = (item: any): string => {
+  // Handle array of image objects (VUFS format)
+  if (item.images?.length > 0) {
+    const firstImage = item.images[0];
+    if (typeof firstImage === 'string') return firstImage;
+    return firstImage?.url || firstImage?.imageUrl || '/api/placeholder/300/400';
+  }
+  return item.imageUrl || '/api/placeholder/300/400';
+};
+
 export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -22,23 +54,30 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
     { value: 'bottoms', label: 'Calças' },
     { value: 'dresses', label: 'Vestidos' },
     { value: 'shoes', label: 'Calçados' },
+    { value: 'Footwear', label: 'Calçados' },
+    { value: 'Apparel', label: 'Vestuário' },
     { value: 'accessories', label: 'Acessórios' },
     { value: 'outerwear', label: 'Casacos' },
   ];
 
   // Get unique colors from items
-  const colors = ['all', ...new Set(items.map(item => item.color).filter(Boolean))].map(color => ({
+  const colors = ['all', ...new Set(items.map(item => getItemColor(item)).filter(Boolean))].map(color => ({
     value: color,
     label: color === 'all' ? 'Todas as Cores' : color,
   }));
 
   const filteredItems = items.filter(item => {
-    const matchesSearch = (item.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-      (item.brand?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    const name = getItemName(item).toLowerCase();
+    const brand = getItemBrand(item).toLowerCase();
+    const itemCategory = getItemCategory(item);
+    const itemColor = getItemColor(item);
+
+    const matchesSearch = name.includes(searchQuery.toLowerCase()) ||
+      brand.includes(searchQuery.toLowerCase()) ||
       item.tags?.some((tag: string) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    const matchesColor = selectedColor === 'all' || item.color === selectedColor;
+    const matchesCategory = selectedCategory === 'all' || itemCategory === selectedCategory || itemCategory.toLowerCase().includes(selectedCategory.toLowerCase());
+    const matchesColor = selectedColor === 'all' || itemColor === selectedColor;
 
     return matchesSearch && matchesCategory && matchesColor;
   });
@@ -106,15 +145,15 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.05 }}
               className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 ${selectedItem?.id === item.id
-                  ? 'border-pink-500 ring-2 ring-pink-200'
-                  : 'border-gray-200 hover:border-pink-300'
+                ? 'border-pink-500 ring-2 ring-pink-200'
+                : 'border-gray-200 hover:border-pink-300'
                 }`}
               onClick={() => onSelectItem(item)}
             >
               <div className="aspect-[3/4] bg-gray-100">
                 <img
-                  src={item.images?.[0] || '/api/placeholder/300/400'}
-                  alt={item.name}
+                  src={getItemImage(item)}
+                  alt={getItemName(item)}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -132,14 +171,14 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
 
               <div className="p-3">
                 <h4 className="font-medium text-gray-900 text-sm truncate">
-                  {item.name}
+                  {getItemName(item)}
                 </h4>
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-xs text-gray-600">
-                    {item.brand}
+                    {getItemBrand(item)}
                   </span>
                   <span className="text-xs text-gray-500">
-                    {item.color}
+                    {getItemColor(item)}
                   </span>
                 </div>
               </div>
@@ -165,17 +204,17 @@ export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelector
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
               <img
-                src={selectedItem.images?.[0] || '/api/placeholder/300/400'}
-                alt={selectedItem.name}
+                src={getItemImage(selectedItem)}
+                alt={getItemName(selectedItem)}
                 className="w-full h-full object-cover"
               />
             </div>
             <div className="flex-1">
               <h4 className="font-medium text-gray-900">
-                Peça base selecionada: {selectedItem.name}
+                Peça base selecionada: {getItemName(selectedItem)}
               </h4>
               <p className="text-sm text-gray-600">
-                {selectedItem.brand} • {selectedItem.color}
+                {getItemBrand(selectedItem)} • {getItemColor(selectedItem)}
               </p>
             </div>
             <div className="text-pink-600">

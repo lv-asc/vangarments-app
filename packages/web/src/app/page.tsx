@@ -3,7 +3,6 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Header } from '@/components/layout/Header';
 import {
   UserGroupIcon,
   PhotoIcon,
@@ -37,8 +36,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-primary text-primary-foreground overflow-hidden selection:bg-secondary selection:text-secondary-foreground">
-      <Header />
-
       <main className="relative z-10">
         {/* Background Gradients */}
         <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">

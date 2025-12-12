@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Header } from '@/components/layout/Header';
+
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { apiClient } from '@/lib/api';
@@ -137,6 +137,7 @@ export default function ProfilePage() {
     setError(null);
     try {
       const response = await apiClient.getUserProfile(user.id);
+      console.log('DEBUG: getUserProfile response:', JSON.stringify(response, null, 2));
       setUserProfile(response.profile);
       if (response.profile) {
         setEditForm({
@@ -368,15 +369,15 @@ export default function ProfilePage() {
   };
 
 
-  // ... (Authentication and Loading checks remain same)
-  if (!isAuthenticated) return <div className="min-h-screen bg-gray-50"><Header /><main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"><div className="bg-blue-50 border border-blue-200 rounded-lg p-6"><h1 className="text-xl font-bold text-blue-900 mb-2">Acesse seu Perfil</h1><p className="text-blue-700 mb-4">Faça login para acessar e gerenciar seu perfil.</p><Button onClick={() => window.location.href = '/login'} className="bg-blue-600 hover:bg-blue-700 text-white">Fazer Login</Button></div></main></div>;
-  if (loading) return <div className="min-h-screen bg-gray-50"><Header /><main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"><div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00132d]"></div></div></main></div>;
-  if (error && !userProfile) return <div className="min-h-screen bg-gray-50"><Header /><main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"><div className="bg-red-50 border border-red-200 rounded-lg p-6"><h1 className="text-xl font-bold text-red-900 mb-2">Erro ao carregar perfil</h1><p className="text-red-700 mb-4">{error}</p><Button onClick={loadProfile}>Tentar Novamente</Button></div></main></div>;
-  if (!userProfile) return <div className="min-h-screen bg-gray-50"><Header /><main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"><div className="bg-blue-50 border border-blue-200 rounded-lg p-6"><h1 className="text-xl font-bold text-blue-900 mb-2">Perfil não encontrado</h1><p className="text-blue-700 mb-4">Não foi possível carregar seu perfil.</p><Button onClick={loadProfile}>Tentar Novamente</Button></div></main></div>;
+  // Authentication and Loading checks
+  if (!isAuthenticated) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Please log in to view your profile.</p></div>;
+  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Loading profile...</p></div>;
+  if (error && !userProfile) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p className="text-red-500">Error: {error}</p></div>;
+  if (!userProfile) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Profile not found.</p></div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Profile Header */}
@@ -887,6 +888,17 @@ export default function ProfilePage() {
                         })() : 'unknown'}
                         <span className="mx-2">|</span>
                         CPF: {userProfile.cpf ? userProfile.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4') : 'unknown'}
+                        {/* Display location based on privacy settings */}
+                        {(userProfile.privacySettings?.city || userProfile.privacySettings?.state || userProfile.privacySettings?.country) && userProfile.personalInfo?.location && (
+                          <>
+                            <span className="mx-2">|</span>
+                            📍 {[
+                              userProfile.privacySettings?.city && userProfile.personalInfo.location.city,
+                              userProfile.privacySettings?.state && userProfile.personalInfo.location.state,
+                              userProfile.privacySettings?.country && userProfile.personalInfo.location.country
+                            ].filter(Boolean).join(', ')}
+                          </>
+                        )}
                       </span>
                     </div>
 

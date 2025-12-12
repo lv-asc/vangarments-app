@@ -166,7 +166,13 @@ export class WardrobeAPI {
     });
 
     const response = await apiClient.get<any>(`/wardrobe/items?${params.toString()}`);
-    return response.data;
+    // apiClient already unwraps the JSON response, so return it directly
+    // Handle both response formats: direct { items, pagination } or wrapped { data: { items, pagination } }
+    const data = response?.data || response;
+    return {
+      items: data?.items || [],
+      pagination: data?.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 }
+    };
   }
 
   /**

@@ -63,11 +63,7 @@ export class BrandAccountModel {
   static async create(brandData: CreateBrandAccountData): Promise<BrandAccount> {
     const { userId, brandInfo, partnershipTier = 'basic' } = brandData;
 
-    // Check if user already has a brand account
-    const existing = await this.findByUserId(userId);
-    if (existing) {
-      throw new Error('User already has a brand account');
-    }
+    // Users can have multiple brand accounts - no restriction
 
     const query = `
       INSERT INTO brand_accounts (user_id, brand_info, partnership_tier, verification_status)
@@ -112,10 +108,28 @@ export class BrandAccountModel {
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.user_id = $1
+      LIMIT 1
     `;
 
     const result = await db.query(query, [userId]);
     return result.rows.length > 0 ? this.mapRowToBrandAccount(result.rows[0]) : null;
+  }
+
+  static async findAllByUserId(userId: string): Promise<BrandAccount[]> {
+    const query = `
+      SELECT ba.*, 
+             u.profile as user_profile,
+             (
+               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
+             ) as catalog_items_count
+      FROM brand_accounts ba
+      LEFT JOIN users u ON ba.user_id = u.id
+      WHERE ba.user_id = $1
+      ORDER BY ba.created_at DESC
+    `;
+
+    const result = await db.query(query, [userId]);
+    return result.rows.map(row => this.mapRowToBrandAccount(row));
   }
 
   static async findMany(

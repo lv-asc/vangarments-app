@@ -5,6 +5,8 @@ import { Providers } from '@/components/providers/Providers';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { PWAInstaller } from '@/components/ui/PWAInstaller';
 import { PWAProvider } from '@/components/providers/PWAProvider';
+import { Header } from '@/components/layout/Header';
+import { RecentPagesProvider } from '@/components/providers/RecentPagesProvider';
 
 
 
@@ -111,8 +113,13 @@ export default function RootLayout({
         <ErrorBoundary>
           <PWAProvider>
             <Providers>
-              {children}
-              <PWAInstaller />
+              <RecentPagesProvider>
+                <Header />
+                <main className="min-h-screen">
+                  {children}
+                </main>
+                <PWAInstaller />
+              </RecentPagesProvider>
             </Providers>
           </PWAProvider>
         </ErrorBoundary>

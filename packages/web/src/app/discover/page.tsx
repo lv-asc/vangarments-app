@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Header } from '@/components/layout/Header';
+
 import {
   FireIcon,
   SparklesIcon,
@@ -16,7 +16,7 @@ export default function DiscoverPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      
 
       <main className="py-8">
         {/* View Toggle */}

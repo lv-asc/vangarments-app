@@ -190,8 +190,26 @@ export class AuthController {
                     },
                 });
             }
+            // Transform user response to include avatar at top level for frontend consumption
+            const userResponse = {
+                ...user,
+                id: user.id,
+                name: user.personalInfo.name,
+                email: user.email,
+                cpf: user.cpf,
+                avatar: (user.personalInfo as any).avatarUrl || null,
+                username: (user as any).username,
+                personalInfo: user.personalInfo,
+                measurements: user.measurements,
+                preferences: user.preferences,
+                privacySettings: (user as any).privacySettings,
+                socialLinks: user.socialLinks,
+                roles: (user as any).roles,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
+            };
 
-            res.json({ user });
+            res.json({ user: userResponse });
         } catch (error) {
             console.error('Get profile error:', error);
             res.status(500).json({
