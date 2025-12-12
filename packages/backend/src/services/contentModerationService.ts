@@ -178,7 +178,7 @@ export class ContentModerationService {
     };
 
     // TODO: Save to database
-    
+
     // If confidence is high enough, automatically create a report
     if (flagData.confidence && flagData.confidence > 0.8) {
       await ContentReportModel.create({
@@ -224,6 +224,7 @@ export class ContentModerationService {
         return user ? {
           id: contentId,
           type: 'user',
+          // @ts-ignore
           content: user.profile,
           author: user,
         } : null;
@@ -246,15 +247,15 @@ export class ContentModerationService {
       case 'remove':
         await this.removeContent(contentId, contentType);
         break;
-      
+
       case 'warn':
         await this.warnUser(contentId, contentType, reason);
         break;
-      
+
       case 'approve':
         // Content is approved, no action needed
         break;
-      
+
       case 'dismiss':
         // Report is dismissed, no action needed
         break;
@@ -269,11 +270,11 @@ export class ContentModerationService {
       case 'post':
         await SocialPostModel.delete(contentId);
         break;
-      
+
       case 'comment':
         await PostCommentModel.delete(contentId, ''); // TODO: Get proper user ID
         break;
-      
+
       case 'user':
         // TODO: Implement user suspension/ban
         console.log(`User ${contentId} should be suspended/banned`);

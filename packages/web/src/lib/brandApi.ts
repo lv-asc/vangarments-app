@@ -21,6 +21,14 @@ interface BrandAccount {
     brandColors?: string[];
     brandStyle?: string[];
   };
+  profileData?: {
+    bio?: string;
+    foundedDate?: string;
+    instagram?: string;
+    tiktok?: string;
+    youtube?: string;
+    additionalLogos?: string[];
+  };
   verificationStatus: 'pending' | 'verified' | 'rejected';
   partnershipTier: 'basic' | 'premium' | 'enterprise';
   badges: string[];
@@ -104,6 +112,19 @@ class BrandApi {
     }
 
     return response.json();
+  }
+
+  async getBrands(): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/search`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get brands: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.brands || [];
   }
 
   async createBrandAccount(data: CreateBrandAccountData): Promise<BrandAccount> {
@@ -306,7 +327,363 @@ class BrandApi {
 
     return response.json();
   }
+
+  // ============ BRAND PROFILE ============
+
+  async getFullProfile(brandId: string): Promise<BrandFullProfile> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/profile`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get brand profile: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async updateProfileData(brandId: string, data: BrandProfileData): Promise<BrandAccount> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/profile`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to update profile');
+    }
+
+    const result = await response.json();
+    return result.data.brand;
+  }
+
+  // ============ TEAM MANAGEMENT ============
+
+  async getTeamMembers(brandId: string, publicOnly = true): Promise<BrandTeamMember[]> {
+    const params = new URLSearchParams();
+    params.append('publicOnly', publicOnly.toString());
+
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team?${params}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get team members: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data.team;
+  }
+
+  async addTeamMember(brandId: string, data: { userId: string; role: BrandRole; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to add team member');
+    }
+
+    const result = await response.json();
+    return result.data.member;
+  }
+
+  async updateTeamMember(brandId: string, memberId: string, data: { role?: BrandRole; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team/${memberId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to update team member');
+    }
+
+    const result = await response.json();
+    return result.data.member;
+  }
+
+  async removeTeamMember(brandId: string, memberId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team/${memberId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to remove team member');
+    }
+  }
+
+  // ============ LOOKBOOK MANAGEMENT ============
+
+  async getLookbooks(brandId: string, publishedOnly = true): Promise<BrandLookbook[]> {
+    const params = new URLSearchParams();
+    params.append('publishedOnly', publishedOnly.toString());
+
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks?${params}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get lookbooks: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data.lookbooks;
+  }
+
+  async getLookbook(brandId: string, lookbookId: string): Promise<{ lookbook: BrandLookbook; items: any[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get lookbook: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async createLookbook(brandId: string, data: CreateLookbookData): Promise<BrandLookbook> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to create lookbook');
+    }
+
+    const result = await response.json();
+    return result.data.lookbook;
+  }
+
+  async updateLookbook(brandId: string, lookbookId: string, data: Partial<CreateLookbookData> & { isPublished?: boolean }): Promise<BrandLookbook> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to update lookbook');
+    }
+
+    const result = await response.json();
+    return result.data.lookbook;
+  }
+
+  async deleteLookbook(brandId: string, lookbookId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to delete lookbook');
+    }
+  }
+
+  async addLookbookItems(brandId: string, lookbookId: string, items: Array<{ itemId: string; sortOrder?: number }>): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}/items`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ items })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to add items to lookbook');
+    }
+
+    const result = await response.json();
+    return result.data.items;
+  }
+
+  // ============ COLLECTION MANAGEMENT ============
+
+  async getCollections(brandId: string, publishedOnly = true): Promise<BrandCollection[]> {
+    const params = new URLSearchParams();
+    params.append('publishedOnly', publishedOnly.toString());
+
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections?${params}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get collections: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data.collections;
+  }
+
+  async getCollection(brandId: string, collectionId: string): Promise<{ collection: BrandCollection; items: any[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get collection: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async createCollection(brandId: string, data: CreateCollectionData): Promise<BrandCollection> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to create collection');
+    }
+
+    const result = await response.json();
+    return result.data.collection;
+  }
+
+  async updateCollection(brandId: string, collectionId: string, data: Partial<CreateCollectionData> & { isPublished?: boolean }): Promise<BrandCollection> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to update collection');
+    }
+
+    const result = await response.json();
+    return result.data.collection;
+  }
+
+  async deleteCollection(brandId: string, collectionId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to delete collection');
+    }
+  }
+
+  async addCollectionItems(brandId: string, collectionId: string, items: Array<{ itemId: string; sortOrder?: number }>): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}/items`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ items })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to add items to collection');
+    }
+
+    const result = await response.json();
+    return result.data.items;
+  }
 }
 
+// ============ TYPE EXPORTS ============
+
+export type BrandRole = 'CEO' | 'CFO' | 'Founder' | 'CD' | 'Marketing' | 'Seller' | 'Designer' | 'Model' | 'Ambassador' | 'Other';
+
+export interface BrandProfileData {
+  bio?: string;
+  foundedDate?: string;
+  instagram?: string;
+  tiktok?: string;
+  youtube?: string;
+  additionalLogos?: string[];
+}
+
+export interface BrandTeamMember {
+  id: string;
+  brandId: string;
+  userId: string;
+  role: BrandRole;
+  title?: string;
+  isPublic: boolean;
+  joinedAt: string;
+  user?: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    username?: string;
+  };
+}
+
+export interface BrandLookbook {
+  id: string;
+  brandId: string;
+  name: string;
+  description?: string;
+  coverImageUrl?: string;
+  season?: string;
+  year?: number;
+  isPublished: boolean;
+  publishedAt?: string;
+  itemCount?: number;
+}
+
+export interface CreateLookbookData {
+  name: string;
+  description?: string;
+  coverImageUrl?: string;
+  season?: string;
+  year?: number;
+}
+
+export interface BrandCollection {
+  id: string;
+  brandId: string;
+  name: string;
+  description?: string;
+  coverImageUrl?: string;
+  collectionType?: 'Seasonal' | 'Capsule' | 'Collaboration' | 'Limited' | 'Core' | 'Other';
+  season?: string;
+  year?: number;
+  isPublished: boolean;
+  publishedAt?: string;
+  itemCount?: number;
+}
+
+export interface CreateCollectionData {
+  name: string;
+  description?: string;
+  coverImageUrl?: string;
+  collectionType?: 'Seasonal' | 'Capsule' | 'Collaboration' | 'Limited' | 'Core' | 'Other';
+  season?: string;
+  year?: number;
+}
+
+export interface BrandFullProfile {
+  brand: BrandAccount;
+  team: BrandTeamMember[];
+  lookbooks: BrandLookbook[];
+  collections: BrandCollection[];
+}
+
+export type { BrandAccount, CatalogItem };
 export const brandApi = new BrandApi();
 export default brandApi;

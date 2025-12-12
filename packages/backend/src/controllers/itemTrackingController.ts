@@ -397,14 +397,14 @@ export class ItemTrackingController {
 
       const wearCount = await ItemTrackingModel.getItemWearCount(itemId);
       const usageHistory = await ItemTrackingModel.getItemUsageHistory(itemId, 20);
-      
+
       // Calculate usage insights
-      const acquisitionDate = item.metadata.acquisitionInfo?.purchaseDate || item.createdAt;
+      const acquisitionDate = (item.metadata as any).acquisitionInfo?.purchaseDate || item.createdAt;
       const usageInsights = ItemTrackingUtils.calculateUsageInsights(wearCount, acquisitionDate);
-      
+
       // Generate care schedule
       const careSchedule = ItemTrackingUtils.generateCareSchedule(
-        item.metadata.composition || [],
+        (item.metadata.composition || []) as any,
         item.category,
         wearCount
       );

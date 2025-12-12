@@ -1,7 +1,7 @@
 import { VUFSCatalogModel } from '../models/VUFSCatalog';
-import { 
-  OutfitSuggestion, 
-  StyleRecommendation, 
+import {
+  OutfitSuggestion,
+  StyleRecommendation,
   OutfitAnalysis,
   SizeRecommendation,
   OutfitItem,
@@ -49,7 +49,7 @@ export class OutfitStylingService {
         neededPositions,
         preferences
       );
-      
+
       if (suggestion) {
         suggestions.push(suggestion);
       }
@@ -74,10 +74,10 @@ export class OutfitStylingService {
 
     // Analyze color harmony
     const colorAnalysis = this.analyzeColors(items);
-    
+
     // Analyze style coherence
     const styleAnalysis = this.analyzeStyles(items);
-    
+
     // Calculate scores
     const scores = {
       colorHarmony: colorAnalysis.harmony,
@@ -86,7 +86,7 @@ export class OutfitStylingService {
       seasonalFit: this.calculateSeasonalScore(items),
       overall: 0,
     };
-    
+
     scores.overall = Math.round(
       (scores.colorHarmony + scores.styleCoherence + scores.occasionAppropriate + scores.seasonalFit) / 4
     );
@@ -128,7 +128,7 @@ export class OutfitStylingService {
       itemSizing: {
         brand: item.item.brand,
         sizeChart: {}, // Would be populated from brand data
-        fit: 'pieceType' in item.item ? (item.item as ApparelItem).fit : 'regular',
+        fit: 'pieceType' in item.item ? (item.item as unknown as ApparelItem).fit : 'regular',
       },
       recommendation,
     };
@@ -180,7 +180,7 @@ export class OutfitStylingService {
    */
   private static determineItemPosition(item: VUFSItem): OutfitPosition {
     const isApparel = 'pieceType' in item;
-    
+
     if (!isApparel) {
       return 'footwear';
     }
@@ -262,7 +262,7 @@ export class OutfitStylingService {
     const suggestedItems: any[] = [];
 
     for (const position of neededPositions) {
-      const compatibleItems = availableItems.filter(item => 
+      const compatibleItems = availableItems.filter(item =>
         this.determineItemPosition(item.item) === position &&
         this.isCompatible(baseItem.item, item.item, preferences)
       );
@@ -315,11 +315,11 @@ export class OutfitStylingService {
     if ('style' in item1 && 'style' in item2) {
       const styles1 = (item1 as ApparelItem).style || [];
       const styles2 = (item2 as ApparelItem).style || [];
-      
+
       // Check for style overlap or complementary styles
       const hasOverlap = styles1.some(style => styles2.includes(style));
       const hasComplementary = this.areStylesComplementary(styles1, styles2);
-      
+
       if (!hasOverlap && !hasComplementary) {
         return false;
       }
@@ -449,7 +449,7 @@ export class OutfitStylingService {
     const allStyles = items
       .filter(item => 'style' in item)
       .flatMap(item => (item as ApparelItem).style || []);
-    
+
     return {
       dominantStyles: [...new Set(allStyles)],
       coherence: 70,

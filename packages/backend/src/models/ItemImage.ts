@@ -124,7 +124,7 @@ export class ItemImageModel {
       );
 
       await client.query('COMMIT');
-      return result.rowCount > 0;
+      return (result.rowCount || 0) > 0;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -136,7 +136,7 @@ export class ItemImageModel {
   static async delete(id: string): Promise<boolean> {
     const query = 'DELETE FROM item_images WHERE id = $1';
     const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   static async deleteByItemId(itemId: string): Promise<number> {

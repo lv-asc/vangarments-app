@@ -69,7 +69,7 @@ class ApiClient {
     }
   }
 
-  private saveToken(token: string): void {
+  private saveToken(token: string, roles?: string[]): void {
     this.token = token;
     if (typeof window !== 'undefined') {
       // Store in secure cookie (preferred) and localStorage (fallback)
@@ -78,6 +78,20 @@ class ApiClient {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
       });
+
+      // key-fix: Set user-role cookie for middleware if roles provided
+      if (roles) {
+        if (roles.includes('admin')) {
+          Cookies.set('user-role', 'admin', {
+            expires: 7,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+          });
+        } else {
+          Cookies.remove('user-role');
+        }
+      }
+
       localStorage.setItem('auth_token', token);
     }
   }
@@ -86,6 +100,7 @@ class ApiClient {
     this.token = null;
     if (typeof window !== 'undefined') {
       Cookies.remove('auth_token');
+      Cookies.remove('user-role');
       localStorage.removeItem('auth_token');
     }
   }
@@ -302,7 +317,7 @@ class ApiClient {
     if (!response.token) {
       throw new ApiErrorClass('No token received from server', 'AUTH_ERROR');
     }
-    this.saveToken(response.token);
+    this.saveToken(response.token, response.user.roles);
     return { user: response.user, token: response.token };
   }
 
@@ -336,7 +351,7 @@ class ApiClient {
     if (!response.token) {
       throw new ApiErrorClass('No token received from server', 'AUTH_ERROR');
     }
-    this.saveToken(response.token);
+    this.saveToken(response.token, response.user.roles);
     return { user: response.user, token: response.token };
   }
 
@@ -421,8 +436,14 @@ class ApiClient {
     return response as any;
   }
 
+  async checkUsernameAvailability(username: string): Promise<{ available: boolean; error?: string }> {
+    const response = await this.request<any>(`/users/check-username/${encodeURIComponent(username)}`);
+    return response as any;
+  }
+
   async updateProfile(profileData: {
     name?: string;
+    username?: string;
     location?: any;
     measurements?: any;
     preferences?: any;
@@ -435,6 +456,11 @@ class ApiClient {
       body: JSON.stringify(profileData),
     });
     return response.data || response.user;
+  }
+
+  async getUsers(): Promise<any[]> {
+    const response = await this.request<any>('/admin/users');
+    return (response as any).users || response.data || response;
   }
 
   async uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
@@ -575,6 +601,27 @@ class ApiClient {
 
   async deleteWardrobeItem(itemId: string): Promise<void> {
     await this.request(`/wardrobe/items/${itemId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Trash/Soft-delete Methods
+  async getTrashItems(): Promise<{
+    items: any[];
+    total: number;
+  }> {
+    const response = await this.request<any>('/wardrobe/trash');
+    return response as any;
+  }
+
+  async restoreWardrobeItem(itemId: string): Promise<void> {
+    await this.request(`/wardrobe/trash/${itemId}/restore`, {
+      method: 'POST',
+    });
+  }
+
+  async permanentDeleteWardrobeItem(itemId: string): Promise<void> {
+    await this.request(`/wardrobe/trash/${itemId}`, {
       method: 'DELETE',
     });
   }

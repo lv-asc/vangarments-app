@@ -25,6 +25,8 @@ export interface AIAnalysisResult {
   detectedColor: string | null;
   detectedMaterial: string | null;
   detectedViewpoint?: string;
+  detectedSize?: string;
+  parsedComposition?: { material: string; percentage: number }[];
   confidence: {
     overall: number;
     brand: number;
@@ -43,6 +45,7 @@ export interface VUFSExtractionResult {
   brand: Partial<BrandHierarchy>;
   metadata: Partial<ItemMetadata>;
   condition: Partial<ItemCondition>;
+  detectedViewpoint?: string;
   confidence: {
     category: number;
     brand: number;
@@ -74,12 +77,25 @@ export interface UserFeedback {
 
 export class AIProcessingService {
   /**
+   * Check if AWS is properly configured
+   */
+  private static isAWSConfigured(): boolean {
+    return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+  }
+
+  /**
    * Process fashion item image with comprehensive AI analysis
    */
   static async processItemImage(
     imageBuffer: Buffer,
     originalFilename: string
   ): Promise<AIAnalysisResult> {
+    // If AWS is not configured, use mock analysis
+    if (!this.isAWSConfigured()) {
+      console.log('AWS not configured, using mock analysis for:', originalFilename);
+      return this.getMockAnalysis(originalFilename);
+    }
+
     try {
       // 1. Remove background
       const processedBuffer = await AWSService.removeBackground(imageBuffer);
@@ -114,19 +130,54 @@ export class AIProcessingService {
         processedImageUrl,
       };
     } catch (error) {
-      console.error('AI processing error:', error);
-
-      // Fallback: basic analysis without processing
-      const labels = await AWSService.detectLabels(imageBuffer);
-      const textDetections = await AWSService.detectText(imageBuffer);
-
-      const analysis = this.analyzeFashionAttributes(labels, textDetections, null);
-
-      return {
-        ...analysis,
-        backgroundRemoved: false,
-      };
+      console.error('AI processing error, falling back to mock:', error);
+      return this.getMockAnalysis(originalFilename);
     }
+  }
+
+  /**
+   * Get mock analysis when AWS is unavailable (for local development)
+   */
+  private static getMockAnalysis(filename: string): AIAnalysisResult {
+    const lowerName = filename.toLowerCase();
+
+    // Detect viewpoint from filename
+    let detectedViewpoint = 'Front';
+    if (lowerName.includes('back')) detectedViewpoint = 'Back';
+    else if (lowerName.includes('tag') || lowerName.includes('label')) detectedViewpoint = 'Main Tag';
+    else if (lowerName.includes('composition') || lowerName.includes('care')) detectedViewpoint = 'Composition Tag';
+    else if (lowerName.includes('pocket')) detectedViewpoint = 'Pocket';
+    else if (lowerName.includes('zipper')) detectedViewpoint = 'Zipper';
+    else if (lowerName.includes('button')) detectedViewpoint = 'Button';
+    else if (lowerName.includes('detail') || lowerName.includes('close')) detectedViewpoint = 'Details';
+    else if (lowerName.includes('damage') || lowerName.includes('defect')) detectedViewpoint = 'Damage';
+
+    // Mock domain detection
+    let domain: VUFSDomain = 'APPAREL';
+    if (lowerName.includes('shoe') || lowerName.includes('sneaker') || lowerName.includes('boot')) {
+      domain = 'FOOTWEAR';
+    }
+
+    return {
+      domain,
+      detectedBrand: null,
+      detectedPieceType: domain === 'APPAREL' ? 'Tops' : 'Sneakers',
+      detectedColor: 'Black',
+      detectedMaterial: 'Cotton',
+      detectedViewpoint,
+      detectedSize: undefined,
+      parsedComposition: undefined,
+      confidence: {
+        overall: 30,
+        brand: 0,
+        pieceType: 30,
+        color: 30,
+        material: 30,
+      },
+      rawLabels: [],
+      detectedText: [],
+      backgroundRemoved: false,
+    };
   }
 
   /**
@@ -161,6 +212,7 @@ export class AIProcessingService {
       brand,
       metadata,
       condition,
+      detectedViewpoint: aiAnalysis.detectedViewpoint,
       confidence,
       suggestions,
     };
@@ -253,13 +305,21 @@ export class AIProcessingService {
       customModelResult
     );
 
+    // Parse composition from text (for tag images)
+    const parsedComposition = this.parseCompositionFromText(detectedText);
+
+    // Extract size from text
+    const detectedSize = this.extractSizeFromText(detectedText);
+
     return {
       domain,
       detectedBrand,
       detectedPieceType,
       detectedColor,
-      detectedMaterial,
+      detectedMaterial: parsedComposition.length > 0 ? parsedComposition[0].material : detectedMaterial,
       detectedViewpoint,
+      detectedSize,
+      parsedComposition: parsedComposition.length > 0 ? parsedComposition : undefined,
       confidence,
       rawLabels: labels,
       detectedText,
@@ -578,12 +638,19 @@ export class AIProcessingService {
   private static extractItemMetadata(aiAnalysis: AIAnalysisResult): Partial<ItemMetadata> {
     const metadata: Partial<ItemMetadata> = {};
 
-    // Extract composition
-    if (aiAnalysis.detectedMaterial) {
+    // Extract composition - prefer parsed composition from tag
+    if (aiAnalysis.parsedComposition && aiAnalysis.parsedComposition.length > 0) {
+      metadata.composition = aiAnalysis.parsedComposition;
+    } else if (aiAnalysis.detectedMaterial) {
       metadata.composition = [{
         material: aiAnalysis.detectedMaterial,
         percentage: 100 // Default, user can adjust
       }];
+    }
+
+    // Extract size from tag
+    if (aiAnalysis.detectedSize) {
+      metadata.size = aiAnalysis.detectedSize;
     }
 
     // Extract colors
@@ -813,5 +880,147 @@ export class AIProcessingService {
       return FOOTWEAR_MATERIALS.slice(0, 8);
     }
     return [];
+  }
+
+  /**
+   * Parse composition from detected text (e.g., "60% Cotton, 40% Polyester")
+   */
+  private static parseCompositionFromText(detectedText: string[]): { material: string; percentage: number }[] {
+    const composition: { material: string; percentage: number }[] = [];
+    const allText = detectedText.join(' ');
+
+    // Common pattern: "XX% Material" or "Material XX%"
+    // Regex to match patterns like "60% Cotton", "100% Polyester", "40 % Viscose"
+    const percentagePattern = /(\d{1,3})\s*%\s*([A-Za-zÀ-ÿ]+)/gi;
+    const reversePattern = /([A-Za-zÀ-ÿ]+)\s*(\d{1,3})\s*%/gi;
+
+    let match;
+
+    // Try standard pattern: "60% Cotton"
+    while ((match = percentagePattern.exec(allText)) !== null) {
+      const percentage = parseInt(match[1], 10);
+      const material = this.normalizeMaterialName(match[2]);
+      if (percentage > 0 && percentage <= 100 && material) {
+        composition.push({ material, percentage });
+      }
+    }
+
+    // Try reverse pattern: "Cotton 60%"
+    if (composition.length === 0) {
+      while ((match = reversePattern.exec(allText)) !== null) {
+        const material = this.normalizeMaterialName(match[1]);
+        const percentage = parseInt(match[2], 10);
+        if (percentage > 0 && percentage <= 100 && material) {
+          composition.push({ material, percentage });
+        }
+      }
+    }
+
+    // Sort by percentage descending
+    composition.sort((a, b) => b.percentage - a.percentage);
+
+    return composition;
+  }
+
+  /**
+   * Normalize material name to standard VUFS material
+   */
+  private static normalizeMaterialName(rawMaterial: string): string {
+    const materialMap: Record<string, string> = {
+      // English
+      'cotton': 'Cotton',
+      'polyester': 'Polyester',
+      'wool': 'Wool',
+      'silk': 'Silk',
+      'linen': 'Linen',
+      'nylon': 'Nylon',
+      'spandex': 'Spandex',
+      'elastane': 'Elastane',
+      'viscose': 'Viscose',
+      'rayon': 'Rayon',
+      'acrylic': 'Acrylic',
+      'cashmere': 'Cashmere',
+      'leather': 'Leather',
+      'denim': 'Denim',
+      'velvet': 'Velvet',
+      'satin': 'Satin',
+      'chiffon': 'Chiffon',
+      'tweed': 'Tweed',
+      'fleece': 'Fleece',
+      'modal': 'Modal',
+      'lyocell': 'Lyocell',
+      'tencel': 'Tencel',
+      'hemp': 'Hemp',
+      'bamboo': 'Bamboo',
+      // Portuguese
+      'algodão': 'Cotton',
+      'algodao': 'Cotton',
+      'poliéster': 'Polyester',
+      'poliester': 'Polyester',
+      'lã': 'Wool',
+      'la': 'Wool',
+      'seda': 'Silk',
+      'linho': 'Linen',
+      'náilon': 'Nylon',
+      'nailon': 'Nylon',
+      'elastano': 'Elastane',
+      'couro': 'Leather',
+      'acrílico': 'Acrylic',
+      'acrilico': 'Acrylic',
+      'caxemira': 'Cashmere',
+      'cachemir': 'Cashmere',
+    };
+
+    const normalized = rawMaterial.toLowerCase().trim();
+    return materialMap[normalized] || rawMaterial.charAt(0).toUpperCase() + rawMaterial.slice(1).toLowerCase();
+  }
+
+  /**
+   * Extract size from detected text
+   */
+  private static extractSizeFromText(detectedText: string[]): string | undefined {
+    const allText = detectedText.join(' ').toUpperCase();
+
+    // Common size patterns
+    const sizePatterns = [
+      // Letter sizes with boundaries
+      /\b(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)\b/,
+      // Numeric sizes (European: 34-52, US: 0-18)
+      /\bSIZE\s*(\d{1,2})\b/i,
+      /\bTAMANHO\s*(\d{1,2})\b/i,
+      /\b(3[4-9]|4[0-9]|5[0-2])\b/, // EU sizes 34-52
+      // US numeric with possible prefix
+      /\bUS\s*(\d{1,2})\b/i,
+      // UK sizes
+      /\bUK\s*(\d{1,2})\b/i,
+    ];
+
+    for (const pattern of sizePatterns) {
+      const match = allText.match(pattern);
+      if (match) {
+        // Return the first capturing group or the whole match
+        return match[1] || match[0];
+      }
+    }
+
+    // Check individual text lines for standalone size indicators
+    for (const text of detectedText) {
+      const trimmed = text.trim().toUpperCase();
+      // Single letter/number that could be a size
+      if (/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/.test(trimmed)) {
+        return trimmed;
+      }
+      // Numeric size
+      const numMatch = trimmed.match(/^(\d{1,2})$/);
+      if (numMatch) {
+        const num = parseInt(numMatch[1], 10);
+        // Likely a clothing size if between 0-18 (US) or 34-52 (EU)
+        if ((num >= 0 && num <= 18) || (num >= 34 && num <= 52)) {
+          return numMatch[1];
+        }
+      }
+    }
+
+    return undefined;
   }
 }

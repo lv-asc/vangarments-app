@@ -110,7 +110,7 @@ export class AnteroomModel {
   static async removeItem(id: string): Promise<boolean> {
     const query = 'DELETE FROM anteroom_items WHERE id = $1';
     const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   /**
@@ -154,7 +154,7 @@ export class AnteroomModel {
   static async cleanupExpiredItems(): Promise<number> {
     const query = 'DELETE FROM anteroom_items WHERE expires_at <= NOW()';
     const result = await db.query(query);
-    return result.rowCount;
+    return result.rowCount || 0;
   }
 
   /**
@@ -182,11 +182,11 @@ export class AnteroomModel {
     }
 
     // Check for complete category hierarchy
-    if (itemData.category && 
-        itemData.category.page && 
-        itemData.category.blueSubcategory && 
-        itemData.category.whiteSubcategory && 
-        itemData.category.graySubcategory) {
+    if (itemData.category &&
+      itemData.category.page &&
+      itemData.category.blueSubcategory &&
+      itemData.category.whiteSubcategory &&
+      itemData.category.graySubcategory) {
       status.hasCategory = true;
     }
 
@@ -214,16 +214,16 @@ export class AnteroomModel {
   }
 
   private static mapToAnteroomItem(row: any): AnteroomItem {
-    const itemData = typeof row.item_data === 'string' 
-      ? JSON.parse(row.item_data) 
+    const itemData = typeof row.item_data === 'string'
+      ? JSON.parse(row.item_data)
       : row.item_data;
-    
-    const completionStatus = typeof row.completion_status === 'string' 
-      ? JSON.parse(row.completion_status) 
+
+    const completionStatus = typeof row.completion_status === 'string'
+      ? JSON.parse(row.completion_status)
       : row.completion_status;
-    
-    const reminders = typeof row.reminders === 'string' 
-      ? JSON.parse(row.reminders) 
+
+    const reminders = typeof row.reminders === 'string'
+      ? JSON.parse(row.reminders)
       : row.reminders || { lastSent: null, count: 0 };
 
     return {

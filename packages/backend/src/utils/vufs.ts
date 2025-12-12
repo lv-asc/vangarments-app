@@ -5,15 +5,17 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { 
-  VUFSItem, 
-  ApparelItem, 
-  FootwearItem, 
-  VUFSDomain, 
+import {
+  VUFSItem,
+  ApparelItem,
+  FootwearItem,
+  VUFSDomain,
   PlatformProductData,
   ExportPlatform,
   FinancialRecord,
-  ConsignmentSettings
+  ConsignmentSettings,
+  CategoryHierarchy,
+  BrandHierarchy
 } from '@vangarments/shared/types/vufs';
 // Mock constants for now - these would normally come from shared/constants
 const DEFAULT_CONSIGNMENT_SETTINGS: ConsignmentSettings = {
@@ -49,7 +51,7 @@ const PLATFORM_GENDER_MAPPING: Record<ExportPlatform, Record<string, string>> = 
   },
   vinted: {
     'Male': 'Men',
-    'Female': 'Women', 
+    'Female': 'Women',
     "Men's": 'Men',
     "Women's": 'Women',
     'Unisex': 'Unisex',
@@ -70,7 +72,7 @@ export class VUFSUtils {
     const brandCode = this.getBrandCode(brand);
     const typeCode = this.getTypeCode(type);
     const sequenceStr = sequence.toString().padStart(4, '0');
-    
+
     if (domain === 'APPAREL') {
       return `APP-${brandCode}-${typeCode}-${sequenceStr}`;
     } else {
@@ -85,11 +87,11 @@ export class VUFSUtils {
     // Remove ® symbol and get initials
     const cleanBrand = brand.replace('®', '');
     const words = cleanBrand.split(' ');
-    
+
     if (words.length === 1) {
       return words[0].substring(0, 3).toUpperCase();
     }
-    
+
     return words.map(word => word[0]).join('').substring(0, 3).toUpperCase();
   }
 
@@ -101,7 +103,7 @@ export class VUFSUtils {
     if (words.length === 1) {
       return words[0].substring(0, 3).toUpperCase();
     }
-    
+
     return words.map(word => word[0]).join('').substring(0, 3).toUpperCase();
   }
 
@@ -138,19 +140,19 @@ export class VUFSUtils {
   private static getInitials(text: string, maxLength: number): string {
     const words = text.trim().split(/\s+/);
     let initials = '';
-    
+
     for (const word of words) {
       if (initials.length >= maxLength) break;
       if (word.length > 0) {
         initials += word[0];
       }
     }
-    
+
     // Pad with X if needed
     while (initials.length < maxLength) {
       initials += 'X';
     }
-    
+
     return initials.substring(0, maxLength);
   }
 
@@ -293,27 +295,27 @@ export class VUFSUtils {
    * Generate platform-specific product data
    */
   static generatePlatformData(
-    item: VUFSItem, 
+    item: VUFSItem,
     platform: ExportPlatform,
     images: string[] = []
   ): PlatformProductData {
     const isApparel = 'pieceType' in item;
-    
+
     // Generate title
     const title = this.generateProductTitle(item);
-    
+
     // Generate description
     const description = this.generateProductDescription(item);
-    
+
     // Generate tags
     const tags = this.generateProductTags(item);
-    
+
     // Map gender for platform
     const platformGender = PLATFORM_GENDER_MAPPING[platform]?.[item.gender] || item.gender;
-    
+
     // Generate platform category
     const platformCategory = this.mapToPlatformCategory(item, platform);
-    
+
     return {
       title,
       description,
@@ -336,7 +338,7 @@ export class VUFSUtils {
    */
   private static generateProductTitle(item: VUFSItem): string {
     const isApparel = 'pieceType' in item;
-    
+
     if (isApparel) {
       const apparel = item as ApparelItem;
       const parts = [
@@ -346,7 +348,7 @@ export class VUFSUtils {
         apparel.size,
         apparel.condition !== 'New' ? `(${apparel.condition})` : '',
       ].filter(Boolean);
-      
+
       return parts.join(' ');
     } else {
       const footwear = item as FootwearItem;
@@ -357,7 +359,7 @@ export class VUFSUtils {
         footwear.size,
         footwear.condition !== 'New' ? `(${footwear.condition})` : '',
       ].filter(Boolean);
-      
+
       return parts.join(' ');
     }
   }
@@ -367,14 +369,14 @@ export class VUFSUtils {
    */
   private static generateProductDescription(item: VUFSItem): string {
     const isApparel = 'pieceType' in item;
-    
+
     let description = `${item.brand} ${isApparel ? (item as ApparelItem).pieceType : (item as FootwearItem).modelType}\n\n`;
-    
+
     description += `Condition: ${item.condition}\n`;
     description += `Size: ${item.size}\n`;
     description += `Color: ${item.color}\n`;
     description += `Gender: ${item.gender}\n\n`;
-    
+
     if (isApparel) {
       const apparel = item as ApparelItem;
       description += `Material: ${apparel.material}\n`;
@@ -391,7 +393,7 @@ export class VUFSUtils {
         description += `Heel Height: ${footwear.heelHeight}cm\n`;
       }
     }
-    
+
     return description;
   }
 
@@ -406,7 +408,7 @@ export class VUFSUtils {
       item.gender,
       item.condition,
     ];
-    
+
     if (isApparel) {
       const apparel = item as ApparelItem;
       tags.push(apparel.pieceType, apparel.material, apparel.fit);
@@ -415,7 +417,7 @@ export class VUFSUtils {
       const footwear = item as FootwearItem;
       tags.push(footwear.modelType, footwear.upperMaterial, footwear.soleType);
     }
-    
+
     return tags.filter(Boolean);
   }
 
@@ -436,7 +438,7 @@ export class VUFSUtils {
    */
   private static mapToPlatformCategory(item: VUFSItem, platform: ExportPlatform): string {
     const isApparel = 'pieceType' in item;
-    
+
     // This would be expanded based on each platform's category structure
     if (platform === 'shopify') {
       if (isApparel) {
@@ -446,7 +448,7 @@ export class VUFSUtils {
         return 'Shoes';
       }
     }
-    
+
     // Default mapping
     return isApparel ? (item as ApparelItem).pieceType : (item as FootwearItem).modelType;
   }
@@ -456,7 +458,7 @@ export class VUFSUtils {
    */
   static validateVUFSItem(item: Partial<VUFSItem>): string[] {
     const errors: string[] = [];
-    
+
     if (!item.sku) errors.push('SKU is required');
     if (!item.brand) errors.push('Brand is required');
     if (!item.color) errors.push('Color is required');
@@ -467,7 +469,7 @@ export class VUFSUtils {
       errors.push('Valid price is required');
     }
     if (!item.owner) errors.push('Owner is required');
-    
+
     // Domain-specific validation
     if ('pieceType' in item) {
       // Apparel validation
@@ -481,7 +483,7 @@ export class VUFSUtils {
       if (!(item as any).soleType) errors.push('Sole type is required for footwear');
       if (!(item as any).laceType) errors.push('Lace type is required for footwear');
     }
-    
+
     return errors;
   }
 
@@ -489,7 +491,7 @@ export class VUFSUtils {
    * Check if item should be auto-repassed
    */
   static shouldAutoRepass(
-    soldPrice: number, 
+    soldPrice: number,
     settings: ConsignmentSettings = DEFAULT_CONSIGNMENT_SETTINGS
   ): boolean {
     return soldPrice >= settings.autoRepassThreshold;
@@ -501,7 +503,7 @@ export class VUFSUtils {
   static generateExportFilename(platform: ExportPlatform, timestamp: Date = new Date()): string {
     const dateStr = timestamp.toISOString().split('T')[0];
     const timeStr = timestamp.toISOString().split('T')[1].split('.')[0].replace(/:/g, '');
-    
+
     return `vufs_export_${platform}_${dateStr}_${timeStr}.csv`;
   }
 }

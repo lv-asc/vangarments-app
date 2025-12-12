@@ -15,6 +15,7 @@ import {
   PhotoIcon,
   ShareIcon
 } from '@heroicons/react/24/outline';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 
 interface WardrobeItem {
@@ -53,6 +54,8 @@ export default function WardrobeItemDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -105,16 +108,22 @@ export default function WardrobeItemDetailPage() {
     router.push(`/wardrobe/${item?.id}/edit`);
   };
 
-  const handleDeleteItem = async () => {
-    if (!item || !confirm('Tem certeza que deseja excluir esta peça?')) {
-      return;
-    }
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!item) return;
+
+    setDeleting(true);
     try {
       await apiClient.deleteWardrobeItem(item.id);
       router.push('/wardrobe');
     } catch (err: any) {
       alert('Falha ao excluir item: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -334,7 +343,7 @@ export default function WardrobeItemDetailPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={handleDeleteItem}
+                  onClick={handleDeleteClick}
                   className="flex items-center justify-center space-x-2 text-red-600 border-red-200 hover:bg-red-50"
                 >
                   <TrashIcon className="h-4 w-4 mr-1" />
@@ -350,6 +359,19 @@ export default function WardrobeItemDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Excluir Peça"
+        message="Tem certeza que deseja excluir esta peça? Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 }

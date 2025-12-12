@@ -13,6 +13,7 @@ import {
     ChevronLeftIcon,
     SparklesIcon
 } from '@heroicons/react/24/outline';
+import SearchableCombobox from '@/components/ui/Combobox';
 
 // Map backend condition codes to frontend select values
 const conditionBackendToFrontend: Record<string, string> = {
@@ -255,39 +256,31 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Category
                                 </label>
-                                <input
-                                    type="text"
-                                    list="categories"
+                                <SearchableCombobox
                                     value={formData.category}
-                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                />
-                                <datalist id="categories">
-                                    {vufsOptions.categories
+                                    onChange={(val: string | null) => setFormData({ ...formData, category: val || '' })}
+                                    options={vufsOptions.categories
                                         .filter(c => c.level === 'blue')
-                                        .map(c => (
-                                            <option key={c.id} value={c.name} />
-                                        ))
+                                        .map(c => ({ id: c.id, name: c.name }))
                                     }
-                                </datalist>
+                                    placeholder="Select a category..."
+                                />
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Brand
                                 </label>
-                                <input
-                                    type="text"
-                                    list="brands"
+                                <SearchableCombobox
                                     value={formData.brand}
-                                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                                    onChange={(val: string | null) => setFormData({ ...formData, brand: val || '' })}
+                                    options={[
+                                        { id: 'Generic', name: 'Generic' },
+                                        ...vufsOptions.brands.map(b => ({ id: b.id, name: b.name }))
+                                    ]}
+                                    placeholder="Select a brand..."
+                                    freeSolo
                                 />
-                                <datalist id="brands">
-                                    {vufsOptions.brands.map(b => (
-                                        <option key={b.id} value={b.name} />
-                                    ))}
-                                </datalist>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -295,33 +288,29 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Size
                                     </label>
-                                    <input
-                                        type="text"
-                                        list="sizes"
+                                    <SearchableCombobox
                                         value={formData.size}
-                                        onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                                        onChange={(val: string | null) => setFormData({ ...formData, size: val || '' })}
+                                        options={[]} // Assuming no size list available in vufsOptions.sizes for this page yet, or should load it? 
+                                        // Actually vufsOptions defaults has sizes but interface above doesn't show it.
+                                        // Checking line 51: categories, brands, colors, materials. No sizes.
+                                        // I should add sizes to vufsOptions state or just use freeSolo with empty options if not fetched.
+                                        // Existing code had <input list="sizes"><datalist id="sizes"/> but datalist was empty (comments say "Populate sizes if available").
+                                        // So I'll just leave options empty and enable freeSolo.
+                                        placeholder="Size"
+                                        freeSolo
                                     />
-                                    <datalist id="sizes">
-                                        {/* Populate sizes if available in utils/vufs options */}
-                                    </datalist>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Color
                                     </label>
-                                    <input
-                                        type="text"
-                                        list="colors"
+                                    <SearchableCombobox
                                         value={formData.color}
-                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                                        onChange={(val: string | null) => setFormData({ ...formData, color: val || '' })}
+                                        options={vufsOptions.colors.map(c => ({ id: c.id, name: c.name }))}
+                                        placeholder="Select a color..."
                                     />
-                                    <datalist id="colors">
-                                        {vufsOptions.colors.map(c => (
-                                            <option key={c.id} value={c.name} />
-                                        ))}
-                                    </datalist>
                                 </div>
                             </div>
 
@@ -329,18 +318,12 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Material
                                 </label>
-                                <input
-                                    type="text"
-                                    list="materials"
+                                <SearchableCombobox
                                     value={formData.material}
-                                    onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                                    onChange={(val: string | null) => setFormData({ ...formData, material: val || '' })}
+                                    options={vufsOptions.materials.map(m => ({ id: m.id, name: m.name }))}
+                                    placeholder="Select a material..."
                                 />
-                                <datalist id="materials">
-                                    {vufsOptions.materials.map(m => (
-                                        <option key={m.id} value={m.name} />
-                                    ))}
-                                </datalist>
                             </div>
 
                             <div>

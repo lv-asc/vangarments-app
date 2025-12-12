@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface ConfigurationBackup {
   id: string;
@@ -16,6 +17,8 @@ export function BackupManager() {
   const [backups, setBackups] = useState<ConfigurationBackup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rollbackConfirm, setRollbackConfirm] = useState<{ isOpen: boolean; backupId: string | null }>({ isOpen: false, backupId: null });
+  const [rolling, setRolling] = useState(false);
 
   useEffect(() => {
     loadBackups();
@@ -33,19 +36,25 @@ export function BackupManager() {
     }
   };
 
-  const handleRollback = async (backupId: string) => {
-    if (!confirm('Are you sure you want to rollback to this configuration? This action cannot be undone.')) {
-      return;
-    }
+  const handleRollbackClick = (backupId: string) => {
+    setRollbackConfirm({ isOpen: true, backupId });
+  };
 
+  const handleRollbackConfirm = async () => {
+    if (!rollbackConfirm.backupId) return;
+
+    setRolling(true);
     try {
-      const data = await apiClient.post<{ message: string }>(`/configuration/rollback/${backupId}`);
+      const data = await apiClient.post<{ message: string }>(`/configuration/rollback/${rollbackConfirm.backupId}`);
       alert(data.message);
-      
+
       // Reload backups to show the new backup created during rollback
       await loadBackups();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to rollback configuration');
+    } finally {
+      setRolling(false);
+      setRollbackConfirm({ isOpen: false, backupId: null });
     }
   };
 
@@ -145,7 +154,7 @@ export function BackupManager() {
                       {backup.configType}
                     </span>
                   </div>
-                  
+
                   <div className="text-sm text-gray-600 space-y-1">
                     <p>
                       <span className="font-medium">Created:</span> {formatDate(backup.timestamp)}
@@ -158,10 +167,10 @@ export function BackupManager() {
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="ml-4">
                   <button
-                    onClick={() => handleRollback(backup.id)}
+                    onClick={() => handleRollbackClick(backup.id)}
                     className="px-3 py-1 text-sm font-medium text-blue-600 border border-blue-600 rounded hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     Rollback
@@ -195,6 +204,19 @@ export function BackupManager() {
           </div>
         </div>
       </div>
+
+      {/* Rollback Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={rollbackConfirm.isOpen}
+        onClose={() => setRollbackConfirm({ isOpen: false, backupId: null })}
+        onConfirm={handleRollbackConfirm}
+        title="Confirm Rollback"
+        message="Are you sure you want to rollback to this configuration? This action cannot be undone."
+        confirmLabel="Rollback"
+        cancelLabel="Cancel"
+        variant="warning"
+        loading={rolling}
+      />
     </div>
   );
 }

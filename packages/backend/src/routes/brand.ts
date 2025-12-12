@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { BrandController } from '../controllers/brandController';
+import { BrandProfileController } from '../controllers/brandProfileController';
 import { AuthUtils } from '../utils/auth';
 import { validateRequest } from '../middleware/validation';
 import { body, param, query } from 'express-validator';
 
 const router = Router();
 const brandController = new BrandController();
+const brandProfileController = new BrandProfileController();
 
 // Validation schemas
 const registerBrandValidation = [
@@ -313,6 +315,196 @@ router.put(
   upgradeTierValidation,
   validateRequest,
   brandController.upgradeBrandTier.bind(brandController)
+);
+
+// ============ BRAND PROFILE ROUTES ============
+
+// Full profile with team, lookbooks, collections
+router.get(
+  '/:brandId/profile',
+  brandIdValidation,
+  validateRequest,
+  brandProfileController.getFullProfile.bind(brandProfileController)
+);
+
+// Update profile data (bio, social links, etc.)
+router.put(
+  '/:brandId/profile',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  body('bio').optional().isLength({ max: 2000 }).withMessage('Bio must be 2000 characters or less'),
+  body('foundedDate').optional().isISO8601().withMessage('Founded date must be a valid date'),
+  body('instagram').optional().isLength({ max: 100 }).withMessage('Instagram must be 100 characters or less'),
+  body('tiktok').optional().isLength({ max: 100 }).withMessage('TikTok must be 100 characters or less'),
+  body('youtube').optional().isLength({ max: 100 }).withMessage('YouTube must be 100 characters or less'),
+  body('additionalLogos').optional().isArray().withMessage('Additional logos must be an array'),
+  validateRequest,
+  brandProfileController.updateProfileData.bind(brandProfileController)
+);
+
+// ============ TEAM ROUTES ============
+
+router.get(
+  '/:brandId/team',
+  brandIdValidation,
+  validateRequest,
+  brandProfileController.getTeamMembers.bind(brandProfileController)
+);
+
+router.post(
+  '/:brandId/team',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  body('userId').isUUID().withMessage('User ID must be a valid UUID'),
+  body('role').isIn(['CEO', 'CFO', 'Founder', 'CD', 'Marketing', 'Seller', 'Designer', 'Model', 'Ambassador', 'Other']).withMessage('Invalid role'),
+  body('title').optional().isLength({ max: 100 }).withMessage('Title must be 100 characters or less'),
+  body('isPublic').optional().isBoolean().withMessage('isPublic must be a boolean'),
+  validateRequest,
+  brandProfileController.addTeamMember.bind(brandProfileController)
+);
+
+router.put(
+  '/:brandId/team/:memberId',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('memberId').isUUID().withMessage('Member ID must be a valid UUID'),
+  body('role').optional().isIn(['CEO', 'CFO', 'Founder', 'CD', 'Marketing', 'Seller', 'Designer', 'Model', 'Ambassador', 'Other']).withMessage('Invalid role'),
+  body('title').optional().isLength({ max: 100 }).withMessage('Title must be 100 characters or less'),
+  body('isPublic').optional().isBoolean().withMessage('isPublic must be a boolean'),
+  validateRequest,
+  brandProfileController.updateTeamMember.bind(brandProfileController)
+);
+
+router.delete(
+  '/:brandId/team/:memberId',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('memberId').isUUID().withMessage('Member ID must be a valid UUID'),
+  validateRequest,
+  brandProfileController.removeTeamMember.bind(brandProfileController)
+);
+
+// ============ LOOKBOOK ROUTES ============
+
+router.get(
+  '/:brandId/lookbooks',
+  brandIdValidation,
+  validateRequest,
+  brandProfileController.getLookbooks.bind(brandProfileController)
+);
+
+router.get(
+  '/:brandId/lookbooks/:lookbookId',
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('lookbookId').isUUID().withMessage('Lookbook ID must be a valid UUID'),
+  validateRequest,
+  brandProfileController.getLookbook.bind(brandProfileController)
+);
+
+router.post(
+  '/:brandId/lookbooks',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  body('name').isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
+  body('description').optional().isLength({ max: 2000 }).withMessage('Description must be 2000 characters or less'),
+  body('coverImageUrl').optional().isURL().withMessage('Cover image must be a valid URL'),
+  body('season').optional().isLength({ max: 50 }).withMessage('Season must be 50 characters or less'),
+  body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
+  validateRequest,
+  brandProfileController.createLookbook.bind(brandProfileController)
+);
+
+router.put(
+  '/:brandId/lookbooks/:lookbookId',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('lookbookId').isUUID().withMessage('Lookbook ID must be a valid UUID'),
+  body('name').optional().isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
+  body('isPublished').optional().isBoolean().withMessage('isPublished must be a boolean'),
+  validateRequest,
+  brandProfileController.updateLookbook.bind(brandProfileController)
+);
+
+router.delete(
+  '/:brandId/lookbooks/:lookbookId',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('lookbookId').isUUID().withMessage('Lookbook ID must be a valid UUID'),
+  validateRequest,
+  brandProfileController.deleteLookbook.bind(brandProfileController)
+);
+
+router.post(
+  '/:brandId/lookbooks/:lookbookId/items',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('lookbookId').isUUID().withMessage('Lookbook ID must be a valid UUID'),
+  body('items').isArray().withMessage('Items must be an array'),
+  body('items.*.itemId').isUUID().withMessage('Each item must have a valid item ID'),
+  validateRequest,
+  brandProfileController.addLookbookItems.bind(brandProfileController)
+);
+
+// ============ COLLECTION ROUTES ============
+
+router.get(
+  '/:brandId/collections',
+  brandIdValidation,
+  validateRequest,
+  brandProfileController.getCollections.bind(brandProfileController)
+);
+
+router.get(
+  '/:brandId/collections/:collectionId',
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('collectionId').isUUID().withMessage('Collection ID must be a valid UUID'),
+  validateRequest,
+  brandProfileController.getCollection.bind(brandProfileController)
+);
+
+router.post(
+  '/:brandId/collections',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  body('name').isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
+  body('description').optional().isLength({ max: 2000 }).withMessage('Description must be 2000 characters or less'),
+  body('coverImageUrl').optional().isURL().withMessage('Cover image must be a valid URL'),
+  body('collectionType').optional().isIn(['Seasonal', 'Capsule', 'Collaboration', 'Limited', 'Core', 'Other']).withMessage('Invalid collection type'),
+  body('season').optional().isLength({ max: 50 }).withMessage('Season must be 50 characters or less'),
+  body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
+  validateRequest,
+  brandProfileController.createCollection.bind(brandProfileController)
+);
+
+router.put(
+  '/:brandId/collections/:collectionId',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('collectionId').isUUID().withMessage('Collection ID must be a valid UUID'),
+  body('name').optional().isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
+  body('isPublished').optional().isBoolean().withMessage('isPublished must be a boolean'),
+  validateRequest,
+  brandProfileController.updateCollection.bind(brandProfileController)
+);
+
+router.delete(
+  '/:brandId/collections/:collectionId',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('collectionId').isUUID().withMessage('Collection ID must be a valid UUID'),
+  validateRequest,
+  brandProfileController.deleteCollection.bind(brandProfileController)
+);
+
+router.post(
+  '/:brandId/collections/:collectionId/items',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  param('collectionId').isUUID().withMessage('Collection ID must be a valid UUID'),
+  body('items').isArray().withMessage('Items must be an array'),
+  body('items.*.itemId').isUUID().withMessage('Each item must have a valid item ID'),
+  validateRequest,
+  brandProfileController.addCollectionItems.bind(brandProfileController)
 );
 
 export default router;

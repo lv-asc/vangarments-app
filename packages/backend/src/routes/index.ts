@@ -25,6 +25,7 @@ import monitoringRoutes from './monitoringRoutes';
 import storageRoutes from './storage';
 import vufsManagementRoutes from './vufsManagement';
 import configurationRoutes from './configuration';
+import adminRoutes from './admin';
 
 const router = Router();
 
@@ -32,6 +33,7 @@ const router = Router();
 router.use('/auth', authRoutes);
 router.use('/oauth', simpleOAuthRoutes);
 router.use('/users', userRoutes);
+router.use('/admin', adminRoutes);
 router.use('/vufs', vufsRoutes);
 router.use('/wardrobe', wardrobeRoutes);
 router.use('/anteroom', anteroomRoutes);

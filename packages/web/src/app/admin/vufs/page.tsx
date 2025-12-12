@@ -644,7 +644,7 @@ export default function AdminVUFSPage() {
 
     const renderList = (title: string, items: VUFSItem[], bgClass: string, textClass: string, slug?: string, isCustomColumn = false) => (
         <div className="flex flex-col min-w-[220px] bg-white border-r last:border-r-0 h-full w-[250px]">
-            <div className={`p-4 font-bold text-center border-b uppercase text-sm tracking-wider flex justify-between items-center group/header ${bgClass} ${textClass}`}>
+            <div className={`h-[50px] px-4 font-bold text-center border-b uppercase text-sm tracking-wider flex justify-between items-center group/header ${bgClass} ${textClass}`}>
                 <span className="truncate" title={title}>{title}</span>
                 <div className="flex gap-1 items-center">
                     <button
@@ -688,12 +688,23 @@ export default function AdminVUFSPage() {
                             </button>
                             <span className="truncate font-medium text-gray-700">{item.name}</span>
                         </div>
-                        <button
-                            onClick={() => initiateDelete(title, item.id, slug)}
-                            className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 font-bold px-1 rounded transition-all duration-200 focus:opacity-100"
-                        >
-                            &times;
-                        </button>
+                        <div className="flex items-center gap-1">
+                            {slug === 'Brand' && (
+                                <a
+                                    href={`/brands/${item.id}/edit`}
+                                    target="_blank"
+                                    className="opacity-0 group-hover:opacity-100 text-xs text-blue-500 hover:text-blue-700 font-medium px-1 underline"
+                                >
+                                    Profile
+                                </a>
+                            )}
+                            <button
+                                onClick={() => initiateDelete(title, item.id, slug)}
+                                className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 font-bold px-1 rounded transition-all duration-200 focus:opacity-100"
+                            >
+                                &times;
+                            </button>
+                        </div>
                     </div>
                 ))}
                 {items.length === 0 && (
@@ -738,9 +749,9 @@ export default function AdminVUFSPage() {
         const allVisibleColumns = [...visibleMappedTypes, ...visibleCustomTypes];
 
         return (
-            <div className="flex-1 overflow-auto bg-gray-50 p-6 flex flex-col">
-                {/* Tabs Bar */}
-                <div className="flex items-center gap-1 mb-0 border-b border-gray-200 bg-white px-2 pt-2 sticky top-0 z-20">
+            <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col">
+                {/* Tabs Bar - Fixed at top */}
+                <div className="flex items-center gap-1 mb-0 border-b border-gray-200 bg-white px-2 pt-2 z-20 shrink-0">
                     {tabs.map(tab => (
                         <div
                             key={tab.id}
@@ -771,128 +782,141 @@ export default function AdminVUFSPage() {
                     </button>
                 </div>
 
-                {/* Table Container - Removed overflow-hidden to fix scroll clipping */}
-                <div className="bg-white border rounded-b shadow-sm min-w-max border-t-0">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b">
-                            <tr>
-                                <th className="px-4 py-3 font-bold border-r w-48 sticky left-0 bg-gray-100 z-10">{rowLabel}</th>
-                                {allVisibleColumns.length === 0 && (
-                                    <th className="px-4 py-3 border-r min-w-[200px] text-gray-400 italic font-normal normal-case">
-                                        No columns selected. Click "Configure Tab" to add columns.
-                                    </th>
-                                )}
-                                {allVisibleColumns.map(type => (
-                                    <th key={type.slug} className="px-4 py-3 border-r min-w-[200px]">
-                                        <div className="flex items-center justify-between group">
-                                            <span>{columnAliases[type.slug] || type.name}</span>
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={() => initiateRenameColumn(type as any)}
-                                                    className="text-gray-500 hover:text-blue-600 p-1"
-                                                    title="Rename Column"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => initiateDeleteColumn(type.slug, type.name)}
-                                                    className="text-gray-400 hover:text-red-500 p-1 font-bold"
-                                                    title="Delete Column"
-                                                >
-                                                    &times;
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.sort((a, b) => a.name.localeCompare(b.name)).map((row, idx) => (
-                                <tr key={row.id} className="border-b hover:bg-gray-50">
-                                    <td className="px-4 py-3 font-medium text-gray-900 border-r bg-white sticky left-0 z-10 font-bold group">
-                                        <div className="flex items-center justify-between">
-                                            <span>{row.name}</span>
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={() => initiateRenameItem(row, rowLabel, rowIdType)} // Pass rowIdType as slug
-                                                    className="text-gray-400 hover:text-blue-600 p-1"
-                                                    title="Rename Item"
-                                                >
-                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => initiateDelete(rowLabel, row.id, rowIdType)} // Pass rowIdType as slug
-                                                    className="text-gray-400 hover:text-red-500 p-1 font-bold text-lg leading-none"
-                                                    title="Delete Item"
-                                                >
-                                                    &times;
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </td>
+                {/* Table Container - Scrollable */}
+                <div className="flex-1 overflow-auto p-6 pt-0">
+                    <div className="bg-white border rounded-b shadow-sm min-w-max border-t-0">
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b">
+                                <tr>
+                                    <th className="px-4 py-3 font-bold border-r w-48 sticky left-0 top-0 bg-gray-100 z-30 shadow-[1px_1px_0_0_rgba(0,0,0,0.05)]">{rowLabel}</th>
                                     {allVisibleColumns.length === 0 && (
-                                        <td className="px-4 py-4 border-r bg-gray-50/50"></td>
+                                        <th className="px-4 py-3 border-r min-w-[200px] text-gray-400 italic font-normal normal-case">
+                                            No columns selected. Click "Configure Tab" to add columns.
+                                        </th>
                                     )}
-                                    {allVisibleColumns.map(type => {
-                                        // Is this a mapped column?
-                                        if (type.slug === 'IS_SUBCATEGORY_1') {
-                                            // Handle Parent ID Logic
-                                            // Find current parent
-                                            const currentParentId = (row as VUFSCategoryOption).parentId;
+                                    {allVisibleColumns.map(type => (
+                                        <th key={type.slug} className="px-4 py-3 border-r min-w-[200px] sticky top-0 bg-gray-100 z-20">
+                                            <div className="flex items-center justify-between group">
+                                                <span>{columnAliases[type.slug] || type.name}</span>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => initiateRenameColumn(type as any)}
+                                                        className="text-gray-500 hover:text-blue-600 p-1"
+                                                        title="Rename Column"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => initiateDeleteColumn(type.slug, type.name)}
+                                                        className="text-gray-400 hover:text-red-500 p-1 font-bold"
+                                                        title="Delete Column"
+                                                    >
+                                                        &times;
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.sort((a, b) => a.name.localeCompare(b.name)).map((row, idx) => (
+                                    <tr key={row.id} className="border-b hover:bg-gray-50">
+                                        <td className="px-4 py-3 font-medium text-gray-900 border-r bg-white sticky left-0 z-10 font-bold group">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span>{row.name}</span>
+                                                    {rowIdType === 'Brand' && (
+                                                        <a
+                                                            href={`/brands/${row.id}/edit`}
+                                                            target="_blank"
+                                                            className="text-xs text-blue-500 hover:text-blue-700 underline opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            Profile
+                                                        </a>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => initiateRenameItem(row, rowLabel, rowIdType)} // Pass rowIdType as slug
+                                                        className="text-gray-400 hover:text-blue-600 p-1"
+                                                        title="Rename Item"
+                                                    >
+                                                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => initiateDelete(rowLabel, row.id, rowIdType)} // Pass rowIdType as slug
+                                                        className="text-gray-400 hover:text-red-500 p-1 font-bold text-lg leading-none"
+                                                        title="Delete Item"
+                                                    >
+                                                        &times;
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        {allVisibleColumns.length === 0 && (
+                                            <td className="px-4 py-4 border-r bg-gray-50/50"></td>
+                                        )}
+                                        {allVisibleColumns.map(type => {
+                                            // Is this a mapped column?
+                                            if (type.slug === 'IS_SUBCATEGORY_1') {
+                                                // Handle Parent ID Logic
+                                                // Find current parent
+                                                const currentParentId = (row as VUFSCategoryOption).parentId;
 
-                                            // Options for dropdown: prevent circular logic (can't be own child)
-                                            // For simplicity, let's just show all other categories for now, or filter by level if strict
-                                            const parentOptions = categories.filter(c => c.id !== row.id);
+                                                // Options for dropdown: prevent circular logic (can't be own child)
+                                                // For simplicity, let's just show all other categories for now, or filter by level if strict
+                                                const parentOptions = categories.filter(c => c.id !== row.id);
+
+                                                return (
+                                                    <td key={type.slug} className="px-2 py-2 border-r bg-blue-50/30 p-0">
+                                                        <div className="relative">
+                                                            <select
+                                                                className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-900 font-medium appearance-none"
+                                                                value={currentParentId || ''}
+                                                                onChange={(e) => handleMatrixChange(row.id, type.slug, e.target.value)}
+                                                            >
+                                                                <option value="">- Top Level -</option>
+                                                                {parentOptions.map(opt => (
+                                                                    <option key={opt.id} value={opt.id}>{opt.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </td>
+                                                );
+                                            }
+
+                                            // Standard Attribute Logic
+                                            const key = `${row.id}:${type.slug}`;
+                                            const currentVal = matrixValues[key] || '';
+                                            const options = customValues[type.slug] || [];
 
                                             return (
-                                                <td key={type.slug} className="px-2 py-2 border-r bg-blue-50/30 p-0">
+                                                <td key={type.slug} className="px-2 py-2 border-r bg-white/50 p-0">
                                                     <div className="relative">
                                                         <select
-                                                            className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-900 font-medium appearance-none"
-                                                            value={currentParentId || ''}
+                                                            className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-700 appearance-none"
+                                                            value={currentVal}
                                                             onChange={(e) => handleMatrixChange(row.id, type.slug, e.target.value)}
                                                         >
-                                                            <option value="">- Top Level -</option>
-                                                            {parentOptions.map(opt => (
-                                                                <option key={opt.id} value={opt.id}>{opt.name}</option>
+                                                            <option value="">- Select -</option>
+                                                            {options.map(opt => (
+                                                                <option key={opt.id} value={opt.name}>{opt.name}</option>
                                                             ))}
                                                         </select>
                                                     </div>
                                                 </td>
                                             );
-                                        }
-
-                                        // Standard Attribute Logic
-                                        const key = `${row.id}:${type.slug}`;
-                                        const currentVal = matrixValues[key] || '';
-                                        const options = customValues[type.slug] || [];
-
-                                        return (
-                                            <td key={type.slug} className="px-2 py-2 border-r bg-white/50 p-0">
-                                                <div className="relative">
-                                                    <select
-                                                        className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-700 appearance-none"
-                                                        value={currentVal}
-                                                        onChange={(e) => handleMatrixChange(row.id, type.slug, e.target.value)}
-                                                    >
-                                                        <option value="">- Select -</option>
-                                                        {options.map(opt => (
-                                                            <option key={opt.id} value={opt.name}>{opt.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         );

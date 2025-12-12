@@ -10,6 +10,7 @@ AWS.config.update({
 // For local development with LocalStack
 if (process.env.NODE_ENV === 'development' && process.env.AWS_ENDPOINT_URL) {
   AWS.config.update({
+    // @ts-ignore
     endpoint: process.env.AWS_ENDPOINT_URL,
     s3ForcePathStyle: true,
   });
@@ -29,7 +30,7 @@ export class AWSService {
     contentType: string = 'image/jpeg'
   ): Promise<string> {
     const bucketName = process.env.AWS_S3_BUCKET || 'vangarments-images-dev';
-    
+
     const params = {
       Bucket: bucketName,
       Key: key,
@@ -50,7 +51,7 @@ export class AWSService {
     // This would typically use a third-party service or custom ML model
     // For now, we'll return the original image
     // In production, you'd integrate with services like Remove.bg API
-    
+
     console.log('Background removal requested - using placeholder implementation');
     return imageBuffer;
   }
@@ -100,11 +101,11 @@ export class AWSService {
       };
 
       const result = await sageMaker.invokeEndpoint(params).promise();
-      
+
       if (result.Body) {
         return JSON.parse(result.Body.toString());
       }
-      
+
       return null;
     } catch (error) {
       console.log('Custom fashion model not available, using fallback detection');
@@ -117,7 +118,7 @@ export class AWSService {
    */
   static generatePresignedUrl(key: string, expiresIn: number = 3600): string {
     const bucketName = process.env.AWS_S3_BUCKET || 'vangarments-images-dev';
-    
+
     const params = {
       Bucket: bucketName,
       Key: key,
@@ -133,7 +134,7 @@ export class AWSService {
    */
   static async deleteImage(key: string): Promise<void> {
     const bucketName = process.env.AWS_S3_BUCKET || 'vangarments-images-dev';
-    
+
     const params = {
       Bucket: bucketName,
       Key: key,

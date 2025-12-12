@@ -34,12 +34,12 @@ export class MarketplaceSearchService {
   }> {
     // Get basic search results
     const searchResult = await MarketplaceEnhancedModel.searchListings(filters, limit, offset);
-    
+
     // Generate search suggestions
     const suggestions = await this.generateSearchSuggestions(filters);
-    
+
     // Generate personalized recommendations
-    const recommendations = userId 
+    const recommendations = userId
       ? await this.generateRecommendations(userId, filters)
       : await this.generateTrendingRecommendations();
 
@@ -64,7 +64,7 @@ export class MarketplaceSearchService {
     }
 
     const item = vufsItem.item;
-    
+
     // Search for items with similar attributes
     const filters: MarketplaceFilters = {
       brand: item.brand,
@@ -76,7 +76,7 @@ export class MarketplaceSearchService {
     }
 
     const result = await MarketplaceModel.searchListings(filters, limit);
-    
+
     // Filter out the original item and sort by similarity
     return result.listings
       .filter(listing => listing.itemId !== itemId)
@@ -198,7 +198,7 @@ export class MarketplaceSearchService {
    */
   private static async generateTrendingRecommendations(): Promise<MarketplaceRecommendation[]> {
     const trendingItems = await this.getTrendingItems(undefined, 8);
-    
+
     return [
       {
         type: 'trending',
@@ -300,10 +300,10 @@ export class MarketplaceSearchService {
   }> {
     // Get user's preferences and history to personalize feed
     const recommendations = await this.generateRecommendations(userId, {});
-    
+
     // Get new listings in user's preferred categories
     const newListings = await this.getTrendingItems(undefined, limit);
-    
+
     // Mock price drops and ending soon - would be real data in production
     const priceDrops: MarketplaceListing[] = [];
     const endingSoon: MarketplaceListing[] = [];
@@ -331,9 +331,9 @@ export class MarketplaceSearchService {
   }): Promise<MarketplaceListing[]> {
     // This would join marketplace_listings with vufs_catalog
     // and filter based on VUFS attributes
-    
+
     const filters: MarketplaceFilters = {};
-    
+
     if (vufsFilters.brand) filters.brand = vufsFilters.brand;
     if (vufsFilters.pieceType) filters.category = vufsFilters.pieceType;
     if (vufsFilters.color) filters.color = vufsFilters.color;
@@ -420,46 +420,46 @@ export class MarketplaceSearchService {
     }
 
     const item = vufsItem.item;
-    
+
     // Search for similar items in the catalog
-    const similarItems = await VUFSCatalogModel.searchItems({
+    const { items: similarItems } = await VUFSCatalogModel.search({
       brand: item.brand,
       domain: vufsItem.domain,
       // Add more specific matching criteria based on item type
     }, 10);
 
     const matches = [];
-    
+
     for (const similarItem of similarItems) {
       if (similarItem.id === itemId) continue;
 
       // Calculate confidence based on attribute matching
       let confidence = 0;
-      
+
       // Brand match (high weight)
       if (similarItem.item.brand === item.brand) confidence += 30;
-      
+
       // Type/category match
       if ('pieceType' in similarItem.item && 'pieceType' in item) {
         if ((similarItem.item as any).pieceType === (item as any).pieceType) {
           confidence += 25;
         }
       }
-      
+
       // Color match
       if ('color' in similarItem.item && 'color' in item) {
         if ((similarItem.item as any).color === (item as any).color) {
           confidence += 15;
         }
       }
-      
+
       // Material match
       if ('material' in similarItem.item && 'material' in item) {
         if ((similarItem.item as any).material === (item as any).material) {
           confidence += 10;
         }
       }
-      
+
       // Size match
       if ('size' in similarItem.item && 'size' in item) {
         if ((similarItem.item as any).size === (item as any).size) {
@@ -581,7 +581,7 @@ export class MarketplaceSearchService {
 
     // Generate facets for filtering
     const facets: Record<string, { value: string; count: number }[]> = {};
-    
+
     if (searchParams.facets?.includes('brand')) {
       facets.brand = [
         { value: 'Nike®', count: 45 },
@@ -619,7 +619,7 @@ export class MarketplaceSearchService {
     }
 
     // Generate search suggestions
-    const suggestions = searchParams.query 
+    const suggestions = searchParams.query
       ? await this.generateSearchSuggestions(searchParams.filters)
       : [];
 

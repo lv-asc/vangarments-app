@@ -10,10 +10,13 @@ interface User {
   name: string;
   email: string;
   cpf: string;
+  avatar?: string;
+  username?: string;
   personalInfo?: {
     birthDate: Date;
     location?: any;
     gender: 'male' | 'female' | 'non-binary' | 'prefer-not-to-say';
+    avatarUrl?: string;
   };
   measurements?: any;
   preferences?: any;
@@ -95,9 +98,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      
+
       const { user: userData, token } = await apiClient.login(email, password);
-      
+
       setUser(userData);
       toast.success('Login realizado com sucesso!');
       router.push('/wardrobe');
@@ -113,14 +116,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (userData: RegisterData) => {
     try {
       setIsLoading(true);
-      
+
       // Validate CPF before sending
       if (userData.cpf && !ApiClient.validateCPF(userData.cpf)) {
         throw new Error('CPF inválido');
       }
 
       const { user: newUser, token } = await apiClient.register(userData);
-      
+
       setUser(newUser);
       toast.success('Conta criada com sucesso! Bem-vinda ao Vangarments!');
       router.push('/wardrobe');

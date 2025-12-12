@@ -102,11 +102,14 @@ export function middleware(request: NextRequest) {
   }
 
   // Handle redirect after login
+  // Commented out to prevent redirect loops when token is invalid but cookie exists
+  /*
   if (pathname === '/login' && isAuthenticated) {
     const redirectTo = request.nextUrl.searchParams.get('redirect') || '/wardrobe';
     console.log('🔧 Middleware: Already authenticated, redirecting', { redirectTo });
     return NextResponse.redirect(new URL(redirectTo, request.url));
   }
+  */
 
   // Add security headers
   const response = NextResponse.next();

@@ -51,7 +51,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.id = $1
-      GROUP BY u.id, u.cpf, u.email, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [id]);
@@ -68,7 +68,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.email = $1
-      GROUP BY u.id, u.cpf, u.email, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [email]);
@@ -85,7 +85,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.cpf = $1
-      GROUP BY u.id, u.cpf, u.email, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [cpf]);
@@ -211,6 +211,101 @@ export class UserModel {
     return result.rows.map(row => row.role);
   }
 
+  /**
+   * Check if a username is already taken (case-insensitive)
+   */
+  static async isUsernameTaken(username: string, excludeUserId?: string): Promise<boolean> {
+    const query = excludeUserId
+      ? 'SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) AND id != $2 LIMIT 1'
+      : 'SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1';
+    const params = excludeUserId ? [username, excludeUserId] : [username];
+    const result = await db.query(query, params);
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Update username with 7-day cooldown enforcement
+   * Returns: { success: boolean, error?: string, daysRemaining?: number }
+   */
+  static async updateUsername(userId: string, newUsername: string): Promise<{ success: boolean; error?: string; daysRemaining?: number }> {
+    // Validate username format (1-30 chars, alphanumeric + underscore)
+    const usernameRegex = /^[a-zA-Z0-9_]{1,30}$/;
+    if (!usernameRegex.test(newUsername)) {
+      return { success: false, error: 'Username must be 1-30 characters, alphanumeric and underscore only' };
+    }
+
+    // Check if username is taken
+    const isTaken = await this.isUsernameTaken(newUsername, userId);
+    if (isTaken) {
+      return { success: false, error: 'Username is already taken' };
+    }
+
+    // Check cooldown (7 days)
+    const cooldownQuery = 'SELECT username, username_last_changed FROM users WHERE id = $1';
+    const cooldownResult = await db.query(cooldownQuery, [userId]);
+
+    if (cooldownResult.rows.length === 0) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const { username: currentUsername, username_last_changed } = cooldownResult.rows[0];
+
+    // If username is the same, no change needed
+    if (currentUsername?.toLowerCase() === newUsername.toLowerCase()) {
+      return { success: true };
+    }
+
+    if (username_last_changed) {
+      const lastChanged = new Date(username_last_changed);
+      const daysSinceChange = (Date.now() - lastChanged.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (daysSinceChange < 7) {
+        const daysRemaining = Math.ceil(7 - daysSinceChange);
+        return { success: false, error: `Username can only be changed once every 7 days`, daysRemaining };
+      }
+    }
+
+    // Update username
+    const updateQuery = 'UPDATE users SET username = $1, username_last_changed = NOW(), updated_at = NOW() WHERE id = $2';
+    await db.query(updateQuery, [newUsername, userId]);
+
+    return { success: true };
+  }
+
+  static async findAll(filters: { search?: string; limit?: number; offset?: number } = {}): Promise<{ users: UserProfile[], total: number }> {
+    const { search, limit = 20, offset = 0 } = filters;
+    const params: any[] = [];
+    let whereClause = '';
+
+    if (search) {
+      params.push(`%${search}%`);
+      whereClause = `WHERE u.email ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length}`;
+    }
+
+    const query = `
+      SELECT u.*, array_agg(ur.role) as roles, count(*) OVER() as full_count
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      ${whereClause}
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.measurements, u.preferences, u.created_at, u.updated_at
+      ORDER BY u.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+
+    if (result.rows.length === 0) {
+      return { users: [], total: 0 };
+    }
+
+    const total = parseInt(result.rows[0].full_count);
+    const users = result.rows.map(row => this.mapToUserProfile(row));
+
+    return { users, total };
+  }
+
   private static mapToUserProfile(row: any): UserProfile {
     const profile = typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile;
     const measurements = row.measurements ?
@@ -222,6 +317,8 @@ export class UserModel {
       id: row.id,
       cpf: row.cpf,
       email: row.email,
+      username: row.username,
+      usernameLastChanged: row.username_last_changed ? new Date(row.username_last_changed) : undefined,
       personalInfo: {
         name: profile.name,
         birthDate: new Date(profile.birthDate),
@@ -238,6 +335,6 @@ export class UserModel {
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       _rawProfile: profile,
-    } as UserProfile & { roles?: string[], _rawProfile?: any };
+    } as UserProfile & { roles?: string[], _rawProfile?: any, username?: string, usernameLastChanged?: Date };
   }
 }

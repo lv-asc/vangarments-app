@@ -69,8 +69,8 @@ export class AIController {
       });
     } catch (error) {
       console.error('Process image error:', error);
-      
-      if (error.message === 'Only image files are allowed') {
+
+      if ((error as any).message === 'Only image files are allowed') {
         return res.status(400).json({
           error: {
             code: 'INVALID_FILE_TYPE',
@@ -224,7 +224,7 @@ export class AIController {
         try {
           const imageUrl = imageUrls[i];
           const response = await fetch(imageUrl);
-          
+
           if (response.ok) {
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
@@ -254,7 +254,7 @@ export class AIController {
             index: i,
             imageUrl: imageUrls[i],
             success: false,
-            error: error.message,
+            error: (error as any).message,
           });
         }
       }

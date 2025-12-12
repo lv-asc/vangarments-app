@@ -44,7 +44,7 @@ export class PerformanceMonitoringService {
   private requestCounts: Map<string, number> = new Map();
   private responseTimes: number[] = [];
   private systemMetricsHistory: SystemMetrics[] = [];
-  
+
   private thresholds = {
     slowRequest: 1000, // ms
     verySlowRequest: 5000, // ms
@@ -61,17 +61,18 @@ export class PerformanceMonitoringService {
     return (req: Request, res: Response, next: NextFunction) => {
       const startTime = Date.now();
       const requestId = req.headers['x-request-id'] as string || uuidv4();
-      
+
       // Store request start time
       (req as any).startTime = startTime;
       (req as any).requestId = requestId;
 
       // Override res.end to capture response time
       const originalEnd = res.end;
-      res.end = function(chunk?: any, encoding?: any) {
+      // @ts-ignore
+      res.end = function (chunk?: any, encoding?: any) {
         const endTime = Date.now();
         const duration = endTime - startTime;
-        
+
         // Record performance metric
         const metric: PerformanceMetric = {
           id: uuidv4(),
@@ -88,7 +89,7 @@ export class PerformanceMonitoringService {
         };
 
         performanceMonitoringService.recordMetric(metric);
-        
+
         // Call original end method
         originalEnd.call(this, chunk, encoding);
       };
@@ -102,7 +103,7 @@ export class PerformanceMonitoringService {
    */
   recordMetric(metric: PerformanceMetric): void {
     this.metrics.set(metric.id, metric);
-    
+
     // Update request tracking
     if (metric.type === 'request') {
       this.updateRequestTracking(metric);
@@ -125,7 +126,7 @@ export class PerformanceMonitoringService {
     end: (metadata?: any) => PerformanceMetric;
   } {
     const startTime = Date.now();
-    
+
     return {
       end: (metadata?: any) => {
         const duration = Date.now() - startTime;
@@ -137,7 +138,7 @@ export class PerformanceMonitoringService {
           timestamp: new Date(startTime),
           metadata,
         };
-        
+
         this.recordMetric(metric);
         return metric;
       },
@@ -153,7 +154,7 @@ export class PerformanceMonitoringService {
     query?: string
   ): Promise<T> {
     const timer = this.createTimer(queryName, 'database');
-    
+
     try {
       const result = await queryFn();
       timer.end({ query, success: true });
@@ -173,7 +174,7 @@ export class PerformanceMonitoringService {
     endpoint?: string
   ): Promise<T> {
     const timer = this.createTimer(apiName, 'external_api');
-    
+
     try {
       const result = await apiFn();
       timer.end({ endpoint, success: true });
@@ -190,10 +191,10 @@ export class PerformanceMonitoringService {
   private updateRequestTracking(metric: PerformanceMetric): void {
     const now = new Date();
     const minuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
-    
+
     // Update request count
     this.requestCounts.set(minuteKey, (this.requestCounts.get(minuteKey) || 0) + 1);
-    
+
     // Update response times (keep last 1000 for average calculation)
     this.responseTimes.push(metric.duration);
     if (this.responseTimes.length > 1000) {
@@ -218,14 +219,14 @@ export class PerformanceMonitoringService {
           alertMessage = `Slow request: ${metric.name} took ${metric.duration}ms`;
         }
         break;
-        
+
       case 'database':
         if (metric.duration > this.thresholds.slowDatabase) {
           alertType = 'SLOW_DATABASE_QUERY';
           alertMessage = `Slow database query: ${metric.name} took ${metric.duration}ms`;
         }
         break;
-        
+
       case 'external_api':
         if (metric.duration > this.thresholds.slowExternalAPI) {
           alertType = 'SLOW_EXTERNAL_API';
@@ -243,7 +244,7 @@ export class PerformanceMonitoringService {
    * Log slow operations for debugging
    */
   private logSlowOperations(metric: PerformanceMetric): void {
-    const isSlowOperation = 
+    const isSlowOperation =
       (metric.type === 'request' && metric.duration > this.thresholds.slowRequest) ||
       (metric.type === 'database' && metric.duration > this.thresholds.slowDatabase) ||
       (metric.type === 'external_api' && metric.duration > this.thresholds.slowExternalAPI);
@@ -300,7 +301,7 @@ export class PerformanceMonitoringService {
           parseInt(parts[2]), // day
           parseInt(parts[3])  // hour
         );
-        
+
         if (keyDate < cutoff) {
           this.requestCounts.delete(key);
         }
@@ -313,7 +314,7 @@ export class PerformanceMonitoringService {
    */
   collectSystemMetrics(): SystemMetrics {
     const now = new Date();
-    
+
     // Get memory usage
     const memoryUsage = process.memoryUsage();
     const totalMemory = memoryUsage.heapTotal + memoryUsage.external;
@@ -328,8 +329,8 @@ export class PerformanceMonitoringService {
     const currentMinute = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
     const requestsPerMinute = this.requestCounts.get(currentMinute) || 0;
     const totalRequests = Array.from(this.requestCounts.values()).reduce((sum, count) => sum + count, 0);
-    const averageResponseTime = this.responseTimes.length > 0 
-      ? this.responseTimes.reduce((sum, time) => sum + time, 0) / this.responseTimes.length 
+    const averageResponseTime = this.responseTimes.length > 0
+      ? this.responseTimes.reduce((sum, time) => sum + time, 0) / this.responseTimes.length
       : 0;
 
     const systemMetrics: SystemMetrics = {
@@ -355,7 +356,7 @@ export class PerformanceMonitoringService {
 
     // Store in history
     this.systemMetricsHistory.push(systemMetrics);
-    
+
     // Keep only last 24 hours of system metrics
     const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     this.systemMetricsHistory = this.systemMetricsHistory.filter(m => m.timestamp > cutoff);
@@ -416,23 +417,23 @@ export class PerformanceMonitoringService {
     const metrics = Array.from(this.metrics.values());
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    
+
     const recentMetrics = metrics.filter(m => m.timestamp > oneHourAgo);
     const requestMetrics = recentMetrics.filter(m => m.type === 'request');
-    
+
     const averageResponseTime = requestMetrics.length > 0
       ? requestMetrics.reduce((sum, m) => sum + m.duration, 0) / requestMetrics.length
       : 0;
-    
+
     const slowRequests = requestMetrics.filter(m => m.duration > this.thresholds.slowRequest).length;
-    
+
     const currentMinute = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
     const requestsPerMinute = this.requestCounts.get(currentMinute) || 0;
-    
+
     const topSlowOperations = metrics
       .sort((a, b) => b.duration - a.duration)
       .slice(0, 10);
-    
+
     const metricsByType = metrics.reduce((acc, metric) => {
       acc[metric.type] = (acc[metric.type] || 0) + 1;
       return acc;
@@ -458,19 +459,19 @@ export class PerformanceMonitoringService {
     endTime?: Date
   ): PerformanceMetric[] {
     let metrics = Array.from(this.metrics.values());
-    
+
     if (type) {
       metrics = metrics.filter(m => m.type === type);
     }
-    
+
     if (startTime) {
       metrics = metrics.filter(m => m.timestamp >= startTime);
     }
-    
+
     if (endTime) {
       metrics = metrics.filter(m => m.timestamp <= endTime);
     }
-    
+
     return metrics.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 

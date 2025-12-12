@@ -38,6 +38,7 @@ interface WardrobeItemCardProps {
   onToggleFavorite: (itemId: string) => void;
   onToggleForSale: (itemId: string) => void;
   onView: (item: WardrobeItem) => void;
+  refreshKey?: number; // Used for cache-busting image URLs
 }
 
 export function WardrobeItemCard({
@@ -46,7 +47,8 @@ export function WardrobeItemCard({
   onDelete,
   onToggleFavorite,
   onToggleForSale,
-  onView
+  onView,
+  refreshKey
 }: WardrobeItemCardProps) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -113,7 +115,14 @@ export function WardrobeItemCard({
       {/* Image */}
       <div className="relative aspect-[3/4] overflow-hidden">
         <img
-          src={item.images[0] || '/api/placeholder/300/400'}
+          key={`img-${item.id}-${refreshKey}`}
+          src={(() => {
+            const base = item.images[0] || '/api/placeholder/300/400';
+            // Add cache-busting timestamp to bypass browser cache
+            if (!refreshKey) return base;
+            const sep = base.includes('?') ? '&' : '?';
+            return `${base}${sep}t=${refreshKey}`;
+          })()}
           alt={item.name}
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />

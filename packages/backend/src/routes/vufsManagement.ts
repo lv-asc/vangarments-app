@@ -18,7 +18,7 @@ router.patch(
     AuthUtils.requireRole(['admin']),
     VUFSManagementController.updateCategory
 );
-router.get('/categories', AuthUtils.authenticateToken, VUFSManagementController.getCategories);
+router.get('/categories', VUFSManagementController.getCategories);
 router.delete('/categories/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteCategory);
 router.get('/categories/search', VUFSManagementController.searchCategories);
 router.get('/categories/:id/path', VUFSManagementController.getCategoryPath);

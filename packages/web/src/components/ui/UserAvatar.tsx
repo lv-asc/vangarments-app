@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 
 interface UserAvatarProps {
   user: {
@@ -32,10 +33,13 @@ export function UserAvatar({ user, size = 'md', className = '' }: UserAvatarProp
 
   const initials = getInitials(user.name);
 
-  if (user.avatar && !user.avatar.includes('placeholder')) {
+  // Transform avatar URL through image proxy
+  const avatarUrl = user.avatar ? getImageUrl(user.avatar) : null;
+
+  if (avatarUrl && !avatarUrl.includes('placeholder')) {
     return (
       <img
-        src={user.avatar}
+        src={avatarUrl}
         alt={user.name}
         className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
       />

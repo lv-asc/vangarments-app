@@ -129,7 +129,7 @@ async function testAuthEndpoints() {
     console.log('   ✅ Admin privilege management working');
     console.log('   ✅ Real data persistence confirmed');
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Authentication test failed:', error.message);
     if (error.response) {
       console.error('   Status:', error.response.status);
@@ -151,7 +151,7 @@ async function checkServerHealth() {
 
 async function main() {
   console.log('🔍 Checking if backend server is running...');
-  
+
   const isServerRunning = await checkServerHealth();
   if (!isServerRunning) {
     console.log('⚠️ Backend server is not running.');

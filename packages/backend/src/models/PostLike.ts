@@ -56,7 +56,7 @@ export class PostLikeModel {
     `;
 
     const result = await db.query(query, [postId, limit, offset]);
-    
+
     return {
       likes: result.rows.map(row => this.mapRowToPostLike(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
@@ -66,7 +66,7 @@ export class PostLikeModel {
   static async delete(postId: string, userId: string): Promise<boolean> {
     const query = 'DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2';
     const result = await db.query(query, [postId, userId]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   static async getLikeCount(postId: string): Promise<number> {
@@ -96,7 +96,7 @@ export class PostLikeModel {
     `;
 
     const result = await db.query(query, [userId, limit, offset]);
-    
+
     return {
       postIds: result.rows.map(row => row.post_id),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,

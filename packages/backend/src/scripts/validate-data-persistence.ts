@@ -81,7 +81,7 @@ class DataPersistenceValidator {
       this.addResult(
         'Required Tables',
         missingTables.length === 0,
-        missingTables.length === 0 
+        missingTables.length === 0
           ? 'All required tables exist'
           : `Missing tables: ${missingTables.join(', ')}`,
         { existing: existingTables, missing: missingTables }
@@ -103,7 +103,7 @@ class DataPersistenceValidator {
     try {
       // Test VUFS configuration file existence
       const vufsConfigPath = path.join(process.cwd(), '../shared/src/constants/vufs.ts');
-      
+
       try {
         await fs.access(vufsConfigPath);
         this.addResult(
@@ -118,7 +118,7 @@ class DataPersistenceValidator {
         const hasPatterns = configContent.includes('PATTERN_WEIGHTS') || configContent.includes('patterns');
         const hasBrands = configContent.includes('VUFS_BRANDS');
         const hasColors = configContent.includes('VUFS_COLORS');
-        
+
         this.addResult(
           'VUFS Configuration Content',
           hasCategories && hasPatterns && hasBrands && hasColors,
@@ -139,7 +139,7 @@ class DataPersistenceValidator {
       // Test configuration service functionality
       try {
         // Check if configuration service methods exist
-        const hasGetMethod = typeof this.configService.getVUFSConfiguration === 'function';
+        const hasGetMethod = typeof (this.configService as any).getVUFSConfiguration === 'function';
         this.addResult(
           'Configuration Service',
           hasGetMethod,
@@ -221,7 +221,7 @@ class DataPersistenceValidator {
 
       // Test admin authentication service
       try {
-        const hasInitMethod = typeof this.adminAuthService.initializeAdminUser === 'function';
+        const hasInitMethod = typeof (this.adminAuthService as any).initializeAdminUser === 'function';
         this.addResult(
           'Admin Auth Service',
           hasInitMethod,
@@ -270,7 +270,7 @@ class DataPersistenceValidator {
       // Test data consistency
       const userCount = await this.pool.query('SELECT COUNT(*) FROM users');
       const itemCount = await this.pool.query('SELECT COUNT(*) FROM vufs_items');
-      
+
       this.addResult(
         'Data Consistency Check',
         true,

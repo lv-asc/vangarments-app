@@ -19,10 +19,20 @@ export interface BrandInfo {
   brandStyle?: string[];
 }
 
+export interface BrandProfileData {
+  bio?: string;
+  foundedDate?: string; // ISO date string
+  instagram?: string; // Username or full URL
+  tiktok?: string;
+  youtube?: string;
+  additionalLogos?: string[]; // Array of logo URLs
+}
+
 export interface BrandAccount {
   id: string;
   userId: string;
   brandInfo: BrandInfo;
+  profileData?: BrandProfileData;
   verificationStatus: 'pending' | 'verified' | 'rejected';
   partnershipTier: 'basic' | 'premium' | 'enterprise';
   badges: string[];
@@ -155,7 +165,7 @@ export class BrandAccountModel {
     values.push(limit, offset);
 
     const result = await db.query(query, values);
-    
+
     return {
       brands: result.rows.map(row => this.mapRowToBrandAccount(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
@@ -215,6 +225,50 @@ export class BrandAccountModel {
     return (result.rowCount || 0) > 0;
   }
 
+  static async updateProfileData(brandId: string, profileData: Partial<BrandProfileData>): Promise<BrandAccount | null> {
+    // Merge with existing profile data
+    const existing = await this.findById(brandId);
+    if (!existing) return null;
+
+    const mergedProfileData = {
+      ...(existing.profileData || {}),
+      ...profileData
+    };
+
+    const query = `
+      UPDATE brand_accounts
+      SET profile_data = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `;
+
+    const result = await db.query(query, [JSON.stringify(mergedProfileData), brandId]);
+    return result.rows.length > 0 ? this.mapRowToBrandAccount(result.rows[0]) : null;
+  }
+
+  static async getFullProfile(brandId: string): Promise<{
+    brand: BrandAccount;
+    team: any[];
+    lookbooks: any[];
+    collections: any[];
+  } | null> {
+    const brand = await this.findById(brandId);
+    if (!brand) return null;
+
+    // Import dependencies dynamically to avoid circular imports
+    const { BrandTeamModel } = await import('./BrandTeam');
+    const { BrandLookbookModel } = await import('./BrandLookbook');
+    const { BrandCollectionModel } = await import('./BrandCollection');
+
+    const [team, lookbooks, collections] = await Promise.all([
+      BrandTeamModel.getTeamMembers(brandId, true), // Public only
+      BrandLookbookModel.findByBrand(brandId, true), // Published only
+      BrandCollectionModel.findByBrand(brandId, true) // Published only
+    ]);
+
+    return { brand, team, lookbooks, collections };
+  }
+
   static async getAnalytics(brandId: string): Promise<{
     catalogItems: number;
     totalSales: number;
@@ -247,7 +301,7 @@ export class BrandAccountModel {
     const monthlyViews = Math.floor(Math.random() * 10000) + 1000;
 
     return {
-      totalCatalogItems: catalogItems,
+      catalogItems: catalogItems,
       totalSales: parseFloat(salesData.total_sales || '0'),
       totalCommission: parseFloat(salesData.total_commission || '0'),
       monthlyViews,
@@ -281,6 +335,7 @@ export class BrandAccountModel {
       id: row.id,
       userId: row.user_id,
       brandInfo: row.brand_info,
+      profileData: row.profile_data || undefined,
       verificationStatus: row.verification_status,
       partnershipTier: row.partnership_tier,
       badges: row.badges || [],

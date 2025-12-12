@@ -3,20 +3,20 @@
 
 export type VUFSDomain = 'APPAREL' | 'FOOTWEAR';
 
-export type OperationalStatus = 
-  | 'not_photographed' 
-  | 'photographed' 
-  | 'published' 
-  | 'sold' 
+export type OperationalStatus =
+  | 'not_photographed'
+  | 'photographed'
+  | 'published'
+  | 'sold'
   | 'repassed';
 
 export type Gender = 'Male' | 'Female' | "Men's" | "Women's" | 'Unisex';
 
 export type Condition = 'New' | 'Excellent Used' | 'Good' | 'Fair' | 'Poor';
 
-export type PatternWeight = 
+export type PatternWeight =
   | '1 – Super Lightweight'
-  | '2 – Lightweight' 
+  | '2 – Lightweight'
   | '3 – Mediumweight'
   | '4 – Heavyweight'
   | '5 – Superheavyweight'
@@ -24,6 +24,7 @@ export type PatternWeight =
 
 // APPAREL Domain Types
 export interface ApparelItem {
+  id: string;
   sku: string;
   brand: string;
   model?: string;
@@ -45,16 +46,17 @@ export interface ApparelItem {
   repassStatus: boolean;
   amountToTransfer?: number;
   createdDate: Date;
-  
+
   // Operational tracking
   operationalStatus: OperationalStatus;
-  
+
   // Platform export tracking
   platformExports?: PlatformExport[];
 }
 
 // FOOTWEAR Domain Types
 export interface FootwearItem {
+  id: string;
   sku: string;
   brand: string;
   modelType: FootwearType;
@@ -75,16 +77,16 @@ export interface FootwearItem {
   repassStatus: boolean;
   amountToTransfer?: number;
   createdDate: Date;
-  
+
   // Operational tracking
   operationalStatus: OperationalStatus;
-  
+
   // Platform export tracking
   platformExports?: PlatformExport[];
 }
 
 // Piece Types for APPAREL
-export type ApparelPieceType = 
+export type ApparelPieceType =
   | 'Accessories'
   | 'Bag'
   | 'Belts'
@@ -107,7 +109,7 @@ export type ApparelPieceType =
   | 'Winter';
 
 // Footwear Types
-export type FootwearType = 
+export type FootwearType =
   | 'Sneakers'
   | 'Boots'
   | 'Loafers'
@@ -117,14 +119,14 @@ export type FootwearType =
   | 'Casual'
   | 'Formal';
 
-export type SoleType = 
+export type SoleType =
   | 'Rubber'
   | 'EVA'
   | 'Foam'
   | 'Leather'
   | 'Synthetic';
 
-export type LaceType = 
+export type LaceType =
   | 'Laced'
   | 'Slip-On'
   | 'Velcro'
@@ -132,7 +134,7 @@ export type LaceType =
   | 'Zipper';
 
 // VUFS Colors
-export type VUFSColor = 
+export type VUFSColor =
   | 'Black'
   | 'Blue'
   | 'Bone White'
@@ -160,7 +162,7 @@ export type VUFSColor =
   | 'Yellow';
 
 // VUFS Styles
-export type VUFSStyle = 
+export type VUFSStyle =
   | 'Vintage'
   | 'Athleisure'
   | 'Grunge'
@@ -183,7 +185,7 @@ export interface PlatformExport {
   errorMessage?: string;
 }
 
-export type ExportPlatform = 
+export type ExportPlatform =
   | 'nuvem_shop'
   | 'shopify'
   | 'vinted'
@@ -279,6 +281,12 @@ export interface ItemMetadata {
   composition: Array<{ material: string; percentage: number }>;
   colors: Array<{ primary: string; undertones: string[] }>;
   careInstructions: string[];
+  size?: string;
+  pattern?: string;
+  fit?: string;
+  name?: string;
+  description?: string;
+  customAttributes?: Record<string, string>;
   acquisitionInfo: {
     date: string | Date;
     price: number;

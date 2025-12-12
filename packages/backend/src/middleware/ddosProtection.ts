@@ -102,7 +102,7 @@ export class DDoSProtectionMiddleware {
   createAdvancedDDoSDetection() {
     return async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const clientIP = req.ip;
+        const clientIP = req.ip || 'unknown';
         const userAgent = req.get('User-Agent') || '';
         const now = Date.now();
 
@@ -179,7 +179,7 @@ export class DDoSProtectionMiddleware {
         // In production, this would use a geolocation service
         // For now, we'll implement basic checks
 
-        const clientIP = req.ip;
+        const clientIP = req.ip || 'unknown';
         const country = await this.getCountryFromIP(clientIP);
 
         if (country && !allowedCountries.includes(country)) {
@@ -191,7 +191,7 @@ export class DDoSProtectionMiddleware {
             endpoint: req.path,
             method: req.method,
             securityFlags: {
-              detectedCountry: country,
+              detectedCountry: country || 'unknown',
               allowedCountries,
             },
           });
@@ -219,7 +219,7 @@ export class DDoSProtectionMiddleware {
     return async (req: Request, res: Response, next: NextFunction) => {
       try {
         const userAgent = req.get('User-Agent') || '';
-        const clientIP = req.ip;
+        const clientIP = req.ip || 'unknown';
 
         const botIndicators = this.detectBotPatterns(req);
 

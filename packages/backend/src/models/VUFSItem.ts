@@ -19,6 +19,7 @@ export interface BackendVUFSItem {
   ownership: OwnershipInfo;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
 }
 
 export interface CreateVUFSItemData {
@@ -113,7 +114,7 @@ export class VUFSItemModel {
   }
 
   static async findByOwner(ownerId: string, filters?: VUFSItemFilters): Promise<BackendVUFSItem[]> {
-    let query = 'SELECT * FROM vufs_items WHERE owner_id = $1';
+    let query = 'SELECT * FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL';
     const values: any[] = [ownerId];
     let paramCount = 2;
 
@@ -262,10 +263,104 @@ export class VUFSItemModel {
     return this.mapToVUFSItem(result.rows[0]);
   }
 
+  /**
+   * Soft-delete an item by setting deleted_at timestamp
+   */
   static async delete(id: string): Promise<boolean> {
+    const query = 'UPDATE vufs_items SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL';
+    const result = await db.query(query, [id]);
+    return (result.rowCount || 0) > 0;
+  }
+
+  /**
+   * Find deleted items for a user (trash)
+   */
+  static async findDeletedByOwner(ownerId: string): Promise<BackendVUFSItem[]> {
+    const query = `
+      SELECT * FROM vufs_items 
+      WHERE owner_id = $1 AND deleted_at IS NOT NULL
+      ORDER BY deleted_at DESC
+    `;
+    const result = await db.query(query, [ownerId]);
+    const items = result.rows.map(row => this.mapToVUFSItem(row));
+
+    // Fetch images for deleted items
+    if (items.length > 0) {
+      const itemIds = items.map(item => item.id);
+      const imagesQuery = `
+        SELECT * FROM item_images 
+        WHERE item_id = ANY($1)
+        ORDER BY is_primary DESC, created_at DESC
+      `;
+      const imagesResult = await db.query(imagesQuery, [itemIds]);
+
+      const imagesByItemId = new Map<string, any[]>();
+      imagesResult.rows.forEach(row => {
+        if (!imagesByItemId.has(row.item_id)) {
+          imagesByItemId.set(row.item_id, []);
+        }
+        imagesByItemId.get(row.item_id)?.push({
+          url: row.image_url,
+          type: row.image_type,
+          isPrimary: row.is_primary
+        });
+      });
+
+      items.forEach(item => {
+        item.images = imagesByItemId.get(item.id) || [];
+      });
+    }
+
+    return items;
+  }
+
+  /**
+   * Restore a soft-deleted item
+   */
+  static async restore(id: string): Promise<boolean> {
+    const query = 'UPDATE vufs_items SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL';
+    const result = await db.query(query, [id]);
+    return (result.rowCount || 0) > 0;
+  }
+
+  /**
+   * Permanently delete an item (hard delete)
+   */
+  static async permanentDelete(id: string): Promise<boolean> {
     const query = 'DELETE FROM vufs_items WHERE id = $1';
     const result = await db.query(query, [id]);
     return (result.rowCount || 0) > 0;
+  }
+
+  /**
+   * Cleanup expired items (deleted more than 14 days ago)
+   */
+  static async cleanupExpiredItems(): Promise<{ deletedCount: number; itemIds: string[] }> {
+    // First get the IDs of items to be deleted
+    const selectQuery = `
+      SELECT id FROM vufs_items 
+      WHERE deleted_at IS NOT NULL 
+      AND deleted_at < NOW() - INTERVAL '14 days'
+    `;
+    const selectResult = await db.query(selectQuery);
+    const itemIds = selectResult.rows.map(row => row.id);
+
+    if (itemIds.length === 0) {
+      return { deletedCount: 0, itemIds: [] };
+    }
+
+    // Delete the items (cascade will handle images in DB)
+    const deleteQuery = `
+      DELETE FROM vufs_items 
+      WHERE deleted_at IS NOT NULL 
+      AND deleted_at < NOW() - INTERVAL '14 days'
+    `;
+    const result = await db.query(deleteQuery);
+
+    return {
+      deletedCount: result.rowCount || 0,
+      itemIds
+    };
   }
 
   static async search(searchTerm: string, filters?: VUFSItemFilters): Promise<BackendVUFSItem[]> {
@@ -385,6 +480,7 @@ export class VUFSItemModel {
       ownership: ownership,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
+      deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
     };
   }
 }

@@ -89,6 +89,37 @@ export class UserController {
     }
   }
 
+  static async checkUsernameAvailability(req: Request, res: Response) {
+    try {
+      const { username } = req.params;
+      const excludeUserId = (req as AuthenticatedRequest).user?.userId;
+
+      // Validate username format
+      const usernameRegex = /^[a-zA-Z0-9_]{1,30}$/;
+      if (!usernameRegex.test(username)) {
+        return res.json({
+          available: false,
+          error: 'Username must be 3-30 characters, alphanumeric and underscore only'
+        });
+      }
+
+      const isTaken = await UserModel.isUsernameTaken(username, excludeUserId);
+
+      res.json({
+        available: !isTaken,
+        username
+      });
+    } catch (error) {
+      console.error('Check username availability error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while checking username availability'
+        }
+      });
+    }
+  }
+
   static async updateBasicProfile(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
@@ -100,8 +131,23 @@ export class UserController {
         });
       }
 
-      const { name, bio, socialLinks, roles } = req.body;
+      const { name, bio, socialLinks, roles, username } = req.body;
       const updateData: any = {};
+      let usernameUpdateResult: { success: boolean; error?: string; daysRemaining?: number } | null = null;
+
+      // Handle username update separately (has special validation)
+      if (username !== undefined) {
+        usernameUpdateResult = await UserModel.updateUsername(req.user.userId, username);
+        if (!usernameUpdateResult.success) {
+          return res.status(400).json({
+            error: {
+              code: 'USERNAME_UPDATE_FAILED',
+              message: usernameUpdateResult.error,
+              daysRemaining: usernameUpdateResult.daysRemaining
+            }
+          });
+        }
+      }
 
       if (name) updateData.name = name;
       if (bio !== undefined) {
@@ -119,7 +165,10 @@ export class UserController {
         await UserModel.setRoles(req.user.userId, roles);
       }
 
-      await UserModel.update(req.user.userId, updateData);
+      // Only call update if there's data to update (username is handled separately)
+      if (Object.keys(updateData).length > 0) {
+        await UserModel.update(req.user.userId, updateData);
+      }
 
       // Fetch updated user to return complete profile
       const updatedUser = await UserModel.findById(req.user.userId);
@@ -137,8 +186,9 @@ export class UserController {
         message: 'Profile updated successfully',
         user: {
           name: updatedUser.personalInfo.name,
-          bio: updatedUser.personalInfo.bio,
-          roles: updatedUser.roles
+          bio: (updatedUser.personalInfo as any).bio,
+          username: (updatedUser as any).username,
+          roles: (updatedUser as any).roles
         }
       });
 
@@ -180,15 +230,16 @@ export class UserController {
       const profile = {
         id: user.id,
         name: user.personalInfo.name,
-        username: user.email.split('@')[0], // Mock username from email
+        username: (user as any).username || user.email.split('@')[0], // Use real username or fallback
+        usernameLastChanged: (user as any).usernameLastChanged || null,
         email: user.email,
         cpf: user.cpf,
         birthDate: user.personalInfo.birthDate,
-        bio: user.personalInfo.bio || '',
-        profileImage: user.personalInfo.avatarUrl,
+        bio: (user.personalInfo as any).bio || '',
+        profileImage: (user.personalInfo as any).avatarUrl,
         bannerImage: null,
         socialLinks: user.socialLinks || [],
-        roles: user.roles || [],
+        roles: (user as any).roles || [],
         createdAt: user.createdAt,
         stats: {
           wardrobeItems: stats.totalItems || 0,

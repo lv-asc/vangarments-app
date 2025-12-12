@@ -91,7 +91,7 @@ export class ItemTrackingModel {
       WHERE item_id = $1 
       ORDER BY loan_date DESC
     `;
-    
+
     const result = await db.query(query, [itemId]);
     return result.rows.map(row => this.mapToLoanRecord(row));
   }
@@ -103,7 +103,7 @@ export class ItemTrackingModel {
       WHERE vi.owner_id = $1
       ORDER BY il.loan_date DESC
     `;
-    
+
     const result = await db.query(query, [userId]);
     return result.rows.map(row => this.mapToLoanRecord(row));
   }
@@ -115,7 +115,7 @@ export class ItemTrackingModel {
       WHERE vi.owner_id = $1 AND il.actual_return_date IS NULL
       ORDER BY il.loan_date DESC
     `;
-    
+
     const result = await db.query(query, [userId]);
     return result.rows.map(row => this.mapToLoanRecord(row));
   }
@@ -129,7 +129,7 @@ export class ItemTrackingModel {
       AND il.expected_return_date < NOW()
       ORDER BY il.expected_return_date ASC
     `;
-    
+
     const result = await db.query(query, [userId]);
     return result.rows.map(row => this.mapToLoanRecord(row));
   }
@@ -213,7 +213,7 @@ export class ItemTrackingModel {
       WHERE user_id = $1 
       ORDER BY created_at DESC
     `;
-    
+
     const result = await db.query(query, [userId]);
     return result.rows.map(row => this.mapToWishlistItem(row));
   }
@@ -221,7 +221,7 @@ export class ItemTrackingModel {
   static async deleteWishlistItem(id: string): Promise<boolean> {
     const query = 'DELETE FROM wishlist_items WHERE id = $1';
     const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   // Usage Tracking
@@ -230,7 +230,7 @@ export class ItemTrackingModel {
       INSERT INTO item_usage_log (item_id, wear_date)
       VALUES ($1, NOW())
     `;
-    
+
     await db.query(query, [itemId]);
   }
 
@@ -247,7 +247,7 @@ export class ItemTrackingModel {
       ORDER BY wear_date DESC 
       LIMIT $2
     `;
-    
+
     const result = await db.query(query, [itemId, limit]);
     return result.rows.map(row => new Date(row.wear_date));
   }
@@ -267,7 +267,7 @@ export class ItemTrackingModel {
       GROUP BY vi.id
       ORDER BY wear_count DESC
     `;
-    
+
     const result = await db.query(query, [userId]);
     const items = result.rows.map(row => ({
       itemId: row.item_id,
@@ -310,8 +310,8 @@ export class ItemTrackingModel {
   }
 
   private static mapToWishlistItem(row: any): WishlistItem {
-    const desiredItem = typeof row.desired_item === 'string' 
-      ? JSON.parse(row.desired_item) 
+    const desiredItem = typeof row.desired_item === 'string'
+      ? JSON.parse(row.desired_item)
       : row.desired_item;
 
     return {

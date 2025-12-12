@@ -1,10 +1,10 @@
 import { db } from '../database/connection';
-import { 
-  Outfit, 
-  OutfitItem, 
-  OutfitFilters, 
+import {
+  Outfit,
+  OutfitItem,
+  OutfitFilters,
   OutfitCreationSession,
-  OutfitPhoto 
+  OutfitPhoto
 } from '@vangarments/shared/types/outfit';
 
 export interface CreateOutfitData {
@@ -282,7 +282,7 @@ export class OutfitModel {
   static async delete(id: string): Promise<boolean> {
     const query = 'DELETE FROM outfits WHERE id = $1';
     const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   /**
@@ -311,7 +311,7 @@ export class OutfitModel {
     `;
 
     const result = await db.query(query, [userId]);
-    
+
     if (result.rows.length === 0) {
       return {
         totalOutfits: 0,
@@ -331,8 +331,8 @@ export class OutfitModel {
       LIMIT 1
     `;
     const mostWornResult = await db.query(mostWornQuery, [userId]);
-    const mostWornOutfit = mostWornResult.rows.length > 0 
-      ? this.mapToOutfit(mostWornResult.rows[0]) 
+    const mostWornOutfit = mostWornResult.rows.length > 0
+      ? this.mapToOutfit(mostWornResult.rows[0])
       : null;
 
     // Aggregate stats
@@ -340,15 +340,15 @@ export class OutfitModel {
       acc.totalOutfits = Math.max(acc.totalOutfits, parseInt(row.total_outfits));
       acc.favoriteOutfits = Math.max(acc.favoriteOutfits, parseInt(row.favorite_outfits));
       acc.totalWears = Math.max(acc.totalWears, parseInt(row.total_wears) || 0);
-      
+
       if (row.occasion) {
         acc.outfitsByOccasion[row.occasion] = (acc.outfitsByOccasion[row.occasion] || 0) + 1;
       }
-      
+
       if (row.season) {
         acc.outfitsBySeason[row.season] = (acc.outfitsBySeason[row.season] || 0) + 1;
       }
-      
+
       return acc;
     }, {
       totalOutfits: 0,
@@ -389,8 +389,8 @@ export class OutfitModel {
    * Map database row to Outfit object
    */
   private static mapToOutfit(row: any): Outfit {
-    const items = typeof row.items === 'string' 
-      ? JSON.parse(row.items) 
+    const items = typeof row.items === 'string'
+      ? JSON.parse(row.items)
       : row.items;
 
     return {

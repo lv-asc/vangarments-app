@@ -61,12 +61,12 @@ export class UserFollowModel {
     `;
 
     const result = await db.query(query, [userId, limit, offset]);
-    
+
     return {
       users: result.rows.map(row => ({
         id: row.id,
         profile: row.profile,
-      })),
+      } as any)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
     };
   }
@@ -87,12 +87,12 @@ export class UserFollowModel {
     `;
 
     const result = await db.query(query, [userId, limit, offset]);
-    
+
     return {
       users: result.rows.map(row => ({
         id: row.id,
         profile: row.profile,
-      })),
+      } as any)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
     };
   }
@@ -100,7 +100,7 @@ export class UserFollowModel {
   static async delete(followerId: string, followingId: string): Promise<boolean> {
     const query = 'DELETE FROM user_follows WHERE follower_id = $1 AND following_id = $2';
     const result = await db.query(query, [followerId, followingId]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   static async isFollowing(followerId: string, followingId: string): Promise<boolean> {
@@ -118,7 +118,7 @@ export class UserFollowModel {
 
     const result = await db.query(query, [userId]);
     const row = result.rows[0];
-    
+
     return {
       followersCount: row.followers_count || 0,
       followingCount: row.following_count || 0,

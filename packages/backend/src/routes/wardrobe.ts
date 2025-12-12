@@ -45,4 +45,9 @@ router.get('/vufs-options', WardrobeController.getVUFSOptions);
 // Get wardrobe statistics
 router.get('/stats', WardrobeController.getWardrobeStats);
 
+// Trash management routes
+router.get('/trash', WardrobeController.getTrashItems);
+router.post('/trash/:id/restore', WardrobeController.restoreItem);
+router.delete('/trash/:id', WardrobeController.permanentDeleteItem);
+
 export default router;

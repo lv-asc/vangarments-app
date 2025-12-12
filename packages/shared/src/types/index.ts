@@ -91,6 +91,7 @@ export interface AIProcessingResult {
 // Additional type definitions
 export type Gender = 'male' | 'female' | 'non-binary' | 'prefer-not-to-say';
 export type UserRole =
+  | 'admin'
   | 'common_user'
   | 'influencer'
   | 'model'

@@ -210,7 +210,7 @@ export class BrandCatalogModel {
     values.push(limit, offset);
 
     const result = await db.query(query, values);
-    
+
     return {
       items: result.rows.map(row => this.mapRowToBrandCatalogItem(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
@@ -282,12 +282,12 @@ export class BrandCatalogModel {
     if (updates.length === 0) return;
 
     // Build bulk update query
-    const cases = updates.map((_, index) => 
+    const cases = updates.map((_, index) =>
       `WHEN vufs_item_id = $${index * 2 + 2} THEN $${index * 2 + 3}::availability_status`
     ).join(' ');
 
-    const values = [brandId];
-    const itemIds = [];
+    const values: any[] = [brandId];
+    const itemIds: string[] = [];
 
     updates.forEach(update => {
       values.push(update.vufsItemId, update.availabilityStatus);

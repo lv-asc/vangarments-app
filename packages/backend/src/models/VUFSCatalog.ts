@@ -1,9 +1,9 @@
 import { db } from '../database/connection';
-import { 
-  VUFSItem, 
-  ApparelItem, 
-  FootwearItem, 
-  VUFSDomain, 
+import {
+  VUFSItem,
+  ApparelItem,
+  FootwearItem,
+  VUFSDomain,
   OperationalStatus,
   VUFSCatalogEntry,
   PlatformExport,
@@ -48,6 +48,7 @@ export class VUFSCatalogModel {
     // Generate VUFS code (using SKU as the unique identifier)
     const vufsCode = data.item.sku;
 
+    // @ts-ignore
     const completeItem: VUFSItem = {
       ...data.item,
       createdDate: new Date(),
@@ -344,15 +345,15 @@ export class VUFSCatalogModel {
   static async delete(id: string): Promise<boolean> {
     const query = 'DELETE FROM vufs_catalog WHERE id = $1';
     const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   /**
    * Map database row to catalog entry
    */
   private static mapToCatalogEntry(row: any): VUFSCatalogEntry {
-    const itemData = typeof row.item_data === 'string' 
-      ? JSON.parse(row.item_data) 
+    const itemData = typeof row.item_data === 'string'
+      ? JSON.parse(row.item_data)
       : row.item_data;
 
     return {

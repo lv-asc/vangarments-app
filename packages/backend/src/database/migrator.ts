@@ -49,7 +49,7 @@ export class DatabaseMigrator {
       const filePath = path.join(this.migrationsPath, file);
       const sql = fs.readFileSync(filePath, 'utf8');
       const checksum = this.calculateChecksum(sql);
-      
+
       migrations.push({
         id: file.replace('.sql', ''),
         name: file,
@@ -93,7 +93,7 @@ export class DatabaseMigrator {
   async getPendingMigrations(): Promise<Migration[]> {
     const allMigrations = await this.getMigrationFiles();
     const executed = await this.getExecutedMigrations();
-    
+
     return allMigrations.filter(migration => !executed.includes(migration.id));
   }
 
@@ -118,7 +118,7 @@ export class DatabaseMigrator {
       console.log(`✅ Migration ${migration.id} executed successfully`);
     } catch (error) {
       await client.query('ROLLBACK');
-      
+
       // Record failed migration
       try {
         await client.query(
@@ -130,7 +130,7 @@ export class DatabaseMigrator {
         console.error('Failed to record migration failure:', recordError);
       }
 
-      throw new Error(`Migration ${migration.id} failed: ${error.message}`);
+      throw new Error(`Migration ${migration.id} failed: ${(error as any).message}`);
     } finally {
       client.release();
     }
@@ -138,19 +138,19 @@ export class DatabaseMigrator {
 
   async migrate(): Promise<void> {
     console.log('🔄 Starting database migration...');
-    
+
     await this.initialize();
     await this.validateMigrations();
-    
+
     const pendingMigrations = await this.getPendingMigrations();
-    
+
     if (pendingMigrations.length === 0) {
       console.log('✅ No pending migrations');
       return;
     }
 
     console.log(`📋 Found ${pendingMigrations.length} pending migrations`);
-    
+
     for (const migration of pendingMigrations) {
       console.log(`🔄 Executing migration: ${migration.id}`);
       await this.executeMigration(migration);
@@ -161,16 +161,16 @@ export class DatabaseMigrator {
 
   async rollback(targetMigrationId?: string): Promise<void> {
     console.log('🔄 Starting rollback...');
-    
+
     const executed = await this.getExecutedMigrations();
-    
+
     if (executed.length === 0) {
       console.log('ℹ️ No migrations to rollback');
       return;
     }
 
     let migrationsToRollback: string[];
-    
+
     if (targetMigrationId) {
       const targetIndex = executed.indexOf(targetMigrationId);
       if (targetIndex === -1) {
@@ -192,7 +192,7 @@ export class DatabaseMigrator {
   private async rollbackMigration(migrationId: string): Promise<void> {
     // Look for rollback file
     const rollbackFile = path.join(this.migrationsPath, `${migrationId}.rollback.sql`);
-    
+
     if (!fs.existsSync(rollbackFile)) {
       throw new Error(`Rollback file not found for migration ${migrationId}`);
     }
@@ -211,7 +211,7 @@ export class DatabaseMigrator {
       console.log(`✅ Migration ${migrationId} rolled back successfully`);
     } catch (error) {
       await client.query('ROLLBACK');
-      throw new Error(`Rollback failed for migration ${migrationId}: ${error.message}`);
+      throw new Error(`Rollback failed for migration ${migrationId}: ${(error as any).message}`);
     } finally {
       client.release();
     }

@@ -166,7 +166,7 @@ export class ContentCreationModel {
     // Get the pinned item details
     const pinnedItemQuery = 'SELECT * FROM vufs_items WHERE id = $1 AND owner_id = $2';
     const pinnedItemResult = await db.query(pinnedItemQuery, [pinnedItemId, userId]);
-    
+
     if (pinnedItemResult.rows.length === 0) {
       throw new Error('Pinned item not found or does not belong to user');
     }
@@ -181,7 +181,7 @@ export class ContentCreationModel {
       AND id != $2
       AND (category_hierarchy->>'page') != $3
     `;
-    
+
     const queryParams = [userId, pinnedItemId, pinnedCategory.page];
     let paramIndex = 4;
 
@@ -234,7 +234,7 @@ export class ContentCreationModel {
       WHERE sp.visibility IN ('public', 'followers')
     `;
 
-    const queryParams = [userId];
+    const queryParams: any[] = [userId];
     let paramIndex = 2;
 
     // Prioritize content from followed users
@@ -260,7 +260,7 @@ export class ContentCreationModel {
     queryParams.push(limit, offset);
 
     const result = await db.query(feedQuery, queryParams as any[]);
-    
+
     // Get total count for pagination
     // Build count query with same filters
     let countQuery = `
@@ -269,7 +269,7 @@ export class ContentCreationModel {
       WHERE sp.visibility IN ('public', 'followers')
     `;
 
-    const countParams = [userId];
+    const countParams: any[] = [userId];
     let countParamIndex = 2;
 
     if (followingIds.length > 0) {

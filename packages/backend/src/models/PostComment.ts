@@ -61,7 +61,7 @@ export class PostCommentModel {
     `;
 
     const result = await db.query(query, [postId, limit, offset]);
-    
+
     return {
       comments: result.rows.map(row => this.mapRowToPostComment(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
@@ -85,7 +85,7 @@ export class PostCommentModel {
     `;
 
     const result = await db.query(query, [parentCommentId, limit, offset]);
-    
+
     return {
       comments: result.rows.map(row => this.mapRowToPostComment(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
@@ -111,7 +111,7 @@ export class PostCommentModel {
   static async delete(id: string, userId: string): Promise<boolean> {
     const query = 'DELETE FROM post_comments WHERE id = $1 AND user_id = $2';
     const result = await db.query(query, [id, userId]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   static async getCommentCount(postId: string): Promise<number> {

@@ -1,11 +1,11 @@
 import { db } from '../database/connection';
-import { 
-  MarketplaceListing, 
-  Transaction, 
+import {
+  MarketplaceListing,
+  Transaction,
   MarketplaceFilters,
   SellerProfile,
   MarketplaceOffer,
-  WatchlistItem 
+  WatchlistItem
 } from '@vangarments/shared/types/marketplace';
 
 export interface CreateListingData {
@@ -53,7 +53,7 @@ export class MarketplaceEnhancedModel {
     ];
 
     const result = await db.query(query, values);
-    
+
     // Update VUFS item status to published
     await db.query(
       `UPDATE vufs_catalog 
@@ -319,7 +319,7 @@ export class MarketplaceEnhancedModel {
       SET views = views + 1, updated_at = NOW()
       WHERE id = $1
     `;
-    
+
     await db.query(query, [id]);
   }
 
@@ -449,7 +449,7 @@ export class MarketplaceEnhancedModel {
     // Then delete the listing
     const query = 'DELETE FROM marketplace_listings WHERE id = $1';
     const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   /**
@@ -540,7 +540,7 @@ export class MarketplaceEnhancedModel {
     `;
 
     const result = await db.query(query, [userId, listingId, priceAlert || null]);
-    
+
     // Increment watchers count
     await db.query('UPDATE marketplace_listings SET watchers = watchers + 1 WHERE id = $1', [listingId]);
 
@@ -560,13 +560,13 @@ export class MarketplaceEnhancedModel {
   static async removeFromWatchlist(userId: string, listingId: string): Promise<boolean> {
     const query = 'DELETE FROM marketplace_watchlist WHERE user_id = $1 AND listing_id = $2';
     const result = await db.query(query, [userId, listingId]);
-    
-    if (result.rowCount > 0) {
+
+    if ((result.rowCount || 0) > 0) {
       // Decrement watchers count
       await db.query('UPDATE marketplace_listings SET watchers = GREATEST(watchers - 1, 0) WHERE id = $1', [listingId]);
       return true;
     }
-    
+
     return false;
   }
 
@@ -594,16 +594,16 @@ export class MarketplaceEnhancedModel {
   }
 
   private static mapToListing(row: any): MarketplaceListing {
-    const condition = typeof row.condition_info === 'string' 
-      ? JSON.parse(row.condition_info) 
+    const condition = typeof row.condition_info === 'string'
+      ? JSON.parse(row.condition_info)
       : row.condition_info;
-    
-    const shipping = typeof row.shipping_options === 'string' 
-      ? JSON.parse(row.shipping_options) 
+
+    const shipping = typeof row.shipping_options === 'string'
+      ? JSON.parse(row.shipping_options)
       : row.shipping_options;
-    
-    const location = typeof row.location === 'string' 
-      ? JSON.parse(row.location) 
+
+    const location = typeof row.location === 'string'
+      ? JSON.parse(row.location)
       : row.location;
 
     return {
@@ -633,8 +633,8 @@ export class MarketplaceEnhancedModel {
 
   private static mapToTransaction(row: any): Transaction {
     const fees = typeof row.fees === 'string' ? JSON.parse(row.fees) : row.fees;
-    const shippingAddress = typeof row.shipping_address === 'string' 
-      ? JSON.parse(row.shipping_address) 
+    const shippingAddress = typeof row.shipping_address === 'string'
+      ? JSON.parse(row.shipping_address)
       : row.shipping_address;
 
     return {

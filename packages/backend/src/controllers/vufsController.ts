@@ -59,8 +59,8 @@ export class VUFSController {
         ownerId: req.user.userId,
         category,
         brand,
-        metadata,
-        condition,
+        metadata: metadata as any,
+        condition: { ...(condition as any), defects: (condition as any).defects || [] } as any,
       });
 
       res.status(201).json({

@@ -218,9 +218,8 @@ export class AdvertisingController {
         return;
       }
 
-      const recommendations = await advertisingService.getTargetingRecommendations(
-        userId,
-        campaignType as string
+      const recommendations = await advertisingService.getAdvertisingRecommendations(
+        userId
       );
 
       res.json({
@@ -359,7 +358,7 @@ export class AdvertisingController {
   async getDataIntelligenceDashboard(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       // TODO: Check if user has admin or analytics access
-      const dashboard = await advertisingService.getDataIntelligenceDashboard();
+      const dashboard = await advertisingService.getDataIntelligenceDashboard(req.user!.userId);
 
       res.json({
         success: true,
@@ -403,7 +402,6 @@ export class AdvertisingController {
 
       const campaign = await advertisingService.createVUFSTargetedCampaign(
         userId,
-        targetingCriteria,
         {
           advertiserId: userId,
           campaignName,
@@ -412,6 +410,7 @@ export class AdvertisingController {
           creativeAssets,
           placements: placements || ['feed'],
           schedule,
+          targeting: targetingCriteria,
         }
       );
 

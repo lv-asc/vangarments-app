@@ -12,12 +12,13 @@ import {
   PhotoIcon,
   HeartIcon,
   ShoppingBagIcon,
-  EyeIcon
+  EyeIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import { apiClient } from '@/lib/api';
 
-import { getImageUrl } from '@/utils/imageUrl';
+import { getImageUrl, resetImageCache } from '@/utils/imageUrl';
 import { WardrobeItemCard } from '@/components/wardrobe/WardrobeItemCard';
 
 interface WardrobeItem {
@@ -58,6 +59,7 @@ export default function WardrobePage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   /* REMOVED showAddModal */
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [loadKey, setLoadKey] = useState(Date.now()); // Force re-render on each data load
 
   const [categories, setCategories] = useState<{ value: string; label: string }[]>([
     { value: 'all', label: 'Todas as Peças' }
@@ -67,6 +69,38 @@ export default function WardrobePage() {
     loadCategories();
     loadItems();
   }, [selectedCategory]);
+
+  // Handle bfcache (back-forward cache) restoration and force data refresh
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      // event.persisted is true when page is restored from bfcache
+      if (event.persisted) {
+        console.log('[Wardrobe] Page restored from bfcache, reloading data...');
+        resetImageCache();
+        loadItems();
+      }
+    };
+
+    // Handle visibility changes (tab switching)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // When tab becomes visible, ensure images are fresh
+        resetImageCache();
+        setLoadKey(Date.now());
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Force router refresh on initial mount to bypass Next.js router cache
+    router.refresh();
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const loadCategories = async () => {
     try {
@@ -98,6 +132,8 @@ export default function WardrobePage() {
   };
 
   const loadItems = async () => {
+    // Reset image cache to ensure fresh URLs are generated
+    resetImageCache();
     setLoading(true);
     setError(null);
     try {
@@ -111,6 +147,7 @@ export default function WardrobePage() {
 
       const response = await apiClient.getWardrobeItems(filters);
       setItems(response.items || []);
+      setLoadKey(Date.now()); // Update key to force image re-render
     } catch (err: any) {
       console.error('Error loading wardrobe:', err);
       setError(err.message || 'Falha ao carregar itens do guarda-roupa');
@@ -150,13 +187,23 @@ export default function WardrobePage() {
               <h1 className="text-3xl font-bold text-gray-900">Meu Guarda-roupa</h1>
               <p className="text-gray-600">{items.length} peças catalogadas</p>
             </div>
-            <Button
-              className="flex items-center space-x-2"
-              onClick={() => router.push('/wardrobe/add')}
-            >
-              <PlusIcon className="h-5 w-5" />
-              <span>Adicionar Peça</span>
-            </Button>
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="ghost"
+                onClick={() => router.push('/wardrobe/trash')}
+                className="flex items-center text-gray-500 hover:text-gray-700"
+                title="Lixeira"
+              >
+                <TrashIcon className="h-5 w-5" />
+              </Button>
+              <Button
+                className="flex items-center space-x-2"
+                onClick={() => router.push('/wardrobe/add')}
+              >
+                <PlusIcon className="h-5 w-5" />
+                <span>Adicionar Peça</span>
+              </Button>
+            </div>
           </div>
 
           {/* Search and Filters */}
@@ -229,7 +276,8 @@ export default function WardrobePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
               {items.map((item) => (
                 <WardrobeItemCard
-                  key={item.id}
+                  key={`${item.id}-${loadKey}`}
+                  refreshKey={loadKey}
                   item={{
                     id: item.id,
                     name: item.metadata.name,
@@ -249,9 +297,9 @@ export default function WardrobePage() {
                   }}
                   onView={handleViewItem}
                   onEdit={() => router.push(`/wardrobe/${item.id}/edit`)}
-                  onDelete={() => {}} 
+                  onDelete={() => { }}
                   onToggleFavorite={toggleFavorite}
-                  onToggleForSale={() => {}} 
+                  onToggleForSale={() => { }}
                 />
               ))}
             </div>

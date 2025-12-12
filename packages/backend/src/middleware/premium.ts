@@ -17,7 +17,7 @@ export const requirePremiumFeature = (feature: string) => {
       }
 
       const hasAccess = await subscriptionService.hasFeatureAccess(req.user.id, feature as any);
-      
+
       if (!hasAccess) {
         return res.status(403).json({
           success: false,
@@ -65,7 +65,7 @@ export const addSubscriptionInfo = async (req: Request, res: Response, next: Nex
   try {
     if (req.user?.id) {
       const subscription = await subscriptionService.getUserActiveSubscription(req.user.id);
-      req.user.subscription = subscription;
+      (req.user as any).subscription = subscription;
     }
     next();
   } catch (error) {

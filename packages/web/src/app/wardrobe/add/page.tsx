@@ -8,11 +8,11 @@ import { useAuth } from '@/contexts/AuthWrapper';
 import { apiClient } from '@/lib/api';
 import {
     PhotoIcon,
-    TagIcon,
-    SparklesIcon,
-    ArchiveBoxIcon,
-    ChevronLeftIcon
+    ChevronLeftIcon,
+    XMarkIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import SearchableCombobox from '@/components/ui/Combobox';
 import {
     DndContext,
     closestCenter,
@@ -53,7 +53,7 @@ interface ImageItem {
     label: string;
 }
 
-function SortablePhoto({ item, index, onRemove, onLabelChange }: { item: ImageItem; index: number; onRemove: (index: number) => void; onLabelChange: (index: number, label: string) => void }) {
+function SortablePhoto({ item, index, onRemove, onLabelChange, disabled = false }: { item: ImageItem; index: number; onRemove: (index: number) => void; onLabelChange: (index: number, label: string) => void, disabled?: boolean }) {
     const {
         attributes,
         listeners,
@@ -61,7 +61,7 @@ function SortablePhoto({ item, index, onRemove, onLabelChange }: { item: ImageIt
         transform,
         transition,
         isDragging
-    } = useSortable({ id: item.id });
+    } = useSortable({ id: item.id, disabled });
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -82,37 +82,34 @@ function SortablePhoto({ item, index, onRemove, onLabelChange }: { item: ImageIt
                 alt={`Preview ${index}`}
                 className="w-full h-full object-cover rounded-lg border border-gray-200"
             />
-            {/* Remove button - stop propagation to prevent drag start */}
-            <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onRemove(index);
-                }}
-                className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
-            >
-                <span className="sr-only">Remove</span>
-                <svg className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
 
-            {/* Label Selector - Stop propagation to allow interaction */}
+            {!disabled && (
+                <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove(index);
+                    }}
+                    className="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                >
+                    <span className="sr-only">Remove</span>
+                    <XMarkIcon className="h-4 w-4 text-gray-600" />
+                </button>
+            )}
+
             <div
                 className="absolute bottom-2 left-2 right-2"
                 onPointerDown={(e) => e.stopPropagation()}
             >
-                <select
+                <SearchableCombobox
                     value={item.label}
-                    onChange={(e) => onLabelChange(index, e.target.value)}
-                    className="w-full bg-black/70 text-white text-xs px-2 py-1 rounded border-none focus:ring-1 focus:ring-pink-500 cursor-pointer appearance-none"
-                    style={{ textAlignLast: 'center' }}
-                >
-                    {IMAGE_LABELS.map(label => (
-                        <option key={label} value={label} className="bg-white text-black text-left">{label}</option>
-                    ))}
-                </select>
+                    onChange={(val) => onLabelChange(index, val || '')}
+                    disabled={disabled}
+                    options={IMAGE_LABELS.map(label => ({ id: label, name: label, value: label }))}
+                    placeholder={item.label || "Select Label"}
+                    className="w-full min-w-[120px]"
+                />
             </div>
         </div>
     );
@@ -121,68 +118,113 @@ function SortablePhoto({ item, index, onRemove, onLabelChange }: { item: ImageIt
 export default function AddWardrobeItemPage() {
     const router = useRouter();
     const { isAuthenticated } = useAuth();
+
+    // UI State
+    const [step, setStep] = useState<1 | 2>(1);
     const [loading, setLoading] = useState(false);
-    const [analyzing, setAnalyzing] = useState(false);
+    const [processing, setProcessing] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
-    // Unified state for items (handling file, preview, and label together)
+    // Data State
     const [items, setItems] = useState<ImageItem[]>([]);
-
     const [formData, setFormData] = useState({
+        name: '',
         category: '',
         brand: '',
         color: '',
         material: '',
+        pattern: '',
+        fit: '',
         size: '',
         condition: 'new_with_tags',
-        description: ''
+        description: '',
+        customAttributes: {} as Record<string, string>
     });
 
+    // VUFS Options State
     const [vufsOptions, setVufsOptions] = useState<{
         categories: any[];
         brands: any[];
         colors: any[];
         materials: any[];
+        patterns: any[];
+        fits: any[];
+        sizes: any[];
+        customTypes: any[];
+        customValues: Record<string, any[]>;
     }>({
         categories: [],
         brands: [],
         colors: [],
-        materials: []
+        materials: [],
+        patterns: [],
+        fits: [],
+        sizes: [],
+        customTypes: [],
+        customValues: {}
     });
 
+    // Fetch VUFS Data
     useEffect(() => {
         const loadOptions = async () => {
+            if (!isAuthenticated) return;
             try {
-                // There isn't a direct "getOptions" helper exposed in ApiClient as one method yet,
-                // but the Controller has getVUFSOptions.
-                // Let's assume we can hit the endpoint or use defaults.
-                // Wait, I didn't see getVUFSOptions in api.ts?
-                // Step 48 showed api.ts. It has getVUFSCategories, getVUFSBrands etc.
-                // It does NOT have getVUFSOptions exposed as a single call.
-                // BUT `wardrobeController.getVUFSOptions` exists on backend at some route?
-                // Let's check `routes/wardrobe.ts`. If not exposed, I should use individual calls.
+                // Initialize defaults just in case
+                const defaults: any = { categories: [], brands: [], colors: [], materials: [], patterns: [], fits: [], sizes: [], customTypes: [], customValues: {} };
 
-                const [categories, brands, colors, materials] = await Promise.all([
-                    apiClient.getVUFSCategories(),
-                    apiClient.getVUFSBrands(),
-                    apiClient.getVUFSColors(),
-                    apiClient.getVUFSMaterials()
+                const [
+                    categories,
+                    brands,
+                    colors,
+                    materials,
+                    patterns,
+                    fits,
+                    sizes,
+                    customTypes
+                ] = await Promise.all([
+                    apiClient.getVUFSCategories().catch(e => []),
+                    apiClient.getVUFSBrands().catch(e => []),
+                    apiClient.getVUFSColors().catch(e => []),
+                    apiClient.getVUFSMaterials().catch(e => []),
+                    apiClient.getVUFSPatterns().catch(e => []),
+                    apiClient.getVUFSFits().catch(e => []),
+                    apiClient.getVUFSSizes().catch(e => []),
+                    apiClient.getVUFSAttributeTypes().catch(e => [])
                 ]);
 
+                // Fetch values for custom types
+                const customValuesMap: Record<string, any[]> = {};
+                if (Array.isArray(customTypes)) {
+                    await Promise.all(customTypes.map(async (type: any) => {
+                        try {
+                            const values = await apiClient.getVUFSAttributeValues(type.slug);
+                            customValuesMap[type.slug] = Array.isArray(values) ? values : (values as any)?.values || [];
+                        } catch (e) {
+                            console.error(`Failed to fetch values for ${type.name}`, e);
+                        }
+                    }));
+                }
+
                 setVufsOptions({
-                    categories: categories as any[],
-                    brands: brands as any[],
-                    colors: colors as any[],
-                    materials: materials as any[]
+                    categories: Array.isArray(categories) ? categories : defaults.categories,
+                    brands: Array.isArray(brands) ? brands : defaults.brands,
+                    colors: Array.isArray(colors) ? colors : defaults.colors,
+                    materials: Array.isArray(materials) ? materials : defaults.materials,
+                    patterns: Array.isArray(patterns) ? patterns : defaults.patterns,
+                    fits: Array.isArray(fits) ? fits : defaults.fits,
+                    sizes: Array.isArray(sizes) ? sizes : defaults.sizes,
+                    customTypes: Array.isArray(customTypes) ? customTypes : defaults.customTypes,
+                    customValues: customValuesMap
                 });
             } catch (error) {
                 console.error('Failed to load VUFS options', error);
             }
         };
-        if (isAuthenticated) {
-            loadOptions();
-        }
+        loadOptions();
     }, [isAuthenticated]);
 
+    // DnD Sensors
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -192,7 +234,6 @@ export default function AddWardrobeItemPage() {
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-
         if (over && active.id !== over.id) {
             setItems((items) => {
                 const oldIndex = items.findIndex(item => item.id === active.id);
@@ -202,83 +243,41 @@ export default function AddWardrobeItemPage() {
         }
     };
 
-    const handleLabelChange = (index: number, newLabel: string) => {
-        setItems(prev => {
-            const newItems = [...prev];
-            newItems[index] = { ...newItems[index], label: newLabel };
-            return newItems;
-        });
-    };
-
-    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Image Handlers
+    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const newFiles = Array.from(e.target.files);
-
-            // Create initial items with pending labels
-            const newItems: ImageItem[] = newFiles.map((file, i) => ({
-                id: URL.createObjectURL(file), // use as unique ID
-                file: file,
-                // Default first new item to Front if list was empty, else Pending/Analyzing
-                label: (items.length === 0 && i === 0) ? 'Front' : 'Analyzing...'
-            }));
-
-            setItems(prev => [...prev, ...newItems]);
-
-            // Trigger parallel analysis
-            setAnalyzing(true);
-            try {
-                // If it's the very first image overall, we also want to populate the form
-                const isFirstUpload = items.length === 0;
-
-                await Promise.all(newItems.map(async (item, index) => {
-                    try {
-                        const result = await apiClient.analyzeImage(item.file);
-
-                        // Update this item's label based on AI result
-                        setItems(currentItems => {
-                            return currentItems.map(i => {
-                                if (i.id === item.id) {
-                                    // Use AI detected label, fallback to 'Other' or keep 'Front' if it was first
-                                    let detectedLabel = result?.analysis?.detectedViewpoint || 'Other';
-
-                                    // Heuristic: If it was the FIRST image and AI thinks it is Front or just generic, keep it Front.
-                                    // If AI strongly thinks it is a Tag, overwrite it.
-                                    if (isFirstUpload && index === 0 && detectedLabel === 'Front') {
-                                        detectedLabel = 'Front';
-                                    }
-
-                                    return { ...i, label: detectedLabel };
-                                }
-                                return i;
-                            });
-                        });
-
-                        // If this is the primary image (first of the batch when list was empty), fill form
-                        if (isFirstUpload && index === 0 && result && result.analysis) {
-                            const { category, brand, metadata, condition } = result.analysis;
-                            setFormData(prev => ({
-                                ...prev,
-                                category: category?.whiteSubcategory || category?.blueSubcategory || prev.category,
-                                brand: brand?.brand || prev.brand,
-                                color: metadata?.colors?.[0]?.primary || prev.color,
-                                material: metadata?.composition?.[0]?.material || prev.material,
-                                condition: condition?.status?.toLowerCase().replace(/ /g, '_') || prev.condition,
-                                description: prev.description || `Generated from ${category?.whiteSubcategory || 'item'}`,
-                            }));
-                        }
-                    } catch (err) {
-                        console.error('Analysis failed for image', item.id, err);
-                        // Update label to default on failure
-                        setItems(currentItems => currentItems.map(i =>
-                            i.id === item.id ? { ...i, label: 'Front' } : i
-                        ));
-                    }
-                }));
-            } finally {
-                setAnalyzing(false);
-            }
+            addImages(Array.from(e.target.files));
         }
     };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+            addImages(files);
+        }
+    };
+
+    const addImages = (files: File[]) => {
+        const newItems: ImageItem[] = files.map((file) => ({
+            id: URL.createObjectURL(file),
+            file: file,
+            label: '' // Don't assign labels until processing
+        }));
+        setItems(prev => [...prev, ...newItems]);
+    };
+
+    // Auto-process images when they are added
+    useEffect(() => {
+        if (items.length > 0 && !processing && step === 1) {
+            // Check if any items have empty labels (unprocessed)
+            const hasUnprocessed = items.some(item => item.label === '');
+            if (hasUnprocessed) {
+                processImagesAuto(items);
+            }
+        }
+    }, [items.length]); // Only trigger when item count changes
 
     const removeImage = (index: number) => {
         setItems(prev => {
@@ -294,78 +293,139 @@ export default function AddWardrobeItemPage() {
         e.stopPropagation();
     };
 
-    const handleDrop = async (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
+    // PROCESS IMAGES (Step 1 -> Step 2)
+    // Auto-processing version that accepts items as param
+    const processImagesAuto = async (imagesToProcess: ImageItem[]) => {
+        if (imagesToProcess.length === 0) return;
+        setProcessing(true);
+        setProgress(0);
 
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const newFiles = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-            if (newFiles.length === 0) return;
+        console.log('=== Starting Auto Image Processing ===');
+        console.log('Number of images:', imagesToProcess.length);
 
-            const newItems: ImageItem[] = newFiles.map((file, i) => ({
-                id: URL.createObjectURL(file),
-                file: file,
-                label: (items.length === 0 && i === 0) ? 'Front' : 'Analyzing...'
+        try {
+            const total = imagesToProcess.length;
+            let completedCount = 0;
+
+            const results = await Promise.all(imagesToProcess.map(async (item, index) => {
+                try {
+                    console.log(`[${index + 1}/${total}] Analyzing image:`, item.file.name);
+                    const result = await apiClient.analyzeImage(item.file);
+                    console.log(`[${index + 1}/${total}] API Response:`, JSON.stringify(result, null, 2));
+
+                    // Increment progress
+                    completedCount++;
+                    setProgress((completedCount / total) * 100);
+
+                    return { item, analysis: result?.analysis, index };
+                } catch (err) {
+                    console.error(`[${index + 1}/${total}] Analysis failed:`, err);
+                    completedCount++;
+                    setProgress((completedCount / total) * 100);
+                    return { item, analysis: null, index };
+                }
             }));
 
-            setItems(prev => [...prev, ...newItems]);
+            // Finish progress
+            setProgress(100);
+            console.log('=== All Analysis Complete ===');
+            console.log('Results:', results);
 
-            setAnalyzing(true);
-            try {
-                const isFirstUpload = items.length === 0;
-                await Promise.all(newItems.map(async (item, index) => {
-                    try {
-                        const result = await apiClient.analyzeImage(item.file);
-                        setItems(currentItems => {
-                            return currentItems.map(i => {
-                                if (i.id === item.id) {
-                                    let detectedLabel = result?.analysis?.detectedViewpoint || 'Other';
-                                    if (isFirstUpload && index === 0 && detectedLabel === 'Front') detectedLabel = 'Front';
-                                    return { ...i, label: detectedLabel };
-                                }
-                                return i;
-                            });
-                        });
+            // Consolidate Data
+            const newFormData = { ...formData };
+            let detectedLabels: Record<number, string> = {};
 
-                        if (isFirstUpload && index === 0 && result && result.analysis) {
-                            const { category, brand, metadata, condition } = result.analysis;
-                            setFormData(prev => ({
-                                ...prev,
-                                category: category?.whiteSubcategory || category?.blueSubcategory || prev.category,
-                                brand: brand?.brand || prev.brand,
-                                color: metadata?.colors?.[0]?.primary || prev.color,
-                                material: metadata?.composition?.[0]?.material || prev.material,
-                                condition: condition?.status?.toLowerCase().replace(/ /g, '_') || prev.condition,
-                                description: prev.description || `Generated from ${category?.whiteSubcategory || 'item'}`,
-                            }));
-                        }
-                    } catch (err) {
-                        console.error(err);
-                        setItems(currentItems => currentItems.map(i => i.id === item.id ? { ...i, label: 'Front' } : i));
-                    }
-                }));
-            } finally {
-                setAnalyzing(false);
+            results.forEach(({ item, analysis, index }) => {
+                console.log(`Processing result for image ${index}:`, analysis);
+                if (!analysis) {
+                    console.log(`  - No analysis for image ${index}`);
+                    return;
+                }
+
+                // Detect Label
+                if (analysis.detectedViewpoint) {
+                    console.log(`  - Detected viewpoint: ${analysis.detectedViewpoint}`);
+                    detectedLabels[index] = analysis.detectedViewpoint;
+                }
+
+                // Merge Data (Last non-null write wins scheme)
+                if (analysis.category?.whiteSubcategory) {
+                    console.log(`  - Category: ${analysis.category.whiteSubcategory}`);
+                    newFormData.category = analysis.category.whiteSubcategory;
+                }
+                if (analysis.brand?.brand) {
+                    console.log(`  - Brand: ${analysis.brand.brand}`);
+                    newFormData.brand = analysis.brand.brand;
+                }
+                if (analysis.metadata?.colors?.[0]?.primary) {
+                    console.log(`  - Color: ${analysis.metadata.colors[0].primary}`);
+                    newFormData.color = analysis.metadata.colors[0].primary;
+                }
+                if (analysis.metadata?.composition?.[0]?.material) {
+                    console.log(`  - Material: ${analysis.metadata.composition[0].material}`);
+                    newFormData.material = analysis.metadata.composition[0].material;
+                }
+                if (analysis.condition?.status) {
+                    console.log(`  - Condition: ${analysis.condition.status}`);
+                    newFormData.condition = analysis.condition.status.toLowerCase().replace(/ /g, '_');
+                }
+
+                if (analysis.metadata?.size) {
+                    console.log(`  - Size: ${analysis.metadata.size}`);
+                    newFormData.size = analysis.metadata.size;
+                }
+                if (analysis.metadata?.pattern) {
+                    console.log(`  - Pattern: ${analysis.metadata.pattern}`);
+                    newFormData.pattern = analysis.metadata.pattern;
+                }
+                if (analysis.metadata?.fit) {
+                    console.log(`  - Fit: ${analysis.metadata.fit}`);
+                    newFormData.fit = analysis.metadata.fit;
+                }
+            });
+
+            console.log('Detected labels:', detectedLabels);
+            console.log('New form data:', newFormData);
+
+            // Update item labels based on detection
+            // If no label was detected, set 'Other' for non-first, 'Front' for first
+            setItems(prev => prev.map((item, idx) => ({
+                ...item,
+                label: detectedLabels[idx] || (idx === 0 ? 'Front' : 'Other')
+            })));
+
+            // Set Form Data
+            // Auto-generate name if empty
+            if (!newFormData.name) {
+                newFormData.name = `${newFormData.color || ''} ${newFormData.category || 'Item'} ${newFormData.brand ? `from ${newFormData.brand}` : ''}`.trim();
             }
+
+            console.log('Final form data being set:', newFormData);
+            setFormData(newFormData);
+
+            // Artificial delay to show 100%
+            setTimeout(() => {
+                setProcessing(false);
+                setStep(2);
+            }, 500);
+
+        } catch (err) {
+            console.error('Process images error:', err);
+            setProcessing(false);
+            alert("Error processing images. Please try again.");
         }
     };
 
-    const [submitError, setSubmitError] = useState<string | null>(null);
-
+    // Final Submit
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitError(null);
-        if (items.length === 0) return;
-
         setLoading(true);
+
         try {
             const submissionData = new FormData();
+            items.forEach((item) => submissionData.append('images', item.file));
 
-            items.forEach((item) => {
-                submissionData.append('images', item.file);
-            });
-
-            // Map condition to valid backend values: 'new', 'dswt', 'never_used', 'used'
             const conditionMapping: Record<string, string> = {
                 'new_with_tags': 'dswt',
                 'new_without_tags': 'never_used',
@@ -375,29 +435,31 @@ export default function AddWardrobeItemPage() {
                 'poor': 'used'
             };
 
-            const mappedCondition = conditionMapping[formData.condition] || 'used';
-
             const itemPayload = {
                 category: {
-                    page: formData.category,
+                    page: formData.category, // Heuristic mapping might be needed if Page != Subcat
+                    // Ideally we map 'category' to core Vangarments structure.
+                    // Assuming value equals subcategory for now.
                     blueSubcategory: formData.category,
                     whiteSubcategory: formData.category,
                     graySubcategory: 'Casual'
                 },
                 brand: {
-                    brand: formData.brand || 'Generic',
-                    line: null,
-                    collaboration: null
+                    brand: formData.brand || 'Generic'
                 },
                 metadata: {
+                    name: formData.name,
                     colors: [{ primary: formData.color || 'Black', undertones: [] }],
                     composition: formData.material ? [{ material: formData.material, percentage: 100 }] : [],
                     size: formData.size || 'One Size',
+                    pattern: formData.pattern,
+                    fit: formData.fit,
                     description: formData.description || '',
+                    customAttributes: formData.customAttributes,
                     careInstructions: []
                 },
                 condition: {
-                    status: mappedCondition,
+                    status: conditionMapping[formData.condition] || 'used',
                     defects: []
                 },
                 ownership: {
@@ -407,17 +469,24 @@ export default function AddWardrobeItemPage() {
                 useAI: true
             };
 
-            if (['Shoes', 'Accessories'].includes(formData.category)) {
-                itemPayload.category.page = formData.category === 'Shoes' ? 'Footwear' : 'Accessories';
+            // Fix for Category Page mapping
+            const shoes = vufsOptions.categories.some(c => c.name === formData.category && c.parentId === 'Footwear'); // This check is hard without full tree
+            // Simple check
+            if (['Shoes', 'Sneakers', 'Boots', 'Sandals'].includes(formData.category)) {
+                itemPayload.category.page = 'Footwear';
+            } else if (['Bag', 'Jewelry', 'Hat'].includes(formData.category)) {
+                itemPayload.category.page = 'Accessories';
+            } else {
+                itemPayload.category.page = 'Apparel';
             }
 
             submissionData.append('data', JSON.stringify(itemPayload));
-
             await apiClient.createWardrobeItemMultipart(submissionData);
             router.push('/wardrobe');
+
         } catch (error: any) {
             console.error('Failed to create item:', error);
-            setSubmitError(`Failed to add item: ${error.message || 'Please check your inputs and try again.'}`);
+            setSubmitError(error.message || 'Failed to add item.');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } finally {
             setLoading(false);
@@ -429,262 +498,355 @@ export default function AddWardrobeItemPage() {
             <Header />
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-6">
+                <div className="mb-6 flex items-center justify-between">
                     <button
-                        onClick={() => router.back()}
+                        onClick={() => step === 1 ? router.back() : setStep(1)}
                         className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
                     >
                         <ChevronLeftIcon className="h-5 w-5 mr-1" />
-                        Back to Wardrobe
+                        {step === 1 ? 'Back to Wardrobe' : 'Back to Upload'}
                     </button>
+                    <div className="text-sm font-medium text-gray-500">
+                        Step {step} of 2: {step === 1 ? 'Upload & Analyze' : 'Review & Edit'}
+                    </div>
                 </div>
 
                 {submitError && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 shadow-sm animate-in fade-in slide-in-from-top-2">
-                        <div className="flex items-center">
-                            <div className="flex items-center">
-                                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <circle cx="12" cy="12" r="10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    <path d="M12 8v4m0 4h.01" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                                <span className="font-medium">Error: </span>
-                                <span className="ml-1">{submitError}</span>
-                            </div>
-                        </div>
+                    <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">
+                        {submitError}
                     </div>
                 )}
 
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Add New Item</h1>
-                            <p className="text-gray-500 mt-1">Upload photos and details about your item</p>
-                        </div>
-                        {analyzing && (
-                            <div className="flex items-center text-pink-600 bg-pink-50 px-3 py-1 rounded-full text-sm font-medium animate-pulse">
-                                <SparklesIcon className="h-4 w-4 mr-1.5" />
-                                AI Analyzing...
-                            </div>
-                        )}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Header */}
+                    <div className="p-6 border-b border-gray-200">
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            {step === 1 ? 'Upload Photos' : 'Review Item Details'}
+                        </h1>
+                        <p className="text-gray-500 mt-1">
+                            {step === 1
+                                ? 'Upload photos of your item. We will analyze them to fill in the details.'
+                                : 'Check the details below and fill in any missing information.'}
+                        </p>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Image Upload Section */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Item Photos {items.length > 0 && `(${items.length})`}
-                            </label>
-
-                            {/* Main Drop Zone */}
-                            {(items.length === 0) ? (
+                    <div className="p-6">
+                        {/* STEP 1: UPLOAD */}
+                        {step === 1 && (
+                            <div className="space-y-8">
+                                {/* Dropzone */}
                                 <div
-                                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors border-gray-300 hover:border-pink-500`}
+                                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${items.length === 0 ? 'py-16' : 'py-8'
+                                        } border-gray-300 hover:border-blue-500 hover:bg-gray-50`}
                                     onDragOver={handleDragOver}
                                     onDrop={handleDrop}
                                 >
-                                    <div className="space-y-4">
-                                        <div className="mx-auto h-12 w-12 text-gray-400">
-                                            <PhotoIcon />
+                                    {items.length === 0 ? (
+                                        <div className="space-y-4">
+                                            <div className="mx-auto h-16 w-16 text-gray-400 bg-gray-100 rounded-full p-3">
+                                                <PhotoIcon />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="file-upload" className="cursor-pointer text-blue-600 font-medium hover:text-blue-500">
+                                                    <span>Upload files</span>
+                                                    <input id="file-upload" type="file" className="sr-only" accept="image/*" multiple onChange={handleImageSelect} />
+                                                </label>
+                                                <p className="inline pl-1 text-gray-500">or drag and drop</p>
+                                            </div>
+                                            <p className="text-xs text-gray-400">PNG, JPG up to 10MB</p>
                                         </div>
-                                        <div className="text-sm text-gray-600">
-                                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-pink-600 hover:text-pink-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-pink-500">
-                                                <span>Upload files</span>
-                                                <input id="file-upload" name="file-upload" type="file" className="sr-only" accept="image/*" multiple onChange={handleImageSelect} />
-                                            </label>
-                                            <p className="pl-1">or drag and drop</p>
-                                        </div>
-                                        <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {/* @ts-ignore - dnd-kit React 18 type mismatch compatibility */}
-                                    <DndContext
-                                        sensors={sensors}
-                                        collisionDetection={closestCenter}
-                                        onDragEnd={handleDragEnd}
-                                    >
-                                        <SortableContext
-                                            items={items.map(i => i.id)}
-                                            strategy={rectSortingStrategy}
-                                        >
-                                            <div className="grid grid-cols-2 gap-4">
-                                                {items.map((item, index) => (
-                                                    <SortablePhoto
-                                                        key={item.id}
-                                                        item={item}
-                                                        index={index}
-                                                        onRemove={removeImage}
-                                                        onLabelChange={handleLabelChange}
-                                                    />
-                                                ))}
-
-                                                {/* Mini add button if less than max images */}
-                                                {items.length < 10 && (
-                                                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg aspect-square cursor-pointer hover:border-pink-500 transition-colors">
+                                    ) : (
+                                        // @ts-ignore
+                                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                            {/* @ts-ignore */}
+                                            <SortableContext items={items} strategy={rectSortingStrategy}>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                                    {items.map((item, index) => (
+                                                        <SortablePhoto
+                                                            key={item.id}
+                                                            item={item}
+                                                            index={index}
+                                                            onRemove={removeImage}
+                                                            onLabelChange={(idx, l) => {
+                                                                setItems(prev => {
+                                                                    const n = [...prev];
+                                                                    n[idx].label = l;
+                                                                    return n;
+                                                                });
+                                                            }}
+                                                        />
+                                                    ))}
+                                                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg aspect-square cursor-pointer hover:border-blue-500 hover:bg-white transition-colors">
                                                         <PhotoIcon className="h-8 w-8 text-gray-400" />
                                                         <span className="text-xs text-gray-500 mt-2">Add more</span>
                                                         <input type="file" className="sr-only" accept="image/*" multiple onChange={handleImageSelect} />
                                                     </label>
-                                                )}
+                                                </div>
+                                            </SortableContext>
+                                        </DndContext>
+                                    )}
+                                </div>
+
+                                {/* Progress Bar */}
+                                {processing && (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm text-gray-600">
+                                            <span>Analyzing images...</span>
+                                            <span>{Math.round(progress)}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                                            <div
+                                                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                                                style={{ width: `${progress}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Action Button - Changes based on processing state */}
+                                <div className="flex justify-end pt-4">
+                                    <button
+                                        onClick={() => {
+                                            if (!processing && items.length > 0) {
+                                                setStep(2);
+                                            }
+                                        }}
+                                        disabled={items.length === 0 || processing}
+                                        className={`
+                                            w-full sm:w-auto px-6 py-3 rounded-lg font-medium text-sm
+                                            transition-all duration-300 ease-out
+                                            flex items-center justify-center gap-2
+                                            ${processing
+                                                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                                                : items.length === 0
+                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                    : 'bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-600 hover:to-purple-700 hover:scale-105 hover:shadow-lg active:scale-95'
+                                            }
+                                        `}
+                                    >
+                                        {processing ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Processing...
+                                            </>
+                                        ) : items.length === 0 ? (
+                                            'Add Images'
+                                        ) : (
+                                            <>
+                                                Next
+                                                <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* STEP 2: DETAILS FORM */}
+                        {step === 2 && (
+                            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                {/* Left Column: Images Preview (Read Only) */}
+                                <div className="lg:col-span-1 space-y-4">
+                                    <h3 className="text-sm font-medium text-gray-700">Images</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {items.map((item, index) => (
+                                            <div key={item.id} className="relative aspect-square">
+                                                <img src={item.id} className="w-full h-full object-cover rounded-lg" />
+                                                <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                                    {item.label}
+                                                </div>
                                             </div>
-                                        </SortableContext>
-                                    </DndContext>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Details Section */}
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Category
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        list="categories"
-                                        value={formData.category}
-                                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                        placeholder="e.g. Tops, Dresses (Auto-detected)"
-                                    />
-                                    {analyzing && <span className="absolute right-3 top-2.5 h-4 w-4">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-                                    </span>}
-                                </div>
-                                <datalist id="categories">
-                                    {vufsOptions.categories
-                                        .filter(c => c.level === 'blue')
-                                        .map(c => (
-                                            <option key={c.id} value={c.name} />
-                                        ))
-                                    }
-                                </datalist>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Brand
-                                </label>
-                                <input
-                                    type="text"
-                                    list="brands"
-                                    value={formData.brand}
-                                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                    placeholder="e.g. Zara, Nike"
-                                />
-                                <datalist id="brands">
-                                    {vufsOptions.brands.map(b => (
-                                        <option key={b.id} value={b.name} />
-                                    ))}
-                                </datalist>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Size
-                                    </label>
-                                    <input
-                                        type="text"
-                                        list="sizes"
-                                        value={formData.size}
-                                        onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                        placeholder="e.g. M, 38"
-                                    />
-                                    <datalist id="sizes">
-                                    </datalist>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Color
-                                    </label>
-                                    <input
-                                        type="text"
-                                        list="colors"
-                                        value={formData.color}
-                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                        placeholder="e.g. Black"
-                                    />
-                                    <datalist id="colors">
-                                        {vufsOptions.colors.map(c => (
-                                            <option key={c.id} value={c.name} />
                                         ))}
-                                    </datalist>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep(1)}
+                                        disabled={loading}
+                                        className="text-sm text-blue-600 hover:text-blue-800 underline"
+                                    >
+                                        Edit Images
+                                    </button>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Material
-                                </label>
-                                <input
-                                    type="text"
-                                    list="materials"
-                                    value={formData.material}
-                                    onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                    placeholder="e.g. Cotton"
-                                />
-                                <datalist id="materials">
-                                    {vufsOptions.materials.map(m => (
-                                        <option key={m.id} value={m.name} />
-                                    ))}
-                                </datalist>
-                            </div>
+                                {/* Right Column: Fields */}
+                                <div className="lg:col-span-2 space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                                        <input
+                                            type="text"
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="e.g. Leather Jacket"
+                                            required
+                                        />
+                                    </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Condition
-                                </label>
-                                <select
-                                    value={formData.condition}
-                                    onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                >
-                                    <option value="new_with_tags">New with tags</option>
-                                    <option value="new_without_tags">New without tags</option>
-                                    <option value="excellent">Excellent used condition</option>
-                                    <option value="good">Good used condition</option>
-                                    <option value="fair">Fair aspect</option>
-                                </select>
-                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Category */}
+                                        <div>
+                                            <SearchableCombobox
+                                                value={formData.category}
+                                                onChange={(val: string | null) => setFormData({ ...formData, category: val || '' })}
+                                                options={vufsOptions.categories
+                                                    .filter(c => c.level === 'page' || c.level === 'blue')
+                                                    .map(c => ({ id: c.id || c.name, name: c.name }))
+                                                }
+                                                placeholder="Select Category"
+                                            />
+                                        </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Description
-                                </label>
-                                <textarea
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                                    rows={3}
-                                    placeholder="Add any extra details..."
-                                />
-                            </div>
+                                        {/* Brand */}
+                                        <div>
+                                            <SearchableCombobox
+                                                value={formData.brand}
+                                                onChange={(val: string | null) => setFormData({ ...formData, brand: val || '' })}
+                                                options={[
+                                                    { id: 'Generic', name: 'Generic' },
+                                                    ...vufsOptions.brands.map(b => ({ id: b.id || b.name, name: b.name }))
+                                                ]}
+                                                placeholder="Select Brand"
+                                                freeSolo
+                                            />
+                                        </div>
 
-                            <div className="pt-4 flex justify-end space-x-3">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => router.back()}
-                                    disabled={loading}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={loading || items.length === 0}
-                                >
-                                    {loading ? 'Adding...' : 'Add to Wardrobe'}
-                                </Button>
-                            </div>
-                        </div>
-                    </form>
+                                        {/* Color */}
+                                        <div>
+                                            <SearchableCombobox
+                                                value={formData.color}
+                                                onChange={(val: string | null) => setFormData({ ...formData, color: val || '' })}
+                                                options={vufsOptions.colors.map(c => ({ id: c.id || c.name, name: c.name }))}
+                                                placeholder="Select Color"
+                                            />
+                                        </div>
+
+                                        {/* Material */}
+                                        <div>
+                                            <SearchableCombobox
+                                                value={formData.material}
+                                                onChange={(val: string | null) => setFormData({ ...formData, material: val || '' })}
+                                                options={vufsOptions.materials.map(m => ({ id: m.id || m.name, name: m.name }))}
+                                                placeholder="Select Material"
+                                            />
+                                        </div>
+
+                                        {/* Pattern */}
+                                        <div>
+                                            <SearchableCombobox
+                                                value={formData.pattern}
+                                                onChange={(val: string | null) => setFormData({ ...formData, pattern: val || '' })}
+                                                options={vufsOptions.patterns.map(p => ({ id: p.id || p.name, name: p.name }))}
+                                                placeholder="Select Pattern"
+                                            />
+                                        </div>
+
+                                        {/* Fit */}
+                                        <div>
+                                            <SearchableCombobox
+                                                value={formData.fit}
+                                                onChange={(val: string | null) => setFormData({ ...formData, fit: val || '' })}
+                                                options={vufsOptions.fits.map(f => ({ id: f.id || f.name, name: f.name }))}
+                                                placeholder="Select Fit"
+                                            />
+                                        </div>
+
+                                        {/* Size */}
+                                        <div>
+                                            <SearchableCombobox
+                                                value={formData.size}
+                                                onChange={(val: string | null) => setFormData({ ...formData, size: val || '' })}
+                                                options={vufsOptions.sizes.map(s => ({ id: s.id || s.name, name: s.name }))}
+                                                placeholder="Select Size"
+                                                freeSolo
+                                            />
+                                        </div>
+
+                                        {/* Condition */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+                                            <select
+                                                value={formData.condition}
+                                                onChange={e => setFormData({ ...formData, condition: e.target.value })}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                <option value="new_with_tags">New with tags</option>
+                                                <option value="new_without_tags">New without tags</option>
+                                                <option value="excellent">Excellent used condition</option>
+                                                <option value="good">Good used condition</option>
+                                                <option value="fair">Fair aspect</option>
+                                                <option value="poor">Poor aspect</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Custom Attributes */}
+                                    {vufsOptions.customTypes.length > 0 && (
+                                        <div className="pt-4 border-t border-gray-200">
+                                            <h4 className="text-sm font-semibold text-gray-900 mb-4">Additional Details</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                {vufsOptions.customTypes.map((type) => (
+                                                    <div key={type.slug}>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{type.name}</label>
+                                                        <select
+                                                            value={formData.customAttributes[type.slug] || ''}
+                                                            onChange={e => setFormData({
+                                                                ...formData,
+                                                                customAttributes: {
+                                                                    ...formData.customAttributes,
+                                                                    [type.slug]: e.target.value
+                                                                }
+                                                            })}
+                                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        >
+                                                            <option value="">Select {type.name}</option>
+                                                            {vufsOptions.customValues[type.slug]?.map((v: any) => (
+                                                                <option key={v.id || v.name} value={v.name}>{v.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Description */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                        <textarea
+                                            value={formData.description}
+                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            rows={3}
+                                            placeholder="Any other details..."
+                                        />
+                                    </div>
+
+                                    {/* Footer Actions */}
+                                    <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setStep(1)}
+                                            disabled={loading}
+                                        >
+                                            Back
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            disabled={loading}
+                                        >
+                                            {loading ? 'Saving...' : 'Save Wardrobe Item'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </form>
+                        )}
+                    </div>
                 </div>
             </main>
         </div>

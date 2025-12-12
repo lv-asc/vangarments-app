@@ -1,7 +1,7 @@
-// @ts-nocheck
 'use client';
 
 import { useState } from 'react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface VUFSCategoryOption {
   id: string;
@@ -54,6 +54,8 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
   const [activeTab, setActiveTab] = useState<'categories' | 'brands' | 'colors' | 'materials'>('categories');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; item: any | null }>({ isOpen: false, item: null });
+  const [deleting, setDeleting] = useState(false);
 
   const tabs = [
     { id: 'categories', name: 'Categories', count: data.categories?.length || 0 },
@@ -89,19 +91,27 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
     }
   };
 
-  const handleDelete = async (item: any) => {
-    if (confirm(`Are you sure you want to delete "${item.name}"?`)) {
-      try {
-        const updates = [{
-          type: activeTab.slice(0, -1),
-          action: 'delete',
-          data: { id: item.id },
-        }];
+  const handleDeleteClick = (item: any) => {
+    setDeleteConfirm({ isOpen: true, item });
+  };
 
-        await onUpdate({ updates });
-      } catch (error) {
-        console.error('Error deleting item:', error);
-      }
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.item) return;
+
+    setDeleting(true);
+    try {
+      const updates = [{
+        type: activeTab.slice(0, -1),
+        action: 'delete',
+        data: { id: deleteConfirm.item.id },
+      }];
+
+      await onUpdate({ updates });
+    } catch (error) {
+      console.error('Error deleting item:', error);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm({ isOpen: false, item: null });
     }
   };
 
@@ -185,8 +195,8 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
                       </>
                     )}
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${item.isActive
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
                       }`}>
                       {item.isActive ? 'Active' : 'Inactive'}
                     </span>
@@ -200,7 +210,7 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
                     Edit
                   </button>
                   <button
-                    onClick={() => handleDelete(item)}
+                    onClick={() => handleDeleteClick(item)}
                     className="text-red-600 hover:text-red-800 text-sm font-medium"
                   >
                     Delete
@@ -224,8 +234,8 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
             >
               {tab.name}
@@ -252,6 +262,19 @@ export function VUFSStandardsEditor({ data, onUpdate }: VUFSStandardsEditorProps
           }}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, item: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Item"
+        message={`Are you sure you want to delete "${deleteConfirm.item?.name || ''}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 }
@@ -264,7 +287,7 @@ interface VUFSItemFormProps {
 }
 
 function VUFSItemForm({ type, item, onSave, onCancel }: VUFSItemFormProps) {
-  const [formData, setFormData] = useState(() => {
+  const [formData, setFormData] = useState<any>(() => {
     if (item) return { ...item };
 
     const baseData = {
@@ -293,7 +316,7 @@ function VUFSItemForm({ type, item, onSave, onCancel }: VUFSItemFormProps) {
   };
 
   const handleChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
   return (

@@ -22,13 +22,13 @@ export class SocialService {
   /**
    * Create a new social post
    */
-  async createPost(postData: CreateSocialPostData): Promise<SocialPost> {
+  async createPost(postData: CreateSocialPostData): Promise<SocialPost | null> {
     // Validate wardrobe items belong to the user
     if (postData.wardrobeItemIds && postData.wardrobeItemIds.length > 0) {
       const items = await VUFSItemModel.findByOwner(postData.userId);
       const userItemIds = items.map(item => item.id);
       const invalidIds = postData.wardrobeItemIds.filter(id => !userItemIds.includes(id));
-      
+
       if (invalidIds.length > 0) {
         throw new Error('Some wardrobe items do not belong to the user or do not exist');
       }
@@ -47,7 +47,7 @@ export class SocialService {
 
     // Get recent comments
     const { comments } = await PostCommentModel.findByPostId(postId, 5, 0);
-    
+
     // Get recent likes
     const { likes } = await PostLikeModel.findByPostId(postId, 10, 0);
 
@@ -71,11 +71,11 @@ export class SocialService {
       case 'following':
         // Get posts from users the current user follows
         const followingIds = await UserFollowModel.getFollowingIds(userId);
-        
+
         if (followingIds.length === 0) {
           return { posts: [], hasMore: false };
         }
-        
+
         filters.followingIds = followingIds;
         filters.visibility = 'public'; // For now, show public posts from following
         break;
@@ -94,7 +94,7 @@ export class SocialService {
 
     const { posts, total } = await SocialPostModel.findMany(filters, limit + 1, offset);
     const hasMore = posts.length > limit;
-    
+
     if (hasMore) {
       posts.pop(); // Remove the extra post
     }
@@ -112,7 +112,7 @@ export class SocialService {
     limit = 20
   ): Promise<{ posts: SocialPost[]; hasMore: boolean }> {
     const offset = (page - 1) * limit;
-    
+
     const searchFilters: any = {
       visibility: 'public',
       ...filters,
@@ -121,7 +121,7 @@ export class SocialService {
     // For now, we'll implement basic search in the model layer
     // TODO: Implement full-text search with proper indexing
     const { posts } = await SocialPostModel.findMany(searchFilters, limit + 1, offset);
-    
+
     const hasMore = posts.length > limit;
     if (hasMore) {
       posts.pop();
@@ -150,7 +150,7 @@ export class SocialService {
   async getFollowers(userId: string, page = 1, limit = 20): Promise<{ users: UserProfile[]; hasMore: boolean }> {
     const offset = (page - 1) * limit;
     const { users, total } = await UserFollowModel.getFollowers(userId, limit + 1, offset);
-    
+
     const hasMore = users.length > limit;
     if (hasMore) {
       users.pop();
@@ -165,7 +165,7 @@ export class SocialService {
   async getFollowing(userId: string, page = 1, limit = 20): Promise<{ users: UserProfile[]; hasMore: boolean }> {
     const offset = (page - 1) * limit;
     const { users, total } = await UserFollowModel.getFollowing(userId, limit + 1, offset);
-    
+
     const hasMore = users.length > limit;
     if (hasMore) {
       users.pop();
@@ -217,7 +217,7 @@ export class SocialService {
    */
   async deleteComment(commentId: string, userId: string): Promise<boolean> {
     const comment = await PostCommentModel.findById(commentId);
-    
+
     if (!comment) {
       throw new Error('Comment not found');
     }
@@ -249,7 +249,7 @@ export class SocialService {
    */
   async getUserWardrobe(userId: string, category?: string): Promise<any[]> {
     const filters: any = {};
-    
+
     if (category) {
       filters.category = { page: category };
     }

@@ -146,6 +146,18 @@ export function Header() {
                       >
                         {t('myProfile')}
                       </Link>
+                      {user.roles && user.roles.includes('admin') && (
+                        <Link
+                          href="/admin"
+                          onClick={(e) => {
+                            handleNavigation('/admin', e);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
+                        >
+                          Admin Panel
+                        </Link>
+                      )}
                       <Link
                         href="/wardrobe"
                         onClick={(e) => {

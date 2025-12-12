@@ -1,11 +1,11 @@
 import { db } from '../database/connection';
-import { 
-  MarketplaceListing, 
-  Transaction, 
+import {
+  MarketplaceListing,
+  Transaction,
   MarketplaceFilters,
   SellerProfile,
   MarketplaceOffer,
-  WatchlistItem 
+  WatchlistItem
 } from '@vangarments/shared/types/marketplace';
 
 export interface CreateListingData {
@@ -272,7 +272,7 @@ export class MarketplaceModel {
       SET views = views + 1, updated_at = NOW()
       WHERE id = $1
     `;
-    
+
     await db.query(query, [id]);
   }
 
@@ -394,20 +394,20 @@ export class MarketplaceModel {
   static async deleteListing(id: string): Promise<boolean> {
     const query = 'DELETE FROM marketplace_listings WHERE id = $1';
     const result = await db.query(query, [id]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   private static mapToListing(row: any): MarketplaceListing {
-    const condition = typeof row.condition_info === 'string' 
-      ? JSON.parse(row.condition_info) 
+    const condition = typeof row.condition_info === 'string'
+      ? JSON.parse(row.condition_info)
       : row.condition_info;
-    
-    const shipping = typeof row.shipping_options === 'string' 
-      ? JSON.parse(row.shipping_options) 
+
+    const shipping = typeof row.shipping_options === 'string'
+      ? JSON.parse(row.shipping_options)
       : row.shipping_options;
-    
-    const location = typeof row.location === 'string' 
-      ? JSON.parse(row.location) 
+
+    const location = typeof row.location === 'string'
+      ? JSON.parse(row.location)
       : row.location;
 
     return {
@@ -437,8 +437,8 @@ export class MarketplaceModel {
 
   private static mapToTransaction(row: any): Transaction {
     const fees = typeof row.fees === 'string' ? JSON.parse(row.fees) : row.fees;
-    const shippingAddress = typeof row.shipping_address === 'string' 
-      ? JSON.parse(row.shipping_address) 
+    const shippingAddress = typeof row.shipping_address === 'string'
+      ? JSON.parse(row.shipping_address)
       : row.shipping_address;
 
     return {

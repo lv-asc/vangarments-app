@@ -573,7 +573,7 @@ export class WardrobeController {
   }
 
   /**
-   * Delete wardrobe item with permanent effects
+   * Soft-delete wardrobe item (moves to trash)
    */
   static async deleteItem(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
@@ -611,10 +611,7 @@ export class WardrobeController {
         return;
       }
 
-      // Get associated images before deletion
-      const images = await ItemImageModel.findByItemId(id);
-
-      // Delete the item (this will cascade delete images due to foreign key constraint)
+      // Soft-delete the item (moves to trash)
       const deleted = await VUFSItemModel.delete(id);
 
       if (!deleted) {
@@ -627,22 +624,9 @@ export class WardrobeController {
         return;
       }
 
-      // Delete associated image files from local storage
-      for (const image of images) {
-        try {
-          // Extract relative path from URL
-          const urlPath = image.imageUrl.replace('/storage/', '');
-          await LocalStorageService.deleteImage(urlPath);
-        } catch (error) {
-          console.warn(`Failed to delete image file: ${image.imageUrl}`, error);
-          // Continue with deletion even if file cleanup fails
-        }
-      }
-
       res.json({
-        message: 'Wardrobe item deleted successfully',
+        message: 'Item moved to trash. It will be permanently deleted in 14 days.',
         deletedItemId: id,
-        deletedImages: images.length,
       });
     } catch (error) {
       console.error('Delete wardrobe item error:', error);
@@ -650,6 +634,205 @@ export class WardrobeController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: 'An error occurred while deleting the item',
+        },
+      });
+    }
+  }
+
+  /**
+   * Get user's trash items (soft-deleted)
+   */
+  static async getTrashItems(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const items = await VUFSItemModel.findDeletedByOwner(req.user.userId);
+
+      // Calculate days until permanent deletion for each item
+      const itemsWithExpiry = items.map(item => {
+        const deletedAt = item.deletedAt!;
+        const expiresAt = new Date(deletedAt.getTime() + 14 * 24 * 60 * 60 * 1000);
+        const now = new Date();
+        const daysRemaining = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+
+        return {
+          ...item,
+          expiresAt,
+          daysRemaining,
+          images: item.images.map(img => ({
+            ...img,
+            url: img.url.startsWith('http')
+              ? img.url
+              : `${process.env.API_URL || 'http://localhost:3001'}/${img.url}`
+          })),
+        };
+      });
+
+      res.json({
+        items: itemsWithExpiry,
+        total: items.length,
+      });
+    } catch (error) {
+      console.error('Get trash items error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching trash items',
+        },
+      });
+    }
+  }
+
+  /**
+   * Restore item from trash
+   */
+  static async restoreItem(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Check ownership
+      const existingItem = await VUFSItemModel.findById(id);
+      if (!existingItem) {
+        res.status(404).json({
+          error: {
+            code: 'ITEM_NOT_FOUND',
+            message: 'Item not found in trash',
+          },
+        });
+        return;
+      }
+
+      if (existingItem.ownerId !== req.user.userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You can only restore your own items',
+          },
+        });
+        return;
+      }
+
+      const restored = await VUFSItemModel.restore(id);
+
+      if (!restored) {
+        res.status(500).json({
+          error: {
+            code: 'RESTORE_FAILED',
+            message: 'Failed to restore item',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        message: 'Item restored successfully',
+        restoredItemId: id,
+      });
+    } catch (error) {
+      console.error('Restore item error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while restoring the item',
+        },
+      });
+    }
+  }
+
+  /**
+   * Permanently delete item from trash
+   */
+  static async permanentDeleteItem(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Check ownership
+      const existingItem = await VUFSItemModel.findById(id);
+      if (!existingItem) {
+        res.status(404).json({
+          error: {
+            code: 'ITEM_NOT_FOUND',
+            message: 'Item not found',
+          },
+        });
+        return;
+      }
+
+      if (existingItem.ownerId !== req.user.userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You can only delete your own items',
+          },
+        });
+        return;
+      }
+
+      // Get associated images before permanent deletion
+      const images = await ItemImageModel.findByItemId(id);
+
+      // Permanently delete the item
+      const deleted = await VUFSItemModel.permanentDelete(id);
+
+      if (!deleted) {
+        res.status(500).json({
+          error: {
+            code: 'DELETE_FAILED',
+            message: 'Failed to permanently delete item',
+          },
+        });
+        return;
+      }
+
+      // Delete associated image files from local storage
+      for (const image of images) {
+        try {
+          const urlPath = image.imageUrl.replace('/storage/', '');
+          await LocalStorageService.deleteImage(urlPath);
+        } catch (error) {
+          console.warn(`Failed to delete image file: ${image.imageUrl}`, error);
+        }
+      }
+
+      res.json({
+        message: 'Item permanently deleted',
+        deletedItemId: id,
+        deletedImages: images.length,
+      });
+    } catch (error) {
+      console.error('Permanent delete item error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while permanently deleting the item',
         },
       });
     }
@@ -761,11 +944,15 @@ export class WardrobeController {
 
       const image = files[0];
 
+      console.log('=== Analyzing image:', image.originalname, '===');
+
       // Extract VUFS properties
       const vufsExtraction = await AIProcessingService.extractVUFSProperties(
         image.buffer,
         image.originalname
       );
+
+      console.log('VUFS Extraction result:', JSON.stringify(vufsExtraction, null, 2));
 
       // We don't perform full processing/upload here, just analysis
       // But we can verify if background removal is possible

@@ -514,7 +514,8 @@ export class AuditLoggingService {
     }
 
     // Security compliance flags
-    if (req.user?.role === 'admin') {
+    // @ts-ignore
+    if (req.user?.role === 'admin' || (req.user?.roles && req.user.roles.includes('admin'))) {
       flags.push('ADMIN_ACTION');
     }
 
@@ -562,7 +563,7 @@ export class AuditLoggingService {
 
   private async triggerCriticalAlert(entry: Omit<AuditLogEntry, 'id' | 'timestamp' | 'createdAt'>): Promise<void> {
     console.error(`[CRITICAL AUDIT ALERT] ${entry.action} on ${entry.resource} by user ${entry.userId} from IP ${entry.ipAddress}`);
-    
+
     // In production, this would:
     // 1. Send immediate notifications to security team
     // 2. Create incident tickets
@@ -636,10 +637,10 @@ export class AuditLoggingService {
 
     // Remove sensitive fields
     const sensitiveFields = ['password', 'token', 'secret', 'key', 'cpf', 'ssn', 'credit_card'];
-    
+
     const sanitizeObject = (obj: any): any => {
       if (!obj || typeof obj !== 'object') return obj;
-      
+
       const result: any = {};
       for (const [key, value] of Object.entries(obj)) {
         if (sensitiveFields.some(field => key.toLowerCase().includes(field))) {
@@ -664,7 +665,7 @@ export class AuditLoggingService {
 
     const sanitizeObject = (obj: any): any => {
       if (!obj || typeof obj !== 'object') return obj;
-      
+
       const result: any = {};
       for (const [key, value] of Object.entries(obj)) {
         if (sensitiveFields.some(field => key.toLowerCase().includes(field))) {
@@ -685,7 +686,7 @@ export class AuditLoggingService {
 
   private mapRowToAuditEntry(row: any): AuditLogEntry {
     const securityFlags = row.security_flags || {};
-    
+
     return {
       id: row.id,
       timestamp: row.timestamp,

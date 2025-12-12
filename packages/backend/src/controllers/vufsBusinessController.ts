@@ -2,12 +2,12 @@ import { Request, Response } from 'express';
 import { VUFSCatalogModel } from '../models/VUFSCatalog';
 import { AuthenticatedRequest } from '../utils/auth';
 import { VUFSUtils } from '../utils/vufs';
-import { 
-  VUFSItem, 
-  ApparelItem, 
-  FootwearItem, 
+import {
+  VUFSItem,
+  ApparelItem,
+  FootwearItem,
   VUFSDomain,
-  ExportPlatform 
+  ExportPlatform
 } from '@vangarments/shared/types/vufs';
 
 export class VUFSBusinessController {
@@ -43,7 +43,7 @@ export class VUFSBusinessController {
     } catch (error) {
       console.error('Create catalog item error:', error);
       res.status(500).json({
-        error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+        error: { code: 'INTERNAL_SERVER_ERROR', message: (error as any).message }
       });
     }
   }
@@ -127,7 +127,7 @@ export class VUFSBusinessController {
 
       // Calculate financials
       const financials = VUFSUtils.calculateFinancials(
-        soldPrice, 
+        soldPrice,
         platform as ExportPlatform
       );
 
@@ -140,7 +140,7 @@ export class VUFSBusinessController {
     } catch (error) {
       console.error('Mark item sold error:', error);
       res.status(500).json({
-        error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+        error: { code: 'INTERNAL_SERVER_ERROR', message: (error as any).message }
       });
     }
   }
@@ -179,7 +179,7 @@ export class VUFSBusinessController {
     } catch (error) {
       console.error('Generate platform export error:', error);
       res.status(500).json({
-        error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+        error: { code: 'INTERNAL_SERVER_ERROR', message: (error as any).message }
       });
     }
   }
@@ -208,7 +208,7 @@ export class VUFSBusinessController {
     } catch (error) {
       console.error('Get items by status error:', error);
       res.status(500).json({
-        error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+        error: { code: 'INTERNAL_SERVER_ERROR', message: (error as any).message }
       });
     }
   }
@@ -233,7 +233,7 @@ export class VUFSBusinessController {
     } catch (error) {
       console.error('Get owner stats error:', error);
       res.status(500).json({
-        error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+        error: { code: 'INTERNAL_SERVER_ERROR', message: (error as any).message }
       });
     }
   }
@@ -254,7 +254,7 @@ export class VUFSBusinessController {
       const itemsWithFinancials = items.map(item => {
         const soldPrice = item.item.soldPrice || 0;
         const financials = VUFSUtils.calculateFinancials(soldPrice, 'nuvem_shop'); // Default platform
-        
+
         return {
           ...item,
           financials
@@ -269,7 +269,7 @@ export class VUFSBusinessController {
     } catch (error) {
       console.error('Get items for repass error:', error);
       res.status(500).json({
-        error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+        error: { code: 'INTERNAL_SERVER_ERROR', message: (error as any).message }
       });
     }
   }
@@ -301,7 +301,7 @@ export class VUFSBusinessController {
     } catch (error) {
       console.error('Process repass error:', error);
       res.status(500).json({
-        error: { code: 'INTERNAL_SERVER_ERROR', message: error.message }
+        error: { code: 'INTERNAL_SERVER_ERROR', message: (error as any).message }
       });
     }
   }

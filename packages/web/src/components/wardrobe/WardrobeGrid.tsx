@@ -7,6 +7,7 @@ import { HeartIcon, ShareIcon, EyeIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import { apiClient } from '@/lib/api';
 import { WardrobeItemCard } from './WardrobeItemCard';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface WardrobeItem {
   id: string;
@@ -37,6 +38,8 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
   const [items, setItems] = useState<WardrobeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; itemId: string | null }>({ isOpen: false, itemId: null });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadItems();
@@ -90,14 +93,22 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
     window.location.href = `/wardrobe/${item.id}/edit`;
   };
 
-  const handleDelete = async (itemId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este item?')) return;
+  const handleDeleteClick = (itemId: string) => {
+    setDeleteConfirm({ isOpen: true, itemId });
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.itemId) return;
+
+    setDeleting(true);
     try {
-      await apiClient.deleteWardrobeItem(itemId);
+      await apiClient.deleteWardrobeItem(deleteConfirm.itemId);
       await loadItems();
     } catch (err: any) {
       alert('Falha ao excluir item: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm({ isOpen: false, itemId: null });
     }
   };
 
@@ -169,7 +180,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
             key={item.id}
             item={item}
             onEdit={handleEdit}
-            onDelete={handleDelete}
+            onDelete={handleDeleteClick}
             onToggleFavorite={handleToggleFavorite}
             onToggleForSale={handleToggleForSale}
             onView={handleView}
@@ -186,12 +197,25 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
           key={item.id}
           item={item}
           onEdit={handleEdit}
-          onDelete={handleDelete}
+          onDelete={handleDeleteClick}
           onToggleFavorite={handleToggleFavorite}
           onToggleForSale={handleToggleForSale}
           onView={handleView}
         />
       ))}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, itemId: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Excluir Item"
+        message="Tem certeza que deseja excluir este item do seu guarda-roupa? Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 }

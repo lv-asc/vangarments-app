@@ -1,24 +1,29 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { apiClient } from '@/lib/api';
+import { getImageUrl } from '@/utils/imageUrl';
+import { useToast } from '@/components/ui/Toast';
 import {
   CameraIcon,
   PencilIcon,
   CogIcon,
   UserIcon,
   MapPinIcon,
-  CalendarIcon
+  CalendarIcon,
+  CheckCircleIcon,
+  XCircleIcon
 } from '@heroicons/react/24/outline';
 
 interface UserProfile {
   id: string;
   name: string;
   username: string;
+  usernameLastChanged?: string;
   email: string;
   bio?: string;
   profileImage?: string;
@@ -39,8 +44,6 @@ interface UserProfile {
     brands: string[];
     colors: string[];
     priceRange: {
-      min: number;
-      max: number;
       min: number;
       max: number;
     };
@@ -67,14 +70,23 @@ const AVAILABLE_ROLES = [
 ];
 
 export default function ProfilePage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshAuth } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const toast = useToast();
+
+  // Username state
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const usernameCheckTimeout = useRef<NodeJS.Timeout | null>(null);
+
   const [editForm, setEditForm] = useState({
     name: '',
+    username: '',
     bio: '',
     profileImage: '',
     socialLinks: [] as { platform: string; url: string }[],
@@ -98,6 +110,7 @@ export default function ProfilePage() {
       if (response.profile) {
         setEditForm({
           name: response.profile.name || '',
+          username: response.profile.username || '',
           bio: response.profile.bio || '',
           profileImage: response.profile.profileImage || '',
           socialLinks: response.profile.socialLinks || [],
@@ -112,15 +125,82 @@ export default function ProfilePage() {
     }
   };
 
+  // Check username availability with debounce
+  const checkUsername = useCallback(async (username: string) => {
+    if (!username || username.length < 1) {
+      setUsernameStatus('invalid');
+      setUsernameError('Username is required');
+      return;
+    }
+
+    const usernameRegex = /^[a-zA-Z0-9_]{1,30}$/;
+    if (!usernameRegex.test(username)) {
+      setUsernameStatus('invalid');
+      setUsernameError('Only letters, numbers, and underscore allowed');
+      return;
+    }
+
+    // Don't check if same as current username
+    if (username === userProfile?.username) {
+      setUsernameStatus('available');
+      setUsernameError(null);
+      return;
+    }
+
+    setUsernameStatus('checking');
+    setUsernameError(null);
+
+    try {
+      const result = await apiClient.checkUsernameAvailability(username);
+      if (result.available) {
+        setUsernameStatus('available');
+        setUsernameError(null);
+      } else {
+        setUsernameStatus('taken');
+        setUsernameError(result.error || 'Username is already taken');
+      }
+    } catch (err) {
+      setUsernameStatus('idle');
+      setUsernameError('Failed to check username');
+    }
+  }, [userProfile?.username]);
+
+  // Debounced username change handler
+  const handleUsernameChange = (value: string) => {
+    setEditForm({ ...editForm, username: value });
+
+    // Clear previous timeout
+    if (usernameCheckTimeout.current) {
+      clearTimeout(usernameCheckTimeout.current);
+    }
+
+    // Set new timeout for debounced check
+    usernameCheckTimeout.current = setTimeout(() => {
+      checkUsername(value);
+    }, 500);
+  };
+
+  // Calculate days until username can be changed
+  const getUsernameChangeCooldown = () => {
+    if (!userProfile?.usernameLastChanged) return null;
+    const lastChanged = new Date(userProfile.usernameLastChanged);
+    const daysSince = (Date.now() - lastChanged.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSince >= 7) return null;
+    return Math.ceil(7 - daysSince);
+  };
+
   const handleEditProfile = () => {
     if (userProfile) {
       setEditForm({
         name: userProfile.name,
+        username: userProfile.username || '',
         bio: userProfile.bio || '',
         profileImage: userProfile.profileImage || '',
         socialLinks: userProfile.socialLinks || [],
         roles: userProfile.roles || ['common_user']
       });
+      setUsernameStatus('idle');
+      setUsernameError(null);
       setIsEditing(true);
     }
   };
@@ -128,30 +208,48 @@ export default function ProfilePage() {
   const handleSaveProfile = async () => {
     if (!userProfile) return;
 
+    // Check if username is valid before saving
+    const usernameChanged = editForm.username !== userProfile.username;
+    if (usernameChanged && usernameStatus !== 'available') {
+      toast.error('Please choose a valid, available username before saving');
+      return;
+    }
+
+    setIsSaving(true);
     try {
       await apiClient.updateProfile({
         name: editForm.name,
+        username: usernameChanged ? editForm.username : undefined,
         bio: editForm.bio,
         socialLinks: editForm.socialLinks.filter(link => link.url && link.url.trim() !== ''),
         roles: editForm.roles
       });
       await loadProfile();
       setIsEditing(false);
+      toast.success('Profile saved successfully!');
     } catch (err: any) {
-      alert('Falha ao salvar perfil: ' + (err.message || 'Erro desconhecido'));
+      const errorMessage = err.message || 'Unknown error';
+      if (err.daysRemaining) {
+        toast.error(`Cannot change username: ${err.daysRemaining} days remaining in cooldown`);
+      } else {
+        toast.error('Failed to save profile: ' + errorMessage);
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // ... (handleImageUpload logic remains same)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !userProfile) return;
 
     try {
-      const response = await apiClient.uploadAvatar(file);
+      await apiClient.uploadAvatar(file);
       await loadProfile();
+      await refreshAuth();
+      toast.success('Profile picture updated!');
     } catch (err: any) {
-      alert('Falha ao fazer upload da imagem: ' + (err.message || 'Erro desconhecido'));
+      toast.error('Failed to upload image: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -184,7 +282,7 @@ export default function ProfilePage() {
             <div className="relative">
               {userProfile.profileImage ? (
                 <img
-                  src={userProfile.profileImage}
+                  src={getImageUrl(userProfile.profileImage)}
                   alt={userProfile.name}
                   className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
                 />
@@ -217,6 +315,60 @@ export default function ProfilePage() {
                     className="text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-[#00132d] focus:outline-none focus:border-[#00132d]/70"
                     placeholder="Your name"
                   />
+
+                  {/* Username Field */}
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username
+                    </label>
+                    {(() => {
+                      const cooldownDays = getUsernameChangeCooldown();
+                      if (cooldownDays) {
+                        return (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <p className="text-sm text-yellow-800">
+                              ⏳ Username can only be changed once every 7 days.
+                              <strong> {cooldownDays} day{cooldownDays > 1 ? 's' : ''} remaining.</strong>
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">Current: @{userProfile.username}</p>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="relative">
+                          <div className="flex items-center">
+                            <span className="text-gray-400 mr-1">@</span>
+                            <input
+                              type="text"
+                              value={editForm.username}
+                              onChange={(e) => handleUsernameChange(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                              className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${usernameStatus === 'available' ? 'border-green-300 focus:ring-green-200' :
+                                usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-red-300 focus:ring-red-200' :
+                                  'border-gray-300 focus:ring-[#00132d]/20'
+                                }`}
+                              placeholder="username"
+                              maxLength={30}
+                            />
+                            <div className="ml-2 w-6">
+                              {usernameStatus === 'checking' && (
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#00132d]"></div>
+                              )}
+                              {usernameStatus === 'available' && (
+                                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                              )}
+                              {(usernameStatus === 'taken' || usernameStatus === 'invalid') && (
+                                <XCircleIcon className="h-5 w-5 text-red-500" />
+                              )}
+                            </div>
+                          </div>
+                          {usernameError && (
+                            <p className="text-sm text-red-600 mt-1">{usernameError}</p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">1-30 characters, letters, numbers, and underscore only</p>
+                        </div>
+                      );
+                    })()}
+                  </div>
 
                   {/* Roles Selection */}
                   <div>
@@ -291,12 +443,22 @@ export default function ProfilePage() {
                   <div className="flex space-x-2 pt-4">
                     <button
                       onClick={handleSaveProfile}
-                      className="bg-[#00132d] text-[#fff7d7] px-4 py-2 rounded-lg hover:bg-[#00132d]/90 transition-colors"
+                      disabled={isSaving || (editForm.username !== userProfile.username && usernameStatus !== 'available')}
+                      className={`px-4 py-2 rounded-lg transition-colors flex items-center ${isSaving || (editForm.username !== userProfile.username && usernameStatus !== 'available')
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-[#00132d] text-[#fff7d7] hover:bg-[#00132d]/90'
+                        }`}
                     >
-                      Save
+                      {isSaving ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : 'Save'}
                     </button>
                     <button
                       onClick={() => setIsEditing(false)}
+                      disabled={isSaving}
                       className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
                     >
                       Cancel
@@ -530,6 +692,7 @@ export default function ProfilePage() {
           </div>
         </div>
       </main >
+      <toast.ToastComponent />
     </div >
   );
 }
