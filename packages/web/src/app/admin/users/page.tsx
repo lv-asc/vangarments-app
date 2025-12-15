@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
-import { MagnifyingGlassIcon, FunnelIcon, ArrowsUpDownIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, FunnelIcon, ArrowsUpDownIcon, Squares2X2Icon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 interface User {
@@ -24,6 +24,7 @@ interface Brand {
     brandInfo: { name: string };
 }
 
+// ... (keep existing constants)
 const STATUS_OPTIONS = ['all', 'active', 'banned', 'deactivated'];
 const SORT_OPTIONS = [
     { value: 'username_asc', label: 'Username (A-Z)' },
@@ -49,6 +50,10 @@ export default function AdminUsersPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortBy, setSortBy] = useState('username_asc');
     const [groupBy, setGroupBy] = useState('status');
+
+    // Delete Modal State
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
     useEffect(() => {
         if (!authLoading && (!user || !user.roles?.includes('admin'))) {
@@ -98,7 +103,30 @@ export default function AdminUsersPage() {
         }
     };
 
-    // Filtering, Sorting, Grouping Logic
+    const handleDeleteClick = (user: User) => {
+        setUserToDelete(user);
+        setDeleteModalOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!userToDelete) return;
+
+        try {
+            await apiClient.deleteUser(userToDelete.id);
+            toast.success('User deleted successfully');
+            setUsers(users.filter(u => u.id !== userToDelete.id));
+            setDeleteModalOpen(false);
+            setUserToDelete(null);
+        } catch (error) {
+            console.error('Failed to delete user', error);
+            toast.error('Failed to delete user');
+        }
+    };
+
+    // ... (keep filtering logic)
+
+    // ... (keep grouping logic)
+
     const processedUsers = useMemo(() => {
         let result = [...users];
 
@@ -137,7 +165,6 @@ export default function AdminUsersPage() {
         return result;
     }, [users, searchTerm, statusFilter, sortBy]);
 
-    // Grouping Logic
     const groupedUsers = useMemo(() => {
         if (groupBy === 'none') {
             return { 'All Users': processedUsers };
@@ -148,7 +175,6 @@ export default function AdminUsersPage() {
                 const key = u.status === 'active' ? 'Active' : u.status === 'banned' ? 'Banned' : 'Deactivated';
                 groups[key].push(u);
             });
-            // Filter out empty groups
             return Object.fromEntries(Object.entries(groups).filter(([, v]) => v.length > 0));
         }
         if (groupBy === 'role') {
@@ -162,6 +188,7 @@ export default function AdminUsersPage() {
         }
         return { 'All Users': processedUsers };
     }, [processedUsers, groupBy]);
+
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -193,7 +220,7 @@ export default function AdminUsersPage() {
                 </div>
             </div>
 
-            {/* Filter/Sort/Group Controls */}
+            {/* Filter Controls (omitted for brevity, keep as is) */}
             <div className="bg-white shadow rounded-lg p-4 mb-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Search */}
@@ -252,7 +279,6 @@ export default function AdminUsersPage() {
                 </div>
             </div>
 
-            {/* Grouped User Tables */}
             {Object.entries(groupedUsers).map(([groupName, groupUsers]) => (
                 <div key={groupName} className="mb-8">
                     {groupBy !== 'none' && (
@@ -270,7 +296,7 @@ export default function AdminUsersPage() {
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roles</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Brands</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" className="relative px-6 py-3"><span className="sr-only">Edit</span></th>
+                                    <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -312,10 +338,16 @@ export default function AdminUsersPage() {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {getStatusBadge(userItem.status)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                             <a href={`/admin/users/${userItem.id}`} className="text-indigo-600 hover:text-indigo-900">
                                                 Edit
                                             </a>
+                                            <button
+                                                onClick={() => handleDeleteClick(userItem)}
+                                                className="text-red-600 hover:text-red-900"
+                                            >
+                                                Delete
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -333,6 +365,47 @@ export default function AdminUsersPage() {
             {Object.keys(groupedUsers).length === 0 && (
                 <div className="bg-white shadow rounded-lg p-10 text-center text-gray-500">
                     No users found matching your criteria.
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteModalOpen && (
+                <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setDeleteModalOpen(false)}></div>
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+                            <div className="sm:flex sm:items-start">
+                                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                    <TrashIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
+                                </div>
+                                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">Delete User</h3>
+                                    <div className="mt-2">
+                                        <p className="text-sm text-gray-500">
+                                            Are you sure you want to delete <span className="font-bold">{userToDelete?.name || userToDelete?.email}</span>? This action cannot be undone. All data associated with this user, including brands and outfits, will be permanently removed.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                                <button
+                                    type="button"
+                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                                    onClick={confirmDelete}
+                                >
+                                    Delete
+                                </button>
+                                <button
+                                    type="button"
+                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                                    onClick={() => setDeleteModalOpen(false)}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

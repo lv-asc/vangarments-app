@@ -17,6 +17,7 @@ export interface BackendVUFSItem {
   }>;
   condition: ItemCondition;
   ownership: OwnershipInfo;
+  skuItemId?: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -478,6 +479,7 @@ export class VUFSItemModel {
       images: [], // Will be populated by findByOwner/byId if queried
       condition: condition,
       ownership: ownership,
+      skuItemId: row.sku_item_id, // Added field
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,

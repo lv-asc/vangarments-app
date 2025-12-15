@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { brandApi } from '@/lib/brandApi';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { Combobox, Transition } from '@headlessui/react';
+import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
 import Link from 'next/link';
+import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
 
 export default function AdminNewBrandPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -15,6 +18,8 @@ export default function AdminNewBrandPage() {
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [query, setQuery] = useState('');
 
     const [formData, setFormData] = useState({
         userId: '',
@@ -24,7 +29,9 @@ export default function AdminNewBrandPage() {
         contactEmail: '',
         contactPhone: '',
         businessType: 'brand',
-        partnershipTier: 'basic'
+        partnershipTier: 'basic',
+        country: '',
+        tags: [] as string[]
     });
 
     useEffect(() => {
@@ -38,14 +45,26 @@ export default function AdminNewBrandPage() {
         }
     }, [user, authLoading, router]);
 
+    // Update formData when selectedUser changes
+    useEffect(() => {
+        if (selectedUser) {
+            setFormData(prev => ({
+                ...prev,
+                userId: selectedUser.id
+            }));
+        }
+    }, [selectedUser]);
+
     const loadUsers = async () => {
         try {
             setLoadingUsers(true);
-            const response = await apiClient.get('/users?limit=100') as any; // Simple list for now, ideally search
-            // Handle different response structures if necessary
+            const response = await apiClient.get('/users?limit=1000') as any;
             const userList = response.data?.users || response.users || [];
-            // Filter users who are NOT brand owners maybe? Backend checks this anyway.
-            setUsers(userList);
+
+            // Filter out deactivated users
+            const activeUsers = userList.filter((u: any) => u.status === 'active' || !u.status);
+
+            setUsers(activeUsers);
         } catch (error) {
             console.error('Failed to load users', error);
             toast.error('Failed to load users');
@@ -57,6 +76,17 @@ export default function AdminNewBrandPage() {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleTagChange = (tag: string) => {
+        setFormData(prev => {
+            const currentTags = prev.tags || [];
+            if (currentTags.includes(tag)) {
+                return { ...prev, tags: currentTags.filter(t => t !== tag) };
+            } else {
+                return { ...prev, tags: [...currentTags, tag] };
+            }
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +109,8 @@ export default function AdminNewBrandPage() {
                     name: formData.brandName,
                     description: formData.description,
                     website: formData.website,
+                    country: formData.country,
+                    tags: formData.tags,
                     contactInfo: {
                         email: formData.contactEmail,
                         phone: formData.contactPhone
@@ -96,6 +128,14 @@ export default function AdminNewBrandPage() {
             setLoading(false);
         }
     };
+
+    const filteredUsers =
+        query === ''
+            ? users
+            : users.filter((u) => {
+                const searchStr = `${u.name || ''} ${u.email || ''}`.toLowerCase();
+                return searchStr.includes(query.toLowerCase());
+            });
 
     if (authLoading) return <div className="p-10 flex justify-center">Loading...</div>;
 
@@ -116,22 +156,59 @@ export default function AdminNewBrandPage() {
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
                     {/* User Selection */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Owner (User) *</label>
-                        <select
-                            name="userId"
-                            value={formData.userId}
-                            onChange={handleChange}
-                            required
-                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-                        >
-                            <option value="">Select a user...</option>
-                            {users.map((u: any) => (
-                                <option key={u.id} value={u.id}>
-                                    {u.name || u.email} ({u.email})
-                                </option>
-                            ))}
-                        </select>
+                    <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Owner (User) *</label>
+                        <Combobox as="div" value={selectedUser} onChange={setSelectedUser}>
+                            <div className="relative mt-1">
+                                <div className="relative w-full cursor-default overflow-hidden rounded-md border border-gray-300 bg-white text-left shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 sm:text-sm">
+                                    <Combobox.Input
+                                        className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:ring-0"
+                                        displayValue={(user: any) => user ? `${user.name || 'Unknown'} (${user.email})` : ''}
+                                        onChange={(event) => setQuery(event.target.value)}
+                                        placeholder="Search for a user..."
+                                    />
+                                    <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+                                        <ChevronUpDownIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                                    </Combobox.Button>
+                                </div>
+                                <Transition
+                                    as={Fragment as any}
+                                    leave="transition ease-in duration-100"
+                                    leaveFrom="opacity-100"
+                                    leaveTo="opacity-0"
+                                    afterLeave={() => setQuery('')}
+                                >
+                                    <Combobox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                        {filteredUsers.length === 0 && query !== '' ? (
+                                            <div className="relative cursor-default select-none py-2 px-4 text-gray-700">Nothing found.</div>
+                                        ) : (
+                                            filteredUsers.map((user) => (
+                                                <Combobox.Option
+                                                    key={user.id}
+                                                    className={({ active }) =>
+                                                        `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-blue-600 text-white' : 'text-gray-900'}`
+                                                    }
+                                                    value={user}
+                                                >
+                                                    {({ selected, active }) => (
+                                                        <>
+                                                            <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                                                                {user.name || 'Unknown'} <span className={`text-xs ${active ? 'text-blue-200' : 'text-gray-500'}`}>({user.email})</span>
+                                                            </span>
+                                                            {selected ? (
+                                                                <span className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-blue-600'}`}>
+                                                                    <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                                                </span>
+                                                            ) : null}
+                                                        </>
+                                                    )}
+                                                </Combobox.Option>
+                                            ))
+                                        )}
+                                    </Combobox.Options>
+                                </Transition>
+                            </div>
+                        </Combobox>
                         <p className="mt-1 text-xs text-gray-500">Select the user who will own this brand account.</p>
                     </div>
 
@@ -186,6 +263,40 @@ export default function AdminNewBrandPage() {
                             </select>
                         </div>
 
+                        {/* Country Field */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Country of Origin</label>
+                            <div className="mt-1 relative">
+                                <select
+                                    name="country"
+                                    value={formData.country}
+                                    onChange={handleChange}
+                                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
+                                >
+                                    <option value="">Select a country</option>
+                                    {COUNTRIES.map((c) => (
+                                        <option key={c.code} value={c.name}>
+                                            {c.flag} {c.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Partnership Tier</label>
+                            <select
+                                name="partnershipTier"
+                                value={formData.partnershipTier}
+                                onChange={handleChange}
+                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
+                            >
+                                <option value="basic">Basic</option>
+                                <option value="premium">Premium</option>
+                                <option value="enterprise">Enterprise</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Contact Email</label>
                             <input
@@ -208,18 +319,25 @@ export default function AdminNewBrandPage() {
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Partnership Tier</label>
-                            <select
-                                name="partnershipTier"
-                                value={formData.partnershipTier}
-                                onChange={handleChange}
-                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-                            >
-                                <option value="basic">Basic</option>
-                                <option value="premium">Premium</option>
-                                <option value="enterprise">Enterprise</option>
-                            </select>
+                        {/* Tags Field */}
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                            <div className="flex flex-wrap gap-2">
+                                {BRAND_TAGS.map((tag) => (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => handleTagChange(tag)}
+                                        className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${formData.tags.includes(tag)
+                                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                                : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        {tag} {formData.tags.includes(tag) && <CheckIcon className="ml-1.5 h-3 w-3" />}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Select categories relevant to this brand.</p>
                         </div>
                     </div>
 

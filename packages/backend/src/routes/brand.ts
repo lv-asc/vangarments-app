@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { BrandController } from '../controllers/brandController';
 import { BrandProfileController } from '../controllers/brandProfileController';
+import { BrandLineController } from '../controllers/BrandLineController';
 import { AuthUtils } from '../utils/auth';
 import { validateRequest } from '../middleware/validation';
 import { body, param, query } from 'express-validator';
@@ -120,8 +121,8 @@ const paginationValidation = [
     .withMessage('Page must be a positive integer'),
   query('limit')
     .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limit must be between 1 and 100'),
+    .isInt({ min: 1, max: 2000 })
+    .withMessage('Limit must be between 1 and 2000'),
 ];
 
 const catalogFiltersValidation = [
@@ -238,7 +239,37 @@ router.get(
     .withMessage('Partnership tier must be basic, premium, or enterprise'),
   paginationValidation,
   validateRequest,
+  paginationValidation,
+  validateRequest,
   brandController.searchBrands.bind(brandController)
+);
+
+// List/Search brands (Root GET)
+router.get(
+  '/',
+  query('q')
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage('Search query must be 100 characters or less'),
+  query('verificationStatus')
+    .optional()
+    .isIn(['pending', 'verified', 'rejected'])
+    .withMessage('Verification status must be pending, verified, or rejected'),
+  query('partnershipTier')
+    .optional()
+    .isIn(['basic', 'premium', 'enterprise'])
+    .withMessage('Partnership tier must be basic, premium, or enterprise'),
+  paginationValidation,
+  validateRequest,
+  validateRequest,
+  brandController.searchBrands.bind(brandController)
+);
+
+// Brand Trash Management (Must be before /:brandId to avoid UUID validation conflict)
+router.get(
+  '/trash',
+  AuthUtils.authenticateToken,
+  brandController.getTrashBrands.bind(brandController)
 );
 
 // Brand profile and customization
@@ -291,6 +322,23 @@ router.put(
   brandController.bulkUpdateAvailability.bind(brandController)
 );
 
+router.put(
+  '/bulk',
+  AuthUtils.authenticateToken,
+  body('brandIds').isArray().withMessage('brandIds must be an array'),
+  body('updates').isObject().withMessage('updates must be an object'),
+  validateRequest,
+  brandController.bulkUpdateBrands.bind(brandController)
+);
+
+router.delete(
+  '/bulk',
+  AuthUtils.authenticateToken,
+  body('brandIds').isArray().withMessage('brandIds must be an array'),
+  validateRequest,
+  brandController.bulkDeleteBrands.bind(brandController)
+);
+
 // Brand analytics and performance
 router.get(
   '/:brandId/analytics',
@@ -340,6 +388,38 @@ router.put(
   upgradeTierValidation,
   validateRequest,
   brandController.upgradeBrandTier.bind(brandController)
+);
+
+router.put(
+  '/:brandId',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  validateRequest,
+  brandController.updateBrand.bind(brandController)
+);
+
+router.delete(
+  '/:brandId',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  validateRequest,
+  brandController.deleteBrand.bind(brandController)
+);
+
+router.put(
+  '/:brandId/restore',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  validateRequest,
+  brandController.restoreBrand.bind(brandController)
+);
+
+router.delete(
+  '/:brandId/permanent',
+  AuthUtils.authenticateToken,
+  brandIdValidation,
+  validateRequest,
+  brandController.permanentDeleteBrand.bind(brandController)
 );
 
 // ============ BRAND PROFILE ROUTES ============
@@ -530,6 +610,44 @@ router.post(
   body('items.*.itemId').isUUID().withMessage('Each item must have a valid item ID'),
   validateRequest,
   brandProfileController.addCollectionItems.bind(brandProfileController)
+);
+
+// ============ BRAND LINES ROUTES ============
+
+router.post(
+  '/:brandId/lines',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  body('name').isLength({ min: 1, max: 100 }).withMessage('Name must be between 1 and 100 characters'),
+  body('logo').optional().isURL().withMessage('Logo must be a valid URL'),
+  validateRequest,
+  BrandLineController.createBrandLine
+);
+
+router.get(
+  '/:brandId/lines',
+  AuthUtils.authenticateToken,
+  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
+  validateRequest,
+  BrandLineController.getBrandLines
+);
+
+router.patch(
+  '/lines/:id',
+  AuthUtils.authenticateToken,
+  param('id').isUUID(),
+  body('name').optional().isLength({ min: 1, max: 100 }),
+  body('logo').optional().isURL(),
+  validateRequest,
+  BrandLineController.updateBrandLine
+);
+
+router.delete(
+  '/lines/:id',
+  AuthUtils.authenticateToken,
+  param('id').isUUID(),
+  validateRequest,
+  BrandLineController.deleteBrandLine
 );
 
 export default router;

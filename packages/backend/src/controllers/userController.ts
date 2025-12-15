@@ -790,4 +790,29 @@ export class UserController {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to reactivate user' } });
     }
   }
+
+  static async deleteUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+      }
+
+      // Prevent self-deletion
+      if (req.user.userId === id) {
+        return res.status(400).json({ error: { code: 'INVALID_OPERATION', message: 'Cannot delete your own account' } });
+      }
+
+      const deleted = await UserModel.delete(id);
+      if (!deleted) {
+        return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
+      }
+
+      res.json({ success: true, message: 'User deleted permanently' });
+    } catch (error) {
+      console.error('Delete user error:', error);
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete user' } });
+    }
+  }
 }

@@ -101,6 +101,24 @@ export class BrandService {
   }
 
   /**
+   * Admin update brand details
+   */
+  async updateBrand(brandId: string, updates: Partial<CreateBrandAccountData>): Promise<BrandAccount> {
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) throw new Error('Brand not found');
+
+    const updateData: UpdateBrandAccountData = {};
+    if (updates.brandInfo) updateData.brandInfo = updates.brandInfo;
+    if (updates.partnershipTier) updateData.partnershipTier = updates.partnershipTier;
+    // Add other fields as needed
+
+    const updatedBrand = await BrandAccountModel.update(brandId, updateData);
+    if (!updatedBrand) throw new Error('Failed to update brand');
+
+    return updatedBrand;
+  }
+
+  /**
    * Add item to brand catalog
    */
   async addToCatalog(brandId: string, catalogData: CreateBrandCatalogItemData): Promise<BrandCatalogItem> {
@@ -409,5 +427,123 @@ export class BrandService {
     }
 
     return { commissions, total, hasMore };
+  }
+
+  /**
+   * Sync brands from VUFS database to local brand accounts
+   */
+  async syncVufsBrands(): Promise<number> {
+    try {
+      // Get a system user (admin) to own these brands
+      // We use initializeDefaultAdmin to ensure at least one admin exists
+      // In a real scenario, we might want a specific "System" user
+      // Import dynamically to avoid circular dependency if AdminAuthService imports BrandService (unlikely but safe)
+      const { AdminAuthService } = await import('./adminAuthService');
+      const adminUser = await AdminAuthService.initializeDefaultAdmin();
+
+      return await BrandAccountModel.syncFromVufs(adminUser.id);
+    } catch (error) {
+      console.error('Failed to sync VUFS brands:', error);
+      return 0; // Don't fail the request if sync fails
+    }
+  }
+
+  /**
+   * Soft delete a brand
+   */
+  async softDeleteBrand(brandId: string): Promise<void> {
+    const brand = await BrandAccountModel.findById(brandId);
+    if (!brand) throw new Error('Brand not found');
+
+    const success = await BrandAccountModel.softDelete(brandId);
+    if (!success) throw new Error('Failed to delete brand');
+  }
+
+  /**
+   * Restore a soft-deleted brand
+   */
+  async restoreBrand(brandId: string): Promise<void> {
+    const success = await BrandAccountModel.restore(brandId);
+    if (!success) throw new Error('Failed to restore brand or brand not found in trash');
+  }
+
+  /**
+   * Permanently delete a brand
+   */
+  async permanentDeleteBrand(brandId: string): Promise<void> {
+    const success = await BrandAccountModel.delete(brandId);
+    if (!success) throw new Error('Failed to permanently delete brand');
+  }
+
+  /**
+   * Get all soft-deleted brands (Trash)
+   */
+  async getTrashBrands(): Promise<BrandAccount[]> {
+    return await BrandAccountModel.findDeleted();
+  }
+
+  /**
+   * Bulk update brands (Admin only)
+   */
+  async bulkUpdateBrands(
+    brandIds: string[],
+    updates: {
+      tagsToAdd?: string[];
+      country?: string;
+    }
+  ): Promise<void> {
+    const updatePromises = brandIds.map(async (brandId) => {
+      try {
+        const brand = await BrandAccountModel.findById(brandId);
+        if (!brand) return; // Skip if not found
+
+        const currentInfo = brand.brandInfo || {};
+        const updatedInfo = { ...currentInfo };
+
+        let hasChanges = false;
+
+        // Update Country if provided (overwrite)
+        if (updates.country) {
+          updatedInfo.country = updates.country;
+          hasChanges = true;
+        }
+
+        // Add Tags if provided (merge unique)
+        if (updates.tagsToAdd && updates.tagsToAdd.length > 0) {
+          const currentTags = currentInfo.tags || [];
+          const newTags = updates.tagsToAdd.filter(t => !currentTags.includes(t));
+          if (newTags.length > 0) {
+            updatedInfo.tags = [...currentTags, ...newTags];
+            hasChanges = true;
+          }
+        }
+
+        // Only update if changes were made
+        if (hasChanges) {
+          await BrandAccountModel.update(brandId, { brandInfo: updatedInfo });
+        }
+
+      } catch (error) {
+        console.error(`Failed to bulk update brand ${brandId}`, error);
+        // Continue with other brands even if one fails
+      }
+    });
+
+    await Promise.all(updatePromises);
+  }
+
+  /**
+   * Bulk delete brands (Admin only)
+   */
+  async bulkDeleteBrands(brandIds: string[]): Promise<void> {
+    const deletePromises = brandIds.map(async (brandId) => {
+      try {
+        await BrandAccountModel.softDelete(brandId);
+      } catch (error) {
+        console.error(`Failed to bulk delete brand ${brandId}`, error);
+      }
+    });
+
+    await Promise.all(deletePromises);
   }
 }

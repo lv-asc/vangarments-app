@@ -29,6 +29,10 @@ import adminRoutes from './admin';
 
 import brandRoutes from './brand';
 
+import skuRoutes from './sku';
+import colorRoutes from './colors';
+import sizeRoutes from './sizes';
+
 const router = Router();
 
 // API version 1 routes
@@ -51,6 +55,7 @@ router.use('/data-driven', dataDrivenRoutes);
 router.use('/freemium', freemiumRoutes);
 router.use('/upgrade', upgradeRoutes);
 router.use('/lgpd', lgpdRoutes);
+router.use('/skus', skuRoutes); // New SKU routes
 
 router.use('/social', socialRoutes);
 router.use('/security', securityRoutes);
@@ -60,6 +65,8 @@ router.use('/monitoring', monitoringRoutes);
 router.use('/storage', storageRoutes);
 router.use('/vufs-management', vufsManagementRoutes);
 router.use('/configuration', configurationRoutes);
+router.use('/colors', colorRoutes); // New Color routes
+router.use('/sizes', sizeRoutes); // New Size routes
 
 // Health check for API
 router.get('/health', (req, res) => {

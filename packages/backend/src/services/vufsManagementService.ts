@@ -61,7 +61,7 @@ export class VUFSManagementService {
       `INSERT INTO vufs_global_settings (key, value)
        VALUES ($1, $2)
        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP`,
-      [key, value]
+      [key, JSON.stringify(value)]
     );
   }
 

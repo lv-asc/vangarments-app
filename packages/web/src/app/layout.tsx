@@ -25,8 +25,8 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Vangarments - Sua Plataforma de Moda Digital',
-    template: '%s | Vangarments',
+    default: 'Vangs. - Home',
+    template: 'Vangs. - %s',
   },
   description: 'Organize seu guarda-roupa, descubra tendências e conecte-se com a comunidade da moda brasileira.',
   keywords: [
@@ -100,10 +100,6 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${inter.variable} ${poppins.variable}`}>
       <head>
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/logo.svg" />
-        <link rel="manifest" href="/site.webmanifest" />
         <meta name="theme-color" content="#1e3a5f" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />

@@ -11,7 +11,9 @@ import {
   EyeIcon,
   ShoppingBagIcon,
   ClockIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  TagIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -43,11 +45,15 @@ export function Header() {
     });
   }
 
+  /* Swapped Icons: 
+     - Wardrobe: TagIcon (closest to item/clothing) 
+     - Outfits: SparklesIcon (represents 'Outfits'/Creation better than Eye) 
+  */
   const navigation = [
     { name: t('discover'), href: '/discover', icon: MagnifyingGlassIcon },
     { name: 'Social', href: '/social', icon: UserGroupIcon },
-    { name: t('wardrobe'), href: '/wardrobe', icon: HomeIcon },
-    { name: t('looks'), href: '/outfits', icon: EyeIcon },
+    { name: t('wardrobe'), href: '/wardrobe', icon: TagIcon },
+    { name: 'Outfits', href: '/outfits', icon: SparklesIcon },
     { name: t('marketplace'), href: '/marketplace', icon: ShoppingBagIcon },
   ];
 

@@ -17,6 +17,8 @@ export interface BrandInfo {
   };
   brandColors?: string[];
   brandStyle?: string[];
+  country?: string; // Country of origin
+  tags?: string[]; // Brand tags (e.g. Small, Independent, etc.)
 }
 
 export interface BrandProfileData {
@@ -44,6 +46,7 @@ export interface BrandAccount {
   };
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface CreateBrandAccountData {
@@ -91,7 +94,7 @@ export class BrandAccountModel {
              ) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
-      WHERE ba.id = $1
+      WHERE ba.id = $1 AND ba.deleted_at IS NULL
     `;
 
     const result = await db.query(query, [id]);
@@ -107,7 +110,7 @@ export class BrandAccountModel {
              ) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
-      WHERE ba.user_id = $1
+      WHERE ba.user_id = $1 AND ba.deleted_at IS NULL
       LIMIT 1
     `;
 
@@ -124,7 +127,7 @@ export class BrandAccountModel {
              ) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
-      WHERE ba.user_id = $1
+      WHERE ba.user_id = $1 AND ba.deleted_at IS NULL
       ORDER BY ba.created_at DESC
     `;
 
@@ -141,7 +144,7 @@ export class BrandAccountModel {
     limit = 20,
     offset = 0
   ): Promise<{ brands: BrandAccount[]; total: number }> {
-    let whereConditions: string[] = [];
+    let whereConditions: string[] = ['ba.deleted_at IS NULL'];
     let values: any[] = [];
     let paramIndex = 1;
 
@@ -237,6 +240,34 @@ export class BrandAccountModel {
     const query = 'DELETE FROM brand_accounts WHERE id = $1';
     const result = await db.query(query, [id]);
     return (result.rowCount || 0) > 0;
+  }
+
+  static async softDelete(id: string): Promise<boolean> {
+    const query = 'UPDATE brand_accounts SET deleted_at = NOW() WHERE id = $1';
+    const result = await db.query(query, [id]);
+    return (result.rowCount || 0) > 0;
+  }
+
+  static async restore(id: string): Promise<boolean> {
+    const query = 'UPDATE brand_accounts SET deleted_at = NULL WHERE id = $1';
+    const result = await db.query(query, [id]);
+    return (result.rowCount || 0) > 0;
+  }
+
+  static async findDeleted(): Promise<BrandAccount[]> {
+    const query = `
+      SELECT ba.*, 
+             u.profile as user_profile,
+             (
+               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
+             ) as catalog_items_count
+      FROM brand_accounts ba
+      LEFT JOIN users u ON ba.user_id = u.id
+      WHERE ba.deleted_at IS NOT NULL
+      ORDER BY ba.deleted_at DESC
+    `;
+    const result = await db.query(query);
+    return result.rows.map(row => this.mapRowToBrandAccount(row));
   }
 
   static async updateProfileData(brandId: string, profileData: Partial<BrandProfileData>): Promise<BrandAccount | null> {
@@ -344,6 +375,58 @@ export class BrandAccountModel {
     await db.query(query, [brandId, badge]);
   }
 
+  static async syncFromVufs(systemUserId: string): Promise<number> {
+    // 1. Get all active vufs_brands
+    const vufsQuery = `
+      SELECT id, name, type 
+      FROM vufs_brands 
+      WHERE is_active = true
+    `;
+    const vufsResult = await db.query(vufsQuery);
+    const vufsBrands = vufsResult.rows;
+
+    let syncedCount = 0;
+
+    // 2. Iterate and sync
+    for (const vBrand of vufsBrands) {
+      // Check if brand already exists in brand_accounts (by name match for now)
+      // In a more robust system, we might store vufs_brand_id in brand_accounts
+      const checkQuery = `
+        SELECT id FROM brand_accounts 
+        WHERE brand_info->>'name' ILIKE $1
+      `;
+      const checkResult = await db.query(checkQuery, [vBrand.name]);
+
+      if (checkResult.rows.length === 0) {
+        try {
+          // Create new brand account
+          const brandInfo: BrandInfo = {
+            name: vBrand.name,
+            description: `Official ${vBrand.name} brand account`,
+            // Add default styling or placeholders if needed
+          };
+
+          const insertQuery = `
+            INSERT INTO brand_accounts (user_id, brand_info, partnership_tier, verification_status)
+            VALUES ($1, $2, $3, $4)
+            `;
+
+          await db.query(insertQuery, [
+            systemUserId,
+            JSON.stringify(brandInfo),
+            'basic', // Default tier
+            'verified' // Auto-verify VUFS brands
+          ]);
+          syncedCount++;
+        } catch (err) {
+          console.error(`❌ Error syncing brand ${vBrand.name}:`, err);
+        }
+      }
+    }
+
+    return syncedCount;
+  }
+
   private static mapRowToBrandAccount(row: any): BrandAccount {
     return {
       id: row.id,
@@ -361,6 +444,7 @@ export class BrandAccountModel {
       },
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      deletedAt: row.deleted_at
     };
   }
 }

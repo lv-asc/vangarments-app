@@ -121,6 +121,36 @@ export class BrandController {
     }
   }
 
+  /**
+   * Update brand (Admin)
+   */
+  async updateBrand(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { brandId } = req.params;
+      const { user } = req;
+      const updates = req.body;
+
+      if (!user?.roles.includes('admin')) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+        return;
+      }
+
+      const brand = await brandService.updateBrand(brandId, updates);
+
+      res.json({
+        success: true,
+        data: { brand },
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        error: {
+          code: 'UPDATE_BRAND_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
 
   /**
    * Get brand profile
@@ -336,6 +366,12 @@ export class BrandController {
     try {
       const { q: query = '', verificationStatus, partnershipTier, page = 1, limit = 20 } = req.query;
 
+      // Sync VUFS brands before searching to ensure list is up to date
+      // We do this asynchronously without awaiting to not slow down the response significantly
+      // or we can await if instant consistency is required. Given the requirement "automatically appear",
+      // awaiting ensures they are there on first load.
+      await brandService.syncVufsBrands();
+
       const filters: any = {};
       if (verificationStatus) filters.verificationStatus = verificationStatus;
       if (partnershipTier) filters.partnershipTier = partnershipTier;
@@ -521,6 +557,192 @@ export class BrandController {
       res.status(500).json({
         error: {
           code: 'GET_COMMISSION_HISTORY_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Soft delete brand (Admin only)
+   */
+  async deleteBrand(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { brandId } = req.params;
+      const { user } = req;
+
+      // Admin check
+      if (!user?.roles.includes('admin')) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+        return;
+      }
+
+      await brandService.softDeleteBrand(brandId);
+
+      res.json({
+        success: true,
+        message: 'Brand moved to trash',
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        error: {
+          code: 'DELETE_BRAND_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Restore brand from trash (Admin only)
+   */
+  async restoreBrand(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { brandId } = req.params;
+      const { user } = req;
+
+      if (!user?.roles.includes('admin')) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+        return;
+      }
+
+      await brandService.restoreBrand(brandId);
+
+      res.json({
+        success: true,
+        message: 'Brand restored successfully',
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        error: {
+          code: 'RESTORE_BRAND_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Permanently delete brand (Admin only)
+   */
+  async permanentDeleteBrand(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { brandId } = req.params;
+      const { user } = req;
+
+      if (!user?.roles.includes('admin')) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+        return;
+      }
+
+      await brandService.permanentDeleteBrand(brandId);
+
+      res.json({
+        success: true,
+        message: 'Brand permanently deleted',
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        error: {
+          code: 'PERMANENT_DELETE_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Get brands in trash (Admin only)
+   */
+  async getTrashBrands(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { user } = req;
+
+      if (!user?.roles.includes('admin')) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+        return;
+      }
+
+      const brands = await brandService.getTrashBrands();
+
+      res.json({
+        success: true,
+        data: { brands },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'GET_TRASH_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Bulk update brands (Admin only)
+   */
+  async bulkUpdateBrands(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { user } = req;
+      const { brandIds, updates } = req.body;
+
+      if (!user?.roles.includes('admin')) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+        return;
+      }
+
+      if (!Array.isArray(brandIds) || brandIds.length === 0) {
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'brandIds must be a non-empty array' } });
+        return;
+      }
+
+      if (!updates || (typeof updates !== 'object')) {
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'updates object is required' } });
+        return;
+      }
+
+      await brandService.bulkUpdateBrands(brandIds, updates);
+
+      res.json({
+        success: true,
+        message: 'Brands updated successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'BULK_UPDATE_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  async bulkDeleteBrands(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { user } = req;
+      const { brandIds } = req.body;
+
+      if (!user?.roles.includes('admin')) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+        return;
+      }
+
+      if (!Array.isArray(brandIds) || brandIds.length === 0) {
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'brandIds must be a non-empty array' } });
+        return;
+      }
+
+      await brandService.bulkDeleteBrands(brandIds);
+
+      res.json({
+        success: true,
+        message: 'Brands deleted successfully',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'BULK_DELETE_FAILED',
           message: error.message,
         },
       });

@@ -8,11 +8,16 @@ import {
     DndContext,
     closestCenter,
     KeyboardSensor,
-    PointerSensor,
-    useSensor,
+    DragEndEvent,
     useSensors,
-    DragEndEvent
+    useSensor,
+    PointerSensor
 } from '@dnd-kit/core';
+import {
+    EyeIcon,
+    EyeSlashIcon,
+    ShoppingBagIcon,
+} from '@heroicons/react/24/outline';
 import {
     arrayMove,
     SortableContext,
@@ -187,6 +192,29 @@ export default function AdminVUFSPage() {
     const [matrixValues, setMatrixValues] = useState<Record<string, string>>({}); // Key: "catId:attrSlug" -> Value
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
+    // Visualization Settings
+    const [hiddenWardrobeColumns, setHiddenWardrobeColumns] = useState<string[]>([]);
+
+    const toggleHiddenColumn = async (slug: string) => {
+        const isHidden = hiddenWardrobeColumns.includes(slug);
+        const newHidden = isHidden
+            ? hiddenWardrobeColumns.filter(s => s !== slug)
+            : [...hiddenWardrobeColumns, slug];
+
+        setHiddenWardrobeColumns(newHidden);
+
+        try {
+            await apiClient.updateVUFSSettings('hidden_wardrobe_columns', newHidden);
+        } catch (error) {
+            console.error('Failed to update visualization settings', error);
+            // Revert on error
+            setHiddenWardrobeColumns(hiddenWardrobeColumns);
+            setAlertMessage({ type: 'error', message: 'Failed to save settings' });
+        }
+    };
+
+
+
     // DnD Sensors
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -249,6 +277,14 @@ export default function AdminVUFSPage() {
     const fetchAllData = async () => {
         setLoading(true);
         try {
+            // Load Settings
+            try {
+                const settings = await apiClient.getVUFSSettings();
+                if (settings && (settings as any).hidden_wardrobe_columns) {
+                    setHiddenWardrobeColumns((settings as any).hidden_wardrobe_columns);
+                }
+            } catch (e) { console.error('Error fetching settings', e); }
+
             const [
                 catsRes,
                 brandsRes,
@@ -283,8 +319,7 @@ export default function AdminVUFSPage() {
                 setColumnAliases(settingsData['column_aliases']);
             }
             if (settingsData && settingsData['disabled_columns']) {
-                const disabled = settingsData['disabled_columns'];
-                setDisabledColumns(disabled);
+                setDisabledColumns(settingsData['disabled_columns']);
             }
             setSettingsLoaded(true);
 
@@ -304,61 +339,42 @@ export default function AdminVUFSPage() {
             const typesData: AttributeType[] = Array.isArray(typesRes) ? typesRes : (typesRes?.types || []);
             setCustomTypes(typesData);
 
-            // Fetch values for each custom type (for dropdowns in grid view)
+            // Fetch values for custom types
             const valuesMap: Record<string, VUFSItem[]> = {};
             await Promise.all(typesData.map(async (type) => {
                 try {
                     const valuesRes = await apiClient.getVUFSAttributeValues(type.slug);
                     valuesMap[type.slug] = Array.isArray(valuesRes) ? valuesRes : (valuesRes?.values || []);
-                } catch (e) {
-                    console.error(`Failed to fetch values for ${type.name}`, e);
-                    valuesMap[type.slug] = [];
-                }
+                } catch (e) { valuesMap[type.slug] = []; }
             }));
             setCustomValues(valuesMap);
 
-            // Default columns + Dynamic Types
+            // Column Order
             const allColumns = ['Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit', ...typesData.map(t => t.slug)];
-
             const storedOrder = localStorage.getItem('vufs_list_column_order');
             if (storedOrder) {
                 try {
                     const parsedOrder = JSON.parse(storedOrder);
-                    // Filter out any stale columns but respect order
                     const currentSet = new Set(typesData.map(t => t.slug).concat(['Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit']));
                     const validStored = parsedOrder.filter((s: string) => currentSet.has(s));
-                    // Append any new ones not in stored
                     const storedSet = new Set(validStored);
                     const missing = Array.from(currentSet).filter((s) => !storedSet.has(s as string));
-
                     setColumnOrder([...validStored, ...missing]);
-                } catch (e) {
-                    console.error('Failed to parse column order', e);
-                    setColumnOrder(allColumns);
-                }
+                } catch (e) { setColumnOrder(allColumns); }
             } else {
                 setColumnOrder(allColumns);
             }
 
-            // Handle Matrix Values
+            // Matrix Values
             const matrixMap: Record<string, string> = {};
-
             const catMatrixData = Array.isArray(catMatrixRes) ? catMatrixRes : (catMatrixRes?.attributes || []);
-            catMatrixData.forEach((item: any) => {
-                matrixMap[`${item.category_id}:${item.attribute_slug}`] = item.value;
-            });
+            catMatrixData.forEach((item: any) => matrixMap[`${item.category_id}:${item.attribute_slug}`] = item.value);
 
-            // Brand Attributes
             const brandMatrixData = Array.isArray(brandMatrixRes) ? brandMatrixRes : (brandMatrixRes?.attributes || []);
-            brandMatrixData.forEach((item: any) => {
-                matrixMap[`${item.brand_id}:${item.attribute_slug}`] = item.value;
-            });
+            brandMatrixData.forEach((item: any) => matrixMap[`${item.brand_id}:${item.attribute_slug}`] = item.value);
 
-            // Size Attributes
             const sizeMatrixData = Array.isArray(sizeMatrixRes) ? sizeMatrixRes : (sizeMatrixRes?.attributes || []);
-            sizeMatrixData.forEach((item: any) => {
-                matrixMap[`${item.size_id}:${item.attribute_slug}`] = item.value;
-            });
+            sizeMatrixData.forEach((item: any) => matrixMap[`${item.size_id}:${item.attribute_slug}`] = item.value);
 
             setMatrixValues(matrixMap);
 
@@ -370,7 +386,6 @@ export default function AdminVUFSPage() {
     };
 
     const handleMatrixChange = async (entityId: string, attributeSlug: string, value: string) => {
-        // Optimistic update
         const key = `${entityId}:${attributeSlug}`;
         setMatrixValues(prev => ({ ...prev, [key]: value }));
 
@@ -379,9 +394,7 @@ export default function AdminVUFSPage() {
 
         try {
             if (activeTab?.mainColumn === 'Apparel' && attributeSlug === 'IS_SUBCATEGORY_1') {
-                // Handle mapped column update (Parent ID)
                 await apiClient.updateVUFSCategory(entityId, { parentId: value || null });
-                // We need to refresh categories to update the list view and other parts
                 await fetchAllData();
             } else if (mainCol === 'Apparel') {
                 await apiClient.setCategoryAttribute(entityId, attributeSlug, value);
@@ -392,8 +405,6 @@ export default function AdminVUFSPage() {
             }
         } catch (err) {
             console.error('Failed to save attribute', err);
-            // Revert on error? For now just log
-            alert('Failed to save value');
         }
     };
 
@@ -405,13 +416,13 @@ export default function AdminVUFSPage() {
     const [bulkInput, setBulkInput] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
     const [editingTab, setEditingTab] = useState<TabConfig | null>(null);
+    const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
     // Handlers
     const initiateDelete = (type: string, id: string, slug?: string) => {
         setModalAction('delete');
         setSelectedType(type);
         setSelectedId(id);
-        // Correctly set slug, defaulting to type name if missing (common for standard columns in legacy)
         setSelectedSlug(slug || type);
     };
 
@@ -425,20 +436,17 @@ export default function AdminVUFSPage() {
     const initiateSaveTab = (tabConfig: TabConfig) => {
         const newTabs = [...tabs];
         const index = newTabs.findIndex(t => t.id === tabConfig.id);
-        if (index > -1) {
-            newTabs[index] = tabConfig;
-        } else {
-            newTabs.push(tabConfig);
-        }
+        if (index > -1) newTabs[index] = tabConfig;
+        else newTabs.push(tabConfig);
         setTabs(newTabs);
         localStorage.setItem('vufs_matrix_tabs', JSON.stringify(newTabs));
-        if (activeTabId === tabConfig.id || !activeTabId) setActiveTabId(tabConfig.id);
+        if (!activeTabId || activeTabId === tabConfig.id) setActiveTabId(tabConfig.id);
         closeModal();
     };
 
     const initiateDeleteTab = (tabId: string) => {
         if (tabs.length <= 1) {
-            alert("Cannot delete the last tab.");
+            setAlertMessage({ type: 'error', message: "Cannot delete last tab." });
             return;
         }
         const newTabs = tabs.filter(t => t.id !== tabId);
@@ -449,16 +457,8 @@ export default function AdminVUFSPage() {
     };
 
     const initiateConfigureTab = (tab?: TabConfig) => {
-        if (tab) {
-            setEditingTab(tab);
-        } else {
-            setEditingTab({
-                id: crypto.randomUUID(),
-                name: 'New Tab',
-                mainColumn: 'Apparel',
-                columns: []
-            });
-        }
+        if (tab) setEditingTab(tab);
+        else setEditingTab({ id: crypto.randomUUID(), name: 'New Tab', mainColumn: 'Apparel', columns: [] });
         setModalAction('configureTab');
     };
 
@@ -479,48 +479,35 @@ export default function AdminVUFSPage() {
         setModalAction('renameItem');
         setSelectedId(item.id);
         setSelectedType(typeName);
-        // Essential: Set slug or fallback to name if missing (for standard columns where slug might == name)
         setSelectedSlug(typeSlug || typeName);
         setInputValue(item.name);
     };
 
     const confirmRenameColumn = async () => {
         if (!inputValue.trim()) return;
-        const slug = selectedSlug || selectedType; // Handle cases where slug passed as type
-
+        const slug = selectedSlug || selectedType;
         setActionLoading(true);
         try {
-            // Check if custom
             const isCustom = customTypes.some(t => t.slug === slug);
-            if (isCustom) {
-                await apiClient.updateVUFSAttributeType(slug, inputValue.trim());
-            } else {
-                // Standard Column - Update Global Alias
+            if (isCustom) await apiClient.updateVUFSAttributeType(slug, inputValue.trim());
+            else {
                 const newAliases = { ...columnAliases, [slug]: inputValue.trim() };
                 setColumnAliases(newAliases);
                 await apiClient.updateVUFSSettings('column_aliases', newAliases);
             }
             await fetchAllData();
             closeModal();
-        } catch (error) {
-            console.error('Failed to rename column', error);
-            // Fallback to alias if API fails? No, better to alert.
-            alert('Failed to rename column');
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (error) { setAlertMessage({ type: 'error', message: 'Failed to rename column' }); }
+        finally { setActionLoading(false); }
     };
 
     const confirmRenameItem = async () => {
         if (!inputValue.trim()) return;
         setActionLoading(true);
         try {
-            // Check if custom
             const isCustom = customTypes.some(t => t.slug === selectedSlug);
-            if (isCustom) {
-                await apiClient.updateVUFSAttributeValue(selectedId, inputValue.trim());
-            } else {
-                // Standard Types - Use selectedSlug (Internal ID) NOT selectedType (Display Alias)
+            if (isCustom) await apiClient.updateVUFSAttributeValue(selectedId, inputValue.trim());
+            else {
                 switch (selectedType) {
                     case 'Apparel': await apiClient.updateVUFSCategory(selectedId, inputValue.trim()); break;
                     case 'Brand': await apiClient.updateVUFSBrand(selectedId, inputValue.trim()); break;
@@ -529,20 +516,12 @@ export default function AdminVUFSPage() {
                     case 'Pattern': await apiClient.updateVUFSPattern(selectedId, inputValue.trim()); break;
                     case 'Fit': await apiClient.updateVUFSFit(selectedId, inputValue.trim()); break;
                     case 'Size': await apiClient.updateVUFSSize(selectedId, inputValue.trim()); break;
-                    default:
-                        // Fallback if slug missing, though unlikely given renderList logic
-                        console.warn("Unknown standard type:", selectedSlug);
                 }
             }
-
             await fetchAllData();
             closeModal();
-        } catch (error) {
-            console.error('Failed to rename item', error);
-            alert('Failed to rename item');
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (err) { setAlertMessage({ type: 'error', message: 'Failed to rename item' }); }
+        finally { setActionLoading(false); }
     };
 
     const initiateAddColumn = () => {
@@ -554,28 +533,22 @@ export default function AdminVUFSPage() {
         setModalAction('deleteColumn');
         setSelectedSlug(slug);
         setSelectedType(name);
-    }
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (event) => {
-            setBulkInput(event.target?.result as string);
-        };
+        reader.onload = (event) => setBulkInput(event.target?.result as string);
         reader.readAsText(file);
     };
 
     const confirmDelete = async () => {
         setActionLoading(true);
         try {
-            // Check if it's a custom attribute value
             const isCustom = customTypes.some(t => t.slug === selectedSlug);
-
-            if (isCustom) {
-                await apiClient.deleteVUFSAttributeValue(selectedId);
-            } else {
-                // Standard types - Use selectedSlug
+            if (isCustom) await apiClient.deleteVUFSAttributeValue(selectedId);
+            else {
                 switch (selectedType) {
                     case 'Apparel': await apiClient.deleteVUFSCategory(selectedId); break;
                     case 'Brand': await apiClient.deleteVUFSBrand(selectedId); break;
@@ -588,28 +561,17 @@ export default function AdminVUFSPage() {
             }
             await fetchAllData();
             closeModal();
-        } catch (err) {
-            console.error('Delete failed', err);
-            alert('Failed to delete item.');
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (err) { setAlertMessage({ type: 'error', message: 'Failed to delete item.' }); }
+        finally { setActionLoading(false); }
     };
 
     const confirmAdd = async () => {
         if (!inputValue.trim()) return;
         setActionLoading(true);
-
         try {
-            // Check if it's a custom attribute value
-            const customType = customTypes.find(t => t.name === selectedType || t.slug === selectedSlug);
-            const isCustom = !!customType || (!!selectedSlug && customTypes.some(t => t.slug === selectedSlug));
-
-            if (isCustom) {
-                await apiClient.addVUFSAttributeValue(selectedSlug, inputValue);
-            } else {
-                // Standard Types - Use selectedSlug logic
-                const stdType = selectedSlug || selectedType;
+            const isCustom = !!selectedSlug && customTypes.some(t => t.slug === selectedSlug);
+            if (isCustom) await apiClient.addVUFSAttributeValue(selectedSlug, inputValue);
+            else {
                 switch (selectedType) {
                     case 'Apparel': await apiClient.addVUFSCategory({ name: inputValue, level: 'page' }); break;
                     case 'Brand': await apiClient.addVUFSBrand(inputValue); break;
@@ -622,12 +584,8 @@ export default function AdminVUFSPage() {
             }
             await fetchAllData();
             closeModal();
-        } catch (err: any) {
-            console.error('Add failed', err);
-            alert(`Failed: ${err.message || 'Error adding item'}`);
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (err: any) { setAlertMessage({ type: 'error', message: `Failed: ${err.message || 'Error adding item'}` }); }
+        finally { setActionLoading(false); }
     };
 
     const confirmAddColumn = async () => {
@@ -635,15 +593,11 @@ export default function AdminVUFSPage() {
         setActionLoading(true);
         try {
             const res = await apiClient.addVUFSAttributeType(inputValue);
-            // Add new column to order
             setColumnOrder(prev => [...prev, (res as any).slug]);
             await fetchAllData();
             closeModal();
-        } catch (err: any) {
-            alert(`Failed to add column: ${err.message}`);
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (err: any) { setAlertMessage({ type: 'error', message: `Failed to add column: ${err.message}` }); }
+        finally { setActionLoading(false); }
     };
 
     const confirmDeleteColumn = async () => {
@@ -651,10 +605,8 @@ export default function AdminVUFSPage() {
         setActionLoading(true);
         try {
             const isCustom = customTypes.some(t => t.slug === slug);
-            if (isCustom) {
-                await apiClient.deleteVUFSAttributeType(slug);
-            } else {
-                // Standard Column - Disable Globally
+            if (isCustom) await apiClient.deleteVUFSAttributeType(slug);
+            else {
                 const newDisabled = [...disabledColumns, slug];
                 setDisabledColumns(newDisabled);
                 await apiClient.updateVUFSSettings('disabled_columns', newDisabled);
@@ -662,11 +614,8 @@ export default function AdminVUFSPage() {
             }
             await fetchAllData();
             closeModal();
-        } catch (err: any) {
-            alert(`Failed to delete column: ${err.message}`);
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (err: any) { setAlertMessage({ type: 'error', message: `Failed to delete column: ${err.message}` }); }
+        finally { setActionLoading(false); }
     };
 
     const confirmBulkAdd = async () => {
@@ -674,25 +623,19 @@ export default function AdminVUFSPage() {
         setActionLoading(true);
         const items = bulkInput.split(/[\n,]+/).map(item => item.trim()).filter(item => item.length > 0);
         if (!items.length) { setActionLoading(false); return; }
-
         try {
-            // Pass attributeSlug properly. Use selectedSlug as type if available (for standard columns) to ensure ID match.
-            // If custom, selectedSlug acts as attributeSlug.
+            // Check if custom
             const isCustom = customTypes.some(t => t.slug === selectedSlug);
             const typeToSend = isCustom ? 'custom' : (selectedSlug || selectedType);
 
             const res = await apiClient.bulkAddVUFSItems(typeToSend, items, selectedSlug);
             // @ts-ignore
             const { added, duplicates } = res.result || {};
-            alert(`Bulk Add Completed!\nAdded: ${added}\nDuplicates Skipped: ${duplicates}`);
+            setAlertMessage({ type: 'success', message: `Bulk Add Completed!\nAdded: ${added}\nDuplicates: ${duplicates}` });
             await fetchAllData();
             closeModal();
-        } catch (err: any) {
-            console.error(err);
-            alert('Failed to bulk add items.');
-        } finally {
-            setActionLoading(false);
-        }
+        } catch (err) { setAlertMessage({ type: 'error', message: 'Failed to bulk add items.' }); }
+        finally { setActionLoading(false); }
     };
 
     const closeModal = () => {
@@ -713,14 +656,15 @@ export default function AdminVUFSPage() {
     );
 
     const renderList = (title: string, items: VUFSItem[], bgClass: string, textClass: string, slug?: string, isCustomColumn = false) => (
-        <div className="flex flex-col min-w-[220px] bg-white border-r last:border-r-0 h-full w-[250px]">
-            <div className={`h-[50px] px-4 font-bold text-center border-b uppercase text-sm tracking-wider flex justify-between items-center group/header ${bgClass} ${textClass}`}>
+        <div className="flex flex-col min-w-[320px] bg-white border-r last:border-r-0 h-full w-[320px]">
+            <div className={`h-[50px] px-4 font-bold text-center border-b text-sm tracking-wider flex justify-between items-center group/header ${bgClass} ${textClass}`}>
                 <span className="truncate" title={title}>{title}</span>
                 <div className="flex gap-1 items-center">
                     <button
-                        onClick={() => initiateRenameColumn({ slug: slug || title, name: title } as any)}
+                        onClick={(e) => { e.stopPropagation(); initiateRenameColumn({ slug: slug || title, name: title } as any); }}
                         className="opacity-0 group-hover/header:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity"
                         title="Rename Column"
+                        onPointerDown={(e) => e.stopPropagation()}
                     >
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -735,6 +679,14 @@ export default function AdminVUFSPage() {
                         + Bulk
                     </button>
                     <button
+                        onClick={(e) => { e.stopPropagation(); toggleHiddenColumn(slug || title); }}
+                        className={`text-[10px] px-1.5 py-1 rounded transition-colors ml-1 ${hiddenWardrobeColumns?.includes(slug || title) ? 'text-gray-400 bg-gray-100' : 'text-blue-600 bg-blue-50'}`}
+                        title={hiddenWardrobeColumns?.includes(slug || title) ? "Show in Wardrobe" : "Hide in Visualization"}
+                        onPointerDown={(e) => e.stopPropagation()}
+                    >
+                        {hiddenWardrobeColumns?.includes(slug || title) ? <EyeSlashIcon className="h-3 w-3" /> : <EyeIcon className="h-3 w-3" />}
+                    </button>
+                    <button
                         onClick={() => initiateDeleteColumn((slug || title), title)}
                         className="opacity-0 group-hover/header:opacity-100 text-[10px] bg-red-100 hover:bg-red-200 text-red-700 px-1.5 py-1 rounded transition-all"
                         title="Delete Column"
@@ -742,12 +694,6 @@ export default function AdminVUFSPage() {
                     >
                         Trash
                     </button>
-                    {/* Make sure Add Item works too - Verify Footer in next chunk or separate check? 
-                       Wait, the user said "Add Item" functions don't work.
-                       Let's check the footer button in renderList. It's usually at the bottom.
-                       I only see the top part in the previous view. I need to view the bottom of renderList.
-                       However, for 'Trash' and 'Bulk', I am fixing stopPropagation here too just in case drag interferes.
-                    */}
                 </div>
             </div>
             <div className={`overflow-y-auto flex-1 ${items.length === 0 ? 'flex items-center justify-center' : ''}`}>
@@ -757,7 +703,6 @@ export default function AdminVUFSPage() {
                 {items.length > 0 && items.sort((a, b) => a.name.localeCompare(b.name)).map((item, idx) => (
                     <div key={item.id} className={`group p-3 border-b text-sm max-w-xs hover:bg-gray-100 flex justify-between items-center ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                         <div className="flex items-center overflow-hidden mr-2">
-                            {/* Edit Icon Button for All Columns */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); initiateRenameItem(item, title, slug); }}
                                 className="mr-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-600 transition-opacity focus:opacity-100"
@@ -772,13 +717,7 @@ export default function AdminVUFSPage() {
                         </div>
                         <div className="flex items-center gap-1">
                             {slug === 'Brand' && (
-                                <a
-                                    href={`/brands/${item.id}/edit`}
-                                    target="_blank"
-                                    className="opacity-0 group-hover:opacity-100 text-xs text-blue-500 hover:text-blue-700 font-medium px-1 underline"
-                                >
-                                    Profile
-                                </a>
+                                <a href={`/brands/${item.id}/edit`} target="_blank" className="opacity-0 group-hover:opacity-100 text-xs text-blue-500 hover:text-blue-700 font-medium px-1 underline">Profile</a>
                             )}
                             <button
                                 onClick={(e) => { e.stopPropagation(); initiateDelete(title, item.id, slug); }}
@@ -790,9 +729,6 @@ export default function AdminVUFSPage() {
                         </div>
                     </div>
                 ))}
-                {items.length === 0 && (
-                    <div className="p-4 text-gray-400 text-center italic text-xs">No items found</div>
-                )}
             </div>
             <div className="p-3 border-t bg-gray-50">
                 <button
@@ -809,33 +745,23 @@ export default function AdminVUFSPage() {
     const handleMatrixDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
-
         const activeTab = tabs.find(t => t.id === activeTabId);
         if (!activeTab) return;
-
         const oldIndex = activeTab.columns.indexOf(active.id as string);
         const newIndex = activeTab.columns.indexOf(over.id as string);
-
         if (oldIndex !== -1 && newIndex !== -1) {
             const newColumns = arrayMove(activeTab.columns, oldIndex, newIndex);
-            // Update Tabs State
             const newTabs = tabs.map(t => t.id === activeTabId ? { ...t, columns: newColumns } : t);
             setTabs(newTabs);
             localStorage.setItem('vufs_matrix_tabs', JSON.stringify(newTabs));
-            // Note: If you want to persist this order immediately, call API here.
-            // For now, it stays in local state until "Configure Tab" -> Save? 
-            // Or we could auto-save tab config if we had an endpoint for "updateTab".
-            // Assuming Tabs are local/preference for now or saved later.
         }
     };
 
     const handleTabDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
-
         const oldIndex = tabs.findIndex(t => t.id === active.id);
         const newIndex = tabs.findIndex(t => t.id === over.id);
-
         if (oldIndex !== -1 && newIndex !== -1) {
             const newTabs = arrayMove(tabs, oldIndex, newIndex);
             setTabs(newTabs);
@@ -843,261 +769,13 @@ export default function AdminVUFSPage() {
         }
     };
 
-    const renderGridView = () => {
-        const activeTab = tabs.find(t => t.id === activeTabId);
 
-        // Filter rows
-        // Filter rows
-        let rows = categories;
-        let rowLabel = 'Apparel';
-
-        if (activeTab?.mainColumn === 'Brand') {
-            rows = brands;
-            rowLabel = 'Brand';
-        } else if (activeTab?.mainColumn === 'Size') {
-            rows = sizes;
-            rowLabel = 'Size';
-        }
-
-        const rowIdType = activeTab?.mainColumn;
-
-        // Filter columns
-        const visibleColumnSlugs = activeTab?.columns || [];
-
-        // Define Mapped Columns
-        const MAPPED_COLUMNS = [
-            { slug: 'IS_SUBCATEGORY_1', name: 'Subcategory 1' }
-        ];
-
-        // Determine which columns to show, RESPECTING ORDER
-        const allVisibleColumns = visibleColumnSlugs.map(slug => {
-            const mapped = MAPPED_COLUMNS.find(c => c.slug === slug);
-            if (mapped) return mapped;
-            const custom = customTypes.find(c => c.slug === slug);
-            if (custom) return custom;
-            return null;
-        }).filter((t): t is AttributeType | { slug: string, name: string } => !!t);
-
-        return (
-            <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col">
-                {/* Tabs Bar - Fixed at top, enforced height */}
-                <div className="flex items-center gap-1 mb-0 border-b border-gray-200 bg-white px-2 pt-2 z-20 shrink-0 min-h-[45px]">
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleTabDragEnd}
-                    >
-                        <SortableContext
-                            items={tabs.map(t => t.id)}
-                            strategy={horizontalListSortingStrategy}
-                        >
-                            {tabs.map(tab => (
-                                <SortableTab key={tab.id} id={tab.id} active={activeTabId === tab.id}>
-                                    <div className="flex items-center gap-2" onClick={() => setActiveTabId(tab.id)}>
-                                        <span>{tab.name}</span>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); initiateConfigureTab(tab); }}
-                                            className={`ml-1 p-0.5 rounded hover:bg-gray-200 ${activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                                            title="Configure Tab"
-                                            onPointerDown={(e) => e.stopPropagation()}
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </SortableTab>
-                            ))}
-                        </SortableContext>
-                    </DndContext>
-                    <button
-                        onClick={() => initiateConfigureTab()}
-                        className="p-1.5 ml-1 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Add New Tab"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                    </button>
-                </div>
-
-                {/* Table Container - Scrollable */}
-                <div className="flex-1 overflow-auto p-6 pt-0">
-                    <div className="bg-white border rounded-b shadow-sm min-w-max border-t-0">
-                        {/* @ts-ignore */}
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleMatrixDragEnd}
-                        >
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b">
-                                    <tr>
-                                        <th className="px-4 py-3 font-bold border-r w-48 sticky left-0 top-0 bg-gray-100 z-30 shadow-[1px_1px_0_0_rgba(0,0,0,0.05)]">{rowLabel}</th>
-                                        {allVisibleColumns.length === 0 && (
-                                            <th className="px-4 py-3 border-r min-w-[200px] text-gray-400 italic font-normal normal-case">
-                                                No columns selected. Click "Configure Tab" to add columns.
-                                            </th>
-                                        )}
-                                        <SortableContext
-                                            items={allVisibleColumns.map(c => c.slug)}
-                                            strategy={horizontalListSortingStrategy}
-                                        >
-                                            {allVisibleColumns.map(type => (
-                                                <SortableMatrixHeader key={type.slug} id={type.slug} className="px-4 py-3 border-r min-w-[200px] sticky top-0 bg-gray-100 z-20">
-                                                    <div className="flex items-center justify-between group cursor-grab active:cursor-grabbing">
-                                                        <span>{columnAliases[type.slug] || type.name}</span>
-                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); initiateRenameColumn(type as any); }}
-                                                                className="text-gray-500 hover:text-blue-600 p-1"
-                                                                title="Rename Column"
-                                                                onPointerDown={e => e.stopPropagation()} // Prevent drag conflict
-                                                            >
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                                </svg>
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); initiateDeleteColumn(type.slug, type.name); }}
-                                                                className="text-gray-400 hover:text-red-500 p-1 font-bold"
-                                                                title="Delete Column"
-                                                                onPointerDown={e => e.stopPropagation()} // Prevent drag conflict
-                                                            >
-                                                                &times;
-                                                            </button>
-                                                            <span className="text-gray-300 ml-1 cursor-grab" title="Drag to reorder">⋮⋮</span>
-                                                        </div>
-                                                    </div>
-                                                </SortableMatrixHeader>
-                                            ))}
-                                        </SortableContext>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {rows.sort((a, b) => a.name.localeCompare(b.name)).map((row, idx) => (
-                                        <tr key={row.id} className="border-b hover:bg-gray-50">
-                                            <td className="px-4 py-3 font-medium text-gray-900 border-r bg-white sticky left-0 z-10 font-bold group">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{row.name}</span>
-                                                        {rowIdType === 'Brand' && (
-                                                            <a
-                                                                href={`/brands/${row.id}/edit`}
-                                                                target="_blank"
-                                                                className="text-xs text-blue-500 hover:text-blue-700 underline opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            >
-                                                                Profile
-                                                            </a>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => initiateRenameItem(row, rowLabel, rowIdType)} // Pass rowIdType as slug
-                                                            className="text-gray-400 hover:text-blue-600 p-1"
-                                                            title="Rename Item"
-                                                        >
-                                                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => initiateDelete(rowLabel, row.id, rowIdType)} // Pass rowIdType as slug
-                                                            className="text-gray-400 hover:text-red-500 p-1 font-bold text-lg leading-none"
-                                                            title="Delete Item"
-                                                        >
-                                                            &times;
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            {allVisibleColumns.length === 0 && (
-                                                <td className="px-4 py-4 border-r bg-gray-50/50"></td>
-                                            )}
-                                            {allVisibleColumns.map(type => {
-                                                // Is this a mapped column?
-                                                if (type.slug === 'IS_SUBCATEGORY_1') {
-                                                    // Handle Parent ID Logic
-                                                    // Find current parent
-                                                    const currentParentId = (row as VUFSCategoryOption).parentId;
-
-                                                    // Options for dropdown: prevent circular logic (can't be own child)
-                                                    // For simplicity, let's just show all other categories for now, or filter by level if strict
-                                                    const parentOptions = categories.filter(c => c.id !== row.id);
-
-                                                    return (
-                                                        <td key={type.slug} className="px-2 py-2 border-r bg-blue-50/30 p-0">
-                                                            <div className="relative">
-                                                                <input
-                                                                    type="text"
-                                                                    list={`list-${type.slug}-${row.id}`}
-                                                                    className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-900 font-medium placeholder-gray-400"
-                                                                    value={parentOptions.find(p => p.id === currentParentId)?.name || currentParentId || ''}
-                                                                    placeholder="-"
-                                                                    onChange={(e) => {
-                                                                        // Reverse lookup name -> id for parent
-                                                                        const selected = parentOptions.find(p => p.name === e.target.value);
-                                                                        if (selected) handleMatrixChange(row.id, type.slug, selected.id);
-                                                                    }}
-                                                                />
-                                                                <datalist id={`list-${type.slug}-${row.id}`}>
-                                                                    {parentOptions.map(opt => (
-                                                                        <option key={opt.id} value={opt.name} />
-                                                                    ))}
-                                                                </datalist>
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                }
-
-                                                // Standard Attribute Logic
-                                                const key = `${row.id}:${type.slug}`;
-                                                const currentVal = matrixValues[key] || '';
-                                                const options = customValues[type.slug] || [];
-                                                const listId = `list-${type.slug}`;
-
-                                                return (
-                                                    <td key={type.slug} className="px-2 py-2 border-r bg-white/50 p-0">
-                                                        <div className="relative">
-                                                            <input
-                                                                type="text"
-                                                                list={options.length > 0 ? listId : undefined}
-                                                                className="w-full h-full bg-transparent p-2 outline-none border-0 focus:ring-2 focus:ring-blue-100 rounded text-gray-700 placeholder-gray-300"
-                                                                value={currentVal}
-                                                                onChange={(e) => handleMatrixChange(row.id, type.slug, e.target.value)}
-                                                                placeholder="-"
-                                                            />
-                                                            {options.length > 0 && (
-                                                                <datalist id={listId}>
-                                                                    {options.map(opt => (
-                                                                        <option key={opt.id} value={opt.name} />
-                                                                    ))}
-                                                                </datalist>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </DndContext>
-                    </div>
-                </div>
-            </div>
-        );
-    };
 
     const getColumnContent = (colId: string) => {
-        // Alias lookup
         const displayName = columnAliases[colId] || colId;
         const customType = customTypes.find(t => t.slug === colId);
 
         if (customType) {
-            // Determine color scheme based on index or hash?
-            // reuse existing logic or simple random
             const idx = customTypes.findIndex(t => t.slug === colId);
             const colors = [
                 { bg: 'bg-orange-50', text: 'text-orange-900' },
@@ -1109,7 +787,6 @@ export default function AdminVUFSPage() {
             return renderList(customType.name, customValues[colId] || [], scheme.bg, scheme.text, colId, true);
         }
 
-        // Standard Columns
         switch (colId) {
             case 'Style / Category': return renderList(displayName, categories, 'bg-purple-50', 'text-purple-900', colId);
             case 'Brand': return renderList(displayName, brands, 'bg-gray-100', 'text-gray-900', colId);
@@ -1120,6 +797,126 @@ export default function AdminVUFSPage() {
             case 'Fit': return renderList(displayName, fits, 'bg-yellow-50', 'text-yellow-900', colId);
             default: return null;
         }
+    };
+
+    const renderGridView = () => {
+        const activeTab = tabs.find(t => t.id === activeTabId);
+        let rows = categories;
+        let rowLabel = 'Apparel';
+        if (activeTab?.mainColumn === 'Brand') { rows = brands; rowLabel = 'Brand'; }
+        else if (activeTab?.mainColumn === 'Size') { rows = sizes; rowLabel = 'Size'; }
+
+        const visibleColumnSlugs = activeTab?.columns || [];
+        const MAPPED_COLUMNS = [{ slug: 'IS_SUBCATEGORY_1', name: 'Subcategory 1' }];
+        const allVisibleColumns = visibleColumnSlugs.map(slug => {
+            const mapped = MAPPED_COLUMNS.find(c => c.slug === slug);
+            if (mapped) return mapped;
+            const custom = customTypes.find(c => c.slug === slug);
+            if (custom) return custom;
+            return null;
+        }).filter((t): t is AttributeType | { slug: string, name: string } => !!t);
+
+        return (
+            <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col">
+                <div className="flex items-center gap-1 mb-0 border-b border-gray-200 bg-white px-2 pt-2 z-20 shrink-0 min-h-[45px]">
+                    {/* @ts-ignore */}
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
+                        <SortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
+                            {tabs.map(tab => (
+                                <SortableTab key={tab.id} id={tab.id} active={activeTabId === tab.id}>
+                                    <div className="flex items-center gap-2" onClick={() => setActiveTabId(tab.id)}>
+                                        <span>{tab.name}</span>
+                                        <button onClick={(e) => { e.stopPropagation(); initiateConfigureTab(tab); }} className={`ml-1 p-0.5 rounded hover:bg-gray-200 ${activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} title="Configure Tab" onPointerDown={(e) => e.stopPropagation()}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                        </button>
+                                    </div>
+                                </SortableTab>
+                            ))}
+                        </SortableContext>
+                    </DndContext>
+                    <button onClick={() => initiateConfigureTab()} className="p-1.5 ml-1 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors" title="Add New Tab">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    </button>
+                </div>
+                <div className="flex-1 overflow-auto p-6 pt-0">
+                    <div className="bg-white border rounded-b shadow-sm min-w-max border-t-0">
+                        {/* @ts-ignore */}
+                        {/* @ts-ignore */}
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleMatrixDragEnd}>
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-gray-700 bg-gray-100 border-b">
+                                    <tr>
+                                        <th className="px-4 py-3 font-bold border-r w-48 sticky left-0 top-0 bg-gray-100 z-30 shadow-[1px_1px_0_0_rgba(0,0,0,0.05)]">{rowLabel}</th>
+                                        <SortableContext items={allVisibleColumns.map(c => c.slug)} strategy={horizontalListSortingStrategy}>
+                                            {allVisibleColumns.map(type => (
+                                                <SortableMatrixHeader key={type.slug} id={type.slug} className="px-4 py-3 border-r min-w-[320px] sticky top-0 bg-gray-100 z-20">
+                                                    <div className="flex items-center justify-between group cursor-grab active:cursor-grabbing">
+                                                        <span>{columnAliases[type.slug] || type.name}</span>
+                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); toggleHiddenColumn(type.slug); }}
+                                                                className={`p-1 rounded hover:bg-white transition-colors ${hiddenWardrobeColumns?.includes(type.slug) ? 'text-gray-400' : 'text-blue-600'}`}
+                                                                title={hiddenWardrobeColumns?.includes(type.slug) ? "Show in Wardrobe" : "Hide in Visualization"}
+                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                            >
+                                                                {hiddenWardrobeColumns?.includes(type.slug) ? <EyeSlashIcon className="h-3 w-3" /> : <EyeIcon className="h-3 w-3" />}
+                                                            </button>
+                                                            <button onClick={(e) => { e.stopPropagation(); initiateRenameColumn(type as any); }} className="text-gray-500 hover:text-blue-600 p-1" title="Rename Column" onPointerDown={e => e.stopPropagation()}>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                            </button>
+                                                            <button onClick={(e) => { e.stopPropagation(); initiateDeleteColumn(type.slug, type.name); }} className="text-gray-400 hover:text-red-500 p-1 font-bold" title="Delete Column" onPointerDown={e => e.stopPropagation()}>&times;</button>
+                                                            <span className="text-gray-300 ml-1 cursor-grab" title="Drag to reorder">⋮⋮</span>
+                                                        </div>
+                                                    </div>
+                                                </SortableMatrixHeader>
+                                            ))}
+                                        </SortableContext>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows.sort((a, b) => a.name.localeCompare(b.name)).map((row, idx) => (
+                                        <tr key={row.id} className="border-b hover:bg-gray-50">
+                                            <td className="px-4 py-3 font-medium text-gray-900 border-r bg-white sticky left-0 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">
+                                                <div className="flex items-center justify-between group">
+                                                    <span>{row.name}</span>
+                                                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); initiateRenameItem(row, row.name, rowLabel); }}
+                                                            className="p-1 text-gray-400 hover:text-blue-600"
+                                                            title="Rename"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); initiateDelete(rowLabel, row.id, row.slug); }}
+                                                            className="p-1 text-gray-400 hover:text-red-500"
+                                                            title="Delete"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            {allVisibleColumns.map(col => (
+                                                <td key={col.slug} className="px-4 py-2 border-r min-w-[320px]">
+                                                    <input
+                                                        type="text"
+                                                        value={matrixValues[`${row.id}:${col.slug}`] || ''}
+                                                        onChange={(e) => handleMatrixChange(row.id, col.slug, e.target.value)}
+                                                        className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                        placeholder="-"
+                                                    />
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </DndContext>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -1155,10 +952,11 @@ export default function AdminVUFSPage() {
                         </button>
                     )}
                 </div>
-            </header>
+            </header >
 
             {viewMode === 'list' ? (
                 <div className="flex-1 overflow-x-auto">
+                    {/* @ts-ignore */}
                     <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
@@ -1432,6 +1230,41 @@ export default function AdminVUFSPage() {
                     </div>
                 )
             }
+
+            {alertMessage && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4 transform transition-all scale-100 animate-in zoom-in duration-200">
+                        <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full mb-4 ${alertMessage.type === 'error' ? 'bg-red-100' : 'bg-green-100'}`}>
+                            {alertMessage.type === 'error' ? (
+                                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            ) : (
+                                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            )}
+                        </div>
+                        <h3 className={`text-lg font-medium text-center mb-2 ${alertMessage.type === 'error' ? 'text-red-900' : 'text-gray-900'}`}>
+                            {alertMessage.type === 'error' ? 'Error' : 'Success'}
+                        </h3>
+                        <div className="mt-2 text-center">
+                            <p className="text-sm text-gray-500 whitespace-pre-line">
+                                {alertMessage.message}
+                            </p>
+                        </div>
+                        <div className="mt-5">
+                            <button
+                                type="button"
+                                className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm ${alertMessage.type === 'error' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 'bg-black hover:bg-gray-800 focus:ring-gray-500'}`}
+                                onClick={() => setAlertMessage(null)}
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

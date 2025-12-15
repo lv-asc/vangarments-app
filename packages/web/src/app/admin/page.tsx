@@ -8,7 +8,9 @@ import {
     BuildingStorefrontIcon,
     UsersIcon,
     TagIcon,
-    Cog6ToothIcon
+    Cog6ToothIcon,
+    SwatchIcon,
+    FunnelIcon
 } from '@heroicons/react/24/outline';
 
 const AdminCard = ({ title, description, href, icon: Icon, color }: any) => (
@@ -68,6 +70,30 @@ export default function AdminPage() {
                 />
 
                 <AdminCard
+                    title="SKU Management"
+                    description="Manage Global SKUs, Images, and Videos."
+                    href="/admin/skus"
+                    icon={TagIcon}
+                    color="bg-indigo-600"
+                />
+
+                <AdminCard
+                    title="Colors"
+                    description="Manage Colors and Color Groups."
+                    href="/admin/colors"
+                    icon={SwatchIcon}
+                    color="bg-pink-600"
+                />
+
+                <AdminCard
+                    title="Sizes"
+                    description="Manage Sizes, Conversions and Validity."
+                    href="/admin/sizes"
+                    icon={FunnelIcon}
+                    color="bg-orange-600"
+                />
+
+                <AdminCard
                     title="User Management"
                     description="Manage Users, Roles, and Permissions."
                     href="/admin/users"
@@ -81,6 +107,14 @@ export default function AdminPage() {
                     href="/admin/configuration"
                     icon={Cog6ToothIcon}
                     color="bg-gray-600"
+                />
+
+                <AdminCard
+                    title="Apparel"
+                    description="Manage Apparel Categories and Attributes."
+                    href="/admin/apparel"
+                    icon={TagIcon}
+                    color="bg-pink-600"
                 />
             </div>
         </div>

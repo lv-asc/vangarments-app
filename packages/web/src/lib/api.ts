@@ -471,6 +471,10 @@ class ApiClient {
     return (response as any).users || response.data || response;
   }
 
+  async deleteUser(userId: string): Promise<void> {
+    await this.request(`/users/${userId}`, { method: 'DELETE' });
+  }
+
   async uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
     const formData = new FormData();
     formData.append('avatar', file);
@@ -502,6 +506,30 @@ class ApiClient {
         errorData.details,
         response.status
       );
+    }
+
+    return data.data || data;
+  }
+
+  async uploadFile(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/storage/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new ApiErrorClass(data.message || 'File upload failed');
     }
 
     return data.data || data;
@@ -772,6 +800,43 @@ class ApiClient {
   async deleteVUFSFit(id: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'DELETE' }); }
   async updateVUFSFit(id: string, name: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
 
+
+  // --- EXTENDED COLORS (Admin Page) ---
+  async getAllColors() { const res = await this.request<any[]>('/colors'); return res as any as any[]; }
+  async createColor(data: { name: string; hexCode?: string; groupIds?: string[] }) {
+    return this.request('/colors', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async updateColor(id: string, data: { name?: string; hexCode?: string; groupIds?: string[] }) {
+    return this.request(`/colors/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+  async deleteColor(id: string) { return this.request(`/colors/${id}`, { method: 'DELETE' }); }
+
+  async getColorGroups() { const res = await this.request<any[]>('/colors/groups/all'); return res as any as any[]; }
+  async createColorGroup(name: string) { return this.request('/colors/groups', { method: 'POST', body: JSON.stringify({ name }) }); }
+  async updateColorGroup(id: string, name: string) { return this.request(`/colors/groups/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }); }
+  async deleteColorGroup(id: string) { return this.request(`/colors/groups/${id}`, { method: 'DELETE' }); }
+
+  // --- EXTENDED SIZES (Admin Page) ---
+  async getAllSizes() { const res = await this.request<any[]>('/sizes'); return res as any as any[]; }
+  async createSize(data: { name: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[] }) {
+    return this.request('/sizes', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async updateSize(id: string, data: { name?: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[] }) {
+    return this.request(`/sizes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+  async deleteSize(id: string) { return this.request(`/sizes/${id}`, { method: 'DELETE' }); }
+
+  // --- SKU Global Management ---
+  async getAllSKUs(params: { page?: number; limit?: number; search?: string; brandId?: string } = {}) {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', params.page.toString());
+    if (params.limit) query.append('limit', params.limit.toString());
+    if (params.search) query.append('search', params.search);
+    if (params.brandId) query.append('brandId', params.brandId);
+
+    const response = await this.request<any>(`/skus?${query.toString()}`);
+    return response as any;
+  }
   // --- SIZES ---
   async getVUFSSizes() {
     const response = await this.request<any>('/vufs-management/sizes');
@@ -795,8 +860,8 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/attributes');
     return (response as any).types || response.data || response;
   }
-  async addVUFSAttributeType(name: string) {
-    return this.request('/vufs-management/attributes', { method: 'POST', body: JSON.stringify({ name }) });
+  async addVUFSAttributeType(slug: string, name: string) {
+    return this.request('/vufs-management/attributes', { method: 'POST', body: JSON.stringify({ slug, name }) });
   }
   async updateVUFSAttributeType(slug: string, name: string) {
     return this.request(`/vufs-management/attributes/${slug}`, { method: 'PATCH', body: JSON.stringify({ name }) });
@@ -817,8 +882,7 @@ class ApiClient {
 
   // --- MATRIX VIEW ---
   async getAllCategoryAttributes() {
-    const response = await this.request<any>('/vufs-management/matrix');
-    return (response as any).attributes || response.data || response;
+    return this.request('/vufs-management/matrix').then((res: any) => (res as any).attributes || res.data || res);
   }
 
   async setCategoryAttribute(categoryId: string | number, attributeSlug: string, value: string) {
@@ -829,20 +893,25 @@ class ApiClient {
   }
 
   async getAllBrandAttributes() {
-    const response = await this.request<any>('/vufs-management/matrix/brands');
-    return (response as any).attributes || response.data || response;
+    return this.request('/vufs-management/matrix/brands').then((res: any) => (res as any).attributes || res.data || res);
   }
 
   async setBrandAttribute(brandId: string, attributeSlug: string, value: string) {
-    return this.post<{ id: string }>(`/vufs-management/matrix/brands`, { brandId, attributeSlug, value });
+    return this.request(`/vufs-management/matrix/brands`, {
+      method: 'POST',
+      body: JSON.stringify({ brandId, attributeSlug, value })
+    });
   }
 
   async getAllSizeAttributes() {
-    return this.get<{ attributes: any[] }>(`/vufs-management/matrix/sizes`);
+    return this.request(`/vufs-management/matrix/sizes`).then((res: any) => (res as any).attributes || res.data || res);
   }
 
   async setSizeAttribute(sizeId: string, attributeSlug: string, value: string) {
-    return this.post<{ id: string }>(`/vufs-management/matrix/sizes`, { sizeId, attributeSlug, value });
+    return this.request(`/vufs-management/matrix/sizes`, {
+      method: 'POST',
+      body: JSON.stringify({ sizeId, attributeSlug, value })
+    });
   }
 
   async copyMatrixValueToSimilar(sourceType: 'category' | 'brand', sourceId: string, attrSlug: string) {
@@ -998,6 +1067,99 @@ class ApiClient {
     });
   }
 
+  // --- SKU MANAGEMENT ---
+  async createSKU(brandId: string, skuData: any) {
+    const response = await this.request<any>(`/skus/brands/${brandId}/skus`, {
+      method: 'POST',
+      body: JSON.stringify(skuData)
+    });
+    return (response as any).data || response;
+  }
+
+  async getBrandSKUs(brandId: string) {
+    const response = await this.request<any>(`/skus/brands/${brandId}/skus`);
+    return (response as any).data || response;
+  }
+
+  async searchSKUs(term: string, brandId?: string) {
+    const params = new URLSearchParams();
+    if (term) params.append('term', term);
+    if (brandId) params.append('brandId', brandId);
+
+    const response = await this.request<any>(`/skus/search?${params.toString()}`);
+    return (response as any).data || response || { skus: [] };
+  }
+
+  async getSKU(id: string) {
+    const response = await this.request<any>(`/skus/skus/${id}`);
+    return (response as any).data || response;
+  }
+
+  async updateSKU(id: string, updateData: any) {
+    const response = await this.request<any>(`/skus/skus/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData)
+    });
+    return (response as any).data || response;
+  }
+
+  async deleteSKU(id: string) {
+    const response = await this.request<any>(`/skus/skus/${id}`, {
+      method: 'DELETE'
+    });
+    return (response as any).data || response;
+  }
+
+  // --- BRAND LINE MANAGEMENT ---
+  async createBrandLine(brandId: string, data: { name: string; logo?: string; description?: string; collabBrandId?: string | null; designerId?: string | null; tags?: string[] }) {
+    const response = await this.request<any>(`/brands/${brandId}/lines`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return (response as any).data || response;
+  }
+
+  async getBrandLines(brandId: string) {
+    const response = await this.request<any>(`/brands/${brandId}/lines`);
+    return (response as any).data || response;
+  }
+
+  async updateBrandLine(id: string, data: { name?: string; logo?: string; description?: string; collabBrandId?: string | null; designerId?: string | null; tags?: string[] }) {
+    const response = await this.request<any>(`/brands/lines/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+    return (response as any).data || response;
+  }
+
+  async deleteBrandLine(id: string) {
+    const response = await this.request<any>(`/brands/lines/${id}`, {
+      method: 'DELETE'
+    });
+    return (response as any).data || response;
+  }
+
+  async getBrandCollections(brandId: string) {
+    const response = await this.request<any>(`/brands/${brandId}/collections`);
+    return (response as any).data || response;
+  }
+
+  async bulkUpdateBrands(brandIds: string[], updates: { tagsToAdd?: string[]; country?: string }) {
+    const response = await this.request<any>('/brands/bulk', {
+      method: 'PUT',
+      body: JSON.stringify({ brandIds, updates })
+    });
+    return (response as any).data || response;
+  }
+
+  async bulkDeleteBrands(brandIds: string[]) {
+    const response = await this.request<any>('/brands/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ brandIds })
+    });
+    return (response as any).data || response;
+  }
+
   // Utility Methods
   get isAuthenticated(): boolean {
     return !!this.token;
@@ -1080,6 +1242,7 @@ export const isAuthError = (error: unknown): boolean => {
   );
 };
 
+
 export const isValidationError = (error: unknown): boolean => {
   return error instanceof ApiErrorClass && (
     error.status === 400 ||
@@ -1087,3 +1250,6 @@ export const isValidationError = (error: unknown): boolean => {
     error.code === 'INVALID_CPF'
   );
 };
+
+export const api = new ApiClient();
+export default api;

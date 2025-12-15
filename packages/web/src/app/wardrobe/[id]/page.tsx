@@ -13,7 +13,10 @@ import {
   TrashIcon,
   HeartIcon,
   PhotoIcon,
-  ShareIcon
+  ShareIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  EyeSlashIcon
 } from '@heroicons/react/24/outline';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
@@ -23,20 +26,28 @@ interface WardrobeItem {
   vufsCode: string;
   ownerId: string;
   category: {
+    id?: string;
     page: string;
     blueSubcategory: string;
     whiteSubcategory: string;
     graySubcategory: string;
+    [key: string]: any;
   };
+  categoryId?: string;
   brand: {
+    id?: string;
     brand: string;
     line?: string;
+    [key: string]: any;
   };
+  brandId?: string;
+  sizeId?: string;
   metadata: {
     name: string;
     composition: Array<{ name: string; percentage: number }>;
     colors: Array<{ name: string; hex?: string }>;
     careInstructions: string[];
+    [key: string]: any;
   };
   condition: {
     status: string;
@@ -44,6 +55,14 @@ interface WardrobeItem {
   };
   images?: Array<{ url: string; type: string; isPrimary: boolean }>;
   createdAt: string;
+  [key: string]: any;
+}
+
+interface Attribute {
+  slug: string;
+  name: string;
+  value: string;
+  isHidden: boolean;
 }
 
 export default function WardrobeItemDetailPage() {
@@ -57,6 +76,10 @@ export default function WardrobeItemDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Hidden Fields State
+  const [attributes, setAttributes] = useState<Attribute[]>([]);
+  const [hiddenSectionOpen, setHiddenSectionOpen] = useState(false);
+
   useEffect(() => {
     if (params.id) {
       loadItem();
@@ -67,8 +90,64 @@ export default function WardrobeItemDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.getWardrobeItem(params.id as string);
-      setItem(response.item);
+      // Parallel Fetching for Item and VUFS Metadata
+      const [
+        itemResponse,
+        settingsRes,
+        typesRes,
+        catAttsRes,
+        brandAttsRes,
+        sizeAttsRes
+      ] = await Promise.all([
+        apiClient.getWardrobeItem(params.id as string),
+        apiClient.getVUFSSettings().catch(e => ({})),
+        apiClient.getVUFSAttributeTypes().catch(e => []),
+        apiClient.getAllCategoryAttributes().catch(e => []),
+        apiClient.getAllBrandAttributes().catch(e => []),
+        apiClient.getAllSizeAttributes().catch(e => [])
+      ]);
+
+      const fetchedItem = itemResponse.item;
+      setItem(fetchedItem);
+
+      // Process Attributes
+      const typesData = (typesRes as any).types || typesRes || [];
+      const hiddenCols = (settingsRes as any).hidden_wardrobe_columns || [];
+      const catAtts = (catAttsRes as any).attributes || catAttsRes || [];
+      const brandAtts = (brandAttsRes as any).attributes || brandAttsRes || [];
+      const sizeAtts = (sizeAttsRes as any).attributes || sizeAttsRes || [];
+
+      // Resolve IDs (Handling various potential key names)
+      const catId = fetchedItem.categoryId || fetchedItem.category?.id;
+      const brandId = fetchedItem.brandId || fetchedItem.brand?.id;
+      const sizeId = fetchedItem.sizeId; // Assuming sizeId might be on root
+
+      // Map Attributes
+      const foundAttributes: Attribute[] = [];
+
+      const addAttribute = (slug: string, value: string) => {
+        const typeDef = typesData.find((t: any) => t.slug === slug);
+        const name = typeDef ? typeDef.name : slug;
+        foundAttributes.push({
+          slug,
+          name,
+          value,
+          isHidden: hiddenCols.includes(slug)
+        });
+      };
+
+      if (catId) {
+        catAtts.filter((a: any) => a.category_id === catId).forEach((a: any) => addAttribute(a.attribute_slug, a.value));
+      }
+      if (brandId) {
+        brandAtts.filter((a: any) => a.brand_id === brandId).forEach((a: any) => addAttribute(a.attribute_slug, a.value));
+      }
+      if (sizeId) {
+        sizeAtts.filter((a: any) => a.size_id === sizeId).forEach((a: any) => addAttribute(a.attribute_slug, a.value));
+      }
+
+      setAttributes(foundAttributes);
+
     } catch (err: any) {
       console.error('Error loading item:', err);
       setError(err.message || 'Falha ao carregar item');
@@ -143,7 +222,7 @@ export default function WardrobeItemDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        
+
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
@@ -164,7 +243,7 @@ export default function WardrobeItemDetailPage() {
   if (error || !item) {
     return (
       <div className="min-h-screen bg-gray-50">
-        
+
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">
@@ -177,9 +256,12 @@ export default function WardrobeItemDetailPage() {
     );
   }
 
+  const visibleAttributes = attributes.filter(a => !a.isHidden);
+  const hiddenAttributes = attributes.filter(a => a.isHidden);
+
   return (
     <div className="min-h-screen bg-gray-50">
-      
+
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
@@ -301,6 +383,48 @@ export default function WardrobeItemDetailPage() {
               </div>
             </div>
 
+            {/* Dynamic Visible Attributes */}
+            {visibleAttributes.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Detalhes</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {visibleAttributes.map(attr => (
+                    <div key={attr.slug}>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">{attr.name}</dt>
+                      <dd className="text-sm text-gray-900 mt-1">{attr.value}</dd>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Hidden Fields Section */}
+            {hiddenAttributes.length > 0 && (
+              <div className="border rounded-lg overflow-hidden bg-gray-50/50">
+                <button
+                  onClick={() => setHiddenSectionOpen(!hiddenSectionOpen)}
+                  className="w-full flex items-center justify-between p-3 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <EyeSlashIcon className="h-4 w-4 text-gray-500" />
+                    <span>Campos Ocultos ({hiddenAttributes.length})</span>
+                  </div>
+                  {hiddenSectionOpen ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />}
+                </button>
+
+                {hiddenSectionOpen && (
+                  <div className="p-4 border-t border-gray-200 bg-white grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+                    {hiddenAttributes.map(attr => (
+                      <div key={attr.slug}>
+                        <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">{attr.name}</dt>
+                        <dd className="text-sm text-gray-900 mt-1">{attr.value}</dd>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Care Instructions */}
             <div>
               <h3 className="text-sm font-medium text-gray-900 mb-2">Cuidados</h3>
@@ -375,4 +499,3 @@ export default function WardrobeItemDetailPage() {
     </div>
   );
 }
-

@@ -1,0 +1,119 @@
+import { db } from '../database/connection';
+
+export interface BrandLine {
+    id: string;
+    brandId: string;
+    name: string;
+    logo?: string;
+    description?: string;
+    collabBrandId?: string;
+    designerId?: string;
+    tags?: string[];
+    createdAt: Date;
+    updatedAt: Date;
+    deletedAt?: Date | null;
+}
+
+export interface CreateBrandLineData {
+    brandId: string;
+    name: string;
+    logo?: string;
+    description?: string;
+    collabBrandId?: string;
+    designerId?: string;
+    tags?: string[];
+}
+
+export interface UpdateBrandLineData {
+    name?: string;
+    logo?: string;
+    description?: string;
+    collabBrandId?: string;
+    designerId?: string;
+    tags?: string[];
+}
+
+export class BrandLineModel {
+    static async create(data: CreateBrandLineData): Promise<BrandLine> {
+        const query = `
+      INSERT INTO brand_lines (brand_id, name, logo, description, collab_brand_id, designer_id, tags)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `;
+        const values = [
+            data.brandId,
+            data.name,
+            data.logo ?? null,
+            data.description ?? null,
+            data.collabBrandId ?? null,
+            data.designerId ?? null,
+            data.tags ?? null
+        ];
+        const result = await db.query(query, values);
+        return this.mapRowToBrandLine(result.rows[0]);
+    }
+
+    static async findById(id: string): Promise<BrandLine | null> {
+        const query = 'SELECT * FROM brand_lines WHERE id = $1 AND deleted_at IS NULL';
+        const result = await db.query(query, [id]);
+        return result.rows.length > 0 ? this.mapRowToBrandLine(result.rows[0]) : null;
+    }
+
+    static async findByBrandId(brandId: string): Promise<BrandLine[]> {
+        const query = `
+      SELECT * FROM brand_lines 
+      WHERE brand_id = $1 AND deleted_at IS NULL
+      ORDER BY name ASC
+    `;
+        const result = await db.query(query, [brandId]);
+        return result.rows.map(row => this.mapRowToBrandLine(row));
+    }
+
+    static async update(id: string, data: UpdateBrandLineData): Promise<BrandLine | null> {
+        const updates: string[] = [];
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        if (data.name !== undefined) { updates.push(`name = $${paramIndex++}`); values.push(data.name); }
+        if (data.logo !== undefined) { updates.push(`logo = $${paramIndex++}`); values.push(data.logo); }
+        if (data.description !== undefined) { updates.push(`description = $${paramIndex++}`); values.push(data.description); }
+        if (data.collabBrandId !== undefined) { updates.push(`collab_brand_id = $${paramIndex++}`); values.push(data.collabBrandId); }
+        if (data.designerId !== undefined) { updates.push(`designer_id = $${paramIndex++}`); values.push(data.designerId); }
+        if (data.tags !== undefined) { updates.push(`tags = $${paramIndex++}`); values.push(data.tags); }
+
+        if (updates.length === 0) return this.findById(id);
+
+        values.push(id);
+        const query = `
+        UPDATE brand_lines
+        SET ${updates.join(', ')}, updated_at = NOW()
+        WHERE id = $${paramIndex}
+        RETURNING *
+      `;
+
+        const result = await db.query(query, values);
+        return result.rows.length > 0 ? this.mapRowToBrandLine(result.rows[0]) : null;
+    }
+
+    static async delete(id: string): Promise<boolean> {
+        const query = 'UPDATE brand_lines SET deleted_at = NOW() WHERE id = $1';
+        const result = await db.query(query, [id]);
+        return (result.rowCount || 0) > 0;
+    }
+
+    private static mapRowToBrandLine(row: any): BrandLine {
+        return {
+            id: row.id,
+            brandId: row.brand_id,
+            name: row.name,
+            logo: row.logo,
+            description: row.description,
+            collabBrandId: row.collab_brand_id,
+            designerId: row.designer_id,
+            tags: row.tags,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            deletedAt: row.deleted_at
+        };
+    }
+}

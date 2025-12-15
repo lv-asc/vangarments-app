@@ -98,19 +98,21 @@ function SortablePhoto({ item, index, onRemove, onLabelChange, disabled = false 
                 </button>
             )}
 
-            <div
-                className="absolute bottom-2 left-2 right-2"
-                onPointerDown={(e) => e.stopPropagation()}
-            >
-                <SearchableCombobox
-                    value={item.label}
-                    onChange={(val) => onLabelChange(index, val || '')}
-                    disabled={disabled}
-                    options={IMAGE_LABELS.map(label => ({ id: label, name: label, value: label }))}
-                    placeholder={item.label || "Select Label"}
-                    className="w-full min-w-[120px]"
-                />
-            </div>
+            {!disabled && (
+                <div
+                    className="absolute bottom-2 left-2 right-2"
+                    onPointerDown={(e) => e.stopPropagation()}
+                >
+                    <SearchableCombobox
+                        value={item.label}
+                        onChange={(val) => onLabelChange(index, val || '')}
+                        disabled={disabled}
+                        options={IMAGE_LABELS.map(label => ({ id: label, name: label, value: label }))}
+                        placeholder={item.label || "Select Label"}
+                        className="w-full min-w-[120px]"
+                    />
+                </div>
+            )}
         </div>
     );
 }
@@ -126,6 +128,10 @@ export default function AddWardrobeItemPage() {
     const [progress, setProgress] = useState(0);
     const [submitError, setSubmitError] = useState<string | null>(null);
 
+    // SKU Search State
+    const [skuSearchTerm, setSkuSearchTerm] = useState('');
+    const [skuSearchResults, setSkuSearchResults] = useState<any[]>([]);
+
     // Data State
     const [items, setItems] = useState<ImageItem[]>([]);
     const [formData, setFormData] = useState({
@@ -139,8 +145,42 @@ export default function AddWardrobeItemPage() {
         size: '',
         condition: 'new_with_tags',
         description: '',
+        skuItemId: undefined as string | undefined, // Added
         customAttributes: {} as Record<string, string>
     });
+
+    // SKU Search Effect
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (skuSearchTerm.length > 2 && !formData.skuItemId) {
+                try {
+                    const res = await apiClient.searchSKUs(skuSearchTerm);
+                    setSkuSearchResults(res.skus || []);
+                } catch (err) {
+                    console.error('SKU search error', err);
+                }
+            } else {
+                setSkuSearchResults([]);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [skuSearchTerm, formData.skuItemId]);
+
+    const handleSKUSelect = (sku: any) => {
+        setFormData(prev => ({
+            ...prev,
+            skuItemId: sku.id,
+            name: prev.name || sku.name,
+            brand: prev.brand || sku.brand?.name || '',
+            category: prev.category || sku.category?.page || '', // Using page as primary category for now
+            collection: sku.collection || prev.customAttributes['collection'], // If exists
+            // Don't override everything, just empties
+            description: prev.description ? prev.description : (sku.description || prev.description),
+        }));
+        setSkuSearchTerm(sku.name); // Set input to name
+        setSkuSearchResults([]);
+    };
 
     // VUFS Options State
     const [vufsOptions, setVufsOptions] = useState<{
@@ -466,6 +506,7 @@ export default function AddWardrobeItemPage() {
                     status: 'owned',
                     visibility: 'public'
                 },
+                skuItemId: formData.skuItemId,
                 useAI: true
             };
 
@@ -495,7 +536,7 @@ export default function AddWardrobeItemPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            
+
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-6 flex items-center justify-between">
@@ -567,6 +608,7 @@ export default function AddWardrobeItemPage() {
                                                             item={item}
                                                             index={index}
                                                             onRemove={removeImage}
+                                                            disabled={processing}
                                                             onLabelChange={(idx, l) => {
                                                                 setItems(prev => {
                                                                     const n = [...prev];
@@ -655,10 +697,22 @@ export default function AddWardrobeItemPage() {
                                     <h3 className="text-sm font-medium text-gray-700">Images</h3>
                                     <div className="grid grid-cols-2 gap-3">
                                         {items.map((item, index) => (
-                                            <div key={item.id} className="relative aspect-square">
+                                            <div key={item.id} className="relative aspect-square group">
                                                 <img src={item.id} className="w-full h-full object-cover rounded-lg" />
-                                                <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
-                                                    {item.label}
+                                                <div className="absolute bottom-1 left-1 right-1">
+                                                    <SearchableCombobox
+                                                        value={item.label}
+                                                        onChange={(val) => {
+                                                            setItems(prev => {
+                                                                const n = [...prev];
+                                                                n[index].label = val || '';
+                                                                return n;
+                                                            });
+                                                        }}
+                                                        options={IMAGE_LABELS.map(label => ({ id: label, name: label, value: label }))}
+                                                        placeholder="^"
+                                                        className="w-full"
+                                                    />
                                                 </div>
                                             </div>
                                         ))}
@@ -675,6 +729,92 @@ export default function AddWardrobeItemPage() {
 
                                 {/* Right Column: Fields */}
                                 <div className="lg:col-span-2 space-y-6">
+                                    {/* SKU Link Section */}
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-sm font-medium text-blue-900">
+                                                Link to Official Product (SKU)
+                                            </label>
+                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 uppercase tracking-wide">
+                                                Optional
+                                            </span>
+                                        </div>
+
+                                        <div className="relative">
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={skuSearchTerm}
+                                                    onChange={(e) => setSkuSearchTerm(e.target.value)}
+                                                    placeholder="Search by model name, code, etc..."
+                                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                                />
+                                                {formData.skuItemId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setFormData(prev => ({ ...prev, skuItemId: undefined }));
+                                                            setSkuSearchTerm('');
+                                                        }}
+                                                        className="text-red-500 text-sm hover:text-red-700"
+                                                    >
+                                                        Unlink
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Results Dropdown */}
+                                            {skuSearchResults.length > 0 && !formData.skuItemId && (
+                                                <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-60 overflow-auto">
+                                                    {skuSearchResults.map((sku: any) => (
+                                                        <li
+                                                            key={sku.id}
+                                                            onClick={() => handleSKUSelect(sku)}
+                                                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                {/* Logo Display: Line Logo > Brand Logo > Initials */}
+                                                                {sku.lineInfo?.logo ? (
+                                                                    <img src={sku.lineInfo.logo} alt={sku.lineInfo.name} className="h-8 w-8 object-contain rounded-full bg-gray-50 border border-gray-100" />
+                                                                ) : sku.brand?.logo ? (
+                                                                    <img src={sku.brand.logo} alt={sku.brand.name} className="h-8 w-8 object-contain rounded-full bg-gray-50 border border-gray-100" />
+                                                                ) : (
+                                                                    <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-xs font-bold border border-blue-100">
+                                                                        {sku.brand?.name ? sku.brand.name.substring(0, 2).toUpperCase() : '??'}
+                                                                    </div>
+                                                                )}
+
+                                                                <div>
+                                                                    <div className="font-medium text-gray-900 flex items-center gap-2">
+                                                                        {sku.name}
+                                                                        {sku.lineInfo && (
+                                                                            <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
+                                                                                {sku.lineInfo.name}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-gray-500 text-xs">
+                                                                        {sku.brand?.name} • {sku.code}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+
+                                            {/* No Results Message */}
+                                            {skuSearchTerm.length > 2 && skuSearchResults.length === 0 && !formData.skuItemId && (
+                                                <div className="mt-2 text-sm text-gray-500 bg-white p-3 rounded border border-gray-100 italic">
+                                                    No official record found. That's okay! You can enter the details manually below.
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-blue-700 mt-2">
+                                            Useful for verifying official brand items. For thrifted, vintage, or unique pieces, feel free to skip this and fill in the details directly.
+                                        </p>
+                                    </div>
+
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
                                         <input
@@ -691,26 +831,28 @@ export default function AddWardrobeItemPage() {
                                         {/* Category */}
                                         <div>
                                             <SearchableCombobox
+                                                label="Category"
                                                 value={formData.category}
                                                 onChange={(val: string | null) => setFormData({ ...formData, category: val || '' })}
                                                 options={vufsOptions.categories
                                                     .filter(c => c.level === 'page' || c.level === 'blue')
                                                     .map(c => ({ id: c.id || c.name, name: c.name }))
                                                 }
-                                                placeholder="Select Category"
+                                                placeholder="^"
                                             />
                                         </div>
 
                                         {/* Brand */}
                                         <div>
                                             <SearchableCombobox
+                                                label="Brand"
                                                 value={formData.brand}
                                                 onChange={(val: string | null) => setFormData({ ...formData, brand: val || '' })}
                                                 options={[
                                                     { id: 'Generic', name: 'Generic' },
                                                     ...vufsOptions.brands.map(b => ({ id: b.id || b.name, name: b.name }))
                                                 ]}
-                                                placeholder="Select Brand"
+                                                placeholder="^"
                                                 freeSolo
                                             />
                                         </div>
@@ -718,69 +860,75 @@ export default function AddWardrobeItemPage() {
                                         {/* Color */}
                                         <div>
                                             <SearchableCombobox
+                                                label="Color"
                                                 value={formData.color}
                                                 onChange={(val: string | null) => setFormData({ ...formData, color: val || '' })}
                                                 options={vufsOptions.colors.map(c => ({ id: c.id || c.name, name: c.name }))}
-                                                placeholder="Select Color"
+                                                placeholder="^"
                                             />
                                         </div>
 
                                         {/* Material */}
                                         <div>
                                             <SearchableCombobox
+                                                label="Material"
                                                 value={formData.material}
                                                 onChange={(val: string | null) => setFormData({ ...formData, material: val || '' })}
                                                 options={vufsOptions.materials.map(m => ({ id: m.id || m.name, name: m.name }))}
-                                                placeholder="Select Material"
+                                                placeholder="^"
                                             />
                                         </div>
 
                                         {/* Pattern */}
                                         <div>
                                             <SearchableCombobox
+                                                label="Pattern"
                                                 value={formData.pattern}
                                                 onChange={(val: string | null) => setFormData({ ...formData, pattern: val || '' })}
                                                 options={vufsOptions.patterns.map(p => ({ id: p.id || p.name, name: p.name }))}
-                                                placeholder="Select Pattern"
+                                                placeholder="^"
                                             />
                                         </div>
 
                                         {/* Fit */}
                                         <div>
                                             <SearchableCombobox
+                                                label="Fit"
                                                 value={formData.fit}
                                                 onChange={(val: string | null) => setFormData({ ...formData, fit: val || '' })}
                                                 options={vufsOptions.fits.map(f => ({ id: f.id || f.name, name: f.name }))}
-                                                placeholder="Select Fit"
+                                                placeholder="^"
                                             />
                                         </div>
 
                                         {/* Size */}
                                         <div>
                                             <SearchableCombobox
+                                                label="Size"
                                                 value={formData.size}
                                                 onChange={(val: string | null) => setFormData({ ...formData, size: val || '' })}
                                                 options={vufsOptions.sizes.map(s => ({ id: s.id || s.name, name: s.name }))}
-                                                placeholder="Select Size"
+                                                placeholder="^"
                                                 freeSolo
                                             />
                                         </div>
 
                                         {/* Condition */}
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
-                                            <select
+                                            <SearchableCombobox
+                                                label="Condition"
                                                 value={formData.condition}
-                                                onChange={e => setFormData({ ...formData, condition: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                            >
-                                                <option value="new_with_tags">New with tags</option>
-                                                <option value="new_without_tags">New without tags</option>
-                                                <option value="excellent">Excellent used condition</option>
-                                                <option value="good">Good used condition</option>
-                                                <option value="fair">Fair aspect</option>
-                                                <option value="poor">Poor aspect</option>
-                                            </select>
+                                                onChange={(val: string | null) => setFormData({ ...formData, condition: val || '' })}
+                                                options={[
+                                                    { id: 'new_with_tags', name: 'New with tags' },
+                                                    { id: 'new_without_tags', name: 'New without tags' },
+                                                    { id: 'excellent', name: 'Excellent used condition' },
+                                                    { id: 'good', name: 'Good used condition' },
+                                                    { id: 'fair', name: 'Fair aspect' },
+                                                    { id: 'poor', name: 'Poor aspect' },
+                                                ]}
+                                                placeholder="^"
+                                            />
                                         </div>
                                     </div>
 
@@ -791,23 +939,27 @@ export default function AddWardrobeItemPage() {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 {vufsOptions.customTypes.map((type) => (
                                                     <div key={type.slug}>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-1">{type.name}</label>
-                                                        <select
+                                                        <SearchableCombobox
+                                                            label={type.name}
                                                             value={formData.customAttributes[type.slug] || ''}
-                                                            onChange={e => setFormData({
+                                                            onChange={(val) => setFormData({
                                                                 ...formData,
                                                                 customAttributes: {
                                                                     ...formData.customAttributes,
-                                                                    [type.slug]: e.target.value
+                                                                    [type.slug]: val || ''
                                                                 }
                                                             })}
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-                                                        >
-                                                            <option value="">Select {type.name}</option>
-                                                            {vufsOptions.customValues[type.slug]?.map((v: any) => (
-                                                                <option key={v.id || v.name} value={v.name}>{v.name}</option>
-                                                            ))}
-                                                        </select>
+                                                            options={
+                                                                vufsOptions.customValues[type.slug]
+                                                                    ? vufsOptions.customValues[type.slug].map((v: any) => {
+                                                                        const val = typeof v === 'object' && v !== null ? v.name : v;
+                                                                        return { id: val, name: val };
+                                                                    })
+                                                                    : []
+                                                            }
+                                                            placeholder="^"
+                                                            freeSolo
+                                                        />
                                                     </div>
                                                 ))}
                                             </div>

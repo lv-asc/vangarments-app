@@ -20,6 +20,8 @@ interface BrandAccount {
     };
     brandColors?: string[];
     brandStyle?: string[];
+    country?: string;
+    tags?: string[];
   };
   profileData?: {
     bio?: string;
@@ -48,10 +50,13 @@ interface CreateBrandAccountData {
     name: string;
     description?: string;
     website?: string;
+    logo?: string;
     contactInfo?: {
       email?: string;
       phone?: string;
     };
+    country?: string;
+    tags?: string[];
   };
   businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
   partnershipTier?: 'basic' | 'premium' | 'enterprise';
@@ -117,8 +122,13 @@ class BrandApi {
     return response.json();
   }
 
-  async getBrands(): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/search`, {
+  async getBrands(params?: { limit?: number; page?: number; search?: string }): Promise<any[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.search) queryParams.append('q', params.search);
+
+    const response = await fetch(`${API_BASE_URL}/api/brands/search?${queryParams.toString()}`, {
       headers: this.getAuthHeaders()
     });
 
@@ -127,7 +137,22 @@ class BrandApi {
     }
 
     const data = await response.json();
-    return data.brands || [];
+    return data.data?.brands || [];
+  }
+
+  async getBrand(brandId: string): Promise<BrandAccount> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get brand: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data.brand; // Wrapper returns { success: true, data: { brand: ... } } see BrandController.getBrandProfile
+    // Actually BrandController.getBrandProfile returns { data: profile } where profile = { brand, featuredItems... }
+    // So it should be result.data.brand
   }
 
   async createBrandAccount(data: CreateBrandAccountData): Promise<BrandAccount> {
@@ -171,7 +196,9 @@ class BrandApi {
       contactEmail: data.brandInfo.contactInfo?.email,
       contactPhone: data.brandInfo.contactInfo?.phone,
       businessType: data.businessType || 'brand',
-      partnershipTier: data.partnershipTier || 'basic'
+      partnershipTier: data.partnershipTier || 'basic',
+      country: data.brandInfo.country,
+      tags: data.brandInfo.tags
     };
 
     const response = await fetch(`${API_BASE_URL}/api/brands`, {
@@ -188,6 +215,71 @@ class BrandApi {
     // Response wrapper handling might differ, let's assume standard { success: true, data: { brand } }
     const result = await response.json();
     return result.data?.brand || result;
+  }
+
+  async updateBrand(brandId: string, updates: Partial<CreateBrandAccountData>): Promise<BrandAccount> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(updates)
+    });
+    // Use admin update page endpoint or creating a new admin update endpoint might be better
+    // For now, assuming we use the profile update or page update endpoints
+    // But wait, there isn't a generic admin-update-brand-details endpoint in the backend code I saw.
+    // I saw updateBrandPage (customization) and updateProfileData (bio etc).
+    // I should create one or reuse existings. 
+    // The previous code for `admin/brands/new` used `adminCreateBrand`.
+    // I'll stick to delete/trash first.
+    return response.json();
+  }
+
+  async deleteBrand(brandId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to delete brand');
+    }
+  }
+
+  async restoreBrand(brandId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/restore`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to restore brand');
+    }
+  }
+
+  async permanentDeleteBrand(brandId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/permanent`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to permanently delete brand');
+    }
+  }
+
+  async getTrashBrands(): Promise<BrandAccount[]> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/trash`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get trash brands: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.data?.brands || [];
   }
 
   // Catalog Management

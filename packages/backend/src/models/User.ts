@@ -382,4 +382,28 @@ export class UserModel {
     `;
     await db.query(query, [status, banExpiresAt || null, banReason || null, userId]);
   }
+
+  static async delete(userId: string): Promise<boolean> {
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Delete user roles first (foreign key constraint)
+      await client.query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
+
+      // Delete brand accounts (if any)
+      await client.query('DELETE FROM brand_accounts WHERE user_id = $1', [userId]);
+
+      // Delete the user
+      const result = await client.query('DELETE FROM users WHERE id = $1', [userId]);
+
+      await client.query('COMMIT');
+      return (result.rowCount || 0) > 0;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
 }

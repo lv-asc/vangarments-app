@@ -23,20 +23,20 @@ export class LocalStorageService {
   private static readonly UPLOADS_DIR = path.join(this.STORAGE_ROOT, 'uploads');
   private static readonly TEMP_DIR = path.join(this.STORAGE_ROOT, 'temp');
 
-  // Configure multer for image uploads
+  // Configure multer for file uploads
   static readonly uploadMiddleware = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB
+      fileSize: 50 * 1024 * 1024, // 50MB (increased for video)
     },
     fileFilter: (req, file, cb) => {
-      if (file.mimetype.startsWith('image/')) {
+      if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
         cb(null, true);
       } else {
-        cb(new Error('Only image files are allowed'));
+        cb(new Error('Only image and video files are allowed'));
       }
     },
-  }).array('image', 5); // Allow up to 5 images, field name 'image'
+  }).array('image', 5); // Allow up to 5 files, field name 'image' (kept for compatibility)
 
   /**
    * Initialize storage directories
@@ -62,7 +62,7 @@ export class LocalStorageService {
   }
 
   /**
-   * Upload and process image file locally with multiple variants
+   * Upload and process file locally
    */
   static async uploadImage(
     buffer: Buffer,
@@ -79,8 +79,9 @@ export class LocalStorageService {
     try {
       // Generate unique filename
       const fileId = uuidv4();
-      const extension = path.extname(originalName) || '.jpg';
+      const extension = path.extname(originalName) || (mimetype.startsWith('video/') ? '.mp4' : '.jpg');
       const filename = `${fileId}${extension}`;
+      const isVideo = mimetype.startsWith('video/');
 
       // Create user-specific directory if userId provided
       let targetDir = path.join(this.IMAGES_DIR, category);
@@ -99,32 +100,45 @@ export class LocalStorageService {
       // Write original file
       await fs.writeFile(filePath, buffer);
 
-      // Generate multiple variants concurrently
-      const [optimizedPath, thumbnailPath, mediumPath] = await Promise.all([
-        // Optimized version (800px max)
-        (async () => {
-          const optimizedFilename = `${fileId}_optimized${extension}`;
-          const optimizedPath = path.join(targetDir, optimizedFilename);
-          await this.optimizeImage(buffer, optimizedPath, mimetype);
-          return path.relative(this.STORAGE_ROOT, optimizedPath);
-        })(),
+      let variants: any = {};
 
-        // Thumbnail version (150px max)
-        (async () => {
-          const thumbnailFilename = `${fileId}_thumb${extension}`;
-          const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
-          await this.generateThumbnail(buffer, thumbnailPath, mimetype);
-          return path.relative(this.STORAGE_ROOT, thumbnailPath);
-        })(),
+      if (!isVideo) {
+        // Generate multiple variants concurrently for images
+        const [optimizedPath, thumbnailPath, mediumPath] = await Promise.all([
+          // Optimized version (800px max)
+          (async () => {
+            const optimizedFilename = `${fileId}_optimized${extension}`;
+            const optimizedPath = path.join(targetDir, optimizedFilename);
+            await this.optimizeImage(buffer, optimizedPath, mimetype);
+            return path.relative(this.STORAGE_ROOT, optimizedPath);
+          })(),
 
-        // Medium version (400px max)
-        (async () => {
-          const mediumFilename = `${fileId}_medium${extension}`;
-          const mediumPath = path.join(targetDir, mediumFilename);
-          await this.generateMediumImage(buffer, mediumPath, mimetype);
-          return path.relative(this.STORAGE_ROOT, mediumPath);
-        })(),
-      ]);
+          // Thumbnail version (150px max)
+          (async () => {
+            const thumbnailFilename = `${fileId}_thumb${extension}`;
+            const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
+            await this.generateThumbnail(buffer, thumbnailPath, mimetype);
+            return path.relative(this.STORAGE_ROOT, thumbnailPath);
+          })(),
+
+          // Medium version (400px max)
+          (async () => {
+            const mediumFilename = `${fileId}_medium${extension}`;
+            const mediumPath = path.join(targetDir, mediumFilename);
+            await this.generateMediumImage(buffer, mediumPath, mimetype);
+            return path.relative(this.STORAGE_ROOT, mediumPath);
+          })(),
+        ]);
+
+        variants = {
+          optimizedPath,
+          optimizedUrl: `/storage/${optimizedPath.replace(/\\/g, '/')}`,
+          thumbnailPath,
+          thumbnailUrl: `/storage/${thumbnailPath.replace(/\\/g, '/')}`,
+          mediumPath,
+          mediumUrl: `/storage/${mediumPath.replace(/\\/g, '/')}`,
+        };
+      }
 
       // Get file stats
       const stats = await fs.stat(filePath);
@@ -137,19 +151,14 @@ export class LocalStorageService {
         url: `/storage/${relativePath.replace(/\\/g, '/')}`,
         size: stats.size,
         mimetype,
-        optimizedPath,
-        optimizedUrl: `/storage/${optimizedPath.replace(/\\/g, '/')}`,
-        thumbnailPath,
-        thumbnailUrl: `/storage/${thumbnailPath.replace(/\\/g, '/')}`,
-        mediumPath,
-        mediumUrl: `/storage/${mediumPath.replace(/\\/g, '/')}`,
+        ...variants
       };
 
-      console.log(`Image uploaded successfully with variants: ${filename}`);
+      console.log(`File uploaded successfully: ${filename}`);
       return result;
     } catch (error) {
-      console.error('Failed to upload image:', error);
-      throw new Error(`Image upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Failed to upload file:', error);
+      throw new Error(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
