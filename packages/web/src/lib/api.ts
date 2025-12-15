@@ -860,8 +860,8 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/attributes');
     return (response as any).types || response.data || response;
   }
-  async addVUFSAttributeType(slug: string, name: string) {
-    return this.request('/vufs-management/attributes', { method: 'POST', body: JSON.stringify({ slug, name }) });
+  async addVUFSAttributeType(name: string) {
+    return this.request('/vufs-management/attributes', { method: 'POST', body: JSON.stringify({ name }) });
   }
   async updateVUFSAttributeType(slug: string, name: string) {
     return this.request(`/vufs-management/attributes/${slug}`, { method: 'PATCH', body: JSON.stringify({ name }) });
@@ -1140,7 +1140,30 @@ class ApiClient {
   }
 
   async getBrandCollections(brandId: string) {
-    const response = await this.request<any>(`/brands/${brandId}/collections`);
+    const response = await this.request<any>(`/brands/${brandId}/collections?publishedOnly=false`);
+    return (response as any).data || response;
+  }
+
+  async createBrandCollection(brandId: string, data: any) {
+    const response = await this.request<any>(`/brands/${brandId}/collections`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return (response as any).data || response;
+  }
+
+  async updateBrandCollection(brandId: string, collectionId: string, data: any) {
+    const response = await this.request<any>(`/brands/${brandId}/collections/${collectionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    return (response as any).data || response;
+  }
+
+  async deleteBrandCollection(brandId: string, collectionId: string) {
+    const response = await this.request<any>(`/brands/${brandId}/collections/${collectionId}`, {
+      method: 'DELETE'
+    });
     return (response as any).data || response;
   }
 

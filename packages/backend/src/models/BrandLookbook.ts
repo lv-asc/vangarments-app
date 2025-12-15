@@ -3,9 +3,11 @@ import { db } from '../database/connection';
 export interface BrandLookbook {
     id: string;
     brandId: string;
+    collectionId?: string;
     name: string;
     description?: string;
     coverImageUrl?: string;
+    images?: string[];
     season?: string;
     year?: number;
     isPublished: boolean;
@@ -24,17 +26,21 @@ export interface BrandLookbookItem {
 
 export interface CreateLookbookData {
     brandId: string;
+    collectionId?: string;
     name: string;
     description?: string;
     coverImageUrl?: string;
+    images?: string[];
     season?: string;
     year?: number;
 }
 
 export interface UpdateLookbookData {
+    collectionId?: string;
     name?: string;
     description?: string;
     coverImageUrl?: string;
+    images?: string[];
     season?: string;
     year?: number;
     isPublished?: boolean;
@@ -42,15 +48,15 @@ export interface UpdateLookbookData {
 
 export class BrandLookbookModel {
     static async create(data: CreateLookbookData): Promise<BrandLookbook> {
-        const { brandId, name, description, coverImageUrl, season, year } = data;
+        const { brandId, collectionId, name, description, coverImageUrl, images, season, year } = data;
 
         const query = `
-      INSERT INTO brand_lookbooks (brand_id, name, description, cover_image_url, season, year)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO brand_lookbooks (brand_id, collection_id, name, description, cover_image_url, images, season, year)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
 
-        const result = await db.query(query, [brandId, name, description, coverImageUrl, season, year]);
+        const result = await db.query(query, [brandId, collectionId, name, description, coverImageUrl, images || [], season, year]);
         return this.mapRowToLookbook(result.rows[0]);
     }
 
@@ -88,6 +94,10 @@ export class BrandLookbookModel {
         const values: any[] = [];
         let paramIndex = 1;
 
+        if (updates.collectionId !== undefined) {
+            setClauses.push(`collection_id = $${paramIndex++}`);
+            values.push(updates.collectionId);
+        }
         if (updates.name !== undefined) {
             setClauses.push(`name = $${paramIndex++}`);
             values.push(updates.name);
@@ -99,6 +109,10 @@ export class BrandLookbookModel {
         if (updates.coverImageUrl !== undefined) {
             setClauses.push(`cover_image_url = $${paramIndex++}`);
             values.push(updates.coverImageUrl);
+        }
+        if (updates.images !== undefined) {
+            setClauses.push(`images = $${paramIndex++}`);
+            values.push(updates.images);
         }
         if (updates.season !== undefined) {
             setClauses.push(`season = $${paramIndex++}`);
@@ -204,9 +218,11 @@ export class BrandLookbookModel {
         return {
             id: row.id,
             brandId: row.brand_id,
+            collectionId: row.collection_id || undefined,
             name: row.name,
             description: row.description || undefined,
             coverImageUrl: row.cover_image_url || undefined,
+            images: row.images || [],
             season: row.season || undefined,
             year: row.year || undefined,
             isPublished: row.is_published,

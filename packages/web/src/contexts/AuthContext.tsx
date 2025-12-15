@@ -41,6 +41,13 @@ interface User {
   roles?: string[];
   createdAt: Date;
   updatedAt: Date;
+  linkedEntities?: {
+    hasBrand: boolean;
+    hasStore: boolean;
+    hasSupplier: boolean;
+    hasPage: boolean;
+    hasPost: boolean;
+  };
 }
 
 interface AuthContextType {

@@ -45,7 +45,7 @@ export default function AdminBrandsPage() {
         try {
             setLoading(true);
             // Fetch all brands (limit 1000) to ensure we see everything
-            const response = await brandApi.getBrands({ limit: 1000 });
+            const response = await brandApi.getBrands({ limit: 1000, businessType: 'brand' });
             setBrands(Array.isArray(response) ? response : (response as any).brands || []);
         } catch (error) {
             console.error('Failed to fetch brands', error);

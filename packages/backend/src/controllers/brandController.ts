@@ -129,6 +129,7 @@ export class BrandController {
       const { brandId } = req.params;
       const { user } = req;
       const updates = req.body;
+      console.log('BrandController.updateBrand req.body:', JSON.stringify(req.body));
 
       if (!user?.roles.includes('admin')) {
         res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
@@ -364,7 +365,7 @@ export class BrandController {
    */
   async searchBrands(req: Request, res: Response): Promise<void> {
     try {
-      const { q: query = '', verificationStatus, partnershipTier, page = 1, limit = 20 } = req.query;
+      const { q: query = '', verificationStatus, partnershipTier, businessType, page = 1, limit = 20 } = req.query;
 
       // Sync VUFS brands before searching to ensure list is up to date
       // We do this asynchronously without awaiting to not slow down the response significantly
@@ -375,6 +376,7 @@ export class BrandController {
       const filters: any = {};
       if (verificationStatus) filters.verificationStatus = verificationStatus;
       if (partnershipTier) filters.partnershipTier = partnershipTier;
+      if (businessType) filters.businessType = businessType;
 
       const results = await brandService.searchBrands(
         query as string,

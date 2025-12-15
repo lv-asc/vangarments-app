@@ -4,6 +4,10 @@ import { UserModel } from '../models/User';
 import { AuthUtils, AuthenticatedRequest } from '../utils/auth';
 import { CPFValidator } from '../utils/cpf';
 import { AdminAuthService } from '../services/adminAuthService';
+import { BrandAccountModel } from '../models/BrandAccount';
+import { SupplierModel } from '../models/Supplier';
+import { PageModel } from '../models/Page';
+import { SocialPostModel } from '../models/SocialPost';
 
 export class AuthController {
     static async register(req: Request, res: Response) {
@@ -204,9 +208,35 @@ export class AuthController {
                 preferences: user.preferences,
                 privacySettings: (user as any).privacySettings,
                 socialLinks: user.socialLinks,
-                roles: (user as any).roles,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
+            };
+
+            // Fetch linked entities
+            const [brandAccounts, suppliers, pages, posts] = await Promise.all([
+                BrandAccountModel.findAllByUserId(user.id),
+                SupplierModel.findAllByUserId(user.id),
+                PageModel.findAllByUserId(user.id),
+                SocialPostModel.findMany({ userId: user.id }, 1) // Just need to check existence
+            ]);
+
+            const brands = brandAccounts.filter(ba => !ba.brandInfo.businessType || ba.brandInfo.businessType === 'brand' || ba.brandInfo.businessType === 'designer' || ba.brandInfo.businessType === 'manufacturer');
+            // Assuming suppliers might also be businessType='manufacturer' in BrandAccount, but we also have SupplierModel.
+            // User requested "My Suppliers". If SupplierModel is used, we use that.
+            // If manufacturer is a BrandAccount type, we count it as a Brand? Or Supplier?
+            // "My Brands" usually implies Brand/Designer.
+            // "My Stores" -> businessType === 'store'.
+            // "My Suppliers" -> SupplierModel (or manufacturer BrandAccount?)
+            // Let's stick to explicit SupplierModel for now, and 'store' type for Stores.
+
+            const stores = brandAccounts.filter(ba => ba.brandInfo.businessType === 'store');
+
+            (userResponse as any).linkedEntities = {
+                hasBrand: brands.length > 0,
+                hasStore: stores.length > 0,
+                hasSupplier: suppliers.length > 0,
+                hasPage: pages.length > 0,
+                hasPost: posts.total > 0
             };
 
             res.json({ user: userResponse });

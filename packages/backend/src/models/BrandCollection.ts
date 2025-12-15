@@ -33,6 +33,7 @@ export interface CreateCollectionData {
     collectionType?: CollectionType;
     season?: string;
     year?: number;
+    isPublished?: boolean;
 }
 
 export interface UpdateCollectionData {
@@ -47,15 +48,15 @@ export interface UpdateCollectionData {
 
 export class BrandCollectionModel {
     static async create(data: CreateCollectionData): Promise<BrandCollection> {
-        const { brandId, name, description, coverImageUrl, collectionType, season, year } = data;
+        const { brandId, name, description, coverImageUrl, collectionType, season, year, isPublished } = data;
 
         const query = `
-      INSERT INTO brand_collections (brand_id, name, description, cover_image_url, collection_type, season, year)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO brand_collections (brand_id, name, description, cover_image_url, collection_type, season, year, is_published)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
 
-        const result = await db.query(query, [brandId, name, description, coverImageUrl, collectionType, season, year]);
+        const result = await db.query(query, [brandId, name, description, coverImageUrl, collectionType, season, year, isPublished ?? false]);
         return this.mapRowToCollection(result.rows[0]);
     }
 

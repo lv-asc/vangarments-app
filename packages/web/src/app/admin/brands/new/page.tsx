@@ -116,6 +116,7 @@ export default function AdminNewBrandPage() {
                         phone: formData.contactPhone
                     }
                 },
+                businessType: formData.businessType as any,
                 partnershipTier: formData.partnershipTier as any
             });
 
@@ -329,8 +330,8 @@ export default function AdminNewBrandPage() {
                                         type="button"
                                         onClick={() => handleTagChange(tag)}
                                         className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${formData.tags.includes(tag)
-                                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                                                : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                            : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
                                             }`}
                                     >
                                         {tag} {formData.tags.includes(tag) && <CheckIcon className="ml-1.5 h-3 w-3" />}

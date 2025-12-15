@@ -87,8 +87,51 @@ export function slugify(text: string): string {
     .trim();
 }
 
-export function getImageUrl(path: string, size?: 'sm' | 'md' | 'lg' | 'xl'): string {
+// Update getImageUrl to be more robust
+export function getImageUrl(path: string | undefined | null, size?: 'sm' | 'md' | 'lg' | 'xl'): string {
   if (!path) return '';
+  if (path.startsWith('http')) return path;
+  if (path.startsWith('data:')) return path;
+
+  // Handle storage paths from backend
+  // If it already starts with /api, trusted it (unless it's missing the domain in some contexts, but usually OK)
+  if (path.startsWith('/api')) {
+    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${path.startsWith('/api') ? path.replace('/api', '/api') : path}`; // Redundant replace just to be safe if logic changes
+    // Actually simpler:
+    // return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${path}`;
+    // But wait, if NEXT_PUBLIC_API_URL includes /api in some configs?
+    // Standard convention in this project seems to be API_URL = host:port
+  }
+
+  // If path starts with /, check if it is storage
+  if (path.startsWith('/storage/')) {
+    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api${path}`;
+  }
+
+  if (path.startsWith('storage/')) {
+    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/${path}`;
+  }
+
+  // If just a filename or relative path that maps to storage implied?
+  // Be careful not to break static public assets.
+
+  // Reuse the logic I found successful:
+  let cleanPath = path.startsWith('/') ? path.substring(1) : path;
+
+  if (cleanPath.startsWith('storage/')) {
+    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/${cleanPath}`;
+  }
+
+  // Handle direct uploads folder references (often returned by upload endpoint)
+  if (cleanPath.startsWith('uploads/')) {
+    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/storage/${cleanPath}`;
+  }
+
+  // Fallback for non-storage paths (e.g. public assets)
+  // If it starts with / and not storage, assume public folder?
+  if (path.startsWith('/')) {
+    return path;
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_CDN_URL || '';
   const sizeParam = size ? `?w=${getSizeWidth(size)}` : '';

@@ -46,12 +46,25 @@ const updateBrandPageValidation = [
     .withMessage('Brand ID must be a valid UUID'),
   body('logo')
     .optional()
-    .isURL()
-    .withMessage('Logo must be a valid URL'),
+    .isString()
+    .withMessage('Logo must be a string'),
   body('banner')
     .optional()
-    .isURL()
-    .withMessage('Banner must be a valid URL'),
+    .isString()
+    .withMessage('Banner must be a string'),
+  body('banners')
+    .optional()
+    .isArray()
+    .withMessage('Banners must be an array'),
+  body('banners.*.url')
+    .optional()
+    .isString()
+    .withMessage('Banner URL must be a string'),
+  body('banners.*.positionY')
+    .optional()
+    .isNumeric()
+    .custom((value) => value >= 0 && value <= 100)
+    .withMessage('Banner positionY must be a number between 0 and 100'),
   body('brandColors')
     .optional()
     .isArray()
@@ -110,8 +123,9 @@ const updateCatalogItemValidation = [
 
 const brandIdValidation = [
   param('brandId')
-    .isUUID()
-    .withMessage('Brand ID must be a valid UUID'),
+    .isString()
+    .isLength({ min: 1 })
+    .withMessage('Brand ID or Slug is required'),
 ];
 
 const paginationValidation = [
@@ -443,6 +457,7 @@ router.put(
   body('tiktok').optional().isLength({ max: 100 }).withMessage('TikTok must be 100 characters or less'),
   body('youtube').optional().isLength({ max: 100 }).withMessage('YouTube must be 100 characters or less'),
   body('additionalLogos').optional().isArray().withMessage('Additional logos must be an array'),
+  body('logoMetadata').optional().isArray().withMessage('Logo metadata must be an array'),
   validateRequest,
   brandProfileController.updateProfileData.bind(brandProfileController)
 );
@@ -461,7 +476,17 @@ router.post(
   AuthUtils.authenticateToken,
   brandIdValidation,
   body('userId').isUUID().withMessage('User ID must be a valid UUID'),
-  body('role').isIn(['CEO', 'CFO', 'Founder', 'CD', 'Marketing', 'Seller', 'Designer', 'Model', 'Ambassador', 'Other']).withMessage('Invalid role'),
+  body('roles')
+    .isArray()
+    .withMessage('Roles must be an array')
+    .custom((roles: string[]) => {
+      const validRoles = ['CEO', 'CFO', 'Founder', 'CD', 'Marketing', 'Seller', 'Designer', 'Model', 'Ambassador', 'Other'];
+      // Ensure specific roles are valid
+      if (!roles.every(r => validRoles.includes(r.trim()))) {
+        throw new Error('Invalid role in roles array');
+      }
+      return true;
+    }),
   body('title').optional().isLength({ max: 100 }).withMessage('Title must be 100 characters or less'),
   body('isPublic').optional().isBoolean().withMessage('isPublic must be a boolean'),
   validateRequest,
@@ -473,7 +498,17 @@ router.put(
   AuthUtils.authenticateToken,
   param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
   param('memberId').isUUID().withMessage('Member ID must be a valid UUID'),
-  body('role').optional().isIn(['CEO', 'CFO', 'Founder', 'CD', 'Marketing', 'Seller', 'Designer', 'Model', 'Ambassador', 'Other']).withMessage('Invalid role'),
+  body('roles')
+    .optional()
+    .isArray()
+    .withMessage('Roles must be an array')
+    .custom((roles: string[]) => {
+      const validRoles = ['CEO', 'CFO', 'Founder', 'CD', 'Marketing', 'Seller', 'Designer', 'Model', 'Ambassador', 'Other'];
+      if (!roles.every(r => validRoles.includes(r.trim()))) {
+        throw new Error('Invalid role in roles array');
+      }
+      return true;
+    }),
   body('title').optional().isLength({ max: 100 }).withMessage('Title must be 100 characters or less'),
   body('isPublic').optional().isBoolean().withMessage('isPublic must be a boolean'),
   validateRequest,
@@ -511,8 +546,10 @@ router.post(
   AuthUtils.authenticateToken,
   brandIdValidation,
   body('name').isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
+  body('collectionId').optional().isUUID().withMessage('Collection ID must be a valid UUID'),
   body('description').optional().isLength({ max: 2000 }).withMessage('Description must be 2000 characters or less'),
-  body('coverImageUrl').optional().isURL().withMessage('Cover image must be a valid URL'),
+  body('coverImageUrl').optional().isString().withMessage('Cover image must be a string'),
+  body('images').optional().isArray().withMessage('Images must be an array'),
   body('season').optional().isLength({ max: 50 }).withMessage('Season must be 50 characters or less'),
   body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
   validateRequest,
@@ -524,7 +561,9 @@ router.put(
   AuthUtils.authenticateToken,
   param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
   param('lookbookId').isUUID().withMessage('Lookbook ID must be a valid UUID'),
+  body('collectionId').optional().isUUID().withMessage('Collection ID must be a valid UUID'),
   body('name').optional().isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
+  body('images').optional().isArray().withMessage('Images must be an array'),
   body('isPublished').optional().isBoolean().withMessage('isPublished must be a boolean'),
   validateRequest,
   brandProfileController.updateLookbook.bind(brandProfileController)
@@ -573,7 +612,7 @@ router.post(
   brandIdValidation,
   body('name').isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
   body('description').optional().isLength({ max: 2000 }).withMessage('Description must be 2000 characters or less'),
-  body('coverImageUrl').optional().isURL().withMessage('Cover image must be a valid URL'),
+  body('coverImageUrl').optional().isString(),
   body('collectionType').optional().isIn(['Seasonal', 'Capsule', 'Collaboration', 'Limited', 'Core', 'Other']).withMessage('Invalid collection type'),
   body('season').optional().isLength({ max: 50 }).withMessage('Season must be 50 characters or less'),
   body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
@@ -619,7 +658,7 @@ router.post(
   AuthUtils.authenticateToken,
   param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
   body('name').isLength({ min: 1, max: 100 }).withMessage('Name must be between 1 and 100 characters'),
-  body('logo').optional().isURL().withMessage('Logo must be a valid URL'),
+  body('logo').optional().isString().withMessage('Logo must be a string path or URL'),
   validateRequest,
   BrandLineController.createBrandLine
 );
@@ -637,7 +676,7 @@ router.patch(
   AuthUtils.authenticateToken,
   param('id').isUUID(),
   body('name').optional().isLength({ min: 1, max: 100 }),
-  body('logo').optional().isURL(),
+  body('logo').optional().isString(),
   validateRequest,
   BrandLineController.updateBrandLine
 );

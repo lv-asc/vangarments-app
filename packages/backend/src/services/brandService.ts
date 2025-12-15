@@ -45,6 +45,7 @@ export class BrandService {
       name: registrationData.brandName,
       description: registrationData.description,
       website: registrationData.website,
+      businessType: registrationData.businessType,
       contactInfo: {
         email: registrationData.contactEmail,
         phone: registrationData.contactPhone,
@@ -103,15 +104,17 @@ export class BrandService {
   /**
    * Admin update brand details
    */
-  async updateBrand(brandId: string, updates: Partial<CreateBrandAccountData>): Promise<BrandAccount> {
+  async updateBrand(brandId: string, updates: UpdateBrandAccountData): Promise<BrandAccount> {
     const brand = await BrandAccountModel.findById(brandId);
     if (!brand) throw new Error('Brand not found');
 
     const updateData: UpdateBrandAccountData = {};
     if (updates.brandInfo) updateData.brandInfo = updates.brandInfo;
     if (updates.partnershipTier) updateData.partnershipTier = updates.partnershipTier;
+    if (updates.userId !== undefined) updateData.userId = updates.userId;
     // Add other fields as needed
 
+    console.log('BrandService.updateBrand updateData:', JSON.stringify(updateData));
     const updatedBrand = await BrandAccountModel.update(brandId, updateData);
     if (!updatedBrand) throw new Error('Failed to update brand');
 
@@ -323,6 +326,7 @@ export class BrandService {
     filters: {
       verificationStatus?: 'verified' | 'pending' | 'rejected';
       partnershipTier?: 'basic' | 'premium' | 'enterprise';
+      businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
     } = {},
     page = 1,
     limit = 20
@@ -355,7 +359,7 @@ export class BrandService {
       followers: number; // TODO: Implement brand following
     };
   }> {
-    const brand = await BrandAccountModel.findById(brandId);
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
     if (!brand) {
       throw new Error('Brand not found');
     }

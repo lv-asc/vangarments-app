@@ -6,6 +6,10 @@ import { MeasurementUtils } from '../utils/measurements';
 import { VUFSItemModel } from '../models/VUFSItem';
 import multer from 'multer';
 import { LocalStorageService } from '../services/localStorageService';
+import { BrandAccountModel } from '../models/BrandAccount';
+import { StoreModel } from '../models/Store';
+import { SupplierModel } from '../models/Supplier';
+import { PageModel } from '../models/Page';
 
 // Configure multer for avatar uploads
 const upload = multer({
@@ -602,7 +606,7 @@ export class UserController {
 
   static async getAllUsers(req: AuthenticatedRequest, res: Response) {
     try {
-      const { search, page = 1, limit = 20 } = req.query;
+      const { search, page = 1, limit = 20, roles } = req.query;
 
       // Ensure user is admin
       if (!req.user?.roles.includes('admin')) {
@@ -618,6 +622,7 @@ export class UserController {
         search: search as string,
         limit: parseInt(limit as string),
         offset: (parseInt(page as string) - 1) * parseInt(limit as string),
+        roles: roles ? (roles as string).split(',') : undefined
       };
 
       const { users, total } = await UserModel.findAll(filters);
@@ -642,6 +647,8 @@ export class UserController {
     }
   }
 
+
+
   static async getUserById(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;
@@ -655,7 +662,14 @@ export class UserController {
         });
       }
 
-      const user = await UserModel.findById(id);
+      const [user, brands, stores, suppliers, pages] = await Promise.all([
+        UserModel.findById(id),
+        BrandAccountModel.findAllByUserId(id),
+        StoreModel.findAllByUserId(id),
+        SupplierModel.findAllByUserId(id),
+        PageModel.findAllByUserId(id)
+      ]);
+
       if (!user) {
         return res.status(404).json({
           error: {
@@ -667,7 +681,13 @@ export class UserController {
 
       res.json({
         success: true,
-        user,
+        user: {
+          ...user,
+          brands,
+          stores,
+          suppliers,
+          pages
+        },
       });
     } catch (error) {
       console.error('Get user by id error:', error);

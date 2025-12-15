@@ -41,6 +41,7 @@
     "react-use": "^17.4.2",
     "react-virtualized-auto-sizer": "^1.0.20",
     "react-window": "^1.8.8",
+    "shop-color-picker": "^0.2.3",
     "swiper": "^11.0.5",
     "tailwindcss": "^3.3.6",
     "zustand": "^4.4.7"

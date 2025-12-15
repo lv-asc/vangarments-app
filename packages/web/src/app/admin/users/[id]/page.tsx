@@ -5,10 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, LinkIcon, PlusIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { Dialog } from '@headlessui/react';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 export default function AdminEditUserPage() {
     const { id } = useParams();
@@ -24,6 +24,37 @@ export default function AdminEditUserPage() {
 
     // Deactivate Modal State
     const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
+
+    // Linked Entities State
+    const [linkedEntities, setLinkedEntities] = useState({
+        brands: [] as any[],
+        stores: [] as any[],
+        suppliers: [] as any[],
+        pages: [] as any[]
+    });
+
+    // Available Entities State for Selection
+    const [availableEntities, setAvailableEntities] = useState({
+        brands: [] as any[],
+        stores: [] as any[],
+        suppliers: [] as any[],
+        pages: [] as any[]
+    });
+
+    // Link Modal State
+    const [linkModalState, setLinkModalState] = useState<{
+        isOpen: boolean;
+        type: 'brand' | 'store' | 'supplier' | 'page' | null;
+    }>({ isOpen: false, type: null });
+    const [selectedEntityId, setSelectedEntityId] = useState('');
+
+    // Unlink Confirmation Modal State
+    const [unlinkModalState, setUnlinkModalState] = useState<{
+        isOpen: boolean;
+        type: 'brand' | 'store' | 'supplier' | 'page' | null;
+        entityId: string | null;
+    }>({ isOpen: false, type: null, entityId: null });
+
 
     const [userData, setUserData] = useState({
         name: '',
@@ -66,20 +97,24 @@ export default function AdminEditUserPage() {
     const loadUser = async () => {
         try {
             setLoading(true);
-            // Assuming this endpoint exists or can fetch by ID. 
-            // If not, we might need to rely on the list or implement getById
-            // For now, let's try a direct fetch or filtered list
-            const response = await apiClient.get(`/users/${id}`) as any;
+            const response = await apiClient.get<{ user: any }>(`/users/${id}`);
 
             if (response.user) {
                 setUserData({
                     name: response.user.name || '',
                     email: response.user.email || '',
                     username: response.user.username || '',
-                    bio: response.user.bio || '',
+                    bio: response.user.profile?.bio || '',
                     roles: response.user.roles || [],
                     status: response.user.status || 'active',
                     banExpiresAt: response.user.banExpiresAt ? new Date(response.user.banExpiresAt) : undefined
+                });
+
+                setLinkedEntities({
+                    brands: response.user.brands || [],
+                    stores: response.user.stores || [],
+                    suppliers: response.user.suppliers || [],
+                    pages: response.user.pages || []
                 });
             }
         } catch (error) {
@@ -88,6 +123,86 @@ export default function AdminEditUserPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const loadAvailableEntities = async (type: 'brand' | 'store' | 'supplier' | 'page') => {
+        try {
+            let endpoint = '';
+            let key = '';
+            switch (type) {
+                case 'store': endpoint = '/stores'; key = 'stores'; break;
+                case 'supplier': endpoint = '/suppliers'; key = 'suppliers'; break;
+                case 'page': endpoint = '/pages'; key = 'pages'; break;
+                // Use generic brands endpoint if available, or vufs-management/brands if specifically needing all
+                // The issue previously was unclear endpoints. Let's assume /brands search works or use a listing endpoint.
+                // Assuming /brands allows listing for now.
+                case 'brand': endpoint = '/brands'; key = 'brands'; break;
+            }
+
+            const response = await apiClient.get<any>(endpoint);
+            // Handle different response structures
+            let list = [];
+            if (response[key]) list = response[key];
+            else if (response.data && response.data[key]) list = response.data[key];
+            else if (Array.isArray(response)) list = response;
+            else if (response.data && Array.isArray(response.data)) list = response.data;
+
+            // Fallback for searchBrands response structure { success: true, data: { brands: [], ... } }
+            if (key === 'brands' && response.data && response.data.brands) {
+                list = response.data.brands;
+            }
+
+            setAvailableEntities(prev => ({ ...prev, [key]: Array.isArray(list) ? list : [] }));
+        } catch (error) {
+            console.error(`Failed to load ${type}s`, error);
+            toast.error(`Failed to load available ${type}s`);
+        }
+    };
+
+    const handleLinkEntity = async () => {
+        if (!linkModalState.type || !selectedEntityId) return;
+        try {
+            // Determine endpoint. All should support PUT /:entity/:id with { userId: id }
+            const endpoint = linkModalState.type === 'brand' ? '/brands' : `/${linkModalState.type}s`;
+
+            await apiClient.put(`${endpoint}/${selectedEntityId}`, { userId: id });
+
+            toast.success(`${linkModalState.type} linked successfully`);
+            setLinkModalState({ isOpen: false, type: null });
+            setSelectedEntityId('');
+            loadUser();
+        } catch (error) {
+            console.error('Failed to link entity', error);
+            toast.error('Failed to link entity');
+        }
+    };
+
+    const confirmUnlinkEntity = async () => {
+        if (!unlinkModalState.type || !unlinkModalState.entityId) return;
+
+        try {
+            const endpoint = unlinkModalState.type === 'brand' ? '/brands' : `/${unlinkModalState.type}s`;
+
+            // Update with userId: null to unlink
+            // Note: For brands this now works because we updated the backend.
+            await apiClient.put(`${endpoint}/${unlinkModalState.entityId}`, { userId: null });
+
+            toast.success(`${unlinkModalState.type} unlinked successfully`);
+            setUnlinkModalState({ isOpen: false, type: null, entityId: null });
+            loadUser();
+        } catch (error) {
+            console.error('Failed to unlink entity', error);
+            toast.error('Failed to unlink entity');
+        }
+    };
+
+    const openLinkModal = (type: 'brand' | 'store' | 'supplier' | 'page') => {
+        setLinkModalState({ isOpen: true, type });
+        loadAvailableEntities(type);
+    };
+
+    const openUnlinkModal = (type: 'brand' | 'store' | 'supplier' | 'page', entityId: string) => {
+        setUnlinkModalState({ isOpen: true, type, entityId });
     };
 
     const handleRoleChange = (role: string) => {
@@ -263,6 +378,43 @@ export default function AdminEditUserPage() {
                 </form>
             </div>
 
+            {/* Linked Entities Section */}
+            <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                    <h2 className="text-lg font-medium text-gray-900">Linked Entities</h2>
+                </div>
+                <div className="p-6 space-y-6">
+                    {/* Brands */}
+                    <EntitySection
+                        title="Brands"
+                        items={linkedEntities.brands}
+                        onAdd={() => openLinkModal('brand')}
+                        onRemove={(itemId) => openUnlinkModal('brand', itemId)}
+                    />
+                    {/* Stores */}
+                    <EntitySection
+                        title="Stores"
+                        items={linkedEntities.stores}
+                        onAdd={() => openLinkModal('store')}
+                        onRemove={(itemId) => openUnlinkModal('store', itemId)}
+                    />
+                    {/* Suppliers */}
+                    <EntitySection
+                        title="Suppliers"
+                        items={linkedEntities.suppliers}
+                        onAdd={() => openLinkModal('supplier')}
+                        onRemove={(itemId) => openUnlinkModal('supplier', itemId)}
+                    />
+                    {/* Pages */}
+                    <EntitySection
+                        title="Pages"
+                        items={linkedEntities.pages}
+                        onAdd={() => openLinkModal('page')}
+                        onRemove={(itemId) => openUnlinkModal('page', itemId)}
+                    />
+                </div>
+            </div>
+
             {/* Account Status Actions */}
             <div className="bg-white shadow rounded-lg overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -297,7 +449,7 @@ export default function AdminEditUserPage() {
                         )}
                         {userData.status === 'deactivated' && (
                             <button
-                                onClick={() => setIsBanModalOpen(true)} // Allow banning a deactivated user too? Yes.
+                                onClick={() => setIsBanModalOpen(true)}
                                 className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                             >
                                 Ban Account
@@ -364,35 +516,106 @@ export default function AdminEditUserPage() {
             </Dialog>
 
             {/* Deactivate Confirmation Modal */}
-            <Dialog open={isDeactivateModalOpen} onClose={() => setIsDeactivateModalOpen(false)} className="relative z-50">
+            <ConfirmationModal
+                isOpen={isDeactivateModalOpen}
+                onClose={() => setIsDeactivateModalOpen(false)}
+                onConfirm={handleDeactivateUser}
+                title="Deactivate User"
+                message="Are you sure you want to deactivate this user? They will not be able to log in until reactivated."
+                confirmText="Deactivate"
+                cancelText="Cancel"
+                variant="primary" // Just a standard action, but logically 'danger' warning is good also. Using primary for now as per previous modal style.
+            />
+
+            {/* Unlink Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={unlinkModalState.isOpen}
+                onClose={() => setUnlinkModalState({ ...unlinkModalState, isOpen: false })}
+                onConfirm={confirmUnlinkEntity}
+                title={`Unlink ${unlinkModalState.type ? unlinkModalState.type.charAt(0).toUpperCase() + unlinkModalState.type.slice(1) : ''}`}
+                message={`Are you sure you want to unlink this ${unlinkModalState.type}?`}
+                confirmText="Unlink"
+                cancelText="Cancel"
+                variant="danger"
+            />
+
+            {/* Link Modal */}
+            <Dialog open={linkModalState.isOpen} onClose={() => setLinkModalState({ ...linkModalState, isOpen: false })} className="relative z-50">
                 <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
                 <div className="fixed inset-0 flex items-center justify-center p-4">
-                    <Dialog.Panel className="mx-auto max-w-sm rounded bg-white p-6 shadow-xl">
+                    <Dialog.Panel className="mx-auto max-w-sm rounded bg-white p-6 shadow-xl w-full">
                         <Dialog.Title className="text-lg font-medium text-gray-900 flex items-center gap-2">
-                            <ExclamationTriangleIcon className="h-6 w-6 text-gray-500" />
-                            Deactivate User
+                            <LinkIcon className="h-5 w-5 text-blue-500" />
+                            Link {linkModalState.type ? linkModalState.type.charAt(0).toUpperCase() + linkModalState.type.slice(1) : ''}
                         </Dialog.Title>
-                        <Dialog.Description className="mt-2 text-sm text-gray-500">
-                            Are you sure you want to deactivate this user? They will not be able to log in until reactivated.
-                        </Dialog.Description>
+
+                        <div className="mt-4">
+                            <label className="block text-sm font-medium text-gray-700">Select Entity</label>
+                            <select
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
+                                value={selectedEntityId}
+                                onChange={(e) => setSelectedEntityId(e.target.value)}
+                            >
+                                <option value="">Select...</option>
+                                {linkModalState.type && availableEntities[linkModalState.type === 'brand' ? 'brands' : `${linkModalState.type}s` as keyof typeof availableEntities]?.map((item: any) => (
+                                    <option key={item.id} value={item.id}>
+                                        {item.name || item.brandInfo?.name || 'Unnamed'} {item.userId ? '(Already Linked)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
 
                         <div className="mt-6 flex justify-end gap-3">
                             <button
-                                onClick={() => setIsDeactivateModalOpen(false)}
+                                onClick={() => setLinkModalState({ ...linkModalState, isOpen: false })}
                                 className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={handleDeactivateUser}
-                                className="px-3 py-2 text-sm font-medium text-white bg-gray-600 rounded hover:bg-gray-700"
+                                onClick={handleLinkEntity}
+                                disabled={!selectedEntityId}
+                                className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
                             >
-                                Deactivate
+                                Link
                             </button>
                         </div>
                     </Dialog.Panel>
                 </div>
             </Dialog>
+
+        </div>
+    );
+}
+
+function EntitySection({ title, items, onAdd, onRemove }: { title: string, items: any[], onAdd: () => void, onRemove: (id: string) => void }) {
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-medium text-gray-700">{title}</h3>
+                <button onClick={onAdd} type="button" className="text-xs text-blue-600 hover:text-blue-800 flex items-center">
+                    <PlusIcon className="h-3 w-3 mr-1" /> Add
+                </button>
+            </div>
+            {items.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                    {items.map((item: any) => (
+                        <span key={item.id} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {item.name || item.brandInfo?.name || 'Unnamed'}
+                            <button
+                                type="button"
+                                onClick={() => onRemove(item.id)}
+                                className="ml-1.5 inline-flex items-center justify-center text-blue-400 hover:text-blue-600 focus:outline-none"
+                            >
+                                <span className="sr-only">Remove</span>
+                                <TrashIcon className="h-3 w-3" />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} linked.</p>
+            )}
         </div>
     );
 }

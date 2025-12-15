@@ -2,10 +2,15 @@ import { db } from '../database/connection';
 
 export interface BrandInfo {
   name: string;
+  slug?: string; // URL friendly identifier
   description?: string;
   website?: string;
   logo?: string;
   banner?: string;
+  banners?: Array<{
+    url: string;
+    positionY?: number; // 0-100
+  }>; // Array of banner objects
   socialLinks?: Array<{
     platform: string;
     url: string;
@@ -19,6 +24,7 @@ export interface BrandInfo {
   brandStyle?: string[];
   country?: string; // Country of origin
   tags?: string[]; // Brand tags (e.g. Small, Independent, etc.)
+  businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
 }
 
 export interface BrandProfileData {
@@ -28,6 +34,7 @@ export interface BrandProfileData {
   tiktok?: string;
   youtube?: string;
   additionalLogos?: string[]; // Array of logo URLs
+  logoMetadata?: Array<{ url: string; name: string }>;
 }
 
 export interface BrandAccount {
@@ -60,6 +67,7 @@ export interface UpdateBrandAccountData {
   verificationStatus?: 'pending' | 'verified' | 'rejected';
   partnershipTier?: 'basic' | 'premium' | 'enterprise';
   badges?: string[];
+  userId?: string | null;
 }
 
 export class BrandAccountModel {
@@ -101,6 +109,43 @@ export class BrandAccountModel {
     return result.rows.length > 0 ? this.mapRowToBrandAccount(result.rows[0]) : null;
   }
 
+  static async findBySlugOrId(identifier: string): Promise<BrandAccount | null> {
+    // Check if identifier is a valid UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+    if (isUUID) {
+      return this.findById(identifier);
+    }
+
+    // Try to find by slug first, then by name (approximate slug match)
+    // We replace dashes with spaces for the name fallback
+    const nameFallback = identifier.replace(/-/g, ' ');
+
+    // Check for exact slug match OR computed slug match OR simple name match
+    // We normalize the DB name to match the frontend slug generation logic:
+    // 1. Remove special trademark symbols (®™©)
+    // 2. Replace non-alphanumeric characters with dashes
+    // 3. Trim leading/trailing dashes
+    const query = `
+      SELECT ba.*, 
+             u.profile as user_profile,
+             (
+               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
+             ) as catalog_items_count
+      FROM brand_accounts ba
+      LEFT JOIN users u ON ba.user_id = u.id
+      WHERE (
+        ba.brand_info->>'slug' = $1 
+        OR ba.brand_info->>'name' ILIKE $2
+      ) 
+      AND ba.deleted_at IS NULL
+      LIMIT 1
+    `;
+
+    const result = await db.query(query, [identifier, nameFallback]);
+    return result.rows.length > 0 ? this.mapRowToBrandAccount(result.rows[0]) : null;
+  }
+
   static async findByUserId(userId: string): Promise<BrandAccount | null> {
     const query = `
       SELECT ba.*, 
@@ -139,6 +184,7 @@ export class BrandAccountModel {
     filters: {
       verificationStatus?: 'pending' | 'verified' | 'rejected';
       partnershipTier?: 'basic' | 'premium' | 'enterprise';
+      businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
       search?: string;
     } = {},
     limit = 20,
@@ -156,6 +202,18 @@ export class BrandAccountModel {
     if (filters.partnershipTier) {
       whereConditions.push(`ba.partnership_tier = $${paramIndex++}`);
       values.push(filters.partnershipTier);
+    }
+
+    if (filters.businessType) {
+      if (filters.businessType === 'brand') {
+        // For brands, we include those explicitly marked as 'brand' OR those with no businessType (legacy/default)
+        whereConditions.push(`(ba.brand_info->>'businessType' = $${paramIndex++} OR ba.brand_info->>'businessType' IS NULL)`);
+        values.push(filters.businessType);
+      } else {
+        // For other types (store, etc.), we require explicit match
+        whereConditions.push(`ba.brand_info->>'businessType' = $${paramIndex++}`);
+        values.push(filters.businessType);
+      }
     }
 
     if (filters.search) {
@@ -216,6 +274,16 @@ export class BrandAccountModel {
     if (updateData.partnershipTier) {
       setClause.push(`partnership_tier = $${paramIndex++}`);
       values.push(updateData.partnershipTier);
+    }
+
+    if (updateData.badges) {
+      setClause.push(`badges = $${paramIndex++}`);
+      values.push(JSON.stringify(updateData.badges));
+    }
+
+    if (updateData.userId !== undefined) {
+      setClause.push(`user_id = $${paramIndex++}`);
+      values.push(updateData.userId);
     }
 
     if (setClause.length === 0) {
@@ -297,7 +365,7 @@ export class BrandAccountModel {
     lookbooks: any[];
     collections: any[];
   } | null> {
-    const brand = await this.findById(brandId);
+    const brand = await this.findBySlugOrId(brandId);
     if (!brand) return null;
 
     // Import dependencies dynamically to avoid circular imports
@@ -403,6 +471,7 @@ export class BrandAccountModel {
           const brandInfo: BrandInfo = {
             name: vBrand.name,
             description: `Official ${vBrand.name} brand account`,
+            businessType: 'brand', // Explicitly set type to brand
             // Add default styling or placeholders if needed
           };
 

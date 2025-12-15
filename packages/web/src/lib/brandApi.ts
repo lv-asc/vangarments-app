@@ -5,10 +5,15 @@ interface BrandAccount {
   userId: string;
   brandInfo: {
     name: string;
+    slug?: string;
     description?: string;
     website?: string;
     logo?: string;
     banner?: string;
+    banners?: Array<{
+      url: string;
+      positionY?: number; // 0-100
+    }>; // Array of banner objects
     socialLinks?: Array<{
       platform: string;
       url: string;
@@ -30,6 +35,7 @@ interface BrandAccount {
     tiktok?: string;
     youtube?: string;
     additionalLogos?: string[];
+    logoMetadata?: Array<{ url: string; name: string }>;
   };
   verificationStatus: 'pending' | 'verified' | 'rejected';
   partnershipTier: 'basic' | 'premium' | 'enterprise';
@@ -48,9 +54,12 @@ interface CreateBrandAccountData {
   userId?: string; // Optional for admin creation
   brandInfo: {
     name: string;
+    slug?: string;
     description?: string;
     website?: string;
     logo?: string;
+    banner?: string;
+    banners?: string[];
     contactInfo?: {
       email?: string;
       phone?: string;
@@ -122,11 +131,12 @@ class BrandApi {
     return response.json();
   }
 
-  async getBrands(params?: { limit?: number; page?: number; search?: string }): Promise<any[]> {
+  async getBrands(params?: { limit?: number; page?: number; search?: string; businessType?: string }): Promise<any[]> {
     const queryParams = new URLSearchParams();
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.search) queryParams.append('q', params.search);
+    if (params?.businessType) queryParams.append('businessType', params.businessType);
 
     const response = await fetch(`${API_BASE_URL}/api/brands/search?${queryParams.toString()}`, {
       headers: this.getAuthHeaders()
@@ -502,7 +512,7 @@ class BrandApi {
     return result.data.team;
   }
 
-  async addTeamMember(brandId: string, data: { userId: string; role: BrandRole; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
+  async addTeamMember(brandId: string, data: { userId: string; roles: BrandRole[]; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
     const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
@@ -518,7 +528,7 @@ class BrandApi {
     return result.data.member;
   }
 
-  async updateTeamMember(brandId: string, memberId: string, data: { role?: BrandRole; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
+  async updateTeamMember(brandId: string, memberId: string, data: { roles?: BrandRole[]; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
     const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team/${memberId}`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
@@ -740,13 +750,14 @@ export interface BrandProfileData {
   tiktok?: string;
   youtube?: string;
   additionalLogos?: string[];
+  logoMetadata?: Array<{ url: string; name: string }>;
 }
 
 export interface BrandTeamMember {
   id: string;
   brandId: string;
   userId: string;
-  role: BrandRole;
+  roles: BrandRole[];
   title?: string;
   isPublic: boolean;
   joinedAt: string;
@@ -761,9 +772,11 @@ export interface BrandTeamMember {
 export interface BrandLookbook {
   id: string;
   brandId: string;
+  collectionId?: string;
   name: string;
   description?: string;
   coverImageUrl?: string;
+  images?: string[];
   season?: string;
   year?: number;
   isPublished: boolean;
@@ -772,9 +785,11 @@ export interface BrandLookbook {
 }
 
 export interface CreateLookbookData {
+  collectionId?: string;
   name: string;
   description?: string;
   coverImageUrl?: string;
+  images?: string[];
   season?: string;
   year?: number;
 }

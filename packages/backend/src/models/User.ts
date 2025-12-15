@@ -300,14 +300,25 @@ export class UserModel {
     return { success: true };
   }
 
-  static async findAll(filters: { search?: string; limit?: number; offset?: number } = {}): Promise<{ users: UserProfile[], total: number }> {
-    const { search, limit = 20, offset = 0 } = filters;
+  static async findAll(filters: { search?: string; limit?: number; offset?: number; roles?: string[] } = {}): Promise<{ users: UserProfile[], total: number }> {
+    const { search, limit = 20, offset = 0, roles } = filters;
     const params: any[] = [];
     let whereClause = '';
+    const conditions: string[] = [];
 
     if (search) {
       params.push(`%${search}%`);
-      whereClause = `WHERE u.email ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length}`;
+      conditions.push(`(u.email ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length})`);
+    }
+
+    if (roles && roles.length > 0) {
+      // Filter users who have at least one of the specified roles
+      params.push(roles);
+      conditions.push(`EXISTS (SELECT 1 FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.role = ANY($${params.length}))`);
+    }
+
+    if (conditions.length > 0) {
+      whereClause = 'WHERE ' + conditions.join(' AND ');
     }
 
     const query = `

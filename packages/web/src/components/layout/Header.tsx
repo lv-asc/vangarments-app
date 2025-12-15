@@ -195,6 +195,69 @@ export function Header() {
                       >
                         {t('myProfile')}
                       </Link>
+
+                      {/* Linked Entities */}
+                      {user.linkedEntities?.hasBrand && (
+                        <Link
+                          href="/admin?tab=brands"
+                          onClick={(e) => {
+                            handleNavigation('/admin?tab=brands', e);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
+                        >
+                          My Brands
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasStore && (
+                        <Link
+                          href="/admin/stores"
+                          onClick={(e) => {
+                            handleNavigation('/admin/stores', e);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
+                        >
+                          My Stores
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasPage && (
+                        <Link
+                          href="/admin/pages"
+                          onClick={(e) => {
+                            handleNavigation('/admin/pages', e);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
+                        >
+                          My Pages
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasSupplier && (
+                        <Link
+                          href="/admin/suppliers"
+                          onClick={(e) => {
+                            handleNavigation('/admin/suppliers', e);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
+                        >
+                          My Suppliers
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasPost && (
+                        <Link
+                          href="/profile?tab=posts"
+                          onClick={(e) => {
+                            handleNavigation('/profile?tab=posts', e);
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
+                        >
+                          My Posts
+                        </Link>
+                      )}
+
                       {user.roles && user.roles.includes('admin') && (
                         <Link
                           href="/admin"
@@ -313,6 +376,68 @@ export function Header() {
                       >
                         {t('myProfile')}
                       </Link>
+
+                      {/* Linked Entities (Mobile) */}
+                      {user.linkedEntities?.hasBrand && (
+                        <Link
+                          href="/admin?tab=brands"
+                          onClick={(e) => {
+                            handleNavigation('/admin?tab=brands', e);
+                            setIsMenuOpen(false);
+                          }}
+                          className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
+                        >
+                          My Brands
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasStore && (
+                        <Link
+                          href="/admin/stores"
+                          onClick={(e) => {
+                            handleNavigation('/admin/stores', e);
+                            setIsMenuOpen(false);
+                          }}
+                          className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
+                        >
+                          My Stores
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasPage && (
+                        <Link
+                          href="/admin/pages"
+                          onClick={(e) => {
+                            handleNavigation('/admin/pages', e);
+                            setIsMenuOpen(false);
+                          }}
+                          className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
+                        >
+                          My Pages
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasSupplier && (
+                        <Link
+                          href="/admin/suppliers"
+                          onClick={(e) => {
+                            handleNavigation('/admin/suppliers', e);
+                            setIsMenuOpen(false);
+                          }}
+                          className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
+                        >
+                          My Suppliers
+                        </Link>
+                      )}
+                      {user.linkedEntities?.hasPost && (
+                        <Link
+                          href="/profile?tab=posts"
+                          onClick={(e) => {
+                            handleNavigation('/profile?tab=posts', e);
+                            setIsMenuOpen(false);
+                          }}
+                          className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
+                        >
+                          My Posts
+                        </Link>
+                      )}
                       <button
                         onClick={() => {
                           handleLogout();

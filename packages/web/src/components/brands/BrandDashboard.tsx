@@ -120,14 +120,14 @@ export default function BrandDashboard({ brandAccount }: BrandDashboardProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-[#00132d] to-[#00132d]/80 rounded-2xl p-6 text-[#fff7d7]"
+        className="bg-white rounded-xl p-6 shadow-sm border border-gray-200"
       >
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold mb-2">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
               Welcome back, {brandAccount.brandInfo.name}!
             </h2>
-            <p className="text-[#fff7d7]/80">
+            <p className="text-gray-500">
               Here's what's happening with your brand today
             </p>
           </div>
@@ -146,61 +146,61 @@ export default function BrandDashboard({ brandAccount }: BrandDashboardProps) {
         transition={{ delay: 0.1 }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
       >
-        <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex justify-center">
-              <svg className="w-6 h-6 text-[#00132d]" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                 <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
               </svg>
             </div>
-            <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+            <div className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded-full border border-green-100">
               +12%
             </div>
           </div>
-          <div className="text-2xl font-bold text-[#00132d] mb-1">
+          <div className="text-2xl font-bold text-gray-900 mb-1">
             {quickStats.todayViews.toLocaleString()}
           </div>
-          <div className="text-sm text-[#00132d]/60">Views Today</div>
+          <div className="text-sm text-gray-500">Views Today</div>
         </div>
 
-        <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-
-            <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+            <div className="w-6 h-6"></div> {/* Spacer to keep layout execution simple or could add icon */}
+            <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
               +8%
             </div>
           </div>
-          <div className="text-2xl font-bold text-[#00132d] mb-1">
+          <div className="text-2xl font-bold text-gray-900 mb-1">
             {quickStats.weeklyOrders}
           </div>
-          <div className="text-sm text-[#00132d]/60">Orders This Week</div>
+          <div className="text-sm text-gray-500">Orders This Week</div>
         </div>
 
-        <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-
-            <div className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+            <div className="w-6 h-6"></div>
+            <div className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded-full border border-green-100">
               +15%
             </div>
           </div>
-          <div className="text-2xl font-bold text-[#00132d] mb-1">
+          <div className="text-2xl font-bold text-gray-900 mb-1">
             {formatCurrency(quickStats.monthlyRevenue)}
           </div>
-          <div className="text-sm text-[#00132d]/60">Monthly Revenue</div>
+          <div className="text-sm text-gray-500">Monthly Revenue</div>
         </div>
 
-        <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-
-            <div className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+            <div className="w-6 h-6"></div>
+            <div className="text-xs text-purple-700 bg-purple-50 px-2 py-1 rounded-full border border-purple-100">
               +{quickStats.catalogGrowth}
             </div>
           </div>
-          <div className="text-2xl font-bold text-[#00132d] mb-1">
+          <div className="text-2xl font-bold text-gray-900 mb-1">
             {brandAccount.analytics.totalCatalogItems}
           </div>
-          <div className="text-sm text-[#00132d]/60">Catalog Items</div>
+          <div className="text-sm text-gray-500">Catalog Items</div>
         </div>
       </motion.div>
 
@@ -210,9 +210,9 @@ export default function BrandDashboard({ brandAccount }: BrandDashboardProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="lg:col-span-2 bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20"
+          className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-200 shadow-sm"
         >
-          <h3 className="text-xl font-semibold text-[#00132d] mb-6">Recent Activity</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Recent Activity</h3>
 
           <div className="space-y-4">
             {recentActivity.map((activity, index) => (
@@ -221,13 +221,13 @@ export default function BrandDashboard({ brandAccount }: BrandDashboardProps) {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3 + index * 0.1 }}
-                className="flex items-center space-x-4 p-4 bg-white/50 rounded-xl"
+                className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg border border-gray-100"
               >
                 <div className="text-2xl">{getActivityIcon(activity.type)}</div>
                 <div className="flex-1">
-                  <div className="font-semibold text-[#00132d]">{activity.description}</div>
-                  <div className="text-sm text-[#00132d]/60">{activity.details}</div>
-                  <div className="text-xs text-[#00132d]/40 mt-1">
+                  <div className="font-semibold text-gray-900">{activity.description}</div>
+                  <div className="text-sm text-gray-600">{activity.details}</div>
+                  <div className="text-xs text-gray-400 mt-1">
                     {new Date(activity.timestamp).toLocaleString()}
                   </div>
                 </div>
@@ -239,7 +239,7 @@ export default function BrandDashboard({ brandAccount }: BrandDashboardProps) {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="text-[#00132d] hover:text-[#00132d]/80 font-semibold"
+              className="text-blue-600 hover:text-blue-700 font-medium text-sm"
             >
               View All Activity →
             </motion.button>
@@ -253,62 +253,62 @@ export default function BrandDashboard({ brandAccount }: BrandDashboardProps) {
           transition={{ delay: 0.3 }}
           className="space-y-6"
         >
-          <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-            <h3 className="text-lg font-semibold text-[#00132d] mb-4">Quick Actions</h3>
+          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+            <h3 className="text-base font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="space-y-3">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full p-3 bg-[#00132d] text-[#fff7d7] rounded-xl font-semibold hover:bg-[#00132d]/80 transition-colors"
+                className="w-full p-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors shadow-sm text-sm"
               >
                 Add New Product
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full p-3 bg-white border border-[#00132d]/20 text-[#00132d] rounded-xl font-semibold hover:bg-[#00132d]/5 transition-colors"
+                className="w-full p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm"
               >
                 View Analytics
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full p-3 bg-white border border-[#00132d]/20 text-[#00132d] rounded-xl font-semibold hover:bg-[#00132d]/5 transition-colors"
+                className="w-full p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors text-sm"
               >
                 Manage Partnerships
               </motion.button>
             </div>
           </div>
 
-          <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-            <h3 className="text-lg font-semibold text-[#00132d] mb-4">Brand Health</h3>
+          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+            <h3 className="text-base font-semibold text-gray-900 mb-4">Brand Health</h3>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-[#00132d]/70">Catalog Completeness</span>
-                  <span className="font-semibold text-[#00132d]">85%</span>
+                  <span className="text-gray-500">Catalog Completeness</span>
+                  <span className="font-semibold text-gray-900">85%</span>
                 </div>
-                <div className="w-full bg-[#00132d]/10 rounded-full h-2">
-                  <div className="bg-[#00132d] h-2 rounded-full w-[85%]"></div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div className="bg-gray-900 h-2 rounded-full w-[85%]"></div>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-[#00132d]/70">Profile Optimization</span>
-                  <span className="font-semibold text-[#00132d]">92%</span>
+                  <span className="text-gray-500">Profile Optimization</span>
+                  <span className="font-semibold text-gray-900">92%</span>
                 </div>
-                <div className="w-full bg-[#00132d]/10 rounded-full h-2">
+                <div className="w-full bg-gray-100 rounded-full h-2">
                   <div className="bg-green-500 h-2 rounded-full w-[92%]"></div>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-[#00132d]/70">Customer Engagement</span>
-                  <span className="font-semibold text-[#00132d]">78%</span>
+                  <span className="text-gray-500">Customer Engagement</span>
+                  <span className="font-semibold text-gray-900">78%</span>
                 </div>
-                <div className="w-full bg-[#00132d]/10 rounded-full h-2">
+                <div className="w-full bg-gray-100 rounded-full h-2">
                   <div className="bg-yellow-500 h-2 rounded-full w-[78%]"></div>
                 </div>
               </div>
@@ -317,13 +317,13 @@ export default function BrandDashboard({ brandAccount }: BrandDashboardProps) {
 
           {/* Badges */}
           {brandAccount.badges && brandAccount.badges.length > 0 && (
-            <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-              <h3 className="text-lg font-semibold text-[#00132d] mb-4">Brand Badges</h3>
+            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-4">Brand Badges</h3>
               <div className="flex flex-wrap gap-2">
                 {brandAccount.badges.map((badge, index) => (
                   <div
                     key={index}
-                    className="px-3 py-1 bg-[#00132d] text-[#fff7d7] rounded-full text-sm font-medium"
+                    className="px-2.5 py-0.5 bg-gray-900 text-white rounded-full text-xs font-medium"
                   >
                     {badge}
                   </div>

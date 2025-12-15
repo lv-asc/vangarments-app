@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
+import ShopColorPicker from '@/components/ui/ShopColorPicker';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { TrashIcon, PencilSquareIcon, PlusIcon, SwatchIcon } from '@heroicons/react/24/outline';
 
 interface ColorGroup {
@@ -34,6 +36,12 @@ export default function AdminColorsPage() {
     // Group Management State
     const [groupName, setGroupName] = useState('');
     const [editingGroup, setEditingGroup] = useState<ColorGroup | null>(null);
+
+    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; type: 'color' | 'group' | null; id: string | null }>({
+        isOpen: false,
+        type: null,
+        id: null
+    });
 
     useEffect(() => {
         fetchData();
@@ -89,17 +97,29 @@ export default function AdminColorsPage() {
             fetchData();
         } catch (error) {
             console.error('Failed to save color', error);
-            alert('Failed to save color');
+            // Replaced alert with console error, ideally use a Toast notification system if available
         }
     };
 
-    const handleDeleteColor = async (id: string) => {
-        if (!confirm('Are you sure?')) return;
+    const handleDeleteClick = (id: string, type: 'color' | 'group') => {
+        setDeleteModalState({ isOpen: true, type, id });
+    };
+
+    const handleConfirmDelete = async () => {
+        const { type, id } = deleteModalState;
+        if (!type || !id) return;
+
         try {
-            await apiClient.deleteColor(id);
+            if (type === 'color') {
+                await apiClient.deleteColor(id);
+            } else {
+                await apiClient.deleteColorGroup(id);
+            }
             fetchData();
         } catch (error) {
-            console.error('Failed to delete color', error);
+            console.error('Failed to delete item', error);
+        } finally {
+            setDeleteModalState({ isOpen: false, type: null, id: null });
         }
     };
 
@@ -121,17 +141,6 @@ export default function AdminColorsPage() {
         }
     };
 
-    const handleDeleteGroup = async (id: string) => {
-        if (!confirm('Delete this group? Colors in this group will remain, but the association will be removed.')) return;
-        try {
-            await apiClient.deleteColorGroup(id);
-            const newGroups = await apiClient.getColorGroups();
-            setGroups(newGroups || []);
-        } catch (error) {
-            console.error('Failed to delete group', error);
-        }
-    };
-
     const toggleGroupSelection = (groupId: string) => {
         setSelectedGroupIds(prev =>
             prev.includes(groupId) ? prev.filter(id => id !== groupId) : [...prev, groupId]
@@ -142,6 +151,7 @@ export default function AdminColorsPage() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            {/* Header ... */}
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Colors Management</h1>
@@ -207,7 +217,7 @@ export default function AdminColorsPage() {
                                             <PencilSquareIcon className="h-5 w-5" />
                                         </button>
                                         <button
-                                            onClick={() => handleDeleteColor(color.id)}
+                                            onClick={() => handleDeleteClick(color.id, 'color')}
                                             className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
                                         >
                                             <TrashIcon className="h-5 w-5" />
@@ -237,19 +247,24 @@ export default function AdminColorsPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Hex Code</label>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <input
-                                        type="color"
-                                        value={hexCode}
-                                        onChange={(e) => setHexCode(e.target.value)}
-                                        className="h-9 w-9 p-1 rounded border border-gray-300 cursor-pointer"
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                                <div className="flex justify-center bg-gray-50 p-4 rounded border">
+                                    <ShopColorPicker
+                                        color={hexCode}
+                                        onChange={setHexCode}
                                     />
+                                </div>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-sm text-gray-500">Selected Hex:</span>
                                     <input
                                         type="text"
                                         value={hexCode}
                                         onChange={(e) => setHexCode(e.target.value)}
-                                        className="flex-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
+                                        className="w-28 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-1"
+                                    />
+                                    <div
+                                        className="h-6 w-6 rounded border border-gray-300 shadow-sm"
+                                        style={{ backgroundColor: hexCode }}
                                     />
                                 </div>
                             </div>
@@ -263,8 +278,8 @@ export default function AdminColorsPage() {
                                             type="button"
                                             onClick={() => toggleGroupSelection(group.id)}
                                             className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedGroupIds.includes(group.id)
-                                                    ? 'bg-indigo-100 text-indigo-800 border-indigo-200 border'
-                                                    : 'bg-gray-100 text-gray-800 border-gray-200 border hover:bg-gray-200'
+                                                ? 'bg-indigo-100 text-indigo-800 border-indigo-200 border'
+                                                : 'bg-gray-100 text-gray-800 border-gray-200 border hover:bg-gray-200'
                                                 }`}
                                         >
                                             {group.name}
@@ -354,7 +369,7 @@ export default function AdminColorsPage() {
                                                 Edit
                                             </button>
                                             <button
-                                                onClick={() => handleDeleteGroup(group.id)}
+                                                onClick={() => handleDeleteClick(group.id, 'group')}
                                                 className="text-red-600 hover:text-red-900 text-xs font-medium"
                                             >
                                                 Delete
@@ -368,6 +383,19 @@ export default function AdminColorsPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={deleteModalState.isOpen}
+                onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
+                onConfirm={handleConfirmDelete}
+                title={deleteModalState.type === 'color' ? 'Delete Color' : 'Delete Color Group'}
+                message={deleteModalState.type === 'color'
+                    ? 'Are you sure you want to delete this color? This action cannot be undone.'
+                    : 'Are you sure you want to delete this group? Colors in this group will remain, but the association will be removed.'
+                }
+                variant="danger"
+                confirmText="Delete"
+            />
         </div>
     );
 }

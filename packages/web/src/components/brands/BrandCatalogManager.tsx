@@ -219,11 +219,11 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
     return (
       <div className="space-y-6">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
+          <div key={i} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <div className="animate-pulse">
-              <div className="h-4 bg-[#00132d]/20 rounded w-1/4 mb-4"></div>
-              <div className="h-8 bg-[#00132d]/20 rounded w-1/2 mb-2"></div>
-              <div className="h-4 bg-[#00132d]/20 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+              <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             </div>
           </div>
         ))}
@@ -240,16 +240,16 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
         className="flex items-center justify-between"
       >
         <div>
-          <h2 className="text-2xl font-bold text-[#00132d] mb-2">Brand Catalog</h2>
-          <p className="text-[#00132d]/70">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Brand Catalog</h2>
+          <p className="text-gray-500">
             Manage your product catalog following VUFS standards
           </p>
         </div>
         <motion.button
           onClick={() => setShowAddModal(true)}
-          className="bg-[#00132d] text-[#fff7d7] px-6 py-3 rounded-xl font-semibold hover:bg-[#00132d]/80 transition-colors"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          className="bg-gray-900 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors shadow-sm text-sm"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
           Add Product
         </motion.button>
@@ -260,26 +260,26 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20"
+        className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm"
       >
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-[#00132d] mb-2">Search</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search products..."
-              className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#00132d] mb-2">Category</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
             >
               <option value="all">All Categories</option>
               <option value="Clothing">Clothing</option>
@@ -289,11 +289,11 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#00132d] mb-2">Availability</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Availability</label>
             <select
               value={filterAvailability}
               onChange={(e) => setFilterAvailability(e.target.value)}
-              className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
             >
               <option value="all">All Status</option>
               <option value="available">Available</option>
@@ -309,7 +309,7 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                 setFilterCategory('all');
                 setFilterAvailability('all');
               }}
-              className="w-full px-4 py-2 border border-[#00132d]/20 rounded-lg text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium text-sm"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -332,52 +332,55 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20 hover:shadow-lg transition-shadow cursor-pointer"
+            className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
             onClick={() => setSelectedItem(item)}
-            whileHover={{ scale: 1.02 }}
+            whileHover={{ scale: 1.01 }}
           >
-            <div className="aspect-square bg-gray-200 rounded-xl mb-4 flex items-center justify-center">
+            <div className="aspect-square bg-gray-100 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
               {item.images.length > 0 ? (
                 <img
                   src={item.images[0].url}
                   alt={item.name}
-                  className="w-full h-full object-cover rounded-xl"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               ) : (
-                <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <div className="text-gray-400 text-sm">No Image</div>
+                <div className="w-full h-full bg-gray-100 flex items-center justify-center flex-col text-gray-400">
+                  <svg className="w-12 h-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs font-medium">No Image</span>
                 </div>
               )}
             </div>
 
             <div className="space-y-2">
               <div className="flex items-start justify-between">
-                <h3 className="font-semibold text-[#00132d] line-clamp-2">{item.name}</h3>
-                <div className={`px-2 py-1 rounded-full text-xs font-medium ${getAvailabilityColor(item.availability)}`}>
+                <h3 className="font-semibold text-gray-900 line-clamp-2 pr-2">{item.name}</h3>
+                <div className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${getAvailabilityColor(item.availability)}`}>
                   {item.availability.replace(/_/g, ' ')}
                 </div>
               </div>
 
-              <p className="text-sm text-[#00132d]/70 line-clamp-2">{item.description}</p>
+              <p className="text-sm text-gray-500 line-clamp-2 min-h-[2.5em]">{item.description}</p>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-2">
                 <div>
                   {item.pricing.salePrice && item.pricing.salePrice < item.pricing.retailPrice ? (
                     <div>
-                      <div className="text-lg font-bold text-[#00132d]">
+                      <div className="text-lg font-bold text-gray-900">
                         {formatCurrency(item.pricing.salePrice)}
                       </div>
-                      <div className="text-sm text-[#00132d]/60 line-through">
+                      <div className="text-sm text-gray-500 line-through">
                         {formatCurrency(item.pricing.retailPrice)}
                       </div>
                     </div>
                   ) : (
-                    <div className="text-lg font-bold text-[#00132d]">
+                    <div className="text-lg font-bold text-gray-900">
                       {formatCurrency(item.pricing.retailPrice)}
                     </div>
                   )}
                 </div>
-                <div className="text-xs text-[#00132d]/60">
+                <div className="text-xs text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded">
                   {item.vufsCode}
                 </div>
               </div>
@@ -387,10 +390,14 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
       </motion.div>
 
       {filteredItems.length === 0 && (
-        <div className="text-center py-12">
-
-          <h3 className="text-xl font-semibold text-[#00132d] mb-2">No products found</h3>
-          <p className="text-[#00132d]/70 mb-6">
+        <div className="text-center py-12 bg-white rounded-xl border border-gray-200 border-dashed">
+          <div className="mx-auto h-12 w-12 text-gray-400 mb-3">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">No products found</h3>
+          <p className="text-gray-500 mb-6 text-sm">
             {searchTerm || filterCategory !== 'all' || filterAvailability !== 'all'
               ? 'Try adjusting your filters or search terms'
               : 'Start building your catalog by adding your first product'
@@ -398,9 +405,9 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
           </p>
           <motion.button
             onClick={() => setShowAddModal(true)}
-            className="bg-[#00132d] text-[#fff7d7] px-6 py-3 rounded-xl font-semibold hover:bg-[#00132d]/80 transition-colors"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            className="bg-gray-900 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-gray-800 transition-colors shadow-sm text-sm"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
             Add First Product
           </motion.button>
@@ -414,22 +421,22 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
             onClick={() => setShowAddModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#fff7d7] rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl border border-gray-200"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-semibold text-[#00132d] mb-6">Add New Product</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-6">Add New Product</h3>
 
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#00132d] mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Product Name *
                     </label>
                     <input
@@ -437,13 +444,13 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                       value={newItem.name}
                       onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                       placeholder="Summer Floral Dress"
-                      className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-[#00132d] mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Category (Page) *
                     </label>
                     <select
@@ -452,7 +459,7 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                         ...newItem,
                         category: { ...newItem.category, page: e.target.value }
                       })}
-                      className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                       required
                     >
                       <option value="">Select category</option>
@@ -464,7 +471,7 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[#00132d] mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Description
                   </label>
                   <textarea
@@ -472,13 +479,13 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                     onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
                     placeholder="Elegant summer dress with floral pattern..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#00132d] mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Retail Price (R$) *
                     </label>
                     <input
@@ -490,13 +497,13 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                         pricing: { ...newItem.pricing, retailPrice: parseFloat(e.target.value) || 0 }
                       })}
                       placeholder="299.90"
-                      className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-[#00132d] mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Sale Price (R$)
                     </label>
                     <input
@@ -508,13 +515,13 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                         pricing: { ...newItem.pricing, salePrice: parseFloat(e.target.value) || 0 }
                       })}
                       placeholder="249.90"
-                      className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-[#00132d] mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Purchase Link
                   </label>
                   <input
@@ -522,22 +529,22 @@ export default function BrandCatalogManager({ brandAccount }: BrandCatalogManage
                     value={newItem.purchaseLink}
                     onChange={(e) => setNewItem({ ...newItem, purchaseLink: e.target.value })}
                     placeholder="https://yourbrand.com/product/123"
-                    className="w-full px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                   />
                 </div>
               </div>
 
-              <div className="flex space-x-3 mt-6">
+              <div className="flex space-x-3 mt-8">
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-4 py-2 border border-[#00132d]/20 rounded-lg text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddItem}
                   disabled={!newItem.name || !newItem.category.page || !newItem.pricing.retailPrice}
-                  className="flex-1 px-4 py-2 bg-[#00132d] text-[#fff7d7] rounded-lg hover:bg-[#00132d]/80 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 font-medium text-sm shadow-sm"
                 >
                   Add Product
                 </button>

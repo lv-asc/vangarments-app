@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { TrashIcon, PencilSquareIcon, PlusIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
 interface SizeConversion {
@@ -36,6 +37,11 @@ export default function AdminSizesPage() {
     const [sortOrder, setSortOrder] = useState<number>(0);
     const [conversions, setConversions] = useState<SizeConversion[]>([]);
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
+
+    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
+        isOpen: false,
+        id: null
+    });
 
     useEffect(() => {
         fetchData();
@@ -115,17 +121,23 @@ export default function AdminSizesPage() {
             fetchData();
         } catch (error) {
             console.error('Failed to save size', error);
-            alert('Failed to save size');
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this size?')) return;
+    const handleDeleteClick = (id: string) => {
+        setDeleteModalState({ isOpen: true, id });
+    };
+
+    const handleConfirmDelete = async () => {
+        const { id } = deleteModalState;
+        if (!id) return;
         try {
             await apiClient.deleteSize(id);
             fetchData();
         } catch (error) {
             console.error('Failed to delete size', error);
+        } finally {
+            setDeleteModalState({ isOpen: false, id: null });
         }
     };
 
@@ -133,6 +145,7 @@ export default function AdminSizesPage() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            {/* Header ... */}
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Sizes Management</h1>
@@ -196,7 +209,7 @@ export default function AdminSizesPage() {
                                             <PencilSquareIcon className="h-5 w-5" />
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(size.id)}
+                                            onClick={() => handleDeleteClick(size.id)}
                                             className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
                                         >
                                             <TrashIcon className="h-5 w-5" />
@@ -316,6 +329,16 @@ export default function AdminSizesPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={deleteModalState.isOpen}
+                onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
+                onConfirm={handleConfirmDelete}
+                title='Delete Size'
+                message='Are you sure you want to delete this size? This action cannot be undone.'
+                variant="danger"
+                confirmText="Delete"
+            />
         </div>
     );
 }

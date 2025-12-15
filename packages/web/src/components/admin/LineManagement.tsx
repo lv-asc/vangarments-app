@@ -162,6 +162,22 @@ export default function LineManagement({ brandId }: LineManagementProps) {
         setFormData(prev => ({ ...prev, logo: newLogos[0] || '' }));
     };
 
+    const getImageUrl = (url: string) => {
+        if (!url) return '';
+        if (url.startsWith('http') || url.startsWith('data:')) return url;
+        if (url.startsWith('/api')) return url;
+
+        // Normalize path: strip leading slash
+        let path = url.startsWith('/') ? url.substring(1) : url;
+
+        // Handle /storage prefix from backend
+        if (path.startsWith('storage/')) {
+            path = path.substring('storage/'.length);
+        }
+
+        return `/api/storage/${path}`;
+    };
+
     if (loading) return <div>Loading lines...</div>;
 
     return (
@@ -281,7 +297,7 @@ export default function LineManagement({ brandId }: LineManagementProps) {
                             <li key={line.id} className="px-6 py-4 hover:bg-gray-50 flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
                                     {line.logo ? (
-                                        <img src={line.logo.startsWith('/') || line.logo.startsWith('http') ? line.logo : `/api/storage/${line.logo}`} alt={line.name} className="h-12 w-12 object-contain rounded-full bg-gray-100 border border-gray-200" />
+                                        <img src={getImageUrl(line.logo)} alt={line.name} className="h-12 w-12 object-contain rounded-full bg-gray-100 border border-gray-200" />
                                     ) : (
                                         <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-bold border border-gray-300">
                                             {line.name.substring(0, 2).toUpperCase()}

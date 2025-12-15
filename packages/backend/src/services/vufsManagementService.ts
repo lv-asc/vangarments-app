@@ -274,6 +274,11 @@ export class VUFSManagementService {
   }
 
   static async deleteCategory(id: string): Promise<void> {
+    // Recursively delete children first to satisfy foreign key constraints
+    const childrenResult = await db.query('SELECT id FROM vufs_categories WHERE parent_id = $1', [id]);
+    for (const row of childrenResult.rows) {
+      await this.deleteCategory(row.id.toString());
+    }
     await this.deleteItem('vufs_categories', id);
   }
 
@@ -738,6 +743,7 @@ export class VUFSManagementService {
     const query = `
       INSERT INTO vufs_attribute_types (slug, name)
       VALUES ($1, $2)
+      ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
       RETURNING *;
     `;
     const res = await db.query(query, [slug, name]);

@@ -186,11 +186,11 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
     return (
       <div className="space-y-6">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
+          <div key={i} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
             <div className="animate-pulse">
-              <div className="h-4 bg-[#00132d]/20 rounded w-1/4 mb-4"></div>
-              <div className="h-8 bg-[#00132d]/20 rounded w-1/2 mb-2"></div>
-              <div className="h-4 bg-[#00132d]/20 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+              <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             </div>
           </div>
         ))}
@@ -200,10 +200,14 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
 
   if (!commissionData) {
     return (
-      <div className="text-center py-12">
-
-        <h3 className="text-xl font-semibold text-[#00132d] mb-2">No Commission Data</h3>
-        <p className="text-[#00132d]/70">Commission data will appear here once you have sales</p>
+      <div className="text-center py-12 bg-white rounded-xl border border-gray-200 border-dashed">
+        <div className="mx-auto h-12 w-12 text-gray-400 mb-3">
+          <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">No Commission Data</h3>
+        <p className="text-gray-500 text-sm">Commission data will appear here once you have sales</p>
       </div>
     );
   }
@@ -217,8 +221,8 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
         className="flex items-center justify-between"
       >
         <div>
-          <h2 className="text-2xl font-bold text-[#00132d] mb-2">Commission Analytics</h2>
-          <p className="text-[#00132d]/70">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Commission Analytics</h2>
+          <p className="text-gray-500">
             Track your earnings and partnership performance
           </p>
         </div>
@@ -226,7 +230,7 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="px-3 py-2 border border-[#00132d]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#00132d]/20"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white shadow-sm"
           >
             <option value="7d">Last 7 days</option>
             <option value="30d">Last 30 days</option>
@@ -243,56 +247,73 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
         transition={{ delay: 0.1 }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
       >
-        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-6 text-white">
-          <div className="flex items-center justify-between mb-4">
-
-            <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg className="w-16 h-16 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="text-xs font-semibold bg-green-50 text-green-700 px-2.5 py-1 rounded-full border border-green-100">
               Total
             </div>
           </div>
-          <div className="text-2xl font-bold mb-1">
+          <div className="text-2xl font-bold text-gray-900 mb-1 relative z-10">
             {formatCurrency(commissionData.totalEarned)}
           </div>
-          <div className="text-sm opacity-80">Total Earned</div>
+          <div className="text-sm text-gray-500 relative z-10">Total Earned</div>
         </div>
 
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 text-white">
-          <div className="flex items-center justify-between mb-4">
-
-            <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg className="w-16 h-16 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="text-xs font-semibold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100">
               This Month
             </div>
           </div>
-          <div className="text-2xl font-bold mb-1">
+          <div className="text-2xl font-bold text-gray-900 mb-1 relative z-10">
             {formatCurrency(commissionData.monthlyEarnings)}
           </div>
-          <div className="text-sm opacity-80">Monthly Earnings</div>
+          <div className="text-sm text-gray-500 relative z-10">Monthly Earnings</div>
         </div>
 
-        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-2xl p-6 text-white">
-          <div className="flex items-center justify-between mb-4">
-
-            <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg className="w-16 h-16 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="text-xs font-semibold bg-yellow-50 text-yellow-700 px-2.5 py-1 rounded-full border border-yellow-100">
               Pending
             </div>
           </div>
-          <div className="text-2xl font-bold mb-1">
+          <div className="text-2xl font-bold text-gray-900 mb-1 relative z-10">
             {formatCurrency(commissionData.pendingPayments)}
           </div>
-          <div className="text-sm opacity-80">Pending Payments</div>
+          <div className="text-sm text-gray-500 relative z-10">Pending Payments</div>
         </div>
 
-        <div className="bg-[#00132d] rounded-2xl p-6 text-[#fff7d7]">
-          <div className="flex items-center justify-between mb-4">
-
-            <div className="text-xs bg-white/20 px-2 py-1 rounded-full">
+        <div className="bg-gray-900 rounded-xl p-6 shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+              <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+            </svg>
+          </div>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="text-xs font-semibold bg-gray-700 text-gray-100 px-2.5 py-1 rounded-full border border-gray-600">
               Average
             </div>
           </div>
-          <div className="text-2xl font-bold mb-1">
+          <div className="text-2xl font-bold text-white mb-1 relative z-10">
             {commissionData.averageCommissionRate}%
           </div>
-          <div className="text-sm opacity-80">Avg. Commission Rate</div>
+          <div className="text-sm text-gray-400 relative z-10">Avg. Commission Rate</div>
         </div>
       </motion.div>
 
@@ -301,39 +322,32 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-[#00132d]/5 rounded-2xl p-2 border border-[#00132d]/20"
+        className="mb-8"
       >
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {[
-            { key: 'overview', label: 'Overview' },
-            { key: 'transactions', label: 'Transactions' },
-            { key: 'partners', label: 'Partners' },
-            { key: 'analytics', label: 'Analytics' }
-          ].map((tab) => (
-            <motion.button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              className={`relative p-3 rounded-xl text-center transition-all duration-300 ${activeTab === tab.key
-                  ? 'text-[#fff7d7] shadow-lg'
-                  : 'text-[#00132d]/70 hover:text-[#00132d] hover:bg-[#00132d]/5'
-                }`}
-              whileHover={{ scale: activeTab === tab.key ? 1 : 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              {activeTab === tab.key && (
-                <motion.div
-                  layoutId="activeCommissionTab"
-                  className="absolute inset-0 bg-[#00132d] rounded-xl"
-                  initial={false}
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                />
-              )}
-              <div className="relative z-10">
-                <div className="text-xl mb-1">{tab.icon}</div>
-                <div className="font-semibold text-sm">{tab.label}</div>
-              </div>
-            </motion.button>
-          ))}
+        <div className="bg-white rounded-xl p-1.5 border border-gray-200 shadow-sm w-full md:max-w-fit overflow-x-auto">
+          <div className="flex space-x-1 min-w-max">
+            {[
+              { key: 'overview', label: 'Overview' },
+              { key: 'transactions', label: 'Transactions' },
+              { key: 'partners', label: 'Partners' },
+              { key: 'analytics', label: 'Analytics' }
+            ].map((tab) => (
+              <motion.button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as any)}
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === tab.key
+                  ? 'text-gray-900 bg-gray-100 shadow-sm border border-gray-200'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="relative z-10">
+                  <div className="font-semibold">{tab.label}</div>
+                </div>
+              </motion.button>
+            ))}
+          </div>
         </div>
       </motion.div>
 
@@ -349,8 +363,8 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Top Performing Items */}
-              <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-                <h3 className="text-xl font-semibold text-[#00132d] mb-6">Top Performing Items</h3>
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 mb-6">Top Performing Items</h3>
                 <div className="space-y-4">
                   {commissionData.topPerformingItems.map((item, index) => (
                     <motion.div
@@ -358,24 +372,24 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="flex items-center justify-between p-4 bg-white/50 rounded-xl"
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100"
                     >
                       <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-[#00132d] text-[#fff7d7] rounded-lg flex items-center justify-center text-sm font-bold">
+                        <div className="w-8 h-8 bg-gray-900 text-white rounded-lg flex items-center justify-center text-sm font-bold shadow-sm">
                           {index + 1}
                         </div>
                         <div>
-                          <div className="font-semibold text-[#00132d]">{item.name}</div>
-                          <div className="text-sm text-[#00132d]/60">
+                          <div className="font-semibold text-gray-900 text-sm">{item.name}</div>
+                          <div className="text-xs text-gray-500">
                             {formatCurrency(item.sales)} sales • {item.commissionRate}% rate
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold text-[#00132d]">
+                        <div className="font-bold text-green-600 text-sm">
                           {formatCurrency(item.commission)}
                         </div>
-                        <div className="text-sm text-[#00132d]/60">commission</div>
+                        <div className="text-xs text-gray-400">earned</div>
                       </div>
                     </motion.div>
                   ))}
@@ -383,8 +397,8 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
               </div>
 
               {/* Monthly Breakdown */}
-              <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-                <h3 className="text-xl font-semibold text-[#00132d] mb-6">Monthly Performance</h3>
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 mb-6">Monthly Performance</h3>
                 <div className="space-y-4">
                   {commissionData.monthlyBreakdown.slice(-6).map((month, index) => (
                     <motion.div
@@ -392,19 +406,19 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="flex items-center justify-between p-4 bg-white/50 rounded-xl"
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100"
                     >
                       <div>
-                        <div className="font-semibold text-[#00132d]">{month.month}</div>
-                        <div className="text-sm text-[#00132d]/60">
+                        <div className="font-semibold text-gray-900 text-sm">{month.month}</div>
+                        <div className="text-xs text-gray-500">
                           {month.transactions} transactions
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold text-[#00132d]">
+                        <div className="font-bold text-gray-900 text-sm">
                           {formatCurrency(month.commission)}
                         </div>
-                        <div className="text-sm text-[#00132d]/60">
+                        <div className="text-xs text-gray-400">
                           from {formatCurrency(month.sales)}
                         </div>
                       </div>
@@ -416,8 +430,8 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
           )}
 
           {activeTab === 'transactions' && (
-            <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-              <h3 className="text-xl font-semibold text-[#00132d] mb-6">Recent Transactions</h3>
+            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900 mb-6">Recent Transactions</h3>
               <div className="space-y-4">
                 {recentTransactions.map((transaction, index) => (
                   <motion.div
@@ -425,29 +439,29 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="flex items-center justify-between p-4 bg-white/50 rounded-xl"
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100"
                   >
                     <div className="flex-1">
-                      <div className="font-semibold text-[#00132d]">{transaction.itemName}</div>
-                      <div className="text-sm text-[#00132d]/60">
-                        Sold by {transaction.partnerName} • {new Date(transaction.date).toLocaleDateString()}
+                      <div className="font-semibold text-gray-900 text-sm">{transaction.itemName}</div>
+                      <div className="text-xs text-gray-500">
+                        {transaction.partnerName} • {new Date(transaction.date).toLocaleDateString()}
                       </div>
                     </div>
                     <div className="text-center mx-4">
-                      <div className="font-semibold text-[#00132d]">
+                      <div className="font-semibold text-gray-900 text-sm">
                         {formatCurrency(transaction.saleAmount)}
                       </div>
-                      <div className="text-sm text-[#00132d]/60">sale amount</div>
+                      <div className="text-xs text-gray-400 font-medium">sale amount</div>
                     </div>
                     <div className="text-center mx-4">
-                      <div className="font-semibold text-green-600">
+                      <div className="font-bold text-green-600 text-sm">
                         {formatCurrency(transaction.commissionAmount)}
                       </div>
-                      <div className="text-sm text-[#00132d]/60">
-                        {transaction.commissionRate}% commission
+                      <div className="text-xs text-gray-400">
+                        {transaction.commissionRate}%
                       </div>
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(transaction.status)}`}>
+                    <div className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(transaction.status)}`}>
                       {transaction.status}
                     </div>
                   </motion.div>
@@ -457,8 +471,8 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
           )}
 
           {activeTab === 'partners' && (
-            <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-              <h3 className="text-xl font-semibold text-[#00132d] mb-6">Partner Performance</h3>
+            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900 mb-6">Partner Performance</h3>
               <div className="space-y-4">
                 {commissionData.partnerPerformance.map((partner, index) => (
                   <motion.div
@@ -466,33 +480,33 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="p-6 bg-white/50 rounded-xl"
+                    className="p-6 bg-gray-50 rounded-xl border border-gray-100"
                   >
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-semibold text-[#00132d]">{partner.partnerName}</h4>
-                      <div className="text-sm text-[#00132d]/60">
-                        {partner.commissionRate}% commission rate
+                      <h4 className="font-bold text-gray-900">{partner.partnerName}</h4>
+                      <div className="text-xs font-mono bg-white px-2 py-1 rounded border border-gray-200 text-gray-500">
+                        {partner.commissionRate}% comm.
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-[#00132d]">
+                    <div className="grid grid-cols-3 gap-4 divide-x divide-gray-200">
+                      <div className="text-center px-2">
+                        <div className="text-lg font-bold text-gray-900">
                           {formatCurrency(partner.sales)}
                         </div>
-                        <div className="text-sm text-[#00132d]/60">Total Sales</div>
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Total Sales</div>
                       </div>
-                      <div className="text-center">
+                      <div className="text-center px-2">
                         <div className="text-lg font-bold text-green-600">
                           {formatCurrency(partner.commission)}
                         </div>
-                        <div className="text-sm text-[#00132d]/60">Commission Earned</div>
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Earned</div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-[#00132d]">
+                      <div className="text-center px-2">
+                        <div className="text-lg font-bold text-gray-900">
                           {partner.itemsSold}
                         </div>
-                        <div className="text-sm text-[#00132d]/60">Items Sold</div>
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Items Sold</div>
                       </div>
                     </div>
                   </motion.div>
@@ -503,13 +517,17 @@ export default function CommissionTracker({ brandAccount }: CommissionTrackerPro
 
           {activeTab === 'analytics' && (
             <div className="space-y-6">
-              <div className="bg-[#00132d]/5 rounded-2xl p-6 border border-[#00132d]/20">
-                <h3 className="text-xl font-semibold text-[#00132d] mb-6">Commission Trends</h3>
-                <div className="text-center py-8">
-
-                  <h4 className="text-lg font-semibold text-[#00132d] mb-2">Advanced Analytics Coming Soon</h4>
-                  <p className="text-[#00132d]/70">
-                    Detailed commission analytics and trend analysis are in development.
+              <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-900 mb-6">Commission Trends</h3>
+                <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-100 border-dashed">
+                  <div className="mx-auto h-12 w-12 text-gray-400 mb-3">
+                    <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">Advanced Analytics Coming Soon</h4>
+                  <p className="text-gray-500 text-sm max-w-md mx-auto">
+                    Detailed commission analytics, forecasting, and historical trend analysis are currently in development.
                   </p>
                 </div>
               </div>

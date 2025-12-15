@@ -32,6 +32,10 @@ import brandRoutes from './brand';
 import skuRoutes from './sku';
 import colorRoutes from './colors';
 import sizeRoutes from './sizes';
+import journalismRoutes from './journalismRoutes';
+import pageRoutes from './pageRoutes';
+import storeRoutes from './stores';
+import supplierRoutes from './suppliers';
 
 const router = Router();
 
@@ -67,6 +71,10 @@ router.use('/vufs-management', vufsManagementRoutes);
 router.use('/configuration', configurationRoutes);
 router.use('/colors', colorRoutes); // New Color routes
 router.use('/sizes', sizeRoutes); // New Size routes
+router.use('/journalism', journalismRoutes); // New Journalism routes
+router.use('/pages', pageRoutes);
+router.use('/stores', storeRoutes);
+router.use('/suppliers', supplierRoutes);
 
 // Health check for API
 router.get('/health', (req, res) => {

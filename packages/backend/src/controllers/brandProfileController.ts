@@ -44,6 +44,7 @@ export class BrandProfileController {
             if (tiktok !== undefined) profileData.tiktok = tiktok;
             if (youtube !== undefined) profileData.youtube = youtube;
             if (additionalLogos !== undefined) profileData.additionalLogos = additionalLogos;
+            if (req.body.logoMetadata !== undefined) profileData.logoMetadata = req.body.logoMetadata;
 
             const updated = await BrandAccountModel.updateProfileData(brandId, profileData);
 
@@ -87,11 +88,11 @@ export class BrandProfileController {
     async addTeamMember(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { brandId } = req.params;
-            const { userId, role, title, isPublic } = req.body;
+            const { userId, roles, title, isPublic } = req.body;
 
-            if (!userId || !role) {
+            if (!userId || !roles) {
                 res.status(400).json({
-                    error: { code: 'INVALID_INPUT', message: 'userId and role are required' }
+                    error: { code: 'INVALID_INPUT', message: 'userId and roles are required' }
                 });
                 return;
             }
@@ -99,7 +100,7 @@ export class BrandProfileController {
             const member = await BrandTeamModel.addMember({
                 brandId,
                 userId,
-                role: role as BrandRole,
+                roles: roles as BrandRole[],
                 title,
                 isPublic
             });
@@ -118,9 +119,9 @@ export class BrandProfileController {
     async updateTeamMember(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { memberId } = req.params;
-            const { role, title, isPublic } = req.body;
+            const { roles, title, isPublic } = req.body;
 
-            const updated = await BrandTeamModel.updateMember(memberId, { role, title, isPublic });
+            const updated = await BrandTeamModel.updateMember(memberId, { roles, title, isPublic });
 
             if (!updated) {
                 res.status(404).json({
@@ -209,7 +210,8 @@ export class BrandProfileController {
     async createLookbook(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { brandId } = req.params;
-            const { name, description, coverImageUrl, season, year } = req.body;
+            const { name, description, coverImageUrl, season, year, collectionId, images } = req.body;
+            console.log('Create Lookbook Body:', JSON.stringify(req.body, null, 2));
 
             if (!name) {
                 res.status(400).json({
@@ -220,9 +222,11 @@ export class BrandProfileController {
 
             const lookbook = await BrandLookbookModel.create({
                 brandId,
+                collectionId,
                 name,
                 description,
                 coverImageUrl,
+                images,
                 season,
                 year
             });
@@ -241,10 +245,11 @@ export class BrandProfileController {
     async updateLookbook(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { lookbookId } = req.params;
-            const { name, description, coverImageUrl, season, year, isPublished } = req.body;
+            const { name, description, coverImageUrl, season, year, isPublished, collectionId, images } = req.body;
+            console.log('Update Lookbook Body:', JSON.stringify(req.body, null, 2));
 
             const updated = await BrandLookbookModel.update(lookbookId, {
-                name, description, coverImageUrl, season, year, isPublished
+                name, description, coverImageUrl, season, year, isPublished, collectionId, images
             });
 
             if (!updated) {
@@ -362,7 +367,7 @@ export class BrandProfileController {
     async createCollection(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { brandId } = req.params;
-            const { name, description, coverImageUrl, collectionType, season, year } = req.body;
+            const { name, description, coverImageUrl, collectionType, season, year, isPublished } = req.body;
 
             if (!name) {
                 res.status(400).json({
@@ -378,7 +383,8 @@ export class BrandProfileController {
                 coverImageUrl,
                 collectionType: collectionType as CollectionType,
                 season,
-                year
+                year,
+                isPublished
             });
 
             res.status(201).json({ success: true, data: { collection } });

@@ -6,7 +6,7 @@ export interface BrandTeamMember {
     id: string;
     brandId: string;
     userId: string;
-    role: BrandRole;
+    roles: BrandRole[];
     title?: string;
     isPublic: boolean;
     joinedAt: Date;
@@ -24,28 +24,28 @@ export interface BrandTeamMember {
 export interface CreateTeamMemberData {
     brandId: string;
     userId: string;
-    role: BrandRole;
+    roles: BrandRole[];
     title?: string;
     isPublic?: boolean;
 }
 
 export interface UpdateTeamMemberData {
-    role?: BrandRole;
+    roles?: BrandRole[];
     title?: string;
     isPublic?: boolean;
 }
 
 export class BrandTeamModel {
     static async addMember(data: CreateTeamMemberData): Promise<BrandTeamMember> {
-        const { brandId, userId, role, title, isPublic = true } = data;
+        const { brandId, userId, roles, title, isPublic = true } = data;
 
         const query = `
-      INSERT INTO brand_team_members (brand_id, user_id, role, title, is_public)
+      INSERT INTO brand_team_members (brand_id, user_id, roles, title, is_public)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
 
-        const result = await db.query(query, [brandId, userId, role, title, isPublic]);
+        const result = await db.query(query, [brandId, userId, roles, title, isPublic]);
         return this.mapRowToTeamMember(result.rows[0]);
     }
 
@@ -66,9 +66,9 @@ export class BrandTeamModel {
         const values: any[] = [];
         let paramIndex = 1;
 
-        if (updates.role !== undefined) {
-            setClauses.push(`role = $${paramIndex++}`);
-            values.push(updates.role);
+        if (updates.roles !== undefined) {
+            setClauses.push(`roles = $${paramIndex++}`);
+            values.push(updates.roles);
         }
         if (updates.title !== undefined) {
             setClauses.push(`title = $${paramIndex++}`);
@@ -132,9 +132,9 @@ export class BrandTeamModel {
         return result.rows.map(row => this.mapRowToTeamMember(row));
     }
 
-    static async getUserBrands(userId: string): Promise<Array<{ brandId: string; role: BrandRole; title?: string }>> {
+    static async getUserBrands(userId: string): Promise<Array<{ brandId: string; roles: BrandRole[]; title?: string }>> {
         const query = `
-      SELECT brand_id, role, title
+      SELECT brand_id, roles, title
       FROM brand_team_members
       WHERE user_id = $1
       ORDER BY joined_at DESC
@@ -143,7 +143,7 @@ export class BrandTeamModel {
         const result = await db.query(query, [userId]);
         return result.rows.map(row => ({
             brandId: row.brand_id,
-            role: row.role,
+            roles: row.roles, // Postgres driver should automatically parse text[] to string[]
             title: row.title || undefined
         }));
     }
@@ -159,7 +159,7 @@ export class BrandTeamModel {
             id: row.id,
             brandId: row.brand_id,
             userId: row.user_id,
-            role: row.role,
+            roles: parseRoles(row.roles, row.role),
             title: row.title || undefined,
             isPublic: row.is_public,
             joinedAt: new Date(row.joined_at),
@@ -173,4 +173,18 @@ export class BrandTeamModel {
             } : undefined
         };
     }
+}
+
+// Helper to safely parse roles
+function parseRoles(roles: any, legacyRole: any): BrandRole[] {
+    if (Array.isArray(roles)) return roles;
+    if (typeof roles === 'string') {
+        // Handle Postgres array string format {a,b,c}
+        const cleaned = roles.replace(/^\{|\}$/g, '');
+        if (!cleaned) return [];
+        return cleaned.split(',') as BrandRole[];
+    }
+    // Fallback to legacy role if available and roles is empty/null
+    if (legacyRole) return [legacyRole];
+    return [];
 }

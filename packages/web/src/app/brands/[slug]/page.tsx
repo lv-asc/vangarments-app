@@ -12,10 +12,23 @@ import {
     BrandProfileData
 } from '@/lib/brandApi';
 
+// Helper to resolve image URLs
+const getImageUrl = (url: string | undefined | null) => {
+    if (!url) return '';
+    if (url.startsWith('http') || url.startsWith('data:')) return url;
+    if (url.startsWith('/api')) return url;
+
+    let path = url.startsWith('/') ? url.substring(1) : url;
+    if (path.startsWith('storage/')) {
+        path = path.substring('storage/'.length);
+    }
+    return `/api/storage/${path}`;
+};
+
 export default function BrandProfilePage() {
     const params = useParams();
     const router = useRouter();
-    const brandId = params.id as string;
+    const slug = params.slug as string;
 
     const [profile, setProfile] = useState<BrandFullProfile | null>(null);
     const [loading, setLoading] = useState(true);
@@ -23,15 +36,15 @@ export default function BrandProfilePage() {
     const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items'>('overview');
 
     useEffect(() => {
-        if (brandId) {
+        if (slug) {
             loadProfile();
         }
-    }, [brandId]);
+    }, [slug]);
 
     const loadProfile = async () => {
         try {
             setLoading(true);
-            const data = await brandApi.getFullProfile(brandId);
+            const data = await brandApi.getFullProfile(slug);
             setProfile(data);
         } catch (err: any) {
             setError(err.message || 'Failed to load brand profile');
@@ -66,15 +79,86 @@ export default function BrandProfilePage() {
     const brandInfo = brand.brandInfo;
     const profileData = brand.profileData || {} as BrandProfileData;
 
+    // Resolve banners
+    const banners = React.useMemo(() => {
+        const rawBanners = brandInfo.banners || [];
+        const singleBanner = brandInfo.banner;
+
+        // If we have explicit banners array, use it
+        if (rawBanners.length > 0) {
+            return rawBanners.map(b => {
+                if (typeof b === 'string') return { url: b, positionY: 50 };
+                return { url: b.url, positionY: b.positionY ?? 50 };
+            });
+        }
+
+        // Fallback to single banner
+        if (singleBanner) {
+            return [{ url: singleBanner, positionY: 50 }];
+        }
+
+        return [];
+    }, [brandInfo.banners, brandInfo.banner]);
+
+    const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+
+    // Banner Slideshow
+    useEffect(() => {
+        if (banners.length <= 1) return;
+
+        const interval = setInterval(() => {
+            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [banners.length]);
+
+    const currentBanner = banners[currentBannerIndex];
+
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Hero Section */}
             <div className="relative">
                 {/* Banner */}
-                <div
-                    className="h-48 md:h-64 bg-gradient-to-r from-gray-800 to-gray-900"
-                    style={brandInfo.banner ? { backgroundImage: `url(${brandInfo.banner})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-                />
+                {currentBanner ? (
+                    <div className="relative h-48 md:h-64 bg-gray-900 overflow-hidden">
+                        <div
+                            key={currentBanner.url} // Key change triggers re-render/animation if added
+                            className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
+                            style={{
+                                backgroundImage: `url(${getImageUrl(currentBanner.url)})`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: `center ${currentBanner.positionY}%`
+                            }}
+                        />
+                        {/* Preload next image for smoother transitions */}
+                        {banners.length > 1 && (
+                            <img
+                                src={getImageUrl(banners[(currentBannerIndex + 1) % banners.length].url)}
+                                alt=""
+                                className="hidden"
+                            />
+                        )}
+                        {/* Navigation Dots (Optional but nice) */}
+                        {banners.length > 1 && (
+                            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                                {banners.map((_, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setCurrentBannerIndex(idx)}
+                                        className={`w-2 h-2 rounded-full transition-all ${idx === currentBannerIndex
+                                            ? 'bg-white w-4'
+                                            : 'bg-white/50 hover:bg-white/80'
+                                            }`}
+                                        aria-label={`Go to slide ${idx + 1}`}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="h-48 md:h-64 bg-gradient-to-r from-gray-800 to-gray-900" />
+                )}
 
                 {/* Brand Info Overlay */}
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -85,7 +169,7 @@ export default function BrandProfilePage() {
                                 <div className="flex-shrink-0">
                                     <div className="w-24 h-24 md:w-32 md:h-32 rounded-xl bg-gray-100 border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
                                         {brandInfo.logo ? (
-                                            <img src={brandInfo.logo} alt={brandInfo.name} className="w-full h-full object-cover" />
+                                            <img src={getImageUrl(brandInfo.logo)} alt={brandInfo.name} className="w-full h-full object-contain" />
                                         ) : (
                                             <span className="text-4xl font-bold text-gray-400">{brandInfo.name.charAt(0)}</span>
                                         )}
@@ -102,8 +186,8 @@ export default function BrandProfilePage() {
                                             </span>
                                         )}
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${brand.partnershipTier === 'enterprise' ? 'bg-purple-100 text-purple-800' :
-                                                brand.partnershipTier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-gray-100 text-gray-800'
+                                            brand.partnershipTier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-gray-100 text-gray-800'
                                             }`}>
                                             {brand.partnershipTier.charAt(0).toUpperCase() + brand.partnershipTier.slice(1)}
                                         </span>
@@ -204,8 +288,8 @@ export default function BrandProfilePage() {
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                     }`}
                             >
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -226,11 +310,23 @@ export default function BrandProfilePage() {
                                 <section>
                                     <h2 className="text-xl font-semibold text-gray-900 mb-4">Brand Assets</h2>
                                     <div className="flex flex-wrap gap-4">
-                                        {profileData.additionalLogos.map((logo, index) => (
-                                            <div key={index} className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
-                                                <img src={logo} alt={`Logo ${index + 1}`} className="w-full h-full object-contain" />
-                                            </div>
-                                        ))}
+                                        {profileData.additionalLogos.map((logoUrl, index) => {
+                                            const meta = profileData.logoMetadata?.find(m => m.url === logoUrl);
+                                            return (
+                                                <div key={index} className="flex flex-col gap-2 items-center group">
+                                                    <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-transparent group-hover:border-gray-200 transition-colors">
+                                                        <img
+                                                            src={getImageUrl(logoUrl)}
+                                                            alt={meta?.name || `Logo ${index + 1}`}
+                                                            className="max-w-full max-h-full object-contain"
+                                                        />
+                                                    </div>
+                                                    {meta?.name && (
+                                                        <span className="text-xs text-gray-500 font-medium">{meta.name}</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </section>
                             )}
@@ -263,7 +359,7 @@ export default function BrandProfilePage() {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {lookbooks.slice(0, 3).map((lookbook) => (
-                                            <LookbookCard key={lookbook.id} lookbook={lookbook} brandId={brandId} />
+                                            <LookbookCard key={lookbook.id} lookbook={lookbook} brandId={slug} />
                                         ))}
                                     </div>
                                 </section>
@@ -280,7 +376,7 @@ export default function BrandProfilePage() {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {collections.slice(0, 3).map((collection) => (
-                                            <CollectionCard key={collection.id} collection={collection} brandId={brandId} />
+                                            <CollectionCard key={collection.id} collection={collection} brandId={slug} />
                                         ))}
                                     </div>
                                 </section>
@@ -302,7 +398,7 @@ export default function BrandProfilePage() {
                     {activeTab === 'lookbooks' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {lookbooks.map((lookbook) => (
-                                <LookbookCard key={lookbook.id} lookbook={lookbook} brandId={brandId} />
+                                <LookbookCard key={lookbook.id} lookbook={lookbook} brandId={slug} />
                             ))}
                             {lookbooks.length === 0 && (
                                 <p className="col-span-full text-center text-gray-500 py-12">No lookbooks published yet.</p>
@@ -313,7 +409,7 @@ export default function BrandProfilePage() {
                     {activeTab === 'collections' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {collections.map((collection) => (
-                                <CollectionCard key={collection.id} collection={collection} brandId={brandId} />
+                                <CollectionCard key={collection.id} collection={collection} brandId={slug} />
                             ))}
                             {collections.length === 0 && (
                                 <p className="col-span-full text-center text-gray-500 py-12">No collections published yet.</p>
@@ -333,7 +429,7 @@ function TeamMemberCard({ member }: { member: BrandTeamMember }) {
         <div className="text-center group">
             <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gray-200 overflow-hidden">
                 {member.user?.avatarUrl ? (
-                    <img src={member.user.avatarUrl} alt={member.user.name} className="w-full h-full object-cover" />
+                    <img src={getImageUrl(member.user.avatarUrl)} alt={member.user.name} className="w-full h-full object-cover" />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-400">
                         {member.user?.name?.charAt(0) || '?'}
@@ -343,7 +439,12 @@ function TeamMemberCard({ member }: { member: BrandTeamMember }) {
             <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                 {member.user?.name || 'Unknown'}
             </div>
-            <div className="text-sm text-gray-500">{member.title || member.role}</div>
+            <div className="text-sm text-gray-500">
+                {member.roles?.join(', ') || (member as any).role}
+                {member.title && (
+                    <span className="block text-xs text-gray-400 mt-0.5">{member.title}</span>
+                )}
+            </div>
         </div>
     );
 }
@@ -354,7 +455,7 @@ function LookbookCard({ lookbook, brandId }: { lookbook: BrandLookbook; brandId:
             <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
                 <div className="aspect-[4/3] bg-gray-100">
                     {lookbook.coverImageUrl ? (
-                        <img src={lookbook.coverImageUrl} alt={lookbook.name} className="w-full h-full object-cover" />
+                        <img src={getImageUrl(lookbook.coverImageUrl)} alt={lookbook.name} className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400">
                             <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -385,7 +486,7 @@ function CollectionCard({ collection, brandId }: { collection: BrandCollection; 
             <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
                 <div className="aspect-[4/3] bg-gray-100">
                     {collection.coverImageUrl ? (
-                        <img src={collection.coverImageUrl} alt={collection.name} className="w-full h-full object-cover" />
+                        <img src={getImageUrl(collection.coverImageUrl)} alt={collection.name} className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-400">
                             <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -1,12 +1,12 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { MagnifyingGlassIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import SearchableCombobox from '../ui/Combobox';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+
 
 interface AttributeType {
     slug: string;
@@ -34,6 +34,8 @@ export default function ApparelManagement() {
     const [fits, setFits] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [search, setSearch] = useState('');
 
     // Form State
@@ -111,7 +113,6 @@ export default function ApparelManagement() {
                 if (Array.isArray(value)) {
                     value = JSON.stringify(value);
                 }
-                // Only save if value is present or we want to clear it?
                 // Upsert handles it.
                 await apiClient.setCategoryAttribute(
                     selectedCategory.id,
@@ -128,6 +129,31 @@ export default function ApparelManagement() {
             toast.error('Failed to save attributes');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDeleteClick = () => {
+        if (!selectedCategory) return;
+        setShowDeleteConfirm(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!selectedCategory) return;
+
+        setDeleting(true);
+        try {
+            await apiClient.deleteVUFSCategory(selectedCategory.id);
+            toast.success('Category deleted successfully');
+            setSelectedCategory(null);
+            setShowDeleteConfirm(false);
+            // Refresh categories
+            const cats = await apiClient.getVUFSCategories();
+            setCategories(cats || []);
+        } catch (error) {
+            console.error('Failed to delete', error);
+            toast.error('Failed to delete category');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -187,9 +213,19 @@ export default function ApparelManagement() {
                     <div className="space-y-6">
                         <div className="flex items-center justify-between border-b pb-4">
                             <h2 className="text-xl font-bold text-gray-900">{selectedCategory.name} Attributes</h2>
-                            <Button onClick={handleSave} disabled={saving}>
-                                {saving ? 'Saving...' : 'Save Changes'}
-                            </Button>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={handleDeleteClick}
+                                    disabled={saving || deleting}
+                                    className="flex items-center justify-center p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors disabled:opacity-50"
+                                    title="Delete Category"
+                                >
+                                    <TrashIcon className="h-5 w-5" />
+                                </button>
+                                <Button onClick={handleSave} disabled={saving || deleting}>
+                                    {saving ? 'Saving...' : 'Save Changes'}
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -344,6 +380,17 @@ export default function ApparelManagement() {
                     </div>
                 )}
             </div>
+
+            <ConfirmationModal
+                isOpen={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={handleConfirmDelete}
+                title="Delete Category"
+                message={`Are you sure you want to delete "${selectedCategory?.name}"? This will also delete ALL subcategories. This action cannot be undone.`}
+                confirmText="Delete"
+                variant="danger"
+                isLoading={deleting}
+            />
         </div>
     );
 }
