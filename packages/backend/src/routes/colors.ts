@@ -59,8 +59,8 @@ router.get('/groups/all', async (req, res) => {
 
 router.post('/groups', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), async (req, res) => {
     try {
-        const { name } = req.body;
-        const group = await ColorModel.createGroup(name);
+        const { name, representativeColor } = req.body;
+        const group = await ColorModel.createGroup(name, representativeColor);
         res.json(group);
     } catch (error) {
         res.status(500).json({ error: 'Failed to create group' });
@@ -69,8 +69,8 @@ router.post('/groups', AuthUtils.authenticateToken, AuthUtils.requireRole(['admi
 
 router.put('/groups/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), async (req, res) => {
     try {
-        const { name } = req.body;
-        const group = await ColorModel.updateGroup(req.params.id, name);
+        const { name, representativeColor, colorIds } = req.body;
+        const group = await ColorModel.updateGroup(req.params.id, name, representativeColor, colorIds);
         if (!group) return res.status(404).json({ error: 'Group not found' });
         res.json(group);
     } catch (error) {

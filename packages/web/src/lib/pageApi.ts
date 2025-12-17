@@ -18,6 +18,10 @@ export const pageApi = {
         return api.get<IPage[]>('/pages');
     },
 
+    getPage: async (idOrSlug: string) => {
+        return api.get<IPage>(`/pages/${idOrSlug}`);
+    },
+
     create: async (data: ICreatePageData) => {
         return api.post<IPage>('/pages', data);
     },

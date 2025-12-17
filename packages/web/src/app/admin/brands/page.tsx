@@ -14,6 +14,7 @@ import { MagnifyingGlassIcon as MagnifyingGlassOutlineIcon, FunnelIcon, ArrowsUp
 
 import { getImageUrl } from '@/lib/utils';
 import BulkActionsBar from '@/components/admin/BulkActionsBar';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
 
 export default function AdminBrandsPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -27,8 +28,7 @@ export default function AdminBrandsPage() {
     const [selectedCountry, setSelectedCountry] = useState('');
     const [selectedTag, setSelectedTag] = useState('');
 
-    // Selection State
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
 
     useEffect(() => {
         if (!authLoading && (!user || !user.roles?.includes('admin'))) {
@@ -47,6 +47,7 @@ export default function AdminBrandsPage() {
             // Fetch all brands (limit 1000) to ensure we see everything
             const response = await brandApi.getBrands({ limit: 1000, businessType: 'brand' });
             setBrands(Array.isArray(response) ? response : (response as any).brands || []);
+            console.log('AdminBrandsPage: Fetched brands:', Array.isArray(response) ? response : (response as any).brands);
         } catch (error) {
             console.error('Failed to fetch brands', error);
             toast.error('Failed to load brands');
@@ -93,28 +94,17 @@ export default function AdminBrandsPage() {
         return 0;
     });
 
-    // Selection Handlers
-    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.checked) {
-            setSelectedIds(new Set(processedBrands.map(b => b.id)));
-        } else {
-            setSelectedIds(new Set());
-        }
-    };
-
-    const handleSelect = (id: string) => {
-        const newSelected = new Set(selectedIds);
-        if (newSelected.has(id)) {
-            newSelected.delete(id);
-        } else {
-            newSelected.add(id);
-        }
-        setSelectedIds(newSelected);
-    };
-
-    const clearSelection = () => {
-        setSelectedIds(new Set());
-    };
+    // Multi-select with keyboard shortcuts (Cmd/Ctrl+Click, Shift+Click, Cmd/Ctrl+A)
+    const {
+        selectedIds,
+        handleItemClick,
+        handleSelectAll,
+        clearSelection,
+        isSelected,
+    } = useMultiSelect({
+        items: processedBrands,
+        getItemId: (brand) => brand.id,
+    });
 
     const handleDelete = async (id: string) => {
         if (!window.confirm('Are you sure you want to delete this brand?')) return;
@@ -234,8 +224,9 @@ export default function AdminBrandsPage() {
                                     <input
                                         type="checkbox"
                                         checked={selectedIds.has(brand.id)}
-                                        onChange={() => handleSelect(brand.id)}
-                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                        onClick={(e) => handleItemClick(brand.id, e)}
+                                        onChange={() => { }} // Controlled by onClick for keyboard modifiers
+                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                                     />
                                 </div>
                                 <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
@@ -273,7 +264,7 @@ export default function AdminBrandsPage() {
                                 </div>
                                 <div className="ml-5 flex-shrink-0 flex gap-2">
                                     <Link
-                                        href={`/admin/brands/${brand.id}`}
+                                        href={`/admin/brands/${brand.brandInfo?.slug || brand.id}`}
                                         className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
                                     >
                                         <PencilSquareIcon className="h-5 w-5" aria-hidden="true" />

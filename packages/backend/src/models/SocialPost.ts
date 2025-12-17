@@ -1,5 +1,6 @@
 import { db } from '../database/connection';
 import { SocialPost } from '@vangarments/shared';
+import { slugify } from '../utils/slugify';
 
 export interface CreateSocialPostData {
   userId: string;
@@ -15,6 +16,7 @@ export interface CreateSocialPostData {
 }
 
 export interface UpdateSocialPostData {
+  slug?: string;
   content?: {
     title?: string;
     description?: string;
@@ -41,14 +43,28 @@ export class SocialPostModel {
       throw new Error('Content must include at least one image URL');
     }
 
+    // Generate slug
+    let slug = '';
+    if (content.title) {
+      slug = slugify(content.title);
+      // Append short hash to ensure uniqueness as titles might be common
+      const shortHash = Math.random().toString(36).substring(2, 7);
+      slug = `${slug}-${shortHash}`;
+    } else {
+      // Fallback if no title
+      const shortHash = Math.random().toString(36).substring(2, 9);
+      slug = `${postType}-${shortHash}`;
+    }
+
     const query = `
-      INSERT INTO social_posts (user_id, post_type, content, wardrobe_item_ids, visibility)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO social_posts (user_id, slug, post_type, content, wardrobe_item_ids, visibility)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
 
     const values = [
       userId,
+      slug,
       postType,
       JSON.stringify(content),
       wardrobeItemIds,
@@ -75,6 +91,31 @@ export class SocialPostModel {
     `;
 
     const result = await db.query(query, [id]);
+    return result.rows.length > 0 ? this.mapRowToSocialPost(result.rows[0]) : null;
+  }
+
+  static async findBySlugOrId(identifier: string): Promise<SocialPost | null> {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+    if (isUUID) {
+      return this.findById(identifier);
+    }
+
+    const query = `
+      SELECT sp.*, 
+             u.profile as user_profile,
+             (
+               SELECT COUNT(*)::int FROM post_likes pl WHERE pl.post_id = sp.id
+             ) as likes_count,
+             (
+               SELECT COUNT(*)::int FROM post_comments pc WHERE pc.post_id = sp.id
+             ) as comments_count
+      FROM social_posts sp
+      LEFT JOIN users u ON sp.user_id = u.id
+      WHERE sp.slug = $1
+    `;
+
+    const result = await db.query(query, [identifier]);
     return result.rows.length > 0 ? this.mapRowToSocialPost(result.rows[0]) : null;
   }
 
@@ -166,6 +207,11 @@ export class SocialPostModel {
       values.push(updateData.visibility);
     }
 
+    if (updateData.slug) {
+      setClause.push(`slug = $${paramIndex++}`);
+      values.push(updateData.slug);
+    }
+
     if (setClause.length === 0) {
       throw new Error('No fields to update');
     }
@@ -207,14 +253,15 @@ export class SocialPostModel {
   private static mapRowToSocialPost(row: any): SocialPost {
     return {
       id: row.id,
+      slug: row.slug,
       userId: row.user_id,
       postType: row.post_type,
       content: row.content,
       wardrobeItemIds: row.wardrobe_item_ids || [],
       engagementStats: {
-        likes: row.likes_count || row.engagement_stats?.likes || 0,
-        comments: row.comments_count || row.engagement_stats?.comments || 0,
-        shares: row.engagement_stats?.shares || 0,
+        likes: row.likes_count || (row.engagement_stats && row.engagement_stats.likes) || 0,
+        comments: row.comments_count || (row.engagement_stats && row.engagement_stats.comments) || 0,
+        shares: (row.engagement_stats && row.engagement_stats.shares) || 0,
       },
       visibility: row.visibility,
       createdAt: row.created_at,

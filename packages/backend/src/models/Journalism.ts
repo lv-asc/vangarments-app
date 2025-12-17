@@ -1,4 +1,5 @@
 import { db } from '../database/connection';
+import { slugify } from '../utils/slugify';
 
 export interface MediaItem {
     url: string;
@@ -17,6 +18,7 @@ export interface Attachment {
 export interface Journalism {
     id: string;
     title: string;
+    slug?: string;
     content: string;
     type: 'News' | 'Column' | 'Article';
     images: MediaItem[];
@@ -58,16 +60,34 @@ export class JournalismModel {
         return result.rows.length > 0 ? this.mapRowToJournalism(result.rows[0]) : null;
     }
 
+    static async findBySlugOrId(identifier: string): Promise<Journalism | null> {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+        if (isUUID) {
+            return this.findById(identifier);
+        }
+
+        const query = 'SELECT * FROM journalism WHERE slug = $1 AND deleted_at IS NULL';
+        const result = await db.query(query, [identifier]);
+        return result.rows.length > 0 ? this.mapRowToJournalism(result.rows[0]) : null;
+    }
+
     static async create(data: Partial<Journalism>): Promise<Journalism> {
+        let slug = data.slug;
+        if (!slug && data.title) {
+            slug = slugify(data.title);
+        }
+
         const query = `
       INSERT INTO journalism (
-        title, content, type, images, videos, attachments, author_ids, page_ids, published
+        title, slug, content, type, images, videos, attachments, author_ids, page_ids, published
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `;
         const values = [
             data.title,
+            slug,
             data.content,
             data.type,
             JSON.stringify(data.images || []),
@@ -88,6 +108,7 @@ export class JournalismModel {
         let paramIndex = 1;
 
         if (data.title !== undefined) { setClause.push(`title = $${paramIndex++}`); values.push(data.title); }
+        if (data.slug !== undefined) { setClause.push(`slug = $${paramIndex++}`); values.push(data.slug); }
         if (data.content !== undefined) { setClause.push(`content = $${paramIndex++}`); values.push(data.content); }
         if (data.type !== undefined) { setClause.push(`type = $${paramIndex++}`); values.push(data.type); }
         if (data.images !== undefined) { setClause.push(`images = $${paramIndex++}`); values.push(JSON.stringify(data.images)); }
@@ -123,6 +144,7 @@ export class JournalismModel {
         return {
             id: row.id,
             title: row.title,
+            slug: row.slug,
             content: row.content,
             type: row.type,
             images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],

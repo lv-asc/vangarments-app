@@ -7,21 +7,48 @@ import { apiClient } from '@/lib/api';
 import { MagnifyingGlassIcon, FunnelIcon, ArrowsUpDownIcon, Squares2X2Icon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
+interface LinkedEntity {
+    id: string;
+    name: string;
+    type: 'brand' | 'store' | 'page' | 'supplier' | 'non_profit' | 'designer' | 'manufacturer';
+    logo?: string;
+}
+
 interface User {
     id: string;
     name: string;
     username: string;
     email: string;
+    avatarUrl?: string;
     roles: string[];
     status: 'active' | 'banned' | 'deactivated';
     banExpiresAt?: string;
     brands?: { id: string; name: string }[];
+    linkedEntities?: LinkedEntity[];
 }
 
 interface Brand {
     id: string;
     userId: string;
     brandInfo: { name: string };
+}
+
+interface Store {
+    id: string;
+    userId?: string;
+    name: string;
+}
+
+interface Page {
+    id: string;
+    userId?: string;
+    name: string;
+}
+
+interface Supplier {
+    id: string;
+    userId?: string;
+    name: string;
 }
 
 // ... (keep existing constants)
@@ -69,32 +96,89 @@ export default function AdminUsersPage() {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const [usersResponse, brandsResponse] = await Promise.all([
+            const [usersResponse, brandsResponse, storesResponse, pagesResponse, suppliersResponse] = await Promise.all([
                 apiClient.get('/users') as any,
-                apiClient.get('/brands') as any
+                apiClient.get('/brands') as any,
+                apiClient.get('/stores') as any,
+                apiClient.get('/pages') as any,
+                apiClient.get('/suppliers') as any
             ]);
 
             const fetchedUsers = Array.isArray(usersResponse) ? usersResponse : usersResponse.users || [];
             const fetchedBrands: Brand[] = Array.isArray(brandsResponse) ? brandsResponse : brandsResponse.brands || [];
+            const fetchedStores: Store[] = Array.isArray(storesResponse) ? storesResponse : storesResponse.stores || [];
+            const fetchedPages: Page[] = Array.isArray(pagesResponse) ? pagesResponse : pagesResponse.pages || [];
+            const fetchedSuppliers: Supplier[] = Array.isArray(suppliersResponse) ? suppliersResponse : suppliersResponse.suppliers || [];
 
-            // Map brands to users
-            const brandsByUserId: Record<string, { id: string; name: string }[]> = {};
+            // Map brand accounts to users (respecting businessType)
+            const brandAccountsByUserId: Record<string, LinkedEntity[]> = {};
             fetchedBrands.forEach((b: any) => {
                 const userId = b.userId;
-                if (!brandsByUserId[userId]) brandsByUserId[userId] = [];
-                brandsByUserId[userId].push({ id: b.id, name: b.brandInfo?.name || 'Unnamed' });
+                if (!userId) return;
+                if (!brandAccountsByUserId[userId]) brandAccountsByUserId[userId] = [];
+
+                // Use businessType if available, default to 'brand'
+                const businessType = b.brandInfo?.businessType || 'brand';
+                const logo = b.brandInfo?.logo || b.profileData?.logo;
+
+                brandAccountsByUserId[userId].push({
+                    id: b.id,
+                    name: b.brandInfo?.name || 'Unnamed',
+                    type: businessType as LinkedEntity['type'],
+                    logo
+                });
             });
 
-            setUsers(fetchedUsers.map((u: any) => ({
-                id: u.id,
-                name: u.name || u.personalInfo?.name || '',
-                username: u.username || '',
-                email: u.email,
-                roles: u.roles || [],
-                status: u.status || 'active',
-                banExpiresAt: u.banExpiresAt,
-                brands: brandsByUserId[u.id] || []
-            })));
+            // Map stores to users
+            const storesByUserId: Record<string, { id: string; name: string }[]> = {};
+            fetchedStores.forEach((s: Store) => {
+                if (s.userId) {
+                    if (!storesByUserId[s.userId]) storesByUserId[s.userId] = [];
+                    storesByUserId[s.userId].push({ id: s.id, name: s.name });
+                }
+            });
+
+            // Map pages to users
+            const pagesByUserId: Record<string, { id: string; name: string }[]> = {};
+            fetchedPages.forEach((p: Page) => {
+                if (p.userId) {
+                    if (!pagesByUserId[p.userId]) pagesByUserId[p.userId] = [];
+                    pagesByUserId[p.userId].push({ id: p.id, name: p.name });
+                }
+            });
+
+            // Map suppliers to users
+            const suppliersByUserId: Record<string, { id: string; name: string }[]> = {};
+            fetchedSuppliers.forEach((sup: Supplier) => {
+                if (sup.userId) {
+                    if (!suppliersByUserId[sup.userId]) suppliersByUserId[sup.userId] = [];
+                    suppliersByUserId[sup.userId].push({ id: sup.id, name: sup.name });
+                }
+            });
+
+            setUsers(fetchedUsers.map((u: any) => {
+                // Combine all linked entities
+                const linkedEntities: LinkedEntity[] = [];
+
+                // Add brand accounts (they already have correct type from businessType)
+                (brandAccountsByUserId[u.id] || []).forEach(entity => linkedEntities.push(entity));
+                // Add stores from stores table (rarely used, most stores are in brand_accounts)
+                (storesByUserId[u.id] || []).forEach(s => linkedEntities.push({ ...s, type: 'store' }));
+                (pagesByUserId[u.id] || []).forEach(p => linkedEntities.push({ ...p, type: 'page' }));
+                (suppliersByUserId[u.id] || []).forEach(sup => linkedEntities.push({ ...sup, type: 'supplier' }));
+
+                return {
+                    id: u.id,
+                    name: u.name || u.personalInfo?.name || '',
+                    username: u.username || '',
+                    email: u.email,
+                    avatarUrl: u.personalInfo?.avatarUrl || u.profile?.avatarUrl,
+                    roles: u.roles || [],
+                    status: u.status || 'active',
+                    banExpiresAt: u.banExpiresAt,
+                    linkedEntities
+                };
+            }));
         } catch (error) {
             console.error('Failed to fetch users', error);
             toast.error('Failed to load users');
@@ -294,7 +378,7 @@ export default function AdminUsersPage() {
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roles</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Brands</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Entities</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                                 </tr>
@@ -304,6 +388,19 @@ export default function AdminUsersPage() {
                                     <tr key={userItem.id}>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
+                                                {userItem.avatarUrl ? (
+                                                    <img
+                                                        src={userItem.avatarUrl}
+                                                        alt={userItem.name || 'User'}
+                                                        className="h-10 w-10 rounded-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                                        <span className="text-gray-500 font-medium text-sm">
+                                                            {(userItem.name?.[0] || userItem.username?.[0] || '?').toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div className="ml-4">
                                                     <div className="text-sm font-medium text-gray-900">{userItem.name || '-'}</div>
                                                     <div className="text-sm text-gray-500">@{userItem.username || '-'}</div>
@@ -322,14 +419,50 @@ export default function AdminUsersPage() {
                                                 ))}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex flex-wrap gap-1">
-                                                {userItem.brands && userItem.brands.length > 0 ? (
-                                                    userItem.brands.map(brand => (
-                                                        <a key={brand.id} href={`/admin/brands/${brand.id}`} className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 hover:bg-purple-200">
-                                                            {brand.name}
-                                                        </a>
-                                                    ))
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-1 max-w-xs">
+                                                {userItem.linkedEntities && userItem.linkedEntities.length > 0 ? (
+                                                    userItem.linkedEntities.map(entity => {
+                                                        const badgeStyles: Record<string, string> = {
+                                                            brand: 'bg-purple-100 text-purple-800 hover:bg-purple-200',
+                                                            store: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+                                                            page: 'bg-green-100 text-green-800 hover:bg-green-200',
+                                                            supplier: 'bg-orange-100 text-orange-800 hover:bg-orange-200',
+                                                            non_profit: 'bg-pink-100 text-pink-800 hover:bg-pink-200',
+                                                            designer: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200',
+                                                            manufacturer: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                                        };
+                                                        const adminPaths: Record<string, string> = {
+                                                            brand: 'brands',
+                                                            store: 'brands', // stores are in brand_accounts table
+                                                            page: 'pages',
+                                                            supplier: 'suppliers',
+                                                            non_profit: 'brands',
+                                                            designer: 'brands',
+                                                            manufacturer: 'brands'
+                                                        };
+                                                        // Use relative path for storage URLs to go through frontend proxy
+                                                        const logoUrl = entity.logo ?
+                                                            (entity.logo.startsWith('http') ? entity.logo : entity.logo)
+                                                            : null;
+                                                        return (
+                                                            <a
+                                                                key={`${entity.type}-${entity.id}`}
+                                                                href={`/admin/${adminPaths[entity.type] || 'brands'}/${entity.id}`}
+                                                                className={`px-2 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${badgeStyles[entity.type] || badgeStyles.brand}`}
+                                                                title={entity.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                                            >
+                                                                {logoUrl && (
+                                                                    <img
+                                                                        src={logoUrl}
+                                                                        alt=""
+                                                                        className="h-4 w-4 rounded-full object-cover"
+                                                                    />
+                                                                )}
+                                                                {entity.name}
+                                                            </a>
+                                                        );
+                                                    })
                                                 ) : (
                                                     <span className="text-xs text-gray-400">None</span>
                                                 )}

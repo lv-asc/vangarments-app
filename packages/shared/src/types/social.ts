@@ -2,6 +2,7 @@
 
 export interface SocialPost {
   id: string;
+  slug: string;
   userId: string;
   postType: 'outfit' | 'item' | 'inspiration';
   content: {
@@ -61,6 +62,107 @@ export interface UserFollow {
   // Populated fields
   follower?: UserProfile;
   following?: UserProfile;
+}
+
+// Entity types that can be followed
+export type EntityType = 'brand' | 'store' | 'supplier' | 'page';
+
+export interface EntityFollow {
+  id: string;
+  followerId: string;
+  entityType: EntityType;
+  entityId: string;
+  createdAt: string;
+
+  // Populated fields
+  follower?: UserProfile;
+  entity?: any; // BrandAccount | Store | Supplier | Page
+}
+
+// Direct Messaging Types
+export interface Conversation {
+  id: string;
+  conversationType: 'direct' | 'entity' | 'group';
+  entityType?: EntityType;
+  entityId?: string;
+  participants?: ConversationParticipant[];
+  lastMessage?: Message;
+  lastMessageAt?: string;
+  unreadCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  // For UI convenience
+  otherParticipant?: {
+    id: string;
+    username: string;
+    profile: any;
+  };
+  entity?: any;
+}
+
+export interface ConversationParticipant {
+  id: string;
+  conversationId: string;
+  userId: string;
+  lastReadAt?: string;
+  joinedAt: string;
+  user?: {
+    id: string;
+    username: string;
+    profile: any;
+  };
+}
+
+export interface MessageReaction {
+  id: string;
+  messageId: string;
+  userId: string;
+  emoji: string;
+  createdAt: string;
+  user?: UserProfile;
+}
+
+export interface MessageAttachment {
+  id: string;
+  messageId: string;
+  attachmentType: 'image' | 'video' | 'audio' | 'file';
+  fileUrl: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  duration?: number;
+  thumbnailUrl?: string;
+  createdAt: string;
+}
+
+export interface MessageMention {
+  id: string;
+  messageId: string;
+  mentionType: 'user' | 'item' | 'brand' | 'store' | 'supplier' | 'page' | 'article';
+  mentionId: string;
+  mentionText?: string;
+  createdAt: string;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  messageType: 'text' | 'image' | 'item_share' | 'voice' | 'file';
+  metadata?: any;
+  createdAt: string;
+  updatedAt?: string;
+  editedAt?: string;
+  deletedAt?: string;
+  sender?: {
+    id: string;
+    username: string;
+    profile: any;
+  };
+  reactions?: MessageReaction[];
+  attachments?: MessageAttachment[];
+  mentions?: MessageMention[];
 }
 
 export interface UserProfile {

@@ -25,7 +25,7 @@ export const getAllJournalism = async (req: Request, res: Response) => {
 
 export const getJournalismById = async (req: Request, res: Response) => {
     try {
-        const item = await JournalismModel.findById(req.params.id);
+        const item = await JournalismModel.findBySlugOrId(req.params.id);
         if (!item) return res.status(404).json({ message: 'Content not found' });
         res.json(item);
     } catch (error) {

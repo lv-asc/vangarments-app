@@ -38,6 +38,7 @@ export default function AdminEditBrandPage() {
 
     const [formData, setFormData] = useState({
         brandName: '',
+        slug: '', // Add slug to state
         description: '',
         website: '',
         contactEmail: '',
@@ -71,6 +72,7 @@ export default function AdminEditBrandPage() {
 
             setFormData({
                 brandName: loadedBrand.brandInfo.name || '',
+                slug: loadedBrand.brandInfo.slug || '', // Load existing slug
                 description: loadedBrand.brandInfo.description || '',
                 website: loadedBrand.brandInfo.website || '',
                 contactEmail: loadedBrand.brandInfo.contactInfo?.email || '',
@@ -159,6 +161,9 @@ export default function AdminEditBrandPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Ensure we have a valid brand ID for updates
+        const targetBrandId = brand?.id || brandId;
+
         try {
             setSaving(true);
 
@@ -181,11 +186,11 @@ export default function AdminEditBrandPage() {
                 phone: formData.contactPhone
             };
 
-            // Generate slug
-            const brandSlug = slugify(formData.brandName);
+            // Generate slug: Use manual input if provided, otherwise fallback to name-based
+            const brandSlug = formData.slug ? slugify(formData.slug) : slugify(formData.brandName);
 
             // 1. Update Brand Info
-            await brandApi.updateBrand(brandId, {
+            await brandApi.updateBrand(targetBrandId, {
                 brandInfo: {
                     name: formData.brandName,
                     slug: brandSlug, // Save Explicit Slug
@@ -201,13 +206,19 @@ export default function AdminEditBrandPage() {
             });
 
             // 2. Update Profile Data (Additional Logos)
-            await brandApi.updateProfileData(brandId, {
+            await brandApi.updateProfileData(targetBrandId, {
                 additionalLogos: additionalLogos,
                 logoMetadata: logoMetadata
             });
 
             toast.success('Brand updated successfully');
-            // Refresh brand data to ensure state is in sync
+
+            // If the slug changed, we might need to redirect, but for now just reload
+            // If we have a slug, ensure the URL reflects it (even if we started with ID)
+            if (brandSlug) {
+                window.history.replaceState(null, '', `/admin/brands/${brandSlug}`);
+            }
+
             loadBrand();
         } catch (error: any) {
             console.error('Failed to update brand', error);
@@ -221,7 +232,8 @@ export default function AdminEditBrandPage() {
         // Modal handles confirmation
         try {
             setDeleting(true);
-            await brandApi.deleteBrand(brandId);
+            // Ensure we use the UUID for deletion
+            await brandApi.deleteBrand(brand?.id || brandId);
             toast.success('Brand moved to trash');
             router.push('/admin/brands');
         } catch (error: any) {
@@ -376,6 +388,21 @@ export default function AdminEditBrandPage() {
                         {/* Brand Info */}
                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                             <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700">Brand ID</label>
+                                <div className="mt-1">
+                                    <input
+                                        type="text"
+                                        value={brand?.id || ''}
+                                        readOnly
+                                        className="block w-full px-3 py-2 rounded-md border-gray-300 bg-gray-100 text-gray-500 sm:text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 cursor-not-allowed"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Unique identifier for this brand. Useful for distinguishing duplicate names.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="col-span-2">
                                 <label className="block text-sm font-medium text-gray-700">Brand Name *</label>
                                 <input
                                     type="text"
@@ -385,6 +412,26 @@ export default function AdminEditBrandPage() {
                                     required
                                     className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2"
                                 />
+                            </div>
+
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700">URL Slug</label>
+                                <div className="mt-1 flex rounded-md shadow-sm">
+                                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                                        /brands/
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="slug"
+                                        value={formData.slug}
+                                        onChange={handleChange}
+                                        placeholder={slugify(formData.brandName)}
+                                        className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300 border"
+                                    />
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    The URL-friendly version of the name. e.g. <code>my-brand-name</code>. Leave empty to auto-generate.
+                                </p>
                             </div>
 
                             <div className="col-span-2">
@@ -491,23 +538,23 @@ export default function AdminEditBrandPage() {
                     </form>
                 ) : activeTab === 'lines' ? (
                     <div className="p-6">
-                        <LineManagement brandId={brandId} />
+                        <LineManagement brandId={brand?.id || brandId} />
                     </div>
                 ) : activeTab === 'collections' ? (
                     <div className="p-6">
-                        <CollectionManagement brandId={brandId} />
+                        <CollectionManagement brandId={brand?.id || brandId} />
                     </div>
                 ) : activeTab === 'lookbooks' ? (
                     <div className="p-6">
-                        <LookbookManagement brandId={brandId} />
+                        <LookbookManagement brandId={brand?.id || brandId} />
                     </div>
                 ) : activeTab === 'team' ? ( // Team Tab Content
                     <div className="p-6">
-                        <TeamManagement brandId={brandId} />
+                        <TeamManagement brandId={brand?.id || brandId} />
                     </div>
                 ) : (
                     <div className="p-6">
-                        <SKUManagement brandId={brandId} />
+                        <SKUManagement brandId={brand?.id || brandId} />
                     </div>
                 )}
             </div>

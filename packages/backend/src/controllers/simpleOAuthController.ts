@@ -67,13 +67,13 @@ export class SimpleOAuthController {
 
       if (!user) {
         // Create new user with OAuth data
+        // Create new user with OAuth data
         user = await UserModel.create({
-          cpf: '', // Will be filled during onboarding
           email: googleUser.email,
-          passwordHash: '', // OAuth users don't need password
           name: googleUser.name || 'Google User',
           birthDate: new Date(), // Will be updated during onboarding
           gender: 'not_specified', // Will be updated during onboarding
+          username: googleUser.email.split('@')[0] + Math.floor(Math.random() * 1000), // Temp username
         });
 
         // Add default consumer role
@@ -92,7 +92,7 @@ export class SimpleOAuthController {
       // Check if user needs onboarding
       const needsOnboarding = !user.cpf || !user.personalInfo.birthDate;
 
-      const redirectUrl = needsOnboarding 
+      const redirectUrl = needsOnboarding
         ? `${process.env.FRONTEND_URL}/onboarding?token=${token}&provider=google`
         : `${process.env.FRONTEND_URL}/dashboard?token=${token}`;
 
@@ -160,13 +160,13 @@ export class SimpleOAuthController {
 
       if (!user) {
         // Create new user with OAuth data
+        // Create new user with OAuth data
         user = await UserModel.create({
-          cpf: '', // Will be filled during onboarding
           email: facebookUser.email,
-          passwordHash: '', // OAuth users don't need password
           name: facebookUser.name || 'Facebook User',
           birthDate: new Date(), // Will be updated during onboarding
           gender: 'not_specified', // Will be updated during onboarding
+          username: facebookUser.email.split('@')[0] + Math.floor(Math.random() * 1000), // Temp username
         });
 
         // Add default consumer role
@@ -185,7 +185,7 @@ export class SimpleOAuthController {
       // Check if user needs onboarding
       const needsOnboarding = !user.cpf || !user.personalInfo.birthDate;
 
-      const redirectUrl = needsOnboarding 
+      const redirectUrl = needsOnboarding
         ? `${process.env.FRONTEND_URL}/onboarding?token=${token}&provider=facebook`
         : `${process.env.FRONTEND_URL}/dashboard?token=${token}`;
 

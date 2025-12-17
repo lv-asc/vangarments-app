@@ -9,6 +9,7 @@ interface MediaItem {
     url: string;
     isPrimary?: boolean;
     title?: string; // For videos
+    type: 'image' | 'video';
 }
 
 interface MediaUploaderProps {
@@ -65,7 +66,7 @@ export default function MediaUploader({
             const { url } = await api.uploadFile(file);
 
             // Add to media list
-            onChange([...media, { url, isPrimary: media.length === 0 }]); // Make first item primary by default
+            onChange([...media, { url, isPrimary: media.length === 0, type }]); // Make first item primary by default
             toast.success(`${type === 'image' ? 'Image' : 'Video'} uploaded`);
         } catch (error) {
             console.error(`Failed to upload ${type}`, error);

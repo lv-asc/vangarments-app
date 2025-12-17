@@ -1,8 +1,10 @@
 import { db } from '../database/connection';
+import { slugify } from '../utils/slugify';
 
 export interface Store {
     id: string;
     name: string;
+    slug?: string;
     description?: string;
     location?: string;
     userId?: string;
@@ -30,13 +32,30 @@ export class StoreModel {
         return result.rows.map(this.mapRowToStore);
     }
 
-    static async create(data: { name: string; description?: string; location?: string; userId?: string }): Promise<Store> {
+    static async findBySlugOrId(identifier: string): Promise<Store | null> {
+        // Check if identifier is a valid UUID
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+        if (isUUID) {
+            return this.findById(identifier);
+        }
+
+        // Find by slug
+        const query = 'SELECT * FROM stores WHERE slug = $1 AND deleted_at IS NULL';
+        const result = await db.query(query, [identifier]);
+        return result.rows.length > 0 ? this.mapRowToStore(result.rows[0]) : null;
+    }
+
+    static async create(data: { name: string; slug?: string; description?: string; location?: string; userId?: string }): Promise<Store> {
+        // Auto-generate slug from name if not provided
+        const slug = data.slug || slugify(data.name);
+
         const query = `
-      INSERT INTO stores (name, description, location, user_id)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO stores (name, slug, description, location, user_id)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
-        const result = await db.query(query, [data.name, data.description || null, data.location || null, data.userId || null]);
+        const result = await db.query(query, [data.name, slug, data.description || null, data.location || null, data.userId || null]);
         return this.mapRowToStore(result.rows[0]);
     }
 
@@ -76,6 +95,7 @@ export class StoreModel {
         return {
             id: row.id,
             name: row.name,
+            slug: row.slug || undefined,
             description: row.description,
             location: row.location,
             userId: row.user_id,

@@ -60,7 +60,7 @@ const userIdValidation = [
 ];
 
 const postIdValidation = [
-  param('postId').isUUID().withMessage('Post ID must be a valid UUID'),
+  param('postId').isString().isLength({ min: 1 }).withMessage('Post ID/Slug must be valid'),
 ];
 
 const commentIdValidation = [
@@ -233,6 +233,58 @@ router.get(
     .withMessage('Category must be between 1 and 50 characters'),
   validateRequest,
   socialController.getUserWardrobe.bind(socialController)
+);
+
+// Entity follow routes (for following brands, stores, suppliers, pages)
+const entityTypeValidation = [
+  param('entityType')
+    .isIn(['brand', 'store', 'supplier', 'page'])
+    .withMessage('Entity type must be brand, store, supplier, or page'),
+  param('entityId').isUUID().withMessage('Entity ID must be a valid UUID'),
+];
+
+router.post(
+  '/entities/:entityType/:entityId/follow',
+  AuthUtils.authenticateToken,
+  entityTypeValidation,
+  validateRequest,
+  socialController.followEntity.bind(socialController)
+);
+
+router.delete(
+  '/entities/:entityType/:entityId/follow',
+  AuthUtils.authenticateToken,
+  entityTypeValidation,
+  validateRequest,
+  socialController.unfollowEntity.bind(socialController)
+);
+
+router.get(
+  '/entities/:entityType/:entityId/followers',
+  entityTypeValidation,
+  paginationValidation,
+  validateRequest,
+  socialController.getEntityFollowers.bind(socialController)
+);
+
+router.get(
+  '/entities/:entityType/:entityId/follow-status',
+  AuthUtils.authenticateToken,
+  entityTypeValidation,
+  validateRequest,
+  socialController.checkEntityFollowStatus.bind(socialController)
+);
+
+router.get(
+  '/users/:userId/following-entities',
+  userIdValidation,
+  query('entityType')
+    .optional()
+    .isIn(['brand', 'store', 'supplier', 'page'])
+    .withMessage('Entity type must be brand, store, supplier, or page'),
+  paginationValidation,
+  validateRequest,
+  socialController.getUserFollowingEntities.bind(socialController)
 );
 
 export default router;

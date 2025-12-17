@@ -196,21 +196,23 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
     const fetchLines = async (brandId: string) => {
         try {
+            console.log('[GlobalSKUManagement] Fetching lines for brand:', brandId);
             const res = await apiClient.getBrandLines(brandId);
+            console.log('[GlobalSKUManagement] Lines fetched:', res.lines);
             setLines(res.lines || []);
         } catch (error) {
-            console.error('Failed to fetch lines');
+            console.error('Failed to fetch lines', error);
         }
     };
 
     const fetchCollections = async (brandId: string) => {
         try {
-            if ((apiClient as any).getBrandCollections) {
-                const res = await (apiClient as any).getBrandCollections(brandId);
-                setCollections(res.collections || []);
-            }
+            console.log('[GlobalSKUManagement] Fetching collections for brand:', brandId);
+            const res = await apiClient.getBrandCollections(brandId);
+            console.log('[GlobalSKUManagement] Collections fetched:', res.collections);
+            setCollections(res.collections || []);
         } catch (error) {
-            console.error('Failed to fetch collections');
+            console.error('Failed to fetch collections', error);
         }
     };
 
@@ -220,8 +222,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const apparelOptions = useMemo(() => categories.filter(c => !c.parentId), [categories]);
 
     // Style = Children of selected Apparel
+    // Style = Children of selected Apparel, OR all children if no Apparel selected
     const styleOptions = useMemo(() => {
-        if (!formData.apparelId) return [];
+        if (!formData.apparelId) {
+            // Return all categories that have a parent (are styles)
+            return categories.filter(c => !!c.parentId);
+        }
         return categories.filter(c => c.parentId === formData.apparelId);
     }, [categories, formData.apparelId]);
 
@@ -554,12 +560,22 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             label="Style"
                                             value={categories.find(c => c.id === formData.styleId)?.name || ''}
                                             onChange={(name) => {
-                                                const cat = categories.find(c => c.name === name && c.parentId === formData.apparelId);
-                                                setFormData({ ...formData, styleId: cat?.id || '' });
+                                                const cat = categories.find(c => c.name === name); // Search in all categories
+                                                if (cat) {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        styleId: cat.id,
+                                                        // Auto-set apparelId if not set or if different??
+                                                        // Ideally we only override if empty or if we want strict consistency.
+                                                        // If user changes style, usually implies parent might change.
+                                                        apparelId: cat.parentId || prev.apparelId || ''
+                                                    }));
+                                                } else {
+                                                    setFormData(prev => ({ ...prev, styleId: '' }));
+                                                }
                                             }}
                                             options={styleOptions}
                                             placeholder="Select Style..."
-                                            disabled={!formData.apparelId}
                                         />
                                     </div>
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
+import { slugify } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
     DndContext,
@@ -25,6 +26,9 @@ import {
     horizontalListSortingStrategy,
     useSortable
 } from '@dnd-kit/sortable';
+
+const AnyDndContext = DndContext as any;
+const AnySortableContext = SortableContext as any;
 import { CSS } from '@dnd-kit/utilities';
 
 interface VUFSItem {
@@ -592,7 +596,7 @@ export default function AdminVUFSPage() {
         if (!inputValue.trim()) return;
         setActionLoading(true);
         try {
-            const res = await apiClient.addVUFSAttributeType(inputValue);
+            const res = await apiClient.addVUFSAttributeType(slugify(inputValue), inputValue);
             setColumnOrder(prev => [...prev, (res as any).slug]);
             await fetchAllData();
             closeModal();
@@ -820,8 +824,8 @@ export default function AdminVUFSPage() {
             <div className="flex-1 overflow-hidden bg-gray-50 flex flex-col">
                 <div className="flex items-center gap-1 mb-0 border-b border-gray-200 bg-white px-2 pt-2 z-20 shrink-0 min-h-[45px]">
                     {/* @ts-ignore */}
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
-                        <SortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
+                    <AnyDndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
+                        <AnySortableContext items={tabs.map(t => t.id)} strategy={horizontalListSortingStrategy}>
                             {tabs.map(tab => (
                                 <SortableTab key={tab.id} id={tab.id} active={activeTabId === tab.id}>
                                     <div className="flex items-center gap-2" onClick={() => setActiveTabId(tab.id)}>
@@ -832,8 +836,8 @@ export default function AdminVUFSPage() {
                                     </div>
                                 </SortableTab>
                             ))}
-                        </SortableContext>
-                    </DndContext>
+                        </AnySortableContext>
+                    </AnyDndContext>
                     <button onClick={() => initiateConfigureTab()} className="p-1.5 ml-1 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors" title="Add New Tab">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     </button>
@@ -842,12 +846,12 @@ export default function AdminVUFSPage() {
                     <div className="bg-white border rounded-b shadow-sm min-w-max border-t-0">
                         {/* @ts-ignore */}
                         {/* @ts-ignore */}
-                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleMatrixDragEnd}>
+                        <AnyDndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleMatrixDragEnd}>
                             <table className="w-full text-sm text-left">
                                 <thead className="text-xs text-gray-700 bg-gray-100 border-b">
                                     <tr>
                                         <th className="px-4 py-3 font-bold border-r w-48 sticky left-0 top-0 bg-gray-100 z-30 shadow-[1px_1px_0_0_rgba(0,0,0,0.05)]">{rowLabel}</th>
-                                        <SortableContext items={allVisibleColumns.map(c => c.slug)} strategy={horizontalListSortingStrategy}>
+                                        <AnySortableContext items={allVisibleColumns.map(c => c.slug)} strategy={horizontalListSortingStrategy}>
                                             {allVisibleColumns.map(type => (
                                                 <SortableMatrixHeader key={type.slug} id={type.slug} className="px-4 py-3 border-r min-w-[320px] sticky top-0 bg-gray-100 z-20">
                                                     <div className="flex items-center justify-between group cursor-grab active:cursor-grabbing">
@@ -870,7 +874,7 @@ export default function AdminVUFSPage() {
                                                     </div>
                                                 </SortableMatrixHeader>
                                             ))}
-                                        </SortableContext>
+                                        </AnySortableContext>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -912,7 +916,7 @@ export default function AdminVUFSPage() {
                                     ))}
                                 </tbody>
                             </table>
-                        </DndContext>
+                        </AnyDndContext>
                     </div>
                 </div>
             </div>
@@ -957,12 +961,13 @@ export default function AdminVUFSPage() {
             {viewMode === 'list' ? (
                 <div className="flex-1 overflow-x-auto">
                     {/* @ts-ignore */}
-                    <DndContext
+                    {/* @ts-ignore */}
+                    <AnyDndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
                         onDragEnd={handleDragEnd}
                     >
-                        <SortableContext
+                        <AnySortableContext
                             items={columnOrder}
                             strategy={horizontalListSortingStrategy}
                         >
@@ -977,8 +982,8 @@ export default function AdminVUFSPage() {
                                     );
                                 })}
                             </div>
-                        </SortableContext>
-                    </DndContext>
+                        </AnySortableContext>
+                    </AnyDndContext>
                 </div>
             ) : (
                 renderGridView()

@@ -67,7 +67,7 @@ interface CreateBrandAccountData {
     country?: string;
     tags?: string[];
   };
-  businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
+  businessType?: 'brand' | 'store' | 'designer' | 'manufacturer' | 'non_profit';
   partnershipTier?: 'basic' | 'premium' | 'enterprise';
 }
 
@@ -774,6 +774,7 @@ export interface BrandLookbook {
   brandId: string;
   collectionId?: string;
   name: string;
+  slug?: string;
   description?: string;
   coverImageUrl?: string;
   images?: string[];
@@ -798,6 +799,7 @@ export interface BrandCollection {
   id: string;
   brandId: string;
   name: string;
+  slug?: string;
   description?: string;
   coverImageUrl?: string;
   collectionType?: 'Seasonal' | 'Capsule' | 'Collaboration' | 'Limited' | 'Core' | 'Other';

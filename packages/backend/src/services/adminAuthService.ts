@@ -88,11 +88,12 @@ export class AdminAuthService {
         birthDate: new Date('1990-01-01'), // Default birth date
         gender: 'other',
         cpf: adminData.cpf || '00000000000', // Default CPF for admin
+        username: adminData.email.split('@')[0], // Default username
       });
 
       // Add admin role
       await UserModel.addRole(user.id, 'admin');
-      
+
       // Add consumer role for basic functionality
       await UserModel.addRole(user.id, 'consumer');
 
@@ -115,7 +116,7 @@ export class AdminAuthService {
       }
 
       const roles = await UserModel.getUserRoles(userId);
-      
+
       if (!roles.includes('admin')) {
         await UserModel.addRole(userId, 'admin');
         console.log(`✅ Admin privileges granted to user: ${user.email}`);
@@ -166,7 +167,7 @@ export class AdminAuthService {
     try {
       // This would need a custom query in UserModel, for now we'll implement it here
       const { db } = require('../database/connection');
-      
+
       const query = `
         SELECT u.*, array_agg(ur.role) as roles
         FROM users u
@@ -177,12 +178,12 @@ export class AdminAuthService {
       `;
 
       const result = await db.query(query);
-      
+
       return result.rows.map((row: any) => {
         const profile = typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile;
-        const measurements = row.measurements ? 
+        const measurements = row.measurements ?
           (typeof row.measurements === 'string' ? JSON.parse(row.measurements) : row.measurements) : {};
-        const preferences = row.preferences ? 
+        const preferences = row.preferences ?
           (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {};
 
         return {

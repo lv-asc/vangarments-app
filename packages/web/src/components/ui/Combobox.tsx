@@ -50,7 +50,7 @@ export default function SearchableCombobox({
 
             >
                 <div className="relative mt-1">
-                    <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-gray-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 sm:text-sm">
+                    <Combobox.Button as="div" className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-gray-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 sm:text-sm">
                         <Combobox.Input
                             className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:ring-0"
                             displayValue={(val: string | null) => val || ''}
@@ -62,13 +62,13 @@ export default function SearchableCombobox({
                             }}
                             placeholder={placeholder}
                         />
-                        <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                             <ChevronUpDownIcon
                                 className="h-5 w-5 text-gray-400"
                                 aria-hidden="true"
                             />
-                        </Combobox.Button>
-                    </div>
+                        </div>
+                    </Combobox.Button>
                     {/* @ts-ignore */}
                     <Transition
                         as={Fragment as any}

@@ -9,6 +9,7 @@ export interface CreateUserData {
   birthDate: Date;
   gender: string;
   location?: Location;
+  username: string; // Ensure this is consistent
 }
 
 
@@ -29,7 +30,7 @@ export interface UpdateUserData {
 
 export class UserModel {
   static async create(userData: CreateUserData): Promise<UserProfile> {
-    const { cpf, email, passwordHash, name, birthDate, gender, location } = userData;
+    const { cpf, email, passwordHash, name, birthDate, gender, location, username } = userData;
 
     const profile = {
       name,
@@ -39,12 +40,12 @@ export class UserModel {
     };
 
     const query = `
-      INSERT INTO users (cpf, email, password_hash, profile)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO users (cpf, email, password_hash, profile, username)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING id, cpf, email, profile, measurements, preferences, created_at, updated_at
     `;
 
-    const result = await db.query(query, [cpf || null, email, passwordHash || null, JSON.stringify(profile)]);
+    const result = await db.query(query, [cpf || null, email, passwordHash || null, JSON.stringify(profile), username]);
     const user = result.rows[0];
 
     return this.mapToUserProfile(user);
@@ -65,6 +66,35 @@ export class UserModel {
     }
 
     return this.mapToUserProfile(result.rows[0]);
+  }
+
+  static async findByUsername(username: string): Promise<UserProfile | null> {
+    const query = `
+      SELECT u.*, array_agg(ur.role) as roles
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      WHERE LOWER(u.username) = LOWER($1)
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
+    `;
+
+    const result = await db.query(query, [username]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapToUserProfile(result.rows[0]);
+  }
+
+  static async findByUsernameOrId(identifier: string): Promise<UserProfile | null> {
+    // Check if identifier is a valid UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+    if (isUUID) {
+      return this.findById(identifier);
+    }
+
+    // Otherwise treat as username (slug)
+    return this.findByUsername(identifier);
   }
 
   static async findByEmail(email: string): Promise<UserProfile | null> {
@@ -376,10 +406,11 @@ export class UserModel {
       roles: row.roles ? row.roles.filter((role: string) => role !== null) : [],
       status: row.status || 'active',
       banExpiresAt: row.ban_expires_at ? new Date(row.ban_expires_at) : undefined,
+      lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       _rawProfile: profile,
-    } as UserProfile & { roles?: string[], _rawProfile?: any, username?: string, usernameLastChanged?: Date, status: string, banExpiresAt?: Date };
+    } as UserProfile & { roles?: string[], _rawProfile?: any, username?: string, usernameLastChanged?: Date, status: string, banExpiresAt?: Date, lastSeenAt?: Date };
   }
 
   static async updateStatus(userId: string, status: string, banExpiresAt?: Date, banReason?: string): Promise<void> {

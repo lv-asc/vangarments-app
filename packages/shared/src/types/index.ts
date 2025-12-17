@@ -4,6 +4,8 @@ export interface UserProfile {
   id: string;
   cpf: string; // Brazilian personal ID
   email: string;
+  username: string;
+  usernameLastChanged?: Date;
   personalInfo: {
     name: string;
     birthDate: Date;

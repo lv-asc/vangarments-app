@@ -24,7 +24,7 @@ export class AuthController {
                 });
             }
 
-            const { cpf, email, password, name, birthDate, gender } = validationResult.data;
+            const { cpf, email, password, name, birthDate, gender, username } = validationResult.data;
 
             // Validate CPF
             if (!CPFValidator.isValid(cpf)) {
@@ -59,6 +59,17 @@ export class AuthController {
                 });
             }
 
+            // Check if username is taken
+            const isUsernameTaken = await UserModel.isUsernameTaken(username);
+            if (isUsernameTaken) {
+                return res.status(409).json({
+                    error: {
+                        code: 'USERNAME_TAKEN',
+                        message: 'This username is already taken',
+                    },
+                });
+            }
+
             // Hash password
             const passwordHash = await AuthUtils.hashPassword(password);
 
@@ -70,6 +81,7 @@ export class AuthController {
                 name,
                 birthDate,
                 gender,
+                username,
             });
 
             // Add default consumer role
@@ -202,7 +214,7 @@ export class AuthController {
                 email: user.email,
                 cpf: user.cpf,
                 avatar: (user.personalInfo as any).avatarUrl || null,
-                username: (user as any).username,
+                username: user.username,
                 personalInfo: user.personalInfo,
                 measurements: user.measurements,
                 preferences: user.preferences,

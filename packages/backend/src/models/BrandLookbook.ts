@@ -1,10 +1,12 @@
 import { db } from '../database/connection';
+import { slugify } from '../utils/slugify';
 
 export interface BrandLookbook {
     id: string;
     brandId: string;
     collectionId?: string;
     name: string;
+    slug?: string;
     description?: string;
     coverImageUrl?: string;
     images?: string[];
@@ -28,6 +30,7 @@ export interface CreateLookbookData {
     brandId: string;
     collectionId?: string;
     name: string;
+    slug?: string;
     description?: string;
     coverImageUrl?: string;
     images?: string[];
@@ -38,6 +41,7 @@ export interface CreateLookbookData {
 export interface UpdateLookbookData {
     collectionId?: string;
     name?: string;
+    slug?: string;
     description?: string;
     coverImageUrl?: string;
     images?: string[];
@@ -50,13 +54,16 @@ export class BrandLookbookModel {
     static async create(data: CreateLookbookData): Promise<BrandLookbook> {
         const { brandId, collectionId, name, description, coverImageUrl, images, season, year } = data;
 
+        // Auto-generate slug from name if not provided
+        const slug = data.slug || slugify(name);
+
         const query = `
-      INSERT INTO brand_lookbooks (brand_id, collection_id, name, description, cover_image_url, images, season, year)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO brand_lookbooks (brand_id, collection_id, name, slug, description, cover_image_url, images, season, year)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
-        const result = await db.query(query, [brandId, collectionId, name, description, coverImageUrl, images || [], season, year]);
+        const result = await db.query(query, [brandId, collectionId, name, slug, description, coverImageUrl, images || [], season, year]);
         return this.mapRowToLookbook(result.rows[0]);
     }
 
@@ -68,6 +75,25 @@ export class BrandLookbookModel {
       WHERE lb.id = $1
     `;
         const result = await db.query(query, [id]);
+        return result.rows.length > 0 ? this.mapRowToLookbook(result.rows[0]) : null;
+    }
+
+    static async findBySlugOrId(identifier: string, brandId: string): Promise<BrandLookbook | null> {
+        // Check if identifier is a valid UUID
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+        if (isUUID) {
+            return this.findById(identifier);
+        }
+
+        // Find by slug within the brand
+        const query = `
+      SELECT lb.*, 
+             (SELECT COUNT(*) FROM brand_lookbook_items bli WHERE bli.lookbook_id = lb.id) as item_count
+      FROM brand_lookbooks lb
+      WHERE lb.brand_id = $1 AND lb.slug = $2
+    `;
+        const result = await db.query(query, [brandId, identifier]);
         return result.rows.length > 0 ? this.mapRowToLookbook(result.rows[0]) : null;
     }
 
@@ -220,6 +246,7 @@ export class BrandLookbookModel {
             brandId: row.brand_id,
             collectionId: row.collection_id || undefined,
             name: row.name,
+            slug: row.slug || undefined,
             description: row.description || undefined,
             coverImageUrl: row.cover_image_url || undefined,
             images: row.images || [],

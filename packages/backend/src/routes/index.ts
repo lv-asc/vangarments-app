@@ -36,6 +36,7 @@ import journalismRoutes from './journalismRoutes';
 import pageRoutes from './pageRoutes';
 import storeRoutes from './stores';
 import supplierRoutes from './suppliers';
+import messagesRoutes from './messages';
 
 const router = Router();
 
@@ -75,6 +76,7 @@ router.use('/journalism', journalismRoutes); // New Journalism routes
 router.use('/pages', pageRoutes);
 router.use('/stores', storeRoutes);
 router.use('/suppliers', supplierRoutes);
+router.use('/messages', messagesRoutes); // Direct messaging routes
 
 // Health check for API
 router.get('/health', (req, res) => {

@@ -287,6 +287,82 @@ export class UserController {
     }
   }
 
+  static async getByUsername(req: Request, res: Response) {
+    try {
+      const { username } = req.params;
+      const user = await UserModel.findByUsername(username);
+
+      if (!user) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        });
+      }
+
+      // Get stats
+      const stats = await VUFSItemModel.getStatsByOwner(user.id);
+
+      // Calculate followers/following (mock for now as Social model isn't imported yet)
+      const socialStats = {
+        followers: 0,
+        following: 0,
+        outfitsCreated: 0
+      };
+
+      const profile = {
+        id: user.id,
+        name: user.personalInfo.name,
+        username: (user as any).username || user.email.split('@')[0],
+        usernameLastChanged: (user as any).usernameLastChanged || null,
+        email: user.email,
+        // Hide sensitive info for public profile
+        // cpf: user.cpf, 
+        // birthDate: user.personalInfo.birthDate,
+        bio: (user.personalInfo as any).bio || '',
+        profileImage: (user.personalInfo as any).avatarUrl,
+        bannerImage: null,
+        socialLinks: user.socialLinks || [],
+        roles: (user as any).roles || [],
+        createdAt: user.createdAt,
+        // Include partial nested objects safe for public
+        personalInfo: {
+          name: user.personalInfo.name,
+          gender: user.personalInfo.gender,
+          avatarUrl: user.personalInfo.avatarUrl,
+          bio: (user.personalInfo as any).bio,
+          location: user.personalInfo.location
+        },
+        measurements: (user.privacySettings as any)?.weight || (user.privacySettings as any)?.height ? {} : user.measurements, // Respect privacy settings logically later, or just send what is public
+        // privacySettings: (user as any).privacySettings, 
+        stats: {
+          wardrobeItems: stats.totalItems || 0,
+          ...socialStats
+        },
+        preferences: {
+          style: user.preferences?.styleProfile || [],
+          brands: user.preferences?.preferredBrands || [],
+          colors: user.preferences?.favoriteColors || [],
+          // Hide price range for public
+        }
+      };
+
+      res.json({
+        message: 'Profile retrieved successfully',
+        profile
+      });
+    } catch (error) {
+      console.error('Get profile by username error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching profile'
+        }
+      });
+    }
+  }
+
   static async updateMeasurements(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user) {
@@ -728,10 +804,6 @@ export class UserController {
         success: true,
         user: updatedUser,
       });
-      res.json({
-        success: true,
-        user: updatedUser,
-      });
     } catch (error) {
       console.error('Admin update user error:', error);
       res.status(500).json({
@@ -740,6 +812,25 @@ export class UserController {
           message: 'An error occurred while updating user',
         },
       });
+    }
+  }
+
+  static async updateActivity(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: { code: 'UNAUTHORIZED' } });
+      }
+
+      // Update last_seen_at
+      await UserModel.update(req.user.userId, {
+        lastSeenAt: new Date().toISOString() // Fixed property name to match interface update
+      } as any); // Type assertion needed until UpdateUserData interface is properly updated
+
+      res.json({ success: true });
+    } catch (error) {
+      // Silent error for activity updates
+      console.error('Update activity error:', error);
+      res.status(500).json({ success: false });
     }
   }
 

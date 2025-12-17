@@ -1,4 +1,5 @@
 import { db } from '../database/connection';
+import { slugify } from '../utils/slugify';
 
 export type CollectionType = 'Seasonal' | 'Capsule' | 'Collaboration' | 'Limited' | 'Core' | 'Other';
 
@@ -6,6 +7,7 @@ export interface BrandCollection {
     id: string;
     brandId: string;
     name: string;
+    slug?: string;
     description?: string;
     coverImageUrl?: string;
     collectionType?: CollectionType;
@@ -28,6 +30,7 @@ export interface BrandCollectionItem {
 export interface CreateCollectionData {
     brandId: string;
     name: string;
+    slug?: string;
     description?: string;
     coverImageUrl?: string;
     collectionType?: CollectionType;
@@ -38,6 +41,7 @@ export interface CreateCollectionData {
 
 export interface UpdateCollectionData {
     name?: string;
+    slug?: string;
     description?: string;
     coverImageUrl?: string;
     collectionType?: CollectionType;
@@ -50,13 +54,16 @@ export class BrandCollectionModel {
     static async create(data: CreateCollectionData): Promise<BrandCollection> {
         const { brandId, name, description, coverImageUrl, collectionType, season, year, isPublished } = data;
 
+        // Auto-generate slug from name if not provided
+        const slug = data.slug || slugify(name);
+
         const query = `
-      INSERT INTO brand_collections (brand_id, name, description, cover_image_url, collection_type, season, year, is_published)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO brand_collections (brand_id, name, slug, description, cover_image_url, collection_type, season, year, is_published)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
-        const result = await db.query(query, [brandId, name, description, coverImageUrl, collectionType, season, year, isPublished ?? false]);
+        const result = await db.query(query, [brandId, name, slug, description, coverImageUrl, collectionType, season, year, isPublished ?? false]);
         return this.mapRowToCollection(result.rows[0]);
     }
 
@@ -68,6 +75,25 @@ export class BrandCollectionModel {
       WHERE bc.id = $1
     `;
         const result = await db.query(query, [id]);
+        return result.rows.length > 0 ? this.mapRowToCollection(result.rows[0]) : null;
+    }
+
+    static async findBySlugOrId(identifier: string, brandId: string): Promise<BrandCollection | null> {
+        // Check if identifier is a valid UUID
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+        if (isUUID) {
+            return this.findById(identifier);
+        }
+
+        // Find by slug within the brand
+        const query = `
+      SELECT bc.*, 
+             (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
+      FROM brand_collections bc
+      WHERE bc.brand_id = $1 AND bc.slug = $2
+    `;
+        const result = await db.query(query, [brandId, identifier]);
         return result.rows.length > 0 ? this.mapRowToCollection(result.rows[0]) : null;
     }
 
@@ -215,6 +241,7 @@ export class BrandCollectionModel {
             id: row.id,
             brandId: row.brand_id,
             name: row.name,
+            slug: row.slug || undefined,
             description: row.description || undefined,
             coverImageUrl: row.cover_image_url || undefined,
             collectionType: row.collection_type || undefined,

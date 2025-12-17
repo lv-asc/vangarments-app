@@ -3,7 +3,9 @@ import { db } from '../database/connection';
 export interface ColorGroup {
     id: string;
     name: string;
+    representativeColor?: string;
     createdAt: Date;
+    colors?: Color[]; // Optional list of colors in this group
 }
 
 export interface Color {
@@ -25,7 +27,7 @@ export class ColorModel {
         c.*,
         COALESCE(
           json_agg(
-            json_build_object('id', g.id, 'name', g.name)
+            json_build_object('id', g.id, 'name', g.name, 'representativeColor', g.representative_color)
           ) FILTER (WHERE g.id IS NOT NULL),
           '[]'
         ) as groups
@@ -54,7 +56,7 @@ export class ColorModel {
         c.*,
         COALESCE(
           json_agg(
-            json_build_object('id', g.id, 'name', g.name)
+            json_build_object('id', g.id, 'name', g.name, 'representativeColor', g.representative_color)
           ) FILTER (WHERE g.id IS NOT NULL),
           '[]'
         ) as groups
@@ -64,7 +66,9 @@ export class ColorModel {
       WHERE c.id = $1
       GROUP BY c.id
     `;
+        // Use provided client (for transaction visibility) or default pool
         const result = await db.query(query, [id]);
+
         if (result.rows.length === 0) return null;
         const row = result.rows[0];
         return {
@@ -78,7 +82,11 @@ export class ColorModel {
         };
     }
 
-    static async create(name: string, hexCode?: string, groupIds: string[] = []): Promise<Color> {
+    static async create(
+        name: string,
+        hexCode?: string,
+        groupIds: string[] = []
+    ): Promise<Color> {
         return db.transaction(async (client) => {
             const insertColorQuery = `
         INSERT INTO vufs_colors (name, hex_code)
@@ -90,6 +98,7 @@ export class ColorModel {
 
             if (groupIds.length > 0) {
                 const uniqueGroupIds = [...new Set(groupIds)];
+                // Insert with default sort_order (e.g. 0 or max + 1, here 0 for simplicity as it's not group-managed add)
                 const membershipQuery = `
            INSERT INTO vufs_color_group_memberships (color_id, group_id)
            SELECT $1, unnest($2::uuid[])
@@ -101,7 +110,12 @@ export class ColorModel {
         });
     }
 
-    static async update(id: string, name?: string, hexCode?: string, groupIds?: string[]): Promise<Color | null> {
+    static async update(
+        id: string,
+        name?: string,
+        hexCode?: string,
+        groupIds?: string[]
+    ): Promise<Color | null> {
         return db.transaction(async (client) => {
             if (name !== undefined || hexCode !== undefined) {
                 const updates: string[] = [];
@@ -163,38 +177,112 @@ export class ColorModel {
     // --- Groups ---
 
     static async findAllGroups(): Promise<ColorGroup[]> {
-        const query = 'SELECT * FROM vufs_color_groups ORDER BY name ASC';
+        // Fetch groups and their colors ordered by sort_order
+        const query = `
+            SELECT 
+                g.*,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'id', c.id, 
+                            'name', c.name, 
+                            'hexCode', c.hex_code, 
+                            'isActive', c.is_active
+                        ) ORDER BY m.sort_order ASC
+                    ) FILTER (WHERE c.id IS NOT NULL), 
+                    '[]'
+                ) as colors
+            FROM vufs_color_groups g
+            LEFT JOIN vufs_color_group_memberships m ON g.id = m.group_id
+            LEFT JOIN vufs_colors c ON m.color_id = c.id AND c.is_active = true
+            GROUP BY g.id
+            ORDER BY g.name ASC
+        `;
         const result = await db.query(query);
         return result.rows.map(row => ({
             id: row.id,
             name: row.name,
-            createdAt: row.created_at
+            representativeColor: row.representative_color,
+            createdAt: row.created_at,
+            colors: row.colors
         }));
     }
 
-    static async createGroup(name: string): Promise<ColorGroup> {
+    static async createGroup(name: string, representativeColor?: string): Promise<ColorGroup> {
         const query = `
-      INSERT INTO vufs_color_groups (name) VALUES ($1) RETURNING *
+      INSERT INTO vufs_color_groups (name, representative_color) VALUES ($1, $2) RETURNING *
     `;
-        const result = await db.query(query, [name]);
+        const result = await db.query(query, [name, representativeColor]);
         const row = result.rows[0];
         return {
             id: row.id,
             name: row.name,
+            representativeColor: row.representative_color,
             createdAt: row.created_at
         };
     }
 
-    static async updateGroup(id: string, name: string): Promise<ColorGroup | null> {
-        const query = 'UPDATE vufs_color_groups SET name = $1 WHERE id = $2 RETURNING *';
-        const result = await db.query(query, [name, id]);
-        if (result.rows.length === 0) return null;
-        const row = result.rows[0];
-        return {
-            id: row.id,
-            name: row.name,
-            createdAt: row.created_at
-        };
+    static async updateGroup(id: string, name?: string, representativeColor?: string, colorIds?: string[]): Promise<ColorGroup | null> {
+        return db.transaction(async (client) => {
+            // Update Group Details
+            if (name !== undefined || representativeColor !== undefined) {
+                const updates: string[] = [];
+                const values: any[] = [];
+                let pIdx = 1;
+
+                if (name !== undefined) {
+                    updates.push(`name = $${pIdx++}`);
+                    values.push(name);
+                }
+                if (representativeColor !== undefined) {
+                    updates.push(`representative_color = $${pIdx++}`);
+                    values.push(representativeColor);
+                }
+
+                if (updates.length > 0) {
+                    values.push(id);
+                    await client.query(`UPDATE vufs_color_groups SET ${updates.join(', ')} WHERE id = $${pIdx}`, values);
+                }
+            }
+
+            // Update Colors & Order
+            if (colorIds !== undefined) {
+                // Delete existing memberships
+                await client.query('DELETE FROM vufs_color_group_memberships WHERE group_id = $1', [id]);
+                
+                // Insert new memberships with order
+                if (colorIds.length > 0) {
+                    const values: string[] = [];
+                    const params: any[] = [id];
+                    
+                    colorIds.forEach((colorId, index) => {
+                        params.push(colorId);
+                        params.push(index);
+                        values.push(`($1, $${params.length - 1}::uuid, $${params.length})`);
+                    });
+
+                    const insertQuery = `
+                        INSERT INTO vufs_color_group_memberships (group_id, color_id, sort_order)
+                        VALUES ${values.join(', ')}
+                    `;
+                    await client.query(insertQuery, params);
+                }
+            }
+
+            // Return updated group (simplified fetch)
+             const query = 'SELECT * FROM vufs_color_groups WHERE id = $1';
+             const res = await client.query(query, [id]);
+             if (res.rows.length === 0) return null;
+             const row = res.rows[0];
+             
+             // We return basic info, full refresh usually happens via findAllGroups
+             return {
+                 id: row.id,
+                 name: row.name,
+                 representativeColor: row.representative_color,
+                 createdAt: row.created_at
+             };
+        });
     }
 
     static async deleteGroup(id: string): Promise<boolean> {

@@ -13,7 +13,9 @@ import {
   ClockIcon,
   UserGroupIcon,
   TagIcon,
-  SparklesIcon
+  SparklesIcon,
+  ChatBubbleLeftRightIcon,
+  ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -55,7 +57,12 @@ export function Header() {
     { name: t('wardrobe'), href: '/wardrobe', icon: TagIcon },
     { name: 'Outfits', href: '/outfits', icon: SparklesIcon },
     { name: t('marketplace'), href: '/marketplace', icon: ShoppingBagIcon },
+    { name: 'DMs', href: '/messages', icon: ChatBubbleLeftRightIcon },
   ];
+
+  if (user?.roles?.includes('admin')) {
+    navigation.push({ name: 'Admin', href: '/admin', icon: ShieldCheckIcon });
+  }
 
   const handleLogout = async () => {
     await logout();

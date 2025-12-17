@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { ArrowLeftIcon, LinkIcon, PlusIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, LinkIcon, PlusIcon, TrashIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 import { Dialog } from '@headlessui/react';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
@@ -55,6 +56,17 @@ export default function AdminEditUserPage() {
         entityId: string | null;
     }>({ isOpen: false, type: null, entityId: null });
 
+    // Selection Mode State for Batch Unlink
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedEntities, setSelectedEntities] = useState<{
+        brands: string[];
+        stores: string[];
+        suppliers: string[];
+        pages: string[];
+    }>({ brands: [], stores: [], suppliers: [], pages: [] });
+    const [batchUnlinkModalOpen, setBatchUnlinkModalOpen] = useState(false);
+    const [batchUnlinking, setBatchUnlinking] = useState(false);
+
 
     const [userData, setUserData] = useState({
         name: '',
@@ -101,10 +113,10 @@ export default function AdminEditUserPage() {
 
             if (response.user) {
                 setUserData({
-                    name: response.user.name || '',
+                    name: response.user.name || response.user.personalInfo?.name || '',
                     email: response.user.email || '',
                     username: response.user.username || '',
-                    bio: response.user.profile?.bio || '',
+                    bio: response.user.profile?.bio || response.user.personalInfo?.bio || '',
                     roles: response.user.roles || [],
                     status: response.user.status || 'active',
                     banExpiresAt: response.user.banExpiresAt ? new Date(response.user.banExpiresAt) : undefined
@@ -141,7 +153,7 @@ export default function AdminEditUserPage() {
 
             const response = await apiClient.get<any>(endpoint);
             // Handle different response structures
-            let list = [];
+            let list: any[] = [];
             if (response[key]) list = response[key];
             else if (response.data && response.data[key]) list = response.data[key];
             else if (Array.isArray(response)) list = response;
@@ -203,6 +215,63 @@ export default function AdminEditUserPage() {
 
     const openUnlinkModal = (type: 'brand' | 'store' | 'supplier' | 'page', entityId: string) => {
         setUnlinkModalState({ isOpen: true, type, entityId });
+    };
+
+    // Selection mode helpers
+    const toggleEntitySelection = (type: 'brand' | 'store' | 'supplier' | 'page', entityId: string) => {
+        const key = type === 'brand' ? 'brands' : `${type}s` as keyof typeof selectedEntities;
+        setSelectedEntities(prev => {
+            if (prev[key].includes(entityId)) {
+                return { ...prev, [key]: prev[key].filter(id => id !== entityId) };
+            } else {
+                return { ...prev, [key]: [...prev[key], entityId] };
+            }
+        });
+    };
+
+    const getTotalSelected = () => {
+        return selectedEntities.brands.length + selectedEntities.stores.length +
+            selectedEntities.suppliers.length + selectedEntities.pages.length;
+    };
+
+    const exitSelectionMode = () => {
+        setSelectionMode(false);
+        setSelectedEntities({ brands: [], stores: [], suppliers: [], pages: [] });
+    };
+
+    const handleBatchUnlink = async () => {
+        try {
+            setBatchUnlinking(true);
+            const promises: Promise<any>[] = [];
+
+            // Unlink brands
+            for (const brandId of selectedEntities.brands) {
+                promises.push(apiClient.put(`/brands/${brandId}`, { userId: null }));
+            }
+            // Unlink stores
+            for (const storeId of selectedEntities.stores) {
+                promises.push(apiClient.put(`/stores/${storeId}`, { userId: null }));
+            }
+            // Unlink suppliers
+            for (const supplierId of selectedEntities.suppliers) {
+                promises.push(apiClient.put(`/suppliers/${supplierId}`, { userId: null }));
+            }
+            // Unlink pages
+            for (const pageId of selectedEntities.pages) {
+                promises.push(apiClient.put(`/pages/${pageId}`, { userId: null }));
+            }
+
+            await Promise.all(promises);
+            toast.success(`Successfully unlinked ${getTotalSelected()} entities`);
+            setBatchUnlinkModalOpen(false);
+            exitSelectionMode();
+            loadUser();
+        } catch (error) {
+            console.error('Failed to batch unlink entities', error);
+            toast.error('Failed to unlink some entities');
+        } finally {
+            setBatchUnlinking(false);
+        }
     };
 
     const handleRoleChange = (role: string) => {
@@ -380,8 +449,34 @@ export default function AdminEditUserPage() {
 
             {/* Linked Entities Section */}
             <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
-                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <h2 className="text-lg font-medium text-gray-900">Linked Entities</h2>
+                    <div className="flex items-center gap-2">
+                        {selectionMode ? (
+                            <>
+                                <button
+                                    onClick={exitSelectionMode}
+                                    className="text-xs text-gray-600 hover:text-gray-800 px-2 py-1 border border-gray-300 rounded"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => setBatchUnlinkModalOpen(true)}
+                                    disabled={getTotalSelected() === 0}
+                                    className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Unlink Selected ({getTotalSelected()})
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => setSelectionMode(true)}
+                                className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 border border-blue-200 rounded"
+                            >
+                                Select
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div className="p-6 space-y-6">
                     {/* Brands */}
@@ -390,6 +485,9 @@ export default function AdminEditUserPage() {
                         items={linkedEntities.brands}
                         onAdd={() => openLinkModal('brand')}
                         onRemove={(itemId) => openUnlinkModal('brand', itemId)}
+                        selectionMode={selectionMode}
+                        selectedIds={selectedEntities.brands}
+                        onToggleSelect={(itemId) => toggleEntitySelection('brand', itemId)}
                     />
                     {/* Stores */}
                     <EntitySection
@@ -397,6 +495,9 @@ export default function AdminEditUserPage() {
                         items={linkedEntities.stores}
                         onAdd={() => openLinkModal('store')}
                         onRemove={(itemId) => openUnlinkModal('store', itemId)}
+                        selectionMode={selectionMode}
+                        selectedIds={selectedEntities.stores}
+                        onToggleSelect={(itemId) => toggleEntitySelection('store', itemId)}
                     />
                     {/* Suppliers */}
                     <EntitySection
@@ -404,6 +505,9 @@ export default function AdminEditUserPage() {
                         items={linkedEntities.suppliers}
                         onAdd={() => openLinkModal('supplier')}
                         onRemove={(itemId) => openUnlinkModal('supplier', itemId)}
+                        selectionMode={selectionMode}
+                        selectedIds={selectedEntities.suppliers}
+                        onToggleSelect={(itemId) => toggleEntitySelection('supplier', itemId)}
                     />
                     {/* Pages */}
                     <EntitySection
@@ -411,6 +515,9 @@ export default function AdminEditUserPage() {
                         items={linkedEntities.pages}
                         onAdd={() => openLinkModal('page')}
                         onRemove={(itemId) => openUnlinkModal('page', itemId)}
+                        selectionMode={selectionMode}
+                        selectedIds={selectedEntities.pages}
+                        onToggleSelect={(itemId) => toggleEntitySelection('page', itemId)}
                     />
                 </div>
             </div>
@@ -584,34 +691,107 @@ export default function AdminEditUserPage() {
                 </div>
             </Dialog>
 
+            {/* Batch Unlink Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={batchUnlinkModalOpen}
+                onClose={() => setBatchUnlinkModalOpen(false)}
+                onConfirm={handleBatchUnlink}
+                title="Unlink Multiple Entities"
+                message={`Are you sure you want to unlink ${getTotalSelected()} entities from this user?`}
+                confirmText={batchUnlinking ? 'Unlinking...' : 'Unlink All'}
+                cancelText="Cancel"
+                variant="danger"
+            />
+
         </div>
     );
 }
 
-function EntitySection({ title, items, onAdd, onRemove }: { title: string, items: any[], onAdd: () => void, onRemove: (id: string) => void }) {
+interface EntitySectionProps {
+    title: string;
+    items: any[];
+    onAdd: () => void;
+    onRemove: (id: string) => void;
+    selectionMode?: boolean;
+    selectedIds?: string[];
+    onToggleSelect?: (id: string) => void;
+}
+
+function EntitySection({
+    title,
+    items,
+    onAdd,
+    onRemove,
+    selectionMode = false,
+    selectedIds = [],
+    onToggleSelect
+}: EntitySectionProps) {
     return (
         <div>
             <div className="flex justify-between items-center mb-2">
                 <h3 className="text-sm font-medium text-gray-700">{title}</h3>
-                <button onClick={onAdd} type="button" className="text-xs text-blue-600 hover:text-blue-800 flex items-center">
-                    <PlusIcon className="h-3 w-3 mr-1" /> Add
-                </button>
+                {!selectionMode && (
+                    <button onClick={onAdd} type="button" className="text-xs text-blue-600 hover:text-blue-800 flex items-center">
+                        <PlusIcon className="h-3 w-3 mr-1" /> Add
+                    </button>
+                )}
             </div>
             {items.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                    {items.map((item: any) => (
-                        <span key={item.id} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {item.name || item.brandInfo?.name || 'Unnamed'}
-                            <button
-                                type="button"
-                                onClick={() => onRemove(item.id)}
-                                className="ml-1.5 inline-flex items-center justify-center text-blue-400 hover:text-blue-600 focus:outline-none"
+                    {items.map((item: any) => {
+                        const name = item.name || item.brandInfo?.name || 'Unnamed';
+                        const logo = item.logo || item.brandInfo?.logo;
+                        const isSelected = selectedIds.includes(item.id);
+
+                        return (
+                            <span
+                                key={item.id}
+                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-all ${isSelected
+                                    ? 'bg-red-100 text-red-800 ring-2 ring-red-400'
+                                    : 'bg-blue-100 text-blue-800'
+                                    } ${selectionMode ? 'cursor-pointer hover:ring-2 hover:ring-blue-300' : ''}`}
+                                onClick={selectionMode && onToggleSelect ? () => onToggleSelect(item.id) : undefined}
                             >
-                                <span className="sr-only">Remove</span>
-                                <TrashIcon className="h-3 w-3" />
-                            </button>
-                        </span>
-                    ))}
+                                {/* Logo */}
+                                {logo && (
+                                    <img
+                                        src={logo}
+                                        alt=""
+                                        className="h-4 w-4 rounded-full mr-1.5 object-cover"
+                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                )}
+
+                                {/* Selection checkbox */}
+                                {selectionMode && (
+                                    <span className="mr-1">
+                                        {isSelected ? (
+                                            <CheckCircleSolidIcon className="h-4 w-4 text-red-600" />
+                                        ) : (
+                                            <CheckCircleIcon className="h-4 w-4 text-blue-400" />
+                                        )}
+                                    </span>
+                                )}
+
+                                {name}
+
+                                {/* Remove button - only show when not in selection mode */}
+                                {!selectionMode && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onRemove(item.id);
+                                        }}
+                                        className="ml-1.5 inline-flex items-center justify-center text-blue-400 hover:text-blue-600 focus:outline-none"
+                                    >
+                                        <span className="sr-only">Remove</span>
+                                        <TrashIcon className="h-3 w-3" />
+                                    </button>
+                                )}
+                            </span>
+                        );
+                    })}
                 </div>
             ) : (
                 <p className="text-sm text-gray-500 italic">No {title.toLowerCase()} linked.</p>

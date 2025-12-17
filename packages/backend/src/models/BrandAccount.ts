@@ -24,7 +24,7 @@ export interface BrandInfo {
   brandStyle?: string[];
   country?: string; // Country of origin
   tags?: string[]; // Brand tags (e.g. Small, Independent, etc.)
-  businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
+  businessType?: 'brand' | 'store' | 'designer' | 'manufacturer' | 'non_profit';
 }
 
 export interface BrandProfileData {
@@ -74,6 +74,16 @@ export class BrandAccountModel {
   static async create(brandData: CreateBrandAccountData): Promise<BrandAccount> {
     const { userId, brandInfo, partnershipTier = 'basic' } = brandData;
 
+    // Auto-generate slug if not provided
+    if (!brandInfo.slug && brandInfo.name) {
+      // Dynamic import to avoid circular dependency issues if any, though utils should be fine.
+      // But let's use standard import at top of file ideally. For now doing inline to match instruction scope if I can't see top.
+      // Actually I will assume I added the import at the top in a separate edit or I can use full path if needed but cleaner to import.
+      // I'll stick to the existing logic structure but add the slug generation.
+      const { slugify } = await import('../utils/slugify');
+      brandInfo.slug = slugify(brandInfo.name);
+    }
+
     // Users can have multiple brand accounts - no restriction
 
     const query = `
@@ -118,14 +128,12 @@ export class BrandAccountModel {
     }
 
     // Try to find by slug first, then by name (approximate slug match)
-    // We replace dashes with spaces for the name fallback
+    const { slugify } = await import('../utils/slugify');
+    const slug = slugify(identifier);
+
+    // We also keep the original name fallback for loose matching if needed, but slug logic is preferred.
     const nameFallback = identifier.replace(/-/g, ' ');
 
-    // Check for exact slug match OR computed slug match OR simple name match
-    // We normalize the DB name to match the frontend slug generation logic:
-    // 1. Remove special trademark symbols (®™©)
-    // 2. Replace non-alphanumeric characters with dashes
-    // 3. Trim leading/trailing dashes
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
@@ -136,13 +144,14 @@ export class BrandAccountModel {
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE (
         ba.brand_info->>'slug' = $1 
-        OR ba.brand_info->>'name' ILIKE $2
+        OR ba.brand_info->>'slug' = $2
+        OR ba.brand_info->>'name' ILIKE $3
       ) 
       AND ba.deleted_at IS NULL
       LIMIT 1
     `;
 
-    const result = await db.query(query, [identifier, nameFallback]);
+    const result = await db.query(query, [identifier, slug, nameFallback]);
     return result.rows.length > 0 ? this.mapRowToBrandAccount(result.rows[0]) : null;
   }
 
@@ -374,9 +383,9 @@ export class BrandAccountModel {
     const { BrandCollectionModel } = await import('./BrandCollection');
 
     const [team, lookbooks, collections] = await Promise.all([
-      BrandTeamModel.getTeamMembers(brandId, true), // Public only
-      BrandLookbookModel.findByBrand(brandId, true), // Published only
-      BrandCollectionModel.findByBrand(brandId, true) // Published only
+      BrandTeamModel.getTeamMembers(brand.id, true), // Public only - use resolved ID
+      BrandLookbookModel.findByBrand(brand.id, true), // Published only - use resolved ID
+      BrandCollectionModel.findByBrand(brand.id, true) // Published only - use resolved ID
     ]);
 
     return { brand, team, lookbooks, collections };

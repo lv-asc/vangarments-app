@@ -227,6 +227,8 @@ export default function LookbookManagement({ brandId }: LookbookManagementProps)
                                 buttonLabel="Upload Images"
                                 emptyStateMessage="No images uploaded yet"
                                 helperText="Upload images for this lookbook. The first image will be used as the cover."
+                                showNameInput={false}
+                                itemLabel="Image"
                             />
                         </div>
 

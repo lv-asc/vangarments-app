@@ -118,8 +118,8 @@ export default function AdminJournalismPage() {
                                             {!item.published && <span className="ml-2 text-yellow-500 text-xs bg-yellow-50 px-1 rounded border border-yellow-100">Draft</span>}
                                         </div>
                                         <div className="mt-1 flex items-center text-sm text-gray-500">
-                                            {item.author && <span className="mr-4">By {item.author}</span>}
-                                            <span>{new Date(item.createdAt!).toLocaleDateString()}</span>
+
+                                            <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</span>
                                         </div>
                                     </div>
                                 </div>

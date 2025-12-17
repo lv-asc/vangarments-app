@@ -32,8 +32,8 @@ const registerBrandValidation = [
     .isLength({ max: 20 })
     .withMessage('Contact phone must be 20 characters or less'),
   body('businessType')
-    .isIn(['brand', 'store', 'designer', 'manufacturer'])
-    .withMessage('Business type must be brand, store, designer, or manufacturer'),
+    .isIn(['brand', 'store', 'designer', 'manufacturer', 'non_profit'])
+    .withMessage('Business type must be brand, store, designer, manufacturer, or non_profit'),
   body('partnershipTier')
     .optional()
     .isIn(['basic', 'premium', 'enterprise'])

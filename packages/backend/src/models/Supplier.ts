@@ -1,8 +1,10 @@
 import { db } from '../database/connection';
+import { slugify } from '../utils/slugify';
 
 export interface Supplier {
     id: string;
     name: string;
+    slug?: string;
     contactInfo?: string;
     userId?: string;
     createdAt: Date;
@@ -29,13 +31,30 @@ export class SupplierModel {
         return result.rows.map(this.mapRowToSupplier);
     }
 
-    static async create(data: { name: string; contactInfo?: string; userId?: string }): Promise<Supplier> {
+    static async findBySlugOrId(identifier: string): Promise<Supplier | null> {
+        // Check if identifier is a valid UUID
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+        if (isUUID) {
+            return this.findById(identifier);
+        }
+
+        // Find by slug
+        const query = 'SELECT * FROM suppliers WHERE slug = $1 AND deleted_at IS NULL';
+        const result = await db.query(query, [identifier]);
+        return result.rows.length > 0 ? this.mapRowToSupplier(result.rows[0]) : null;
+    }
+
+    static async create(data: { name: string; slug?: string; contactInfo?: string; userId?: string }): Promise<Supplier> {
+        // Auto-generate slug from name if not provided
+        const slug = data.slug || slugify(data.name);
+
         const query = `
-      INSERT INTO suppliers (name, contact_info, user_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO suppliers (name, slug, contact_info, user_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-        const result = await db.query(query, [data.name, data.contactInfo || null, data.userId || null]);
+        const result = await db.query(query, [data.name, slug, data.contactInfo || null, data.userId || null]);
         return this.mapRowToSupplier(result.rows[0]);
     }
 
@@ -74,6 +93,7 @@ export class SupplierModel {
         return {
             id: row.id,
             name: row.name,
+            slug: row.slug || undefined,
             contactInfo: row.contact_info,
             userId: row.user_id,
             createdAt: row.created_at,

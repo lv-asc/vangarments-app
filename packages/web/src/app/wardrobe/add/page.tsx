@@ -31,6 +31,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+const AnyDndContext = DndContext as any;
+const AnySortableContext = SortableContext as any;
+
 const IMAGE_LABELS = [
     "Front",
     "Back",
@@ -598,9 +601,9 @@ export default function AddWardrobeItemPage() {
                                         </div>
                                     ) : (
                                         // @ts-ignore
-                                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                        <AnyDndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                                             {/* @ts-ignore */}
-                                            <SortableContext items={items} strategy={rectSortingStrategy}>
+                                            <AnySortableContext items={items} strategy={rectSortingStrategy}>
                                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                                     {items.map((item, index) => (
                                                         <SortablePhoto
@@ -624,8 +627,8 @@ export default function AddWardrobeItemPage() {
                                                         <input type="file" className="sr-only" accept="image/*" multiple onChange={handleImageSelect} />
                                                     </label>
                                                 </div>
-                                            </SortableContext>
-                                        </DndContext>
+                                            </AnySortableContext>
+                                        </AnyDndContext>
                                     )}
                                 </div>
 

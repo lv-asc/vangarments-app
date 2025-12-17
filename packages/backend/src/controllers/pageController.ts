@@ -11,6 +11,17 @@ export const getAllPages = async (req: Request, res: Response) => {
     }
 };
 
+export const getPage = async (req: Request, res: Response) => {
+    try {
+        const page = await PageModel.findBySlugOrId(req.params.id);
+        if (!page) return res.status(404).json({ message: 'Page not found' });
+        res.json(page);
+    } catch (error) {
+        console.error('Error fetching page:', error);
+        res.status(500).json({ message: 'Error fetching page', error });
+    }
+};
+
 export const createPage = async (req: Request, res: Response) => {
     try {
         const newPage = await PageModel.create(req.body);

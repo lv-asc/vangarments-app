@@ -8,11 +8,12 @@ const router = Router();
 router.put('/measurements', AuthUtils.authenticateToken, UserController.updateMeasurements);
 router.put('/address', AuthUtils.authenticateToken, UserController.updateAddress);
 router.put('/preferences', AuthUtils.authenticateToken, UserController.updatePreferences);
+router.post('/activity', AuthUtils.authenticateToken, UserController.updateActivity);
 
 // Public user routes
 router.get('/', AuthUtils.authenticateToken, UserController.getAllUsers);
 router.get('/:id/profile', UserController.getProfile);
-router.put('/profile', AuthUtils.authenticateToken, UserController.updateBasicProfile);
+router.get('/u/:username', UserController.getByUsername);
 router.get('/check-username/:username', UserController.checkUsernameAvailability);
 router.post('/avatar', AuthUtils.authenticateToken, UserController.uploadAvatarMiddleware, UserController.uploadAvatar);
 

@@ -7,6 +7,8 @@ import { getImageUrl } from '../../lib/utils';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 
+const MotionDiv = motion.div as any;
+
 // Helper for slugs (fallback)
 const slugify = (text: string) => {
   return text
@@ -51,7 +53,7 @@ export default function BrandsDirectoryPage() {
       // Also optional: filter by verification status if desired, but user didn't explicitly ask to hide pending.
       const filteredBrands = data.filter(b => {
         const type = b.brandInfo?.businessType;
-        return type !== 'store';
+        return type !== 'store' && type !== 'non_profit';
       });
 
       setBrands(filteredBrands);
@@ -136,7 +138,7 @@ function BrandCard({ brand }: { brand: any }) {
 
   return (
     <Link href={`/brands/${slug}`} className="group block h-full">
-      <motion.div
+      <MotionDiv
         whileHover={{ y: -4 }}
         className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 h-full border border-gray-100 flex flex-col"
       >
@@ -192,7 +194,7 @@ function BrandCard({ brand }: { brand: any }) {
             <span>{info.country || 'Global'}</span>
           </div>
         </div>
-      </motion.div>
+      </MotionDiv>
     </Link>
   );
 }

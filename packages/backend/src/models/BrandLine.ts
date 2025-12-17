@@ -1,9 +1,11 @@
 import { db } from '../database/connection';
+import { slugify } from '../utils/slugify';
 
 export interface BrandLine {
     id: string;
     brandId: string;
     name: string;
+    slug?: string;
     logo?: string;
     description?: string;
     collabBrandId?: string;
@@ -17,6 +19,7 @@ export interface BrandLine {
 export interface CreateBrandLineData {
     brandId: string;
     name: string;
+    slug?: string;
     logo?: string;
     description?: string;
     collabBrandId?: string;
@@ -26,6 +29,7 @@ export interface CreateBrandLineData {
 
 export interface UpdateBrandLineData {
     name?: string;
+    slug?: string;
     logo?: string;
     description?: string;
     collabBrandId?: string;
@@ -35,14 +39,18 @@ export interface UpdateBrandLineData {
 
 export class BrandLineModel {
     static async create(data: CreateBrandLineData): Promise<BrandLine> {
+        // Auto-generate slug from name if not provided
+        const slug = data.slug || slugify(data.name);
+
         const query = `
-      INSERT INTO brand_lines (brand_id, name, logo, description, collab_brand_id, designer_id, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO brand_lines (brand_id, name, slug, logo, description, collab_brand_id, designer_id, tags)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
         const values = [
             data.brandId,
             data.name,
+            slug,
             data.logo ?? null,
             data.description ?? null,
             data.collabBrandId ?? null,
@@ -56,6 +64,20 @@ export class BrandLineModel {
     static async findById(id: string): Promise<BrandLine | null> {
         const query = 'SELECT * FROM brand_lines WHERE id = $1 AND deleted_at IS NULL';
         const result = await db.query(query, [id]);
+        return result.rows.length > 0 ? this.mapRowToBrandLine(result.rows[0]) : null;
+    }
+
+    static async findBySlugOrId(identifier: string, brandId: string): Promise<BrandLine | null> {
+        // Check if identifier is a valid UUID
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+
+        if (isUUID) {
+            return this.findById(identifier);
+        }
+
+        // Find by slug within the brand
+        const query = 'SELECT * FROM brand_lines WHERE brand_id = $1 AND slug = $2 AND deleted_at IS NULL';
+        const result = await db.query(query, [brandId, identifier]);
         return result.rows.length > 0 ? this.mapRowToBrandLine(result.rows[0]) : null;
     }
 
@@ -106,6 +128,7 @@ export class BrandLineModel {
             id: row.id,
             brandId: row.brand_id,
             name: row.name,
+            slug: row.slug || undefined,
             logo: row.logo,
             description: row.description,
             collabBrandId: row.collab_brand_id,

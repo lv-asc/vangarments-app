@@ -444,6 +444,11 @@ class ApiClient {
     return response as any;
   }
 
+  async getPublicProfile(username: string): Promise<{ profile: any }> {
+    const response = await this.request<any>(`/users/u/${username}`);
+    return response as any;
+  }
+
   async checkUsernameAvailability(username: string): Promise<{ available: boolean; error?: string }> {
     const response = await this.request<any>(`/users/check-username/${encodeURIComponent(username)}`);
     return response as any;
@@ -464,6 +469,11 @@ class ApiClient {
       body: JSON.stringify(profileData),
     });
     return response.data || response.user;
+  }
+
+  async searchUsers(query: string, limit = 5): Promise<any[]> {
+    const response = await this.request<any>(`/users?search=${encodeURIComponent(query)}&limit=${limit}`);
+    return (response as any).users || response.data || [];
   }
 
   async getUsers(): Promise<any[]> {
@@ -812,8 +822,12 @@ class ApiClient {
   async deleteColor(id: string) { return this.request(`/colors/${id}`, { method: 'DELETE' }); }
 
   async getColorGroups() { const res = await this.request<any[]>('/colors/groups/all'); return res as any as any[]; }
-  async createColorGroup(name: string) { return this.request('/colors/groups', { method: 'POST', body: JSON.stringify({ name }) }); }
-  async updateColorGroup(id: string, name: string) { return this.request(`/colors/groups/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }); }
+  async createColorGroup(name: string, representativeColor?: string) {
+    return this.request('/colors/groups', { method: 'POST', body: JSON.stringify({ name, representativeColor }) });
+  }
+  async updateColorGroup(id: string, name: string, representativeColor?: string, colorIds?: string[]) {
+    return this.request(`/colors/groups/${id}`, { method: 'PUT', body: JSON.stringify({ name, representativeColor, colorIds }) });
+  }
   async deleteColorGroup(id: string) { return this.request(`/colors/groups/${id}`, { method: 'DELETE' }); }
 
   // --- EXTENDED SIZES (Admin Page) ---
@@ -860,8 +874,8 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/attributes');
     return (response as any).types || response.data || response;
   }
-  async addVUFSAttributeType(name: string) {
-    return this.request('/vufs-management/attributes', { method: 'POST', body: JSON.stringify({ name }) });
+  async addVUFSAttributeType(slug: string, name: string) {
+    return this.request('/vufs-management/attributes', { method: 'POST', body: JSON.stringify({ slug, name }) });
   }
   async updateVUFSAttributeType(slug: string, name: string) {
     return this.request(`/vufs-management/attributes/${slug}`, { method: 'PATCH', body: JSON.stringify({ name }) });
@@ -1226,6 +1240,249 @@ class ApiClient {
       method: 'DELETE',
     });
     return (response as any).data || response as T;
+  }
+
+  // ============== Entity Follow Methods ==============
+
+  /**
+   * Follow an entity (brand, store, supplier, page)
+   */
+  async followEntity(entityType: 'brand' | 'store' | 'supplier' | 'page', entityId: string): Promise<any> {
+    const response = await this.request<any>(`/social/entities/${entityType}/${entityId}/follow`, {
+      method: 'POST',
+    });
+    return response.data || response;
+  }
+
+  /**
+   * Unfollow an entity
+   */
+  async unfollowEntity(entityType: 'brand' | 'store' | 'supplier' | 'page', entityId: string): Promise<void> {
+    await this.request(`/social/entities/${entityType}/${entityId}/follow`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Check if current user is following an entity
+   */
+  async isFollowingEntity(entityType: 'brand' | 'store' | 'supplier' | 'page', entityId: string): Promise<boolean> {
+    const response = await this.request<any>(`/social/entities/${entityType}/${entityId}/follow-status`);
+    return response.data?.isFollowing || false;
+  }
+
+  /**
+   * Get entities the current user is following
+   */
+  async getFollowingEntities(
+    userId: string,
+    entityType?: 'brand' | 'store' | 'supplier' | 'page',
+    page = 1,
+    limit = 50
+  ): Promise<{ entities: any[]; total: number; hasMore: boolean }> {
+    const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+    if (entityType) params.append('entityType', entityType);
+    const response = await this.request<any>(`/social/users/${userId}/following-entities?${params}`);
+    return response.data || response;
+  }
+
+  /**
+   * Get followers of an entity
+   */
+  async getEntityFollowers(
+    entityType: 'brand' | 'store' | 'supplier' | 'page',
+    entityId: string,
+    page = 1,
+    limit = 20
+  ): Promise<{ followers: any[]; total: number; hasMore: boolean }> {
+    const response = await this.request<any>(
+      `/social/entities/${entityType}/${entityId}/followers?page=${page}&limit=${limit}`
+    );
+    return response.data || response;
+  }
+
+  // ============== Direct Messaging Methods ==============
+
+  /**
+   * Get all conversations (inbox)
+   */
+  async getConversations(limit = 20, offset = 0): Promise<{ conversations: any[]; total: number }> {
+    const response = await this.request<any>(`/messages/conversations?limit=${limit}&offset=${offset}`);
+    return response.data || response;
+  }
+
+  /**
+   * Get a specific conversation
+   */
+  async getConversation(conversationId: string): Promise<any> {
+    const response = await this.request<any>(`/messages/conversations/${conversationId}`);
+    return response.data?.conversation || response;
+  }
+
+  /**
+   * Start or get existing conversation with a user
+   */
+  async startConversation(recipientId?: string, entityType?: string, entityId?: string): Promise<any> {
+    const body: any = {};
+    if (recipientId) body.recipientId = recipientId;
+    if (entityType) body.entityType = entityType;
+    if (entityId) body.entityId = entityId;
+
+    const response = await this.request<any>('/messages/conversations', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return response.data?.conversation || response;
+  }
+
+  /**
+   * Get messages in a conversation
+   */
+  async getMessages(conversationId: string, limit = 50, offset = 0): Promise<{ messages: any[]; total: number }> {
+    const response = await this.request<any>(
+      `/messages/conversations/${conversationId}/messages?limit=${limit}&offset=${offset}`
+    );
+    return response.data || response;
+  }
+
+  /**
+   * Update user activity status
+   */
+  async updateActivity(): Promise<void> {
+    await this.request('/users/activity', { method: 'POST' });
+  }
+
+  /**
+   * Send a message
+   */
+  async sendMessage(
+    conversationId: string,
+    content: string,
+    messageType: 'text' | 'image' | 'item_share' | 'voice' | 'file' = 'text',
+    metadata?: any,
+    attachments?: any[],
+    mentions?: any[]
+  ): Promise<any> {
+    const response = await this.request<any>(`/messages/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content, messageType, metadata, attachments, mentions }),
+    });
+    return response.data?.message || response;
+  }
+
+  /**
+   * Edit a message (only within 15 minutes)
+   */
+  async editMessage(messageId: string, content: string): Promise<any> {
+    const response = await this.request<any>(`/messages/messages/${messageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content }),
+    });
+    return response.data?.message || response;
+  }
+
+  /**
+   * Check if a message can be edited
+   */
+  async canEditMessage(messageId: string): Promise<boolean> {
+    const response = await this.request<any>(`/messages/messages/${messageId}/can-edit`);
+    return response.data?.canEdit || false;
+  }
+
+  /**
+   * Mark a conversation as read
+   */
+  async markConversationAsRead(conversationId: string): Promise<void> {
+    await this.request(`/messages/conversations/${conversationId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Get unread message count
+   */
+  async getUnreadMessageCount(): Promise<number> {
+    const response = await this.request<any>('/messages/unread-count');
+    return response.data?.unreadCount || 0;
+  }
+
+  /**
+   * Delete a message (only within 15 minutes)
+   */
+  async deleteMessage(messageId: string): Promise<void> {
+    await this.request(`/messages/messages/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Add a reaction to a message
+   */
+  async addReaction(messageId: string, emoji: string): Promise<any> {
+    const response = await this.request<any>(`/messages/messages/${messageId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    });
+    return response.data?.reaction || response;
+  }
+
+  /**
+   * Remove a reaction from a message
+   */
+  async removeReaction(messageId: string, emoji: string): Promise<void> {
+    await this.request(`/messages/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Get reactions for a message
+   */
+  async getMessageReactions(messageId: string): Promise<any[]> {
+    const response = await this.request<any>(`/messages/messages/${messageId}/reactions`);
+    return response.data?.reactions || [];
+  }
+
+  /**
+   * Create a group conversation
+   */
+  async createGroupConversation(participantIds: string[], name?: string): Promise<any> {
+    const response = await this.request<any>('/messages/conversations', {
+      method: 'POST',
+      body: JSON.stringify({ participantIds, name }),
+    });
+    return response.data?.conversation || response;
+  }
+  async updateConversation(conversationId: string, updates: { name?: string; avatarUrl?: string }): Promise<any> {
+    const response = await this.request<any>(`/messages/conversations/${conversationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+    return response.data?.conversation || response;
+  }
+
+  async uploadMessageMedia(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('image', file); // Field name should match storage controller's uploadMiddleware
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/messages/upload-media`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new ApiErrorClass(data.error?.message || data.message || 'Media upload failed');
+    }
+
+    return data.data || data;
   }
 }
 

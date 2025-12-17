@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { SocialService } from '../services/socialService';
 import { AuthenticatedRequest } from '../utils/auth';
+import { EntityFollowModel, EntityType } from '../models/EntityFollow';
 
 const socialService = new SocialService();
 
@@ -482,6 +483,184 @@ export class SocialController {
       res.status(500).json({
         error: {
           code: 'GET_STATS_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  // ============== Entity Follow Methods ==============
+
+  /**
+   * Follow an entity (brand, store, supplier, page)
+   */
+  async followEntity(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { entityType, entityId } = req.params;
+      const followerId = req.user!.id;
+
+      const follow = await EntityFollowModel.follow({
+        followerId,
+        entityType: entityType as EntityType,
+        entityId,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: { follow },
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        error: {
+          code: 'FOLLOW_ENTITY_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Unfollow an entity
+   */
+  async unfollowEntity(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { entityType, entityId } = req.params;
+      const followerId = req.user!.id;
+
+      const success = await EntityFollowModel.unfollow(
+        followerId,
+        entityType as EntityType,
+        entityId
+      );
+
+      if (!success) {
+        res.status(404).json({
+          error: {
+            code: 'FOLLOW_NOT_FOUND',
+            message: 'Follow relationship not found',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: 'Successfully unfollowed entity',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'UNFOLLOW_ENTITY_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Get followers of an entity
+   */
+  async getEntityFollowers(req: Request, res: Response): Promise<void> {
+    try {
+      const { entityType, entityId } = req.params;
+      const { page = 1, limit = 20 } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      const result = await EntityFollowModel.getFollowers(
+        entityType as EntityType,
+        entityId,
+        limitNum,
+        offset
+      );
+
+      res.json({
+        success: true,
+        data: {
+          followers: result.followers,
+          total: result.total,
+          hasMore: offset + result.followers.length < result.total,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+          },
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'GET_ENTITY_FOLLOWERS_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Check if user is following an entity
+   */
+  async checkEntityFollowStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { entityType, entityId } = req.params;
+      const followerId = req.user!.id;
+
+      const isFollowing = await EntityFollowModel.isFollowing(
+        followerId,
+        entityType as EntityType,
+        entityId
+      );
+
+      res.json({
+        success: true,
+        data: { isFollowing },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'CHECK_ENTITY_FOLLOW_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Get entities a user is following
+   */
+  async getUserFollowingEntities(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      const { entityType, page = 1, limit = 50 } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      const result = await EntityFollowModel.getFollowing(
+        userId,
+        entityType as EntityType | undefined,
+        limitNum,
+        offset
+      );
+
+      res.json({
+        success: true,
+        data: {
+          entities: result.entities,
+          total: result.total,
+          hasMore: offset + result.entities.length < result.total,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+          },
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'GET_USER_FOLLOWING_ENTITIES_FAILED',
           message: error.message,
         },
       });

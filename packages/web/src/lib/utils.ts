@@ -87,56 +87,49 @@ export function slugify(text: string): string {
     .trim();
 }
 
-// Update getImageUrl to be more robust
+// Update getImageUrl to return relative paths to leverage Next.js rewrites
 export function getImageUrl(path: string | undefined | null, size?: 'sm' | 'md' | 'lg' | 'xl'): string {
   if (!path) return '';
   if (path.startsWith('http')) return path;
   if (path.startsWith('data:')) return path;
 
-  // Handle storage paths from backend
-  // If it already starts with /api, trusted it (unless it's missing the domain in some contexts, but usually OK)
-  if (path.startsWith('/api')) {
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${path.startsWith('/api') ? path.replace('/api', '/api') : path}`; // Redundant replace just to be safe if logic changes
-    // Actually simpler:
-    // return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${path}`;
-    // But wait, if NEXT_PUBLIC_API_URL includes /api in some configs?
-    // Standard convention in this project seems to be API_URL = host:port
-  }
-
-  // If path starts with /, check if it is storage
-  if (path.startsWith('/storage/')) {
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api${path}`;
-  }
-
-  if (path.startsWith('storage/')) {
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/${path}`;
-  }
-
-  // If just a filename or relative path that maps to storage implied?
-  // Be careful not to break static public assets.
-
-  // Reuse the logic I found successful:
+  // Normalize path
   let cleanPath = path.startsWith('/') ? path.substring(1) : path;
 
-  if (cleanPath.startsWith('storage/')) {
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/${cleanPath}`;
+  // Handle legacy api/storage prefix
+  if (cleanPath.startsWith('api/storage/')) {
+    cleanPath = cleanPath.substring('api/'.length); // Becomes storage/...
   }
 
   // Handle direct uploads folder references (often returned by upload endpoint)
+  // Map uploads/... -> storage/uploads/...
   if (cleanPath.startsWith('uploads/')) {
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/storage/${cleanPath}`;
+    cleanPath = `storage/${cleanPath}`;
+  }
+
+  // If it is a storage path, return relative URL /storage/...
+  // This will be proxied by Next.js to the backend
+  if (cleanPath.startsWith('storage/')) {
+    return `/${cleanPath}`;
   }
 
   // Fallback for non-storage paths (e.g. public assets)
-  // If it starts with / and not storage, assume public folder?
-  if (path.startsWith('/')) {
-    return path;
-  }
-
-  const baseUrl = process.env.NEXT_PUBLIC_CDN_URL || '';
+  // Final fallback for paths that might be public assets or CDN paths
+  const cdnBaseUrl = process.env.NEXT_PUBLIC_CDN_URL || '';
   const sizeParam = size ? `?w=${getSizeWidth(size)}` : '';
 
-  return `${baseUrl}${path}${sizeParam}`;
+  // If CDN_URL is provided, use it. Otherwise, assume it's a public asset relative to root.
+  if (cdnBaseUrl) {
+    const url = `${cdnBaseUrl}/${cleanPath}${sizeParam}`;
+    console.log('[getImageUrl] CDN path:', path, '->', url);
+    return url;
+  } else {
+    // If it's just a filename "image.jpg", and we don't know where it is...
+    // Maybe assume public? context dependent.
+    const finalPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    console.log('[getImageUrl] Fallback path (public/relative):', path, '->', finalPath);
+    return finalPath;
+  }
 }
 
 function getSizeWidth(size: string): number {

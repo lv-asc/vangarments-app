@@ -68,6 +68,7 @@ interface RegisterData {
   cpf: string;
   birthDate?: string;
   gender?: 'male' | 'female' | 'non-binary' | 'prefer-not-to-say';
+  username?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -109,8 +110,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('auth:token-expired', handleAuthExpired);
 
+    // Periodic activity update (every 2 minutes)
+    const activityInterval = setInterval(() => {
+      if (apiClient.isAuthenticated) {
+        apiClient.updateActivity().catch(() => {
+          // Silent failure for activity updates
+        });
+      }
+    }, 2 * 60 * 1000);
+
     return () => {
       window.removeEventListener('auth:token-expired', handleAuthExpired);
+      clearInterval(activityInterval);
     };
   }, [initAuth, router]);
 

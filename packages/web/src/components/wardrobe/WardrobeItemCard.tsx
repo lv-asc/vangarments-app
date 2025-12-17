@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   HeartIcon,
@@ -39,6 +39,9 @@ interface WardrobeItemCardProps {
   onToggleForSale: (itemId: string) => void;
   onView: (item: WardrobeItem) => void;
   refreshKey?: number; // Used for cache-busting image URLs
+  // Selection support
+  isSelected?: boolean;
+  onSelect?: (id: string, event: React.MouseEvent) => void;
 }
 
 export function WardrobeItemCard({
@@ -48,9 +51,23 @@ export function WardrobeItemCard({
   onToggleFavorite,
   onToggleForSale,
   onView,
-  refreshKey
+  refreshKey,
+  isSelected = false,
+  onSelect,
 }: WardrobeItemCardProps) {
   const [showMenu, setShowMenu] = useState(false);
+
+  // Handle click with keyboard modifier detection for selection
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    // If selection is enabled and Cmd/Ctrl or Shift is held, handle selection
+    if (onSelect && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+      e.preventDefault();
+      onSelect(item.id, e);
+    } else {
+      // Normal click - view item
+      onView(item);
+    }
+  }, [onSelect, onView, item]);
 
   const getColorHex = (colorName: string): string => {
     const colors: { [key: string]: string } = {
@@ -109,9 +126,32 @@ export function WardrobeItemCard({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="fashion-card group cursor-pointer"
-      onClick={() => onView(item)}
+      className={`fashion-card group cursor-pointer relative ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}
+      onClick={handleCardClick}
     >
+      {/* Selection Checkbox (visible when selection is enabled) */}
+      {onSelect && (
+        <div
+          className={`absolute top-2 left-2 z-20 transition-opacity ${isSelected || 'opacity-0 group-hover:opacity-100'}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(item.id, e);
+          }}
+        >
+          <div
+            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors cursor-pointer
+              ${isSelected
+                ? 'bg-blue-500 border-blue-500 text-white'
+                : 'bg-white/90 border-gray-300 hover:border-blue-400'}`}
+          >
+            {isSelected && (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
       {/* Image */}
       <div className="relative aspect-[3/4] overflow-hidden">
         <img

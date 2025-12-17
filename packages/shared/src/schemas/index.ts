@@ -8,6 +8,10 @@ export const UserRegistrationSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   birthDate: z.string().transform((str) => new Date(str)),
   gender: z.enum(['male', 'female', 'non-binary', 'prefer-not-to-say']),
+  username: z.string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(30, 'Username must be at most 30 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Username must only contain letters, numbers, and underscores'),
 });
 
 export const VUFSItemSchema = z.object({

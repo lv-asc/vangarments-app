@@ -42,14 +42,14 @@ export class SocialService {
    * Get a post with all its details (user, items, engagement)
    */
   async getPostWithDetails(postId: string): Promise<SocialPost | null> {
-    const post = await SocialPostModel.findById(postId);
+    const post = await SocialPostModel.findBySlugOrId(postId);
     if (!post) return null;
 
     // Get recent comments
-    const { comments } = await PostCommentModel.findByPostId(postId, 5, 0);
+    const { comments } = await PostCommentModel.findByPostId(post.id, 5, 0);
 
     // Get recent likes
-    const { likes } = await PostLikeModel.findByPostId(postId, 10, 0);
+    const { likes } = await PostLikeModel.findByPostId(post.id, 10, 0);
 
     return {
       ...post,

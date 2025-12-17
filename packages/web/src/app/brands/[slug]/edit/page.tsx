@@ -315,7 +315,12 @@ function TeamTab({ brandId, initialMembers, onUpdate }: { brandId: string, initi
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await brandApi.addTeamMember(brandId, newMember);
+      await brandApi.addTeamMember(brandId, {
+        userId: newMember.userId,
+        roles: [newMember.role],
+        title: newMember.title,
+        isPublic: newMember.isPublic
+      });
       setIsAdding(false);
       setNewMember({ userId: '', role: 'Other', title: '', isPublic: true });
       onUpdate();
@@ -378,7 +383,7 @@ function TeamTab({ brandId, initialMembers, onUpdate }: { brandId: string, initi
           <div key={member.id} className="bg-white p-4 rounded-lg shadow border border-gray-200 flex justify-between items-start">
             <div>
               <div className="font-medium text-gray-900">{member.user?.name || member.userId}</div>
-              <div className="text-sm text-blue-600">{member.role}</div>
+              <div className="text-sm text-blue-600">{member.roles?.join(', ')}</div>
               {member.title && <div className="text-xs text-gray-500">{member.title}</div>}
               {!member.isPublic && <div className="text-xs text-red-500 mt-1">Hidden from profile</div>}
             </div>

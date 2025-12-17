@@ -105,7 +105,7 @@ export class BrandService {
    * Admin update brand details
    */
   async updateBrand(brandId: string, updates: UpdateBrandAccountData): Promise<BrandAccount> {
-    const brand = await BrandAccountModel.findById(brandId);
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
     if (!brand) throw new Error('Brand not found');
 
     const updateData: UpdateBrandAccountData = {};
@@ -115,7 +115,7 @@ export class BrandService {
     // Add other fields as needed
 
     console.log('BrandService.updateBrand updateData:', JSON.stringify(updateData));
-    const updatedBrand = await BrandAccountModel.update(brandId, updateData);
+    const updatedBrand = await BrandAccountModel.update(brand.id, updateData);
     if (!updatedBrand) throw new Error('Failed to update brand');
 
     return updatedBrand;
@@ -364,15 +364,15 @@ export class BrandService {
       throw new Error('Brand not found');
     }
 
-    // Get featured items (latest available items)
+    // Get featured items (latest available items) - use resolved brand.id
     const { items: featuredItems } = await BrandCatalogModel.findByBrandId(
-      brandId,
+      brand.id,
       { availabilityStatus: 'available' },
       8,
       0
     );
 
-    const collections = await BrandCatalogModel.getCollections(brandId);
+    const collections = await BrandCatalogModel.getCollections(brand.id);
 
     return {
       brand,

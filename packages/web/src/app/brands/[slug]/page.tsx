@@ -34,6 +34,42 @@ export default function BrandProfilePage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items'>('overview');
+    const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+
+    // Resolve banners - MUST be unconditional
+    const banners = React.useMemo(() => {
+        if (!profile) return [];
+
+        const brandInfo = profile.brand.brandInfo;
+        const rawBanners = brandInfo.banners || [];
+        const singleBanner = brandInfo.banner;
+
+        // If we have explicit banners array, use it
+        if (rawBanners.length > 0) {
+            return rawBanners.map(b => {
+                if (typeof b === 'string') return { url: b, positionY: 50 };
+                return { url: b.url, positionY: b.positionY ?? 50 };
+            });
+        }
+
+        // Fallback to single banner
+        if (singleBanner) {
+            return [{ url: singleBanner, positionY: 50 }];
+        }
+
+        return [];
+    }, [profile]); // Dependency changed to simple profile check
+
+    // Banner Slideshow - MUST be unconditional
+    useEffect(() => {
+        if (banners.length <= 1) return;
+
+        const interval = setInterval(() => {
+            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [banners.length]);
 
     useEffect(() => {
         if (slug) {
@@ -78,40 +114,6 @@ export default function BrandProfilePage() {
     const { brand, team, lookbooks, collections } = profile;
     const brandInfo = brand.brandInfo;
     const profileData = brand.profileData || {} as BrandProfileData;
-
-    // Resolve banners
-    const banners = React.useMemo(() => {
-        const rawBanners = brandInfo.banners || [];
-        const singleBanner = brandInfo.banner;
-
-        // If we have explicit banners array, use it
-        if (rawBanners.length > 0) {
-            return rawBanners.map(b => {
-                if (typeof b === 'string') return { url: b, positionY: 50 };
-                return { url: b.url, positionY: b.positionY ?? 50 };
-            });
-        }
-
-        // Fallback to single banner
-        if (singleBanner) {
-            return [{ url: singleBanner, positionY: 50 }];
-        }
-
-        return [];
-    }, [brandInfo.banners, brandInfo.banner]);
-
-    const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-
-    // Banner Slideshow
-    useEffect(() => {
-        if (banners.length <= 1) return;
-
-        const interval = setInterval(() => {
-            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
-        }, 5000);
-
-        return () => clearInterval(interval);
-    }, [banners.length]);
 
     const currentBanner = banners[currentBannerIndex];
 
@@ -425,13 +427,13 @@ export default function BrandProfilePage() {
 // ============ SUB-COMPONENTS ============
 
 function TeamMemberCard({ member }: { member: BrandTeamMember }) {
-    return (
+    const content = (
         <div className="text-center group">
-            <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gray-200 overflow-hidden">
+            <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gray-200 overflow-hidden border-2 border-transparent group-hover:border-blue-600 transition-all">
                 {member.user?.avatarUrl ? (
                     <img src={getImageUrl(member.user.avatarUrl)} alt={member.user.name} className="w-full h-full object-cover" />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-400">
+                    <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-400 bg-gray-100">
                         {member.user?.name?.charAt(0) || '?'}
                     </div>
                 )}
@@ -447,11 +449,23 @@ function TeamMemberCard({ member }: { member: BrandTeamMember }) {
             </div>
         </div>
     );
+
+    if (member.user?.username) {
+        return (
+            <Link href={`/u/${member.user.username}`} className="block">
+                {content}
+            </Link>
+        );
+    }
+
+    return <div>{content}</div>;
 }
 
 function LookbookCard({ lookbook, brandId }: { lookbook: BrandLookbook; brandId: string }) {
+    // Use slug if available, fallback to id for backward compatibility
+    const lookbookIdentifier = lookbook.slug || lookbook.id;
     return (
-        <Link href={`/brands/${brandId}/lookbooks/${lookbook.id}`} className="group">
+        <Link href={`/brands/${brandId}/lookbooks/${lookbookIdentifier}`} className="group">
             <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
                 <div className="aspect-[4/3] bg-gray-100">
                     {lookbook.coverImageUrl ? (
@@ -481,8 +495,10 @@ function LookbookCard({ lookbook, brandId }: { lookbook: BrandLookbook; brandId:
 }
 
 function CollectionCard({ collection, brandId }: { collection: BrandCollection; brandId: string }) {
+    // Use slug if available, fallback to id for backward compatibility
+    const collectionIdentifier = collection.slug || collection.id;
     return (
-        <Link href={`/brands/${brandId}/collections/${collection.id}`} className="group">
+        <Link href={`/brands/${brandId}/collections/${collectionIdentifier}`} className="group">
             <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-shadow">
                 <div className="aspect-[4/3] bg-gray-100">
                     {collection.coverImageUrl ? (

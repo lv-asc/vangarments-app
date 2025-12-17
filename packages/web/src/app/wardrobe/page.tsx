@@ -20,6 +20,7 @@ import { apiClient } from '@/lib/api';
 
 import { getImageUrl, resetImageCache } from '@/utils/imageUrl';
 import { WardrobeItemCard } from '@/components/wardrobe/WardrobeItemCard';
+import { useMultiSelect } from '@/hooks/useMultiSelect';
 
 interface WardrobeItem {
   id: string;
@@ -64,6 +65,17 @@ export default function WardrobePage() {
   const [categories, setCategories] = useState<{ value: string; label: string }[]>([
     { value: 'all', label: 'Todas as Peças' }
   ]);
+
+  // Multi-select with keyboard shortcuts (Cmd/Ctrl+Click, Shift+Click, Cmd/Ctrl+A)
+  const {
+    selectedIds,
+    handleItemClick: handleSelectItem,
+    clearSelection,
+    selectedCount,
+  } = useMultiSelect({
+    items,
+    getItemId: (item) => item.id,
+  });
 
   useEffect(() => {
     loadCategories();
@@ -177,7 +189,42 @@ export default function WardrobePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      
+      {/* Selection Bar */}
+      {selectedCount > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-900">
+                {selectedCount} {selectedCount === 1 ? 'item selecionado' : 'itens selecionados'}
+              </span>
+              <button
+                onClick={clearSelection}
+                className="text-sm text-gray-500 hover:text-gray-700 underline"
+              >
+                Limpar seleção
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => { /* TODO: Bulk action */ }}>
+                Criar Outfit
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => { /* TODO: Bulk action */ }}>
+                Adicionar Tags
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => { /* TODO: Bulk delete */ }}
+              >
+                <TrashIcon className="h-4 w-4 mr-1" />
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}
@@ -300,6 +347,8 @@ export default function WardrobePage() {
                   onDelete={() => { }}
                   onToggleFavorite={toggleFavorite}
                   onToggleForSale={() => { }}
+                  isSelected={selectedIds.has(item.id)}
+                  onSelect={handleSelectItem}
                 />
               ))}
             </div>

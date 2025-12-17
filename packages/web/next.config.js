@@ -96,11 +96,17 @@ const nextConfig = {
   },
   async rewrites() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const backendUrl = apiUrl.replace(/\/api\/?$/, ''); // http://localhost:3001
+
     return [
       {
         source: '/api/:path*',
-        destination: `${apiUrl}/:path*`,
+        destination: `${apiUrl}/:path*`, // e.g. http://localhost:3001/api/:path*
       },
+      {
+        source: '/storage/:path*',
+        destination: `${backendUrl}/storage/:path*`,
+      }
     ];
   },
   async headers() {

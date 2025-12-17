@@ -4,6 +4,7 @@ import * as pageController from '../controllers/pageController';
 const router = Router();
 
 router.get('/', pageController.getAllPages);
+router.get('/:id', pageController.getPage);
 router.post('/', pageController.createPage);
 router.put('/:id', pageController.updatePage);
 router.delete('/:id', pageController.deletePage);

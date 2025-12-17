@@ -14,6 +14,7 @@ import { useNavigation } from '@/hooks/useNavigation';
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     email: '',
     cpf: '',
     password: '',
@@ -60,6 +61,7 @@ export default function RegisterPage() {
     try {
       await register({
         name: formData.name,
+        username: formData.username,
         email: formData.email,
         password: formData.password,
         cpf: formData.cpf,
@@ -140,6 +142,28 @@ export default function RegisterPage() {
                   className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors"
                   placeholder="Seu nome completo"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                  Nome de usuário
+                </label>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  required
+                  value={formData.username}
+                  onChange={handleChange}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors"
+                  placeholder="Seu nome de usuário (ex: usuario123)"
+                  pattern="[a-zA-Z0-9_]+"
+                  title="Apenas letras, números e sublinhados"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Apenas letras, números e sublinhados
+                </p>
               </div>
 
               <div>

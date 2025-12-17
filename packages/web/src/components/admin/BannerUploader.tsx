@@ -21,6 +21,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+const AnyDndContext = DndContext as any;
+const AnySortableContext = SortableContext as any;
+
 // Reuse LogoItem interface for now, might rename to ImageItem if generalized
 export interface BannerItem {
     url: string;
@@ -297,12 +300,12 @@ export default function BannerUploader({
                 </div>
             </div>
 
-            <DndContext
+            <AnyDndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
             >
-                <SortableContext
+                <AnySortableContext
                     items={banners.map(b => b.url)}
                     strategy={rectSortingStrategy}
                 >
@@ -319,8 +322,8 @@ export default function BannerUploader({
                             />
                         ))}
                     </div>
-                </SortableContext>
-            </DndContext>
+                </AnySortableContext>
+            </AnyDndContext>
 
             {banners.length === 0 && (
                 <div className="text-sm text-gray-500 text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">

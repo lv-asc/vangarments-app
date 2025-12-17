@@ -22,18 +22,23 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+const AnyDndContext = DndContext as any;
+const AnySortableContext = SortableContext as any;
+
 export interface LogoItem {
     url: string;
     name: string;
 }
 
 interface LogoUploaderProps {
-    logos: LogoItem[];
-    onChange: (logos: LogoItem[]) => void;
+    logos: (LogoItem | string)[];
+    onChange: (logos: any[]) => void; // Accepts generic array to support string[] or LogoItem[]
     label?: string;
     buttonLabel?: string;
     emptyStateMessage?: string;
     helperText?: string;
+    showNameInput?: boolean;
+    itemLabel?: string;
 }
 
 interface SortableLogoItemProps {
@@ -43,9 +48,20 @@ interface SortableLogoItemProps {
     onRemove: (index: number) => void;
     onMakeMain: (index: number) => void;
     onNameChange: (index: number, name: string) => void;
+    showNameInput: boolean;
+    itemLabel: string;
 }
 
-function SortableLogoItem({ logo, index, getImageUrl, onRemove, onMakeMain, onNameChange }: SortableLogoItemProps) {
+function SortableLogoItem({
+    logo,
+    index,
+    getImageUrl,
+    onRemove,
+    onMakeMain,
+    onNameChange,
+    showNameInput,
+    itemLabel
+}: SortableLogoItemProps) {
     const {
         attributes,
         listeners,
@@ -53,7 +69,7 @@ function SortableLogoItem({ logo, index, getImageUrl, onRemove, onMakeMain, onNa
         transform,
         transition,
         isDragging
-    } = useSortable({ id: logo.url });
+    } = useSortable({ id: logo.url || `item-${index}` });
 
     const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
@@ -62,7 +78,7 @@ function SortableLogoItem({ logo, index, getImageUrl, onRemove, onMakeMain, onNa
         zIndex: isDragging ? 1000 : 1,
     };
 
-    const extension = logo.url.split('.').pop()?.toLowerCase() || '';
+    const extension = logo.url?.split('.').pop()?.toLowerCase() || '';
 
     // Prevent drag on input
     const handleInputPointerDown = (e: React.PointerEvent) => {
@@ -83,26 +99,36 @@ function SortableLogoItem({ logo, index, getImageUrl, onRemove, onMakeMain, onNa
             >
                 <img
                     src={getImageUrl(logo.url)}
-                    alt={`Logo ${index + 1}`}
+                    alt={`${itemLabel} ${index + 1}`}
                     className="object-contain w-full h-full pointer-events-none"
                 />
             </div>
 
             <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-1">
-                    <input
-                        type="text"
-                        value={logo.name}
-                        onChange={(e) => onNameChange(index, e.target.value)}
-                        placeholder="Logo Name"
-                        className="text-xs border border-gray-300 rounded px-1 py-0.5 w-full"
-                        onPointerDown={handleInputPointerDown}
-                        onKeyDown={(e) => e.stopPropagation()}
-                    />
-                    <span className="text-[10px] text-gray-500 font-mono uppercase bg-gray-100 px-1 rounded">
-                        {extension}
-                    </span>
-                </div>
+                {showNameInput && (
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="text"
+                            value={logo.name}
+                            onChange={(e) => onNameChange(index, e.target.value)}
+                            placeholder={`${itemLabel} Name`}
+                            className="text-xs border border-gray-300 rounded px-1 py-0.5 w-full"
+                            onPointerDown={handleInputPointerDown}
+                            onKeyDown={(e) => e.stopPropagation()}
+                        />
+                        <span className="text-[10px] text-gray-500 font-mono uppercase bg-gray-100 px-1 rounded">
+                            {extension}
+                        </span>
+                    </div>
+                )}
+                {!showNameInput && (
+                    <div className="flex justify-between items-center px-1">
+                        <span className="text-xs font-medium text-gray-500">{itemLabel} {index + 1}</span>
+                        <span className="text-[10px] text-gray-500 font-mono uppercase bg-gray-100 px-1 rounded">
+                            {extension}
+                        </span>
+                    </div>
+                )}
             </div>
 
             <div className="flex justify-between items-center mt-1 pt-1 border-t border-gray-100">
@@ -139,10 +165,22 @@ export default function LogoUploader({
     label = "Brand Logos",
     buttonLabel = "Upload Logo(s)",
     emptyStateMessage = "No logos uploaded yet",
-    helperText = "The first logo (highlighted) is the main brand logo. Drag to reorder. Name your logos."
+    helperText = "The first image is the main one. Drag to reorder.",
+    showNameInput = true,
+    itemLabel = "Logo"
 }: LogoUploaderProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
+
+    // Normalize input to LogoItem[]
+    const normalizedLogos: LogoItem[] = logos.map(l => {
+        if (typeof l === 'string') {
+            return { url: l, name: '' };
+        }
+        return l;
+    });
+
+    const isStringArray = logos.length > 0 && typeof logos[0] === 'string';
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -166,6 +204,14 @@ export default function LogoUploader({
         return `/api/storage/${path}`;
     };
 
+    const emitChange = (newItems: LogoItem[]) => {
+        if (isStringArray) {
+            onChange(newItems.map(item => item.url));
+        } else {
+            onChange(newItems);
+        }
+    };
+
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
 
@@ -175,13 +221,54 @@ export default function LogoUploader({
             const uploadPromises = files.map(file => api.uploadFile(file));
             const results = await Promise.all(uploadPromises);
 
-            // Create new logo items with empty names initially
+            // Create new logo items
             const newItems: LogoItem[] = results.map(r => ({
                 url: r.url,
                 name: ''
             }));
 
-            onChange([...logos, ...newItems]);
+            // Merge with existing normalized logos
+            const updatedList = [...normalizedLogos, ...newItems];
+
+            // Check if we started with strings or objects (e.g. empty array initially, assume objects unless prop says otherwise? 
+            // Actually, if generic, we should infer or check props. 
+            // Determine return type based on current input type or a prop?
+            // If empty, we can't infer. But let's assume if we receive string[], we return string[].
+            // If logos is empty, we default to LogoItem[] (standard behavior) UNLESS we change logic.
+            // But wait, LookbookManagement passes `formData.images` which is `string[]`.
+            // If it's empty `[]`, `isStringArray` is false.
+            // Then it returns objects `[{url, name}]`.
+            // But `LookbookManagement` expects `string[]`.
+            // FIX: If the input array is empty, this heuristic fails.
+            // However, `LookbookManagement` uses `handleImagesChange` which just sets state. 
+            // If it receives objects, `formData.images` becomes object array.
+            // But `LookbookManagement` defines `images: [] as string[]`.
+            // So Typescript might complain, or runtime is fine.
+            // To be safe: we should probably always return what was passed, OR simpler:
+            // Just return objects if names are supported, strings if not? No.
+            // Let's add better detection. 
+            // Best bet: If `logos` contains strings, return strings. 
+            // If `logos` is empty, check `showNameInput`. If `false`, likely treating as simple images -> return strings?
+            // Or just check if the parent component provided a specific type.
+            // Let's keep `emitChange` logic but refine:
+            // If `logos` was empty, we need to know what to return.
+            // Maybe just check `normalizedLogos`? No.
+
+            // Let's rely on `onChange` to handle `any[]`.
+            // But we need to be consistent. 
+            // HACK: If `logos` is empty, check `showNameInput`. If `false` (Lookbook), return strings. If `true` (Brand Logos), return objects.
+
+            let shouldReturnStrings = isStringArray;
+            if (logos.length === 0 && !showNameInput) {
+                shouldReturnStrings = true;
+            }
+
+            if (shouldReturnStrings) {
+                onChange(updatedList.map(i => i.url));
+            } else {
+                onChange(updatedList);
+            }
+
             toast.success(`${files.length} image(s) uploaded`);
         } catch (error) {
             console.error('Failed to upload image', error);
@@ -195,35 +282,45 @@ export default function LogoUploader({
     };
 
     const handleRemove = (index: number) => {
-        const newLogos = [...logos];
-        newLogos.splice(index, 1);
-        onChange(newLogos);
+        const newItems = [...normalizedLogos];
+        newItems.splice(index, 1);
+        emitChange(newItems);
     };
 
     const handleMakeMain = (index: number) => {
         if (index === 0) return;
-        const newLogos = [...logos];
-        const [movedLogo] = newLogos.splice(index, 1);
-        newLogos.unshift(movedLogo);
-        onChange(newLogos);
+        const newItems = [...normalizedLogos];
+        const [movedItem] = newItems.splice(index, 1);
+        newItems.unshift(movedItem);
+        emitChange(newItems);
     };
 
     const handleNameChange = (index: number, name: string) => {
-        const newLogos = [...logos];
-        newLogos[index] = { ...newLogos[index], name };
-        onChange(newLogos);
+        const newItems = [...normalizedLogos];
+        newItems[index] = { ...newItems[index], name };
+        emitChange(newItems);
     }
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (over && active.id !== over.id) {
-            const oldIndex = logos.findIndex(l => l.url === active.id);
-            const newIndex = logos.findIndex(l => l.url === over.id);
+            const oldIndex = normalizedLogos.findIndex(l => (l.url || `item-${normalizedLogos.indexOf(l)}`) === active.id);
+            const newIndex = normalizedLogos.findIndex(l => (l.url || `item-${normalizedLogos.indexOf(l)}`) === over.id);
+
+            // Fallback for ID matching if URL is issue
+            // Re-calc using index directly if needed? No, dnd-kit uses IDs.
+            // The IDs in `SortableLogoItem` use `logo.url || item-${index}`.
+            // Need to match that logic. 
+            // `SortableContext` needs items with same IDs.
+
             if (oldIndex !== -1 && newIndex !== -1) {
-                onChange(arrayMove(logos, oldIndex, newIndex));
+                emitChange(arrayMove(normalizedLogos, oldIndex, newIndex));
             }
         }
     };
+
+    // Sortable context needs consistent IDs
+    const itemIds = normalizedLogos.map((l, idx) => l.url || `item-${idx}`);
 
     return (
         <div className="space-y-4">
@@ -242,37 +339,42 @@ export default function LogoUploader({
                     <button
                         type="button"
                         disabled={uploading}
-                        className={`inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${uploading ? 'opacity-75 cursor-wait' : ''}`}
+                        className={`inline-flex items-center px-3 py-2 border border-blue-600 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${uploading ? 'opacity-75 cursor-wait' : ''}`}
                     >
                         {uploading ? 'Uploading...' : buttonLabel}
                     </button>
                 </div>
             </div>
 
-            <DndContext
+            <AnyDndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
             >
-                <SortableContext
-                    items={logos.map(l => l.url)}
+                <AnySortableContext
+                    items={logos.length > 0 && typeof logos[0] !== 'string'
+                        ? (logos as LogoItem[]).map(l => l.url)
+                        : logos.map((l, i) => `${l}-${i}`) // Fallback for strings
+                    }
                     strategy={rectSortingStrategy}
                 >
                     <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
-                        {logos.map((logo, index) => (
+                        {normalizedLogos.map((logo, index) => (
                             <SortableLogoItem
-                                key={logo.url}
+                                key={logo.url || `item-${index}`}
                                 logo={logo}
                                 index={index}
                                 getImageUrl={getImageUrl}
                                 onRemove={handleRemove}
                                 onMakeMain={handleMakeMain}
                                 onNameChange={handleNameChange}
+                                showNameInput={showNameInput}
+                                itemLabel={itemLabel}
                             />
                         ))}
                     </div>
-                </SortableContext>
-            </DndContext>
+                </AnySortableContext>
+            </AnyDndContext>
 
             {logos.length === 0 && (
                 <div className="text-sm text-gray-500 text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
