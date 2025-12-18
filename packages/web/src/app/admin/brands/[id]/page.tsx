@@ -9,6 +9,7 @@ import { ArrowLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
 import { CheckIcon } from '@heroicons/react/20/solid';
+import { formatPhone } from '@/lib/masks';
 
 import SKUManagement from '@/components/admin/SKUManagement';
 import LineManagement from '@/components/admin/LineManagement';
@@ -132,7 +133,11 @@ export default function AdminEditBrandPage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        let formattedValue = value;
+        if (name === 'contactPhone') {
+            formattedValue = formatPhone(value);
+        }
+        setFormData(prev => ({ ...prev, [name]: formattedValue }));
     };
 
     const handleTagChange = (tag: string) => {

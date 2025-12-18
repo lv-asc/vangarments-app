@@ -24,6 +24,7 @@ export const getPage = async (req: Request, res: Response) => {
 
 export const createPage = async (req: Request, res: Response) => {
     try {
+        console.log('Creating page with body:', req.body);
         const newPage = await PageModel.create(req.body);
         res.status(201).json(newPage);
     } catch (error) {

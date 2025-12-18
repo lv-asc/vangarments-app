@@ -7,6 +7,14 @@ export interface Page {
     slug?: string;
     description?: string;
     userId?: string;
+    logoUrl?: string;
+    bannerUrl?: string;
+    websiteUrl?: string;
+    instagramUrl?: string;
+    twitterUrl?: string;
+    facebookUrl?: string;
+    isVerified: boolean;
+    isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
     deletedAt?: Date;
@@ -43,22 +51,66 @@ export class PageModel {
         return result.rows.map(this.mapRowToPage);
     }
 
-    static async create(data: { name: string; slug?: string; description?: string; userId?: string }): Promise<Page> {
+    static async create(data: {
+        name: string;
+        slug?: string;
+        description?: string;
+        userId?: string;
+        logoUrl?: string;
+        bannerUrl?: string;
+        websiteUrl?: string;
+        instagramUrl?: string;
+        twitterUrl?: string;
+        facebookUrl?: string;
+        isVerified?: boolean;
+        isActive?: boolean;
+    }): Promise<Page> {
         let slug = data.slug;
         if (!slug && data.name) {
             slug = slugify(data.name);
         }
 
         const query = `
-      INSERT INTO pages (name, slug, description, user_id)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO pages (
+          name, slug, description, user_id, 
+          logo_url, banner_url, website_url, 
+          instagram_url, twitter_url, facebook_url, 
+          is_verified, is_active
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `;
-        const result = await db.query(query, [data.name, slug, data.description || null, data.userId || null]);
+        const result = await db.query(query, [
+            data.name,
+            slug,
+            data.description || null,
+            data.userId || null,
+            data.logoUrl || null,
+            data.bannerUrl || null,
+            data.websiteUrl || null,
+            data.instagramUrl || null,
+            data.twitterUrl || null,
+            data.facebookUrl || null,
+            data.isVerified ?? false,
+            data.isActive ?? true
+        ]);
         return this.mapRowToPage(result.rows[0]);
     }
 
-    static async update(id: string, data: { name?: string; slug?: string; description?: string; userId?: string | null }): Promise<Page | null> {
+    static async update(id: string, data: {
+        name?: string;
+        slug?: string;
+        description?: string;
+        userId?: string | null;
+        logoUrl?: string;
+        bannerUrl?: string;
+        websiteUrl?: string;
+        instagramUrl?: string;
+        twitterUrl?: string;
+        facebookUrl?: string;
+        isVerified?: boolean;
+        isActive?: boolean;
+    }): Promise<Page | null> {
         const setClause: string[] = [];
         const values: any[] = [];
         let paramIndex = 1;
@@ -67,6 +119,14 @@ export class PageModel {
         if (data.slug !== undefined) { setClause.push(`slug = $${paramIndex++}`); values.push(data.slug); }
         if (data.description !== undefined) { setClause.push(`description = $${paramIndex++}`); values.push(data.description); }
         if (data.userId !== undefined) { setClause.push(`user_id = $${paramIndex++}`); values.push(data.userId); }
+        if (data.logoUrl !== undefined) { setClause.push(`logo_url = $${paramIndex++}`); values.push(data.logoUrl); }
+        if (data.bannerUrl !== undefined) { setClause.push(`banner_url = $${paramIndex++}`); values.push(data.bannerUrl); }
+        if (data.websiteUrl !== undefined) { setClause.push(`website_url = $${paramIndex++}`); values.push(data.websiteUrl); }
+        if (data.instagramUrl !== undefined) { setClause.push(`instagram_url = $${paramIndex++}`); values.push(data.instagramUrl); }
+        if (data.twitterUrl !== undefined) { setClause.push(`twitter_url = $${paramIndex++}`); values.push(data.twitterUrl); }
+        if (data.facebookUrl !== undefined) { setClause.push(`facebook_url = $${paramIndex++}`); values.push(data.facebookUrl); }
+        if (data.isVerified !== undefined) { setClause.push(`is_verified = $${paramIndex++}`); values.push(data.isVerified); }
+        if (data.isActive !== undefined) { setClause.push(`is_active = $${paramIndex++}`); values.push(data.isActive); }
 
         if (setClause.length === 0) return this.findById(id);
 
@@ -97,9 +157,18 @@ export class PageModel {
             slug: row.slug,
             description: row.description,
             userId: row.user_id,
+            logoUrl: row.logo_url,
+            bannerUrl: row.banner_url,
+            websiteUrl: row.website_url,
+            instagramUrl: row.instagram_url,
+            twitterUrl: row.twitter_url,
+            facebookUrl: row.facebook_url,
+            isVerified: row.is_verified,
+            isActive: row.is_active,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
             deletedAt: row.deleted_at
         };
     }
 }
+

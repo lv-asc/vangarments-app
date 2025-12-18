@@ -5,6 +5,7 @@ import { AuthUtils } from '../utils/auth';
 const router = Router();
 
 // Protected user routes
+router.put('/profile', AuthUtils.authenticateToken, UserController.updateBasicProfile);
 router.put('/measurements', AuthUtils.authenticateToken, UserController.updateMeasurements);
 router.put('/address', AuthUtils.authenticateToken, UserController.updateAddress);
 router.put('/preferences', AuthUtils.authenticateToken, UserController.updatePreferences);

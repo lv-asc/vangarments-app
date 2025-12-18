@@ -5,6 +5,9 @@ export interface Conversation {
     conversationType: 'direct' | 'entity' | 'group';
     entityType?: string;
     entityId?: string;
+    name?: string;
+    avatarUrl?: string;
+    createdBy?: string;
     lastMessageAt?: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -54,7 +57,8 @@ export class ConversationModel {
         participantIds: string[],
         type: 'direct' | 'entity' | 'group' = 'direct',
         entityType?: string,
-        entityId?: string
+        entityId?: string,
+        name?: string
     ): Promise<Conversation> {
         const client = await db.getClient();
 
@@ -63,11 +67,11 @@ export class ConversationModel {
 
             // Create conversation
             const convQuery = `
-                INSERT INTO conversations (conversation_type, entity_type, entity_id)
-                VALUES ($1, $2, $3)
+                INSERT INTO conversations (conversation_type, entity_type, entity_id, name)
+                VALUES ($1, $2, $3, $4)
                 RETURNING *
             `;
-            const convResult = await client.query(convQuery, [type, entityType || null, entityId || null]);
+            const convResult = await client.query(convQuery, [type, entityType || null, entityId || null, name || null]);
             const conversation = convResult.rows[0];
 
             // Add participants
@@ -276,6 +280,41 @@ export class ConversationModel {
     }
 
     /**
+     * Update a conversation's details
+     */
+    static async update(id: string, updates: { name?: string; avatarUrl?: string }): Promise<Conversation | null> {
+        const fields: string[] = [];
+        const values: any[] = [];
+        let index = 1;
+
+        if (updates.name !== undefined) {
+            fields.push(`name = $${index++}`);
+            values.push(updates.name);
+        }
+        if (updates.avatarUrl !== undefined) {
+            fields.push(`avatar_url = $${index++}`);
+            values.push(updates.avatarUrl);
+        }
+
+        if (fields.length === 0) return this.findById(id);
+
+        fields.push(`updated_at = NOW()`);
+        values.push(id);
+
+        const query = `
+            UPDATE conversations 
+            SET ${fields.join(', ')} 
+            WHERE id = $${index}
+            RETURNING *
+        `;
+
+        const result = await db.query(query, values);
+
+        if (result.rows.length === 0) return null;
+        return this.mapRowToConversation(result.rows[0]);
+    }
+
+    /**
      * Check if user is a participant in conversation
      */
     static async isParticipant(conversationId: string, userId: string): Promise<boolean> {
@@ -293,6 +332,9 @@ export class ConversationModel {
             conversationType: row.conversation_type,
             entityType: row.entity_type,
             entityId: row.entity_id,
+            name: row.name,
+            avatarUrl: row.avatar_url,
+            createdBy: row.created_by,
             lastMessageAt: row.last_message_at,
             createdAt: row.created_at,
             updatedAt: row.updated_at,

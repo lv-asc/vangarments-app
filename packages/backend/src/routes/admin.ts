@@ -10,5 +10,6 @@ const adminController = new AdminController();
 router.use(AuthUtils.authenticateToken, requireAdmin);
 
 router.get('/users', adminController.getUsers.bind(adminController));
+router.post('/users', adminController.createUser.bind(adminController));
 
 export default router;

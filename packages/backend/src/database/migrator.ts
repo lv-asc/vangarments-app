@@ -107,10 +107,15 @@ export class DatabaseMigrator {
       // Execute the migration
       await client.query(migration.sql);
 
-      // Record the migration
+      // Record the migration - use ON CONFLICT to avoid failing if record exists
       await client.query(
         `INSERT INTO schema_migrations (migration_id, name, checksum, execution_time_ms) 
-         VALUES ($1, $2, $3, $4)`,
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (migration_id) DO UPDATE 
+         SET success = true, 
+             checksum = EXCLUDED.checksum, 
+             execution_time_ms = EXCLUDED.execution_time_ms,
+             executed_at = CURRENT_TIMESTAMP`,
         [migration.id, migration.name, migration.checksum, Date.now() - startTime]
       );
 
@@ -119,16 +124,21 @@ export class DatabaseMigrator {
     } catch (error) {
       await client.query('ROLLBACK');
 
-      // Record failed migration
+      // Record failed migration if it doesn't already exist or update it
       try {
         await client.query(
           `INSERT INTO schema_migrations (migration_id, name, checksum, execution_time_ms, success) 
-           VALUES ($1, $2, $3, $4, false)`,
+           VALUES ($1, $2, $3, $4, false)
+           ON CONFLICT (migration_id) DO UPDATE 
+           SET success = false,
+               checksum = EXCLUDED.checksum,
+               execution_time_ms = EXCLUDED.execution_time_ms`,
           [migration.id, migration.name, migration.checksum, Date.now() - startTime]
         );
       } catch (recordError) {
         console.error('Failed to record migration failure:', recordError);
       }
+
 
       throw new Error(`Migration ${migration.id} failed: ${(error as any).message}`);
     } finally {

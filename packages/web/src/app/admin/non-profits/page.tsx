@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { brandApi } from '../../../lib/brandApi';
 import { useAuth } from '../../../contexts/AuthWrapper';
 import { PlusIcon, TrashIcon, PencilSquareIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { getImageUrl } from '../../../lib/utils';
+import { getImageUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatPhone } from '@/lib/masks';
 import { toast } from 'react-hot-toast';
 
 export default function AdminNonProfitsPage() {
@@ -163,7 +164,7 @@ export default function AdminNonProfitsPage() {
                                         {npo.verificationStatus}
                                     </span>
                                     <Link
-                                        href={`/admin/brands/${npo.id}`} // Reusing Brand Edit page as it handles generic brandInfo
+                                        href={`/admin/non-profits/${npo.id}`}
                                         className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
                                     >
                                         <PencilSquareIcon className="h-4 w-4 mr-1" />
@@ -244,7 +245,7 @@ export default function AdminNonProfitsPage() {
                                             type="tel"
                                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
                                             value={createForm.phone}
-                                            onChange={e => setCreateForm({ ...createForm, phone: e.target.value })}
+                                            onChange={e => setCreateForm({ ...createForm, phone: formatPhone(e.target.value) })}
                                         />
                                     </div>
                                 </div>

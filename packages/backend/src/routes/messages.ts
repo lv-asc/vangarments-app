@@ -87,6 +87,20 @@ const paginationValidation = [
         .withMessage('Offset must be a non-negative integer'),
 ];
 
+const updateConversationValidation = [
+    param('conversationId')
+        .isUUID()
+        .withMessage('Conversation ID must be a valid UUID'),
+    body('name')
+        .optional()
+        .isLength({ min: 1, max: 100 })
+        .withMessage('Group name must be between 1 and 100 characters'),
+    body('avatarUrl')
+        .optional()
+        .isString()
+        .withMessage('Avatar URL must be a string'),
+];
+
 // Routes
 
 // Start or get conversation
@@ -114,6 +128,15 @@ router.get(
     conversationIdValidation,
     validateRequest,
     messagingController.getConversation.bind(messagingController)
+);
+
+// Update conversation
+router.patch(
+    '/conversations/:conversationId',
+    AuthUtils.authenticateToken,
+    updateConversationValidation,
+    validateRequest,
+    messagingController.updateConversation.bind(messagingController)
 );
 
 // Get messages in a conversation

@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { apiClient } from '@/lib/api';
-import { getImageUrl } from '@/lib/utils';
+import { getImageUrl, getUserAvatarUrl } from '@/lib/utils';
 import {
     ArrowLeftIcon,
     PaperAirplaneIcon,
@@ -59,6 +61,7 @@ interface Conversation {
     };
     entity?: any;
     name?: string;
+    avatarUrl?: string;
 }
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
@@ -99,6 +102,12 @@ export default function ConversationPage() {
         loadConversation();
         loadMessages();
         loadCurrentUser();
+
+        // Lock body scroll when on this page to keep everything in viewport
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
     }, [conversationId]);
 
     useEffect(() => {
@@ -297,13 +306,17 @@ export default function ConversationPage() {
         if (conversation.conversationType === 'entity' && conversation.entity) {
             return conversation.entity.brandInfo?.name || conversation.entity.name || 'Entity';
         }
+        if (conversation.conversationType === 'group') {
+            return conversation.name || 'Group Chat';
+        }
         return 'DM';
     };
 
     const getAvatarUrl = (): string | null => {
         if (!conversation) return null;
-        if (conversation.conversationType === 'direct' && conversation.otherParticipant?.profile?.avatarUrl) {
-            return conversation.otherParticipant.profile.avatarUrl;
+        if (conversation.avatarUrl) return conversation.avatarUrl;
+        if (conversation.conversationType === 'direct' && conversation.otherParticipant) {
+            return getUserAvatarUrl(conversation.otherParticipant);
         }
         if (conversation.conversationType === 'entity' && conversation.entity?.brandInfo?.logo) {
             return conversation.entity.brandInfo.logo;
@@ -386,17 +399,21 @@ export default function ConversationPage() {
             return <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>;
         }
 
-        // Simplistic mention highlight - in a real app would use a more robust parser
-        let content = msg.content;
+        const content = msg.content;
         return (
             <p className="text-sm whitespace-pre-wrap break-words">
                 {content.split(/(@\w+)/g).map((part, i) => {
                     const mention = msg.mentions?.find(m => `@${m.mentionText}` === part);
                     if (mention) {
                         return (
-                            <span key={i} className="text-blue-400 font-medium cursor-pointer hover:underline">
+                            <Link
+                                key={i}
+                                href={`/u/${mention.mentionText}`}
+                                className="text-blue-400 font-medium cursor-pointer hover:underline"
+                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            >
                                 {part}
-                            </span>
+                            </Link>
                         );
                     }
                     return part;
@@ -428,7 +445,7 @@ export default function ConversationPage() {
     }
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50">
+        <div className="fixed top-[64px] bottom-0 left-0 right-0 flex flex-col bg-gray-50 overflow-hidden">
             {/* Header */}
             <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4">
                 <button
@@ -438,7 +455,17 @@ export default function ConversationPage() {
                     <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
                 </button>
 
-                <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => conversation?.conversationType === 'group' && setIsSettingsOpen(true)}>
+                <motion.div
+                    whileHover={{ scale: 1.01 }}
+                    className="flex items-center gap-3 flex-1 cursor-pointer"
+                    onClick={() => {
+                        if (conversation?.conversationType === 'group') {
+                            setIsSettingsOpen(true);
+                        } else if (conversation?.conversationType === 'direct' && conversation.otherParticipant) {
+                            router.push(`/u/${conversation.otherParticipant.username}`);
+                        }
+                    }}
+                >
                     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
                         {getAvatarUrl() ? (
                             <Image
@@ -479,7 +506,7 @@ export default function ConversationPage() {
                             <span className="text-xs text-gray-500 block -mt-1">Tap to edit info</span>
                         )}
                     </div>
-                </div>
+                </motion.div>
 
                 <button
                     onClick={() => conversation?.conversationType === 'group' ? setIsSettingsOpen(true) : null}
@@ -520,8 +547,31 @@ export default function ConversationPage() {
                                 </div>
                             )}
 
-                            <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group`}>
+                            <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group items-end gap-2`}>
+                                <motion.div whileHover={{ scale: 1.1 }}>
+                                    <Link href={`/u/${msg.sender?.username || ''}`} className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden relative mb-1 block">
+                                        {getUserAvatarUrl(msg.sender) ? (
+                                            <Image
+                                                src={getImageUrl(getUserAvatarUrl(msg.sender))}
+                                                alt={msg.sender?.username || 'User'}
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-500">
+                                                {(msg.sender?.username || '?').charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                    </Link>
+                                </motion.div>
                                 <div className="relative max-w-[75%]">
+                                    {!isOwn && conversation?.conversationType === 'group' && (
+                                        <motion.div whileHover={{ x: 2 }}>
+                                            <Link href={`/u/${msg.sender?.username || ''}`} className="text-xs font-medium text-gray-500 mb-1 ml-1 block hover:underline">
+                                                {msg.sender?.profile?.name || msg.sender?.username}
+                                            </Link>
+                                        </motion.div>
+                                    )}
                                     {editingMessageId === msg.id ? (
                                         <div className="bg-white border border-gray-300 rounded-lg p-3">
                                             <textarea

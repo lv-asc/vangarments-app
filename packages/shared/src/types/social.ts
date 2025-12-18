@@ -57,6 +57,7 @@ export interface UserFollow {
   id: string;
   followerId: string;
   followingId: string;
+  status: 'pending' | 'accepted';
   createdAt: string;
 
   // Populated fields
@@ -327,11 +328,11 @@ export interface UsersResponse {
     limit: number;
   };
 }
-
 export interface UserSocialStats {
   postsCount: number;
   followersCount: number;
   followingCount: number;
+  friendsCount: number;
 }
 
 export interface OutfitCombination {

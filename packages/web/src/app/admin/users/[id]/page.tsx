@@ -27,32 +27,46 @@ export default function AdminEditUserPage() {
     const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
 
     // Linked Entities State
-    const [linkedEntities, setLinkedEntities] = useState({
-        brands: [] as any[],
-        stores: [] as any[],
-        suppliers: [] as any[],
-        pages: [] as any[]
+    const [linkedEntities, setLinkedEntities] = useState<{
+        brands: any[];
+        nonProfits: any[];
+        stores: any[];
+        suppliers: any[];
+        pages: any[];
+    }>({
+        brands: [],
+        nonProfits: [],
+        stores: [],
+        suppliers: [],
+        pages: []
     });
 
     // Available Entities State for Selection
-    const [availableEntities, setAvailableEntities] = useState({
-        brands: [] as any[],
-        stores: [] as any[],
-        suppliers: [] as any[],
-        pages: [] as any[]
+    const [availableEntities, setAvailableEntities] = useState<{
+        brands: any[];
+        nonProfits: any[];
+        stores: any[];
+        suppliers: any[];
+        pages: any[];
+    }>({
+        brands: [],
+        nonProfits: [],
+        stores: [],
+        suppliers: [],
+        pages: []
     });
 
     // Link Modal State
     const [linkModalState, setLinkModalState] = useState<{
         isOpen: boolean;
-        type: 'brand' | 'store' | 'supplier' | 'page' | null;
+        type: 'brand' | 'nonProfit' | 'store' | 'supplier' | 'page' | null;
     }>({ isOpen: false, type: null });
     const [selectedEntityId, setSelectedEntityId] = useState('');
 
     // Unlink Confirmation Modal State
     const [unlinkModalState, setUnlinkModalState] = useState<{
         isOpen: boolean;
-        type: 'brand' | 'store' | 'supplier' | 'page' | null;
+        type: 'brand' | 'nonProfit' | 'store' | 'supplier' | 'page' | null;
         entityId: string | null;
     }>({ isOpen: false, type: null, entityId: null });
 
@@ -60,10 +74,11 @@ export default function AdminEditUserPage() {
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedEntities, setSelectedEntities] = useState<{
         brands: string[];
+        nonProfits: string[];
         stores: string[];
         suppliers: string[];
         pages: string[];
-    }>({ brands: [], stores: [], suppliers: [], pages: [] });
+    }>({ brands: [], nonProfits: [], stores: [], suppliers: [], pages: [] });
     const [batchUnlinkModalOpen, setBatchUnlinkModalOpen] = useState(false);
     const [batchUnlinking, setBatchUnlinking] = useState(false);
 
@@ -122,8 +137,10 @@ export default function AdminEditUserPage() {
                     banExpiresAt: response.user.banExpiresAt ? new Date(response.user.banExpiresAt) : undefined
                 });
 
+                const allBrands = response.user.brands || [];
                 setLinkedEntities({
-                    brands: response.user.brands || [],
+                    brands: allBrands.filter((b: any) => b.brandInfo?.businessType !== 'non_profit'),
+                    nonProfits: allBrands.filter((b: any) => b.brandInfo?.businessType === 'non_profit'),
                     stores: response.user.stores || [],
                     suppliers: response.user.suppliers || [],
                     pages: response.user.pages || []
@@ -137,7 +154,7 @@ export default function AdminEditUserPage() {
         }
     };
 
-    const loadAvailableEntities = async (type: 'brand' | 'store' | 'supplier' | 'page') => {
+    const loadAvailableEntities = async (type: 'brand' | 'nonProfit' | 'store' | 'supplier' | 'page') => {
         try {
             let endpoint = '';
             let key = '';
@@ -145,10 +162,8 @@ export default function AdminEditUserPage() {
                 case 'store': endpoint = '/stores'; key = 'stores'; break;
                 case 'supplier': endpoint = '/suppliers'; key = 'suppliers'; break;
                 case 'page': endpoint = '/pages'; key = 'pages'; break;
-                // Use generic brands endpoint if available, or vufs-management/brands if specifically needing all
-                // The issue previously was unclear endpoints. Let's assume /brands search works or use a listing endpoint.
-                // Assuming /brands allows listing for now.
-                case 'brand': endpoint = '/brands'; key = 'brands'; break;
+                case 'brand': endpoint = '/brands?limit=1000'; key = 'brands'; break;
+                case 'nonProfit': endpoint = '/brands?businessType=non_profit&limit=1000'; key = 'nonProfits'; break;
             }
 
             const response = await apiClient.get<any>(endpoint);
@@ -160,7 +175,7 @@ export default function AdminEditUserPage() {
             else if (response.data && Array.isArray(response.data)) list = response.data;
 
             // Fallback for searchBrands response structure { success: true, data: { brands: [], ... } }
-            if (key === 'brands' && response.data && response.data.brands) {
+            if ((key === 'brands' || key === 'nonProfits') && response.data && response.data.brands) {
                 list = response.data.brands;
             }
 
@@ -175,7 +190,7 @@ export default function AdminEditUserPage() {
         if (!linkModalState.type || !selectedEntityId) return;
         try {
             // Determine endpoint. All should support PUT /:entity/:id with { userId: id }
-            const endpoint = linkModalState.type === 'brand' ? '/brands' : `/${linkModalState.type}s`;
+            const endpoint = (linkModalState.type === 'brand' || linkModalState.type === 'nonProfit') ? '/brands' : `/${linkModalState.type}s`;
 
             await apiClient.put(`${endpoint}/${selectedEntityId}`, { userId: id });
 
@@ -193,7 +208,7 @@ export default function AdminEditUserPage() {
         if (!unlinkModalState.type || !unlinkModalState.entityId) return;
 
         try {
-            const endpoint = unlinkModalState.type === 'brand' ? '/brands' : `/${unlinkModalState.type}s`;
+            const endpoint = (unlinkModalState.type === 'brand' || unlinkModalState.type === 'nonProfit') ? '/brands' : `/${unlinkModalState.type}s`;
 
             // Update with userId: null to unlink
             // Note: For brands this now works because we updated the backend.
@@ -208,18 +223,21 @@ export default function AdminEditUserPage() {
         }
     };
 
-    const openLinkModal = (type: 'brand' | 'store' | 'supplier' | 'page') => {
+    const openLinkModal = (type: 'brand' | 'nonProfit' | 'store' | 'supplier' | 'page') => {
         setLinkModalState({ isOpen: true, type });
         loadAvailableEntities(type);
     };
 
-    const openUnlinkModal = (type: 'brand' | 'store' | 'supplier' | 'page', entityId: string) => {
+    const openUnlinkModal = (type: 'brand' | 'nonProfit' | 'store' | 'supplier' | 'page', entityId: string) => {
         setUnlinkModalState({ isOpen: true, type, entityId });
     };
 
     // Selection mode helpers
-    const toggleEntitySelection = (type: 'brand' | 'store' | 'supplier' | 'page', entityId: string) => {
-        const key = type === 'brand' ? 'brands' : `${type}s` as keyof typeof selectedEntities;
+    const toggleEntitySelection = (type: 'brand' | 'nonProfit' | 'store' | 'supplier' | 'page', entityId: string) => {
+        let key: keyof typeof selectedEntities = 'brands';
+        if (type === 'brand') key = 'brands';
+        else if (type === 'nonProfit') key = 'nonProfits';
+        else key = `${type}s` as keyof typeof selectedEntities;
         setSelectedEntities(prev => {
             if (prev[key].includes(entityId)) {
                 return { ...prev, [key]: prev[key].filter(id => id !== entityId) };
@@ -230,13 +248,13 @@ export default function AdminEditUserPage() {
     };
 
     const getTotalSelected = () => {
-        return selectedEntities.brands.length + selectedEntities.stores.length +
+        return selectedEntities.brands.length + selectedEntities.nonProfits.length + selectedEntities.stores.length +
             selectedEntities.suppliers.length + selectedEntities.pages.length;
     };
 
     const exitSelectionMode = () => {
         setSelectionMode(false);
-        setSelectedEntities({ brands: [], stores: [], suppliers: [], pages: [] });
+        setSelectedEntities({ brands: [], nonProfits: [], stores: [], suppliers: [], pages: [] });
     };
 
     const handleBatchUnlink = async () => {
@@ -244,8 +262,8 @@ export default function AdminEditUserPage() {
             setBatchUnlinking(true);
             const promises: Promise<any>[] = [];
 
-            // Unlink brands
-            for (const brandId of selectedEntities.brands) {
+            // Unlink brands & non-profits
+            for (const brandId of [...selectedEntities.brands, ...selectedEntities.nonProfits]) {
                 promises.push(apiClient.put(`/brands/${brandId}`, { userId: null }));
             }
             // Unlink stores
@@ -489,6 +507,16 @@ export default function AdminEditUserPage() {
                         selectedIds={selectedEntities.brands}
                         onToggleSelect={(itemId) => toggleEntitySelection('brand', itemId)}
                     />
+                    {/* Non-Profits */}
+                    <EntitySection
+                        title="Non-Profits"
+                        items={linkedEntities.nonProfits}
+                        onAdd={() => openLinkModal('nonProfit')}
+                        onRemove={(itemId) => openUnlinkModal('nonProfit', itemId)}
+                        selectionMode={selectionMode}
+                        selectedIds={selectedEntities.nonProfits}
+                        onToggleSelect={(itemId) => toggleEntitySelection('nonProfit', itemId)}
+                    />
                     {/* Stores */}
                     <EntitySection
                         title="Stores"
@@ -639,7 +667,7 @@ export default function AdminEditUserPage() {
                 isOpen={unlinkModalState.isOpen}
                 onClose={() => setUnlinkModalState({ ...unlinkModalState, isOpen: false })}
                 onConfirm={confirmUnlinkEntity}
-                title={`Unlink ${unlinkModalState.type ? unlinkModalState.type.charAt(0).toUpperCase() + unlinkModalState.type.slice(1) : ''}`}
+                title={`Unlink ${unlinkModalState.type === 'nonProfit' ? 'Non-Profit' : unlinkModalState.type ? unlinkModalState.type.charAt(0).toUpperCase() + unlinkModalState.type.slice(1) : ''}`}
                 message={`Are you sure you want to unlink this ${unlinkModalState.type}?`}
                 confirmText="Unlink"
                 cancelText="Cancel"
@@ -653,7 +681,7 @@ export default function AdminEditUserPage() {
                     <Dialog.Panel className="mx-auto max-w-sm rounded bg-white p-6 shadow-xl w-full">
                         <Dialog.Title className="text-lg font-medium text-gray-900 flex items-center gap-2">
                             <LinkIcon className="h-5 w-5 text-blue-500" />
-                            Link {linkModalState.type ? linkModalState.type.charAt(0).toUpperCase() + linkModalState.type.slice(1) : ''}
+                            Link {linkModalState.type === 'nonProfit' ? 'Non-Profit' : linkModalState.type ? linkModalState.type.charAt(0).toUpperCase() + linkModalState.type.slice(1) : ''}
                         </Dialog.Title>
 
                         <div className="mt-4">
@@ -664,7 +692,7 @@ export default function AdminEditUserPage() {
                                 onChange={(e) => setSelectedEntityId(e.target.value)}
                             >
                                 <option value="">Select...</option>
-                                {linkModalState.type && availableEntities[linkModalState.type === 'brand' ? 'brands' : `${linkModalState.type}s` as keyof typeof availableEntities]?.map((item: any) => (
+                                {linkModalState.type && availableEntities[linkModalState.type === 'brand' ? 'brands' : linkModalState.type === 'nonProfit' ? 'nonProfits' : `${linkModalState.type}s` as keyof typeof availableEntities]?.map((item: any) => (
                                     <option key={item.id} value={item.id}>
                                         {item.name || item.brandInfo?.name || 'Unnamed'} {item.userId ? '(Already Linked)' : ''}
                                     </option>

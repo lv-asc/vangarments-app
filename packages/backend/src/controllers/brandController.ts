@@ -365,7 +365,7 @@ export class BrandController {
    */
   async searchBrands(req: Request, res: Response): Promise<void> {
     try {
-      const { q: query = '', verificationStatus, partnershipTier, businessType, page = 1, limit = 20 } = req.query;
+      const { q: query = '', verificationStatus, partnershipTier, businessType, page = 1, limit = 1000 } = req.query;
 
       // Sync VUFS brands before searching to ensure list is up to date
       // We do this asynchronously without awaiting to not slow down the response significantly

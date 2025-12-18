@@ -4,10 +4,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 import { Button } from '@/components/ui/Button';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { apiClient } from '@/lib/api';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useToast } from '@/components/ui/Toast';
+import { formatCEP } from '@/lib/masks';
+import { SocialIcon } from '@/components/ui/social-icons';
 import {
   CameraIcon,
   PencilIcon,
@@ -643,7 +646,7 @@ export default function ProfilePage() {
                             <input
                               type="text"
                               value={editForm.cep}
-                              onChange={(e) => setEditForm({ ...editForm, cep: e.target.value })}
+                              onChange={(e) => setEditForm({ ...editForm, cep: formatCEP(e.target.value) })}
                               onBlur={handleCEPBlur}
                               className="w-full text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-[#00132d]"
                               placeholder="00000-000"
@@ -790,7 +793,10 @@ export default function ProfilePage() {
                         const existingLink = editForm.socialLinks.find(l => l.platform === platform);
                         return (
                           <div key={platform} className="flex items-center space-x-2">
-                            <span className="w-28 text-sm text-gray-600">{platform}</span>
+                            <div className="w-28 flex items-center space-x-2">
+                              <SocialIcon platform={platform} size="sm" className="text-gray-400" />
+                              <span className="text-sm text-gray-600">{platform}</span>
+                            </div>
                             <input
                               type="text"
                               value={existingLink ? existingLink.url : ''}
@@ -910,8 +916,9 @@ export default function ProfilePage() {
                             href={link.url.startsWith('http') ? link.url : `https://${link.platform.toLowerCase()}.com/${link.url}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-xs font-medium transition-colors"
+                            className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full text-xs font-medium transition-colors flex items-center"
                           >
+                            <SocialIcon platform={link.platform} size="xs" className="mr-1.5" />
                             {link.platform}
                           </a>
                         ))}
@@ -937,22 +944,28 @@ export default function ProfilePage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div
+            onClick={() => setActiveTab('wardrobe')}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors"
+          >
             <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.wardrobeItems}</div>
             <div className="text-sm text-gray-600">Wardrobe Items</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div
+            onClick={() => setActiveTab('outfits')}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors"
+          >
             <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.outfitsCreated}</div>
             <div className="text-sm text-gray-600">Outfits Created</div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <Link href="/profile/followers" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors block">
             <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.followers}</div>
             <div className="text-sm text-gray-600">Followers</div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          </Link>
+          <Link href="/profile/following" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors block">
             <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.following}</div>
             <div className="text-sm text-gray-600">Following</div>
-          </div>
+          </Link>
         </div>
 
         {/* Tabs */}

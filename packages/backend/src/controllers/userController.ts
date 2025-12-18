@@ -10,6 +10,10 @@ import { BrandAccountModel } from '../models/BrandAccount';
 import { StoreModel } from '../models/Store';
 import { SupplierModel } from '../models/Supplier';
 import { PageModel } from '../models/Page';
+import { SocialService } from '../services/socialService';
+import { OutfitModel } from '../models/Outfit';
+
+const socialService = new SocialService();
 
 // Configure multer for avatar uploads
 const upload = multer({
@@ -235,11 +239,16 @@ export class UserController {
       // Get stats
       const stats = await VUFSItemModel.getStatsByOwner(id);
 
-      // Calculate followers/following (mock for now as Social model isn't imported yet)
+      // Get outfit count
+      const userOutfits = await OutfitModel.getUserOutfits(id);
+
+      // Get social stats
+      const socialStatsRaw = await socialService.getUserSocialStats(id);
+
       const socialStats = {
-        followers: 0,
-        following: 0,
-        outfitsCreated: 0
+        followers: socialStatsRaw.followersCount,
+        following: socialStatsRaw.followingCount,
+        outfitsCreated: userOutfits.length
       };
 
       const profile = {
@@ -302,14 +311,11 @@ export class UserController {
       }
 
       // Get stats
-      const stats = await VUFSItemModel.getStatsByOwner(user.id);
-
-      // Calculate followers/following (mock for now as Social model isn't imported yet)
-      const socialStats = {
-        followers: 0,
-        following: 0,
-        outfitsCreated: 0
-      };
+      const [itemStats, outfitStats, socialStats] = await Promise.all([
+        VUFSItemModel.getStatsByOwner(user.id),
+        OutfitModel.getUserOutfitStats(user.id),
+        socialService.getUserSocialStats(user.id)
+      ]);
 
       const profile = {
         id: user.id,
@@ -334,11 +340,13 @@ export class UserController {
           bio: (user.personalInfo as any).bio,
           location: user.personalInfo.location
         },
-        measurements: (user.privacySettings as any)?.weight || (user.privacySettings as any)?.height ? {} : user.measurements, // Respect privacy settings logically later, or just send what is public
-        // privacySettings: (user as any).privacySettings, 
+        measurements: (user.privacySettings as any)?.weight || (user.privacySettings as any)?.height ? {} : user.measurements,
         stats: {
-          wardrobeItems: stats.totalItems || 0,
-          ...socialStats
+          wardrobeItems: itemStats.totalItems || 0,
+          followers: socialStats.followersCount || 0,
+          following: socialStats.followingCount || 0,
+          friendsCount: socialStats.friendsCount || 0,
+          outfitsCreated: outfitStats.totalOutfits || 0
         },
         preferences: {
           style: user.preferences?.styleProfile || [],

@@ -9,6 +9,7 @@ import { ArrowLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
 import { CheckIcon } from '@heroicons/react/20/solid';
+import { formatPhone } from '@/lib/masks';
 
 import SKUManagement from '@/components/admin/SKUManagement';
 import LineManagement from '@/components/admin/LineManagement';
@@ -128,7 +129,11 @@ export default function AdminEditNonProfitPage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        let formattedValue = value;
+        if (name === 'contactPhone') {
+            formattedValue = formatPhone(value);
+        }
+        setFormData(prev => ({ ...prev, [name]: formattedValue }));
     };
 
     const handleTagChange = (tag: string) => {
@@ -236,7 +241,7 @@ export default function AdminEditNonProfitPage() {
                 </Link>
                 <div className="flex space-x-3">
                     <a
-                        href={`/brands/${displaySlug}`}
+                        href={`/non-profits/${displaySlug}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center px-4 py-2 border border-blue-600 shadow-sm text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

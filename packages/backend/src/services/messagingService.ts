@@ -229,6 +229,28 @@ export class MessagingService {
         return MessageModel.softDelete(messageId, userId);
     }
 
+    /**
+     * Update conversation details (name, avatar)
+     */
+    async updateConversation(
+        conversationId: string,
+        userId: string,
+        updates: { name?: string; avatarUrl?: string }
+    ): Promise<Conversation> {
+        // Check if user is a participant
+        const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
+        if (!isParticipant) {
+            throw new Error('Not authorized to update this conversation');
+        }
+
+        const updated = await ConversationModel.update(conversationId, updates);
+        if (!updated) {
+            throw new Error('Conversation not found');
+        }
+
+        return updated;
+    }
+
     // Helper methods
 
     private async getEntityOwner(entityType: EntityType, entityId: string): Promise<string | null> {

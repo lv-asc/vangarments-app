@@ -3,14 +3,18 @@ import { useState, Fragment, ReactNode } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, MagnifyingGlassIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
-import { getImageUrl } from '@/lib/utils';
+import { getImageUrl, getUserAvatarUrl } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
 
 interface User {
     id: string;
     name: string;
     username: string;
-    profile: {
+    personalInfo?: {
+        name?: string;
+        avatarUrl?: string;
+    };
+    profile?: {
         avatarUrl?: string;
     };
 }
@@ -41,7 +45,16 @@ export default function NewConversationModal({ isOpen, onClose, onConversationCr
             // Use existing user search endpoint (needs fallback if not exists)
             // Assuming GET /users?search=query exists and returns { users: [] }
             const users = await apiClient.searchUsers(query);
-            setSearchResults(users);
+
+            // Map users to ensure names and avatars are correctly handled from personalInfo
+            const mappedUsers = users.map((u: any) => ({
+                id: u.id,
+                name: u.personalInfo?.name || u.name || u.username,
+                username: u.username,
+                avatarUrl: getUserAvatarUrl(u)
+            }));
+
+            setSearchResults(mappedUsers as any);
         } catch (error) {
             console.error('Search failed:', error);
         } finally {
@@ -70,16 +83,19 @@ export default function NewConversationModal({ isOpen, onClose, onConversationCr
                 conversation = await apiClient.startConversation(selectedUsers[0].id);
             } else {
                 // Group conversation
+                // Backend requires a name, so generate one if not provided
+                const finalGroupName = groupName.trim() || `Group: ${selectedUsers.map(u => u.name).join(', ')}`.substring(0, 100);
+
                 conversation = await apiClient.createGroupConversation(
                     selectedUsers.map(u => u.id),
-                    groupName
+                    finalGroupName
                 );
             }
             onConversationCreated(conversation.id);
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Create conversation failed:', error);
-            alert('Failed to create conversation');
+            alert(error.message || 'Failed to create conversation');
         } finally {
             setIsCreating(false);
         }
@@ -169,16 +185,16 @@ export default function NewConversationModal({ isOpen, onClose, onConversationCr
                                                     className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors text-left"
                                                 >
                                                     <div className="relative w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                                                        {user.profile.avatarUrl ? (
+                                                        {getUserAvatarUrl(user) ? (
                                                             <Image
-                                                                src={getImageUrl(user.profile.avatarUrl)}
+                                                                src={getImageUrl(getUserAvatarUrl(user))}
                                                                 alt={user.name}
                                                                 fill
                                                                 className="object-cover"
                                                             />
                                                         ) : (
                                                             <span className="flex items-center justify-center w-full h-full text-xs font-medium text-gray-500">
-                                                                {user.name.charAt(0).toUpperCase()}
+                                                                {(user.name || 'U').charAt(0).toUpperCase()}
                                                             </span>
                                                         )}
                                                     </div>

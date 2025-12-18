@@ -3,6 +3,7 @@ import { UserFollowModel, CreateUserFollowData } from '../models/UserFollow';
 import { PostCommentModel, CreatePostCommentData } from '../models/PostComment';
 import { PostLikeModel, CreatePostLikeData } from '../models/PostLike';
 import { VUFSItemModel } from '../models/VUFSItem';
+import { UserModel } from '../models/User';
 import { SocialPost, PostComment, PostLike, UserFollow, UserProfile } from '@vangarments/shared';
 
 export interface FeedOptions {
@@ -134,7 +135,15 @@ export class SocialService {
    * Follow a user
    */
   async followUser(followerId: string, followingId: string): Promise<UserFollow> {
-    return await UserFollowModel.create({ followerId, followingId });
+    const targetUser = await UserModel.findById(followingId);
+    if (!targetUser) {
+      throw new Error('Target user not found');
+    }
+
+    const isPrivate = (targetUser as any).privacySettings?.isPrivate === true;
+    const status = isPrivate ? 'pending' : 'accepted';
+
+    return await UserFollowModel.create({ followerId, followingId, status });
   }
 
   /**
@@ -165,6 +174,21 @@ export class SocialService {
   async getFollowing(userId: string, page = 1, limit = 20): Promise<{ users: UserProfile[]; hasMore: boolean }> {
     const offset = (page - 1) * limit;
     const { users, total } = await UserFollowModel.getFollowing(userId, limit + 1, offset);
+
+    const hasMore = users.length > limit;
+    if (hasMore) {
+      users.pop();
+    }
+
+    return { users, hasMore };
+  }
+
+  /**
+   * Get user's friends (bidirectional follows)
+   */
+  async getFriends(userId: string, page = 1, limit = 20): Promise<{ users: UserProfile[]; hasMore: boolean }> {
+    const offset = (page - 1) * limit;
+    const { users, total } = await UserFollowModel.getFriends(userId, limit + 1, offset);
 
     const hasMore = users.length > limit;
     if (hasMore) {
@@ -266,12 +290,20 @@ export class SocialService {
   }
 
   /**
+   * Check follow relationship (detailed)
+   */
+  async getFollowRelationship(followerId: string, followingId: string): Promise<UserFollow | null> {
+    return await UserFollowModel.findByIds(followerId, followingId);
+  }
+
+  /**
    * Get user's social stats
    */
   async getUserSocialStats(userId: string): Promise<{
     postsCount: number;
     followersCount: number;
     followingCount: number;
+    friendsCount: number;
   }> {
     const [{ total: postsCount }, followCounts] = await Promise.all([
       SocialPostModel.findMany({ userId }, 1, 0), // Get total count
@@ -282,6 +314,7 @@ export class SocialService {
       postsCount,
       followersCount: followCounts.followersCount,
       followingCount: followCounts.followingCount,
+      friendsCount: followCounts.friendsCount,
     };
   }
 }

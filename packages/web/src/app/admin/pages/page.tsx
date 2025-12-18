@@ -12,7 +12,18 @@ export default function AdminPagesPage() {
     const [editingItem, setEditingItem] = useState<IPage | null>(null);
 
     // Form state
-    const [formData, setFormData] = useState({ name: '', description: '' });
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        logoUrl: '',
+        bannerUrl: '',
+        websiteUrl: '',
+        instagramUrl: '',
+        twitterUrl: '',
+        facebookUrl: '',
+        isVerified: false,
+        isActive: true
+    });
 
     useEffect(() => {
         fetchItems();
@@ -60,10 +71,32 @@ export default function AdminPagesPage() {
     const handleOpenModal = (item?: IPage) => {
         if (item) {
             setEditingItem(item);
-            setFormData({ name: item.name, description: item.description || '' });
+            setFormData({
+                name: item.name,
+                description: item.description || '',
+                logoUrl: item.logoUrl || '',
+                bannerUrl: item.bannerUrl || '',
+                websiteUrl: item.websiteUrl || '',
+                instagramUrl: item.instagramUrl || '',
+                twitterUrl: item.twitterUrl || '',
+                facebookUrl: item.facebookUrl || '',
+                isVerified: item.isVerified,
+                isActive: item.isActive
+            });
         } else {
             setEditingItem(null);
-            setFormData({ name: '', description: '' });
+            setFormData({
+                name: '',
+                description: '',
+                logoUrl: '',
+                bannerUrl: '',
+                websiteUrl: '',
+                instagramUrl: '',
+                twitterUrl: '',
+                facebookUrl: '',
+                isVerified: false,
+                isActive: true
+            });
         }
         setIsModalOpen(true);
     };
@@ -71,7 +104,18 @@ export default function AdminPagesPage() {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingItem(null);
-        setFormData({ name: '', description: '' });
+        setFormData({
+            name: '',
+            description: '',
+            logoUrl: '',
+            bannerUrl: '',
+            websiteUrl: '',
+            instagramUrl: '',
+            twitterUrl: '',
+            facebookUrl: '',
+            isVerified: false,
+            isActive: true
+        });
     };
 
     if (loading) return <div>Loading...</div>;
@@ -104,8 +148,10 @@ export default function AdminPagesPage() {
                             <table className="min-w-full divide-y divide-gray-300">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Name</th>
-                                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Description</th>
+                                        <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Logo</th>
+                                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
+                                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Website</th>
                                         <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                                             <span className="sr-only">Actions</span>
                                         </th>
@@ -114,8 +160,38 @@ export default function AdminPagesPage() {
                                 <tbody className="divide-y divide-gray-200 bg-white">
                                     {items.map((item) => (
                                         <tr key={item.id}>
-                                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{item.name}</td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{item.description}</td>
+                                            <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+                                                {item.logoUrl ? (
+                                                    <img src={item.logoUrl} alt={item.name} className="h-10 w-10 rounded-full object-cover border border-gray-200" />
+                                                ) : (
+                                                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold">
+                                                        {item.name.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">
+                                                <div className="flex items-center">
+                                                    {item.name}
+                                                    {item.isVerified && (
+                                                        <span className="ml-1.5 inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-800">
+                                                            ✓
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-gray-500 text-xs truncate max-w-xs">{item.description}</div>
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm">
+                                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${item.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                    {item.isActive ? 'Active' : 'Hidden'}
+                                                </span>
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                                {item.websiteUrl && (
+                                                    <a href={item.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-900">
+                                                        Website
+                                                    </a>
+                                                )}
+                                            </td>
                                             <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                                                 <button
                                                     onClick={() => handleOpenModal(item)}
@@ -142,31 +218,126 @@ export default function AdminPagesPage() {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg max-w-md w-full p-6">
+                    <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-semibold mb-4">{editingItem ? 'Edit Page' : 'New Page'}</h2>
                         <form onSubmit={handleSubmit}>
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Name</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={formData.name}
-                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        />
+                                    </div>
+                                    <div className="flex items-end space-x-4 mb-1">
+                                        <div className="flex items-center">
+                                            <input
+                                                id="isVerified"
+                                                type="checkbox"
+                                                checked={formData.isVerified}
+                                                onChange={e => setFormData({ ...formData, isVerified: e.target.checked })}
+                                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <label htmlFor="isVerified" className="ml-2 block text-sm text-gray-900">Verified</label>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <input
+                                                id="isActive"
+                                                type="checkbox"
+                                                checked={formData.isActive}
+                                                onChange={e => setFormData({ ...formData, isActive: e.target.checked })}
+                                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">Active</label>
+                                        </div>
+                                    </div>
                                 </div>
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Description</label>
                                     <textarea
                                         value={formData.description}
                                         onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        rows={3}
+                                        rows={2}
                                     />
                                 </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Logo URL</label>
+                                        <input
+                                            type="url"
+                                            value={formData.logoUrl}
+                                            onChange={e => setFormData({ ...formData, logoUrl: e.target.value })}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            placeholder="https://..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Banner URL</label>
+                                        <input
+                                            type="url"
+                                            value={formData.bannerUrl}
+                                            onChange={e => setFormData({ ...formData, bannerUrl: e.target.value })}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            placeholder="https://..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Website URL</label>
+                                    <input
+                                        type="url"
+                                        value={formData.websiteUrl}
+                                        onChange={e => setFormData({ ...formData, websiteUrl: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        placeholder="https://..."
+                                    />
+                                </div>
+
+                                <div className="border-t border-gray-200 pt-4 mt-4">
+                                    <h3 className="text-sm font-medium text-gray-900 mb-3">Social Media</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Instagram</label>
+                                            <input
+                                                type="url"
+                                                value={formData.instagramUrl}
+                                                onChange={e => setFormData({ ...formData, instagramUrl: e.target.value })}
+                                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-xs"
+                                                placeholder="https://instagram.com/..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Twitter (X)</label>
+                                            <input
+                                                type="url"
+                                                value={formData.twitterUrl}
+                                                onChange={e => setFormData({ ...formData, twitterUrl: e.target.value })}
+                                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-xs"
+                                                placeholder="https://twitter.com/..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-500 mb-1">Facebook</label>
+                                            <input
+                                                type="url"
+                                                value={formData.facebookUrl}
+                                                onChange={e => setFormData({ ...formData, facebookUrl: e.target.value })}
+                                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-xs"
+                                                placeholder="https://facebook.com/..."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="mt-6 flex justify-end space-x-3">
+                            <div className="mt-8 flex justify-end space-x-3 border-t border-gray-100 pt-5">
                                 <button
                                     type="button"
                                     onClick={handleCloseModal}
@@ -178,7 +349,7 @@ export default function AdminPagesPage() {
                                     type="submit"
                                     className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
                                 >
-                                    Save
+                                    {editingItem ? 'Update Page' : 'Create Page'}
                                 </button>
                             </div>
                         </form>
@@ -188,3 +359,4 @@ export default function AdminPagesPage() {
         </div>
     );
 }
+

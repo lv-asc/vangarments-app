@@ -27,6 +27,7 @@ interface BrandAccount {
     brandStyle?: string[];
     country?: string;
     tags?: string[];
+    businessType?: 'brand' | 'store' | 'designer' | 'manufacturer' | 'non_profit';
   };
   profileData?: {
     bio?: string;

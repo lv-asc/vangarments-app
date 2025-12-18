@@ -4,6 +4,14 @@ export interface IPage {
     id: string;
     name: string;
     description?: string;
+    logoUrl?: string;
+    bannerUrl?: string;
+    websiteUrl?: string;
+    instagramUrl?: string;
+    twitterUrl?: string;
+    facebookUrl?: string;
+    isVerified: boolean;
+    isActive: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -11,7 +19,16 @@ export interface IPage {
 export interface ICreatePageData {
     name: string;
     description?: string;
+    logoUrl?: string;
+    bannerUrl?: string;
+    websiteUrl?: string;
+    instagramUrl?: string;
+    twitterUrl?: string;
+    facebookUrl?: string;
+    isVerified?: boolean;
+    isActive?: boolean;
 }
+
 
 export const pageApi = {
     getAll: async () => {

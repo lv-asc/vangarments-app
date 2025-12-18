@@ -154,25 +154,30 @@ export default function DiscoverPage() {
     </div>
   );
 
-  const BrandCard = ({ brand }: { brand: any }) => (
-    <Link href={`/brands/${brand.brandInfo?.slug || brand.id}`} className="min-w-[160px] md:min-w-[200px] snap-start group cursor-pointer block">
-      <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
-        {brand.brandInfo?.logo ? (
-          <img
-            src={getImageUrl(brand.brandInfo.logo)}
-            alt={brand.brandInfo.name}
-            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-3xl bg-gray-50">
-            {brand.brandInfo?.name?.substring(0, 2).toUpperCase()}
-          </div>
-        )}
-      </div>
-      <h3 className="font-semibold text-gray-900 truncate px-1">{brand.brandInfo?.name}</h3>
-      <p className="text-xs text-gray-500 px-1 truncate">{brand.brandInfo?.country || 'Global'}</p>
-    </Link>
-  );
+  const BrandCard = ({ brand }: { brand: any }) => {
+    const businessType = brand.brandInfo?.businessType;
+    const basePath = businessType === 'non_profit' ? 'non-profits' : 'brands';
+
+    return (
+      <Link href={`/${basePath}/${brand.brandInfo?.slug || brand.id}`} className="min-w-[160px] md:min-w-[200px] snap-start group cursor-pointer block">
+        <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
+          {brand.brandInfo?.logo ? (
+            <img
+              src={getImageUrl(brand.brandInfo.logo)}
+              alt={brand.brandInfo.name}
+              className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-3xl bg-gray-50">
+              {brand.brandInfo?.name?.substring(0, 2).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <h3 className="font-semibold text-gray-900 truncate px-1">{brand.brandInfo?.name}</h3>
+        <p className="text-xs text-gray-500 px-1 truncate">{brand.brandInfo?.country || 'Global'}</p>
+      </Link>
+    );
+  };
 
   const StoryCard = ({ story }: { story: IJournalismData }) => (
     <Link href={`/journalism/${story.id}`} className="min-w-[280px] md:min-w-[340px] snap-start group cursor-pointer relative rounded-xl overflow-hidden aspect-[16/10] block">
@@ -268,8 +273,8 @@ export default function DiscoverPage() {
                 key={filter.id}
                 onClick={() => setFilterType(filter.id as FilterType)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${filterType === filter.id
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
               >
                 {filter.label}

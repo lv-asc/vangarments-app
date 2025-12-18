@@ -88,6 +88,7 @@ export function slugify(text: string): string {
 }
 
 // Update getImageUrl to return relative paths to leverage Next.js rewrites
+// Update getImageUrl to return relative paths to leverage Next.js rewrites
 export function getImageUrl(path: string | undefined | null, size?: 'sm' | 'md' | 'lg' | 'xl'): string {
   if (!path) return '';
   if (path.startsWith('http')) return path;
@@ -130,6 +131,15 @@ export function getImageUrl(path: string | undefined | null, size?: 'sm' | 'md' 
     console.log('[getImageUrl] Fallback path (public/relative):', path, '->', finalPath);
     return finalPath;
   }
+}
+
+/**
+ * Safely retrieves an avatar URL from a user object that might have different structures
+ * (personalInfo.avatarUrl, profile.avatarUrl, or avatarUrl)
+ */
+export function getUserAvatarUrl(user: any): string | null {
+  if (!user) return null;
+  return user.personalInfo?.avatarUrl || user.profile?.avatarUrl || user.avatarUrl || null;
 }
 
 function getSizeWidth(size: string): number {

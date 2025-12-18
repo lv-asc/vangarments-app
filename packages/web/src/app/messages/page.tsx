@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api';
-import { getImageUrl } from '@/lib/utils';
+import { getImageUrl, getUserAvatarUrl } from '@/lib/utils';
 import {
     ChatBubbleLeftRightIcon,
     MagnifyingGlassIcon,
@@ -35,6 +35,7 @@ interface Conversation {
         lastSeenAt?: string;
     };
     entity?: any;
+    avatarUrl?: string;
     createdAt: string;
 }
 
@@ -86,13 +87,13 @@ export default function MessagesPage() {
     };
 
     const getConversationAvatar = (conv: Conversation): string | null => {
-        if (conv.conversationType === 'direct' && conv.otherParticipant?.profile?.avatarUrl) {
-            return conv.otherParticipant.profile.avatarUrl;
+        if (conv.avatarUrl) return conv.avatarUrl;
+        if (conv.conversationType === 'direct' && conv.otherParticipant) {
+            return getUserAvatarUrl(conv.otherParticipant);
         }
         if (conv.conversationType === 'entity' && conv.entity) {
             return conv.entity.brandInfo?.logo || null;
         }
-        // TODO: Group avatar
         return null;
     };
 

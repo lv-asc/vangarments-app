@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { brandApi } from '@/lib/brandApi';
 import { apiClient } from '@/lib/api';
+import { formatPhone } from '@/lib/masks';
 import toast from 'react-hot-toast';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { Combobox, Transition } from '@headlessui/react';
@@ -75,7 +76,11 @@ export default function AdminNewBrandPage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        let formattedValue = value;
+        if (name === 'contactPhone') {
+            formattedValue = formatPhone(value);
+        }
+        setFormData(prev => ({ ...prev, [name]: formattedValue }));
     };
 
     const handleTagChange = (tag: string) => {

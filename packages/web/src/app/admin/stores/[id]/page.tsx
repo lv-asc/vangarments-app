@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { ArrowLeftIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
+import { formatPhone } from '@/lib/masks';
 
 import LogoUploader from '@/components/admin/LogoUploader';
 
@@ -84,7 +85,11 @@ export default function AdminEditStorePage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        let formattedValue = value;
+        if (name === 'contactPhone') {
+            formattedValue = formatPhone(value);
+        }
+        setFormData(prev => ({ ...prev, [name]: formattedValue }));
     };
 
     const handleTagChange = (tag: string) => {

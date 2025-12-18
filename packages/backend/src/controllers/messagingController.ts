@@ -19,11 +19,7 @@ export class MessagingController {
             // Group chat support
             if (participantIds && Array.isArray(participantIds) && participantIds.length > 1) {
                 const allParticipants = [senderId, ...participantIds.filter((id: string) => id !== senderId)];
-                const conversation = await ConversationModel.create(allParticipants, 'group');
-                // Update name if provided
-                if (name) {
-                    // TODO: Update conversation name
-                }
+                const conversation = await ConversationModel.create(allParticipants, 'group', undefined, undefined, name);
                 res.status(201).json({
                     success: true,
                     data: { conversation },
@@ -472,6 +468,39 @@ export class MessagingController {
                     message: error.message,
                 },
             });
+        }
+    }
+    /**
+     * Update conversation details (name, avatar)
+     */
+    async updateConversation(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            const { conversationId } = req.params;
+            const { name, avatarUrl } = req.body;
+            const userId = req.user!.id;
+
+            const conversation = await messagingService.updateConversation(conversationId, userId, { name, avatarUrl });
+
+            res.json({
+                success: true,
+                data: { conversation },
+            });
+        } catch (error: any) {
+            if (error.message.includes('Not authorized')) {
+                res.status(403).json({
+                    error: {
+                        code: 'NOT_AUTHORIZED',
+                        message: error.message,
+                    },
+                });
+            } else {
+                res.status(400).json({
+                    error: {
+                        code: 'UPDATE_CONVERSATION_FAILED',
+                        message: error.message,
+                    },
+                });
+            }
         }
     }
 }

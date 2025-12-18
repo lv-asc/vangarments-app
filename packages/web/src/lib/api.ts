@@ -444,6 +444,21 @@ class ApiClient {
     return response as any;
   }
 
+  async getFollowRelationship(userId: string): Promise<{ isFollowing: boolean, status?: 'pending' | 'accepted' }> {
+    const response = await this.request<any>(`/social/users/${userId}/follow-status`);
+    return response.data;
+  }
+
+  async getFollowers(userId: string, page = 1, limit = 20): Promise<{ users: any[]; hasMore: boolean }> {
+    const response = await this.request<any>(`/social/users/${userId}/followers?page=${page}&limit=${limit}`);
+    return response.data;
+  }
+
+  async getFollowing(userId: string, page = 1, limit = 20): Promise<{ users: any[]; hasMore: boolean }> {
+    const response = await this.request<any>(`/social/users/${userId}/following?page=${page}&limit=${limit}`);
+    return response.data;
+  }
+
   async getPublicProfile(username: string): Promise<{ profile: any }> {
     const response = await this.request<any>(`/users/u/${username}`);
     return response as any;
@@ -483,6 +498,22 @@ class ApiClient {
 
   async deleteUser(userId: string): Promise<void> {
     await this.request(`/users/${userId}`, { method: 'DELETE' });
+  }
+
+  async adminCreateUser(userData: {
+    name: string;
+    username: string;
+    email: string;
+    password: string;
+    roles?: string[];
+    birthDate?: string;
+    gender?: string;
+    cpf?: string;
+  }): Promise<any> {
+    return this.request('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
   }
 
   async uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
@@ -1075,9 +1106,15 @@ class ApiClient {
     });
   }
 
-  async followUser(userId: string): Promise<void> {
-    await this.request(`/social/users/${userId}/follow`, {
+  async followUser(userId: string): Promise<any> {
+    return this.request<any>(`/social/users/${userId}/follow`, {
       method: 'POST',
+    });
+  }
+
+  async unfollowUser(userId: string): Promise<any> {
+    return this.request<any>(`/social/users/${userId}/follow`, {
+      method: 'DELETE',
     });
   }
 
