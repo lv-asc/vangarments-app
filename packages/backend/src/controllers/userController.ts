@@ -139,8 +139,8 @@ export class UserController {
         });
       }
 
-      const { name, bio, socialLinks, roles, username, privacySettings, measurements, birthDate, location } = req.body;
-      console.log('DEBUG: updateBasicProfile req.body', { name, bio, privacySettings, measurements, birthDate, location });
+      const { name, bio, socialLinks, roles, username, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType, contactEmail, telephone } = req.body;
+      console.log('DEBUG: updateBasicProfile req.body', { name, bio, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType });
       const updateData: any = {};
       let usernameUpdateResult: { success: boolean; error?: string; daysRemaining?: number } | null = null;
 
@@ -178,6 +178,15 @@ export class UserController {
       }
       if (location) {
         updateData.location = location;
+      }
+
+      if (gender || genderOther || bodyType || contactEmail || telephone) {
+        updateData.profile = updateData.profile || {};
+        if (gender !== undefined) updateData.profile.gender = gender;
+        if (genderOther !== undefined) updateData.profile.genderOther = genderOther;
+        if (bodyType !== undefined) updateData.profile.bodyType = bodyType;
+        if (contactEmail !== undefined) updateData.profile.contactEmail = contactEmail;
+        if (telephone !== undefined) updateData.profile.telephone = telephone;
       }
       // Update roles if provided
       if (roles) {
@@ -706,7 +715,8 @@ export class UserController {
         search: search as string,
         limit: parseInt(limit as string),
         offset: (parseInt(page as string) - 1) * parseInt(limit as string),
-        roles: roles ? (roles as string).split(',') : undefined
+        roles: roles ? (roles as string).split(',') : undefined,
+        status: (status as string) || undefined
       };
 
       const { users, total } = await UserModel.findAll(filters);
@@ -787,7 +797,7 @@ export class UserController {
   static async adminUpdateUser(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { name, bio, roles } = req.body;
+      const { name, bio, roles, username, socialLinks, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType, contactEmail, telephone } = req.body;
 
       if (!req.user?.roles.includes('admin')) {
         return res.status(403).json({
@@ -798,12 +808,70 @@ export class UserController {
         });
       }
 
-      // Update basic info
-      await UserModel.update(id, { name, profile: { bio } });
+      console.log('DEBUG: adminUpdateUser body', req.body);
+
+      const updateData: any = {};
+
+      // Handle username update
+      if (username !== undefined) {
+        // Check if taken, but maybe allow bypass cooldown? For now standard check.
+        const isTaken = await UserModel.isUsernameTaken(username, id);
+        if (isTaken) {
+          return res.status(400).json({
+            error: {
+              code: 'USERNAME_TAKEN',
+              message: 'Username is already taken'
+            }
+          });
+        }
+        // Directly update username for admin, skipping cooldown check usually desired
+        // But we need to update it via SQL. UserModel.update doesn't update username directly in some versions?
+        // UserModel.create inserts it. UserModel.update does NOT have username in UpdateUserData unless we change interface.
+        // Let's check UserModel.update. It does NOT update username.
+        // UserModel.updateUsername handles it.
+        // We'll call updateUsername but ignoring success/daysRemaining result if we want to FORCE it,
+        // or we respect it. Standard updateUsername checks cooldown.
+        // Admins might want to force it.
+        // Let's stick to standard flow for now using updateUsername, but since we are admin, maybe we should direct update if we could.
+        // However, let's use the provided method.
+        const usernameResult = await UserModel.updateUsername(id, username);
+        if (!usernameResult.success) {
+          // If it failed due to cooldown, admins might want to override.
+          // For now, let's just return error.
+          return res.status(400).json({
+            error: {
+              code: 'USERNAME_UPDATE_FAILED',
+              message: usernameResult.error
+            }
+          });
+        }
+      }
+
+      if (name) updateData.name = name;
+
+      if (bio !== undefined || birthDate !== undefined || contactEmail !== undefined || telephone !== undefined || gender !== undefined) {
+        updateData.profile = updateData.profile || {};
+        if (bio !== undefined) updateData.profile.bio = bio;
+        if (birthDate !== undefined) updateData.profile.birthDate = birthDate;
+        if (contactEmail !== undefined) updateData.profile.contactEmail = contactEmail;
+        if (telephone !== undefined) updateData.profile.telephone = telephone;
+        if (gender !== undefined) updateData.profile.gender = gender;
+        if (genderOther !== undefined) updateData.profile.genderOther = genderOther;
+        if (bodyType !== undefined) updateData.profile.bodyType = bodyType;
+      }
+
+      if (location) updateData.location = location;
+      if (measurements) updateData.measurements = measurements;
+      if (privacySettings) updateData.privacySettings = privacySettings;
+      if (socialLinks) updateData.socialLinks = socialLinks;
 
       // Update roles if provided
       if (roles && Array.isArray(roles)) {
         await UserModel.setRoles(id, roles);
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await UserModel.update(id, updateData);
       }
 
       const updatedUser = await UserModel.findById(id);
@@ -910,6 +978,22 @@ export class UserController {
     }
   }
 
+  static async restoreUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Admin access required' } });
+      }
+
+      await UserModel.restore(id);
+      res.json({ success: true, message: 'User restored from trash' });
+    } catch (error) {
+      console.error('Restore user error:', error);
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to restore user' } });
+    }
+  }
+
   static async deleteUser(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;
@@ -923,12 +1007,20 @@ export class UserController {
         return res.status(400).json({ error: { code: 'INVALID_OPERATION', message: 'Cannot delete your own account' } });
       }
 
-      const deleted = await UserModel.delete(id);
-      if (!deleted) {
-        return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
+      const { force } = req.query;
+
+      // If force=true, delete permanently
+      if (force === 'true') {
+        const deleted = await UserModel.delete(id);
+        if (!deleted) {
+          return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
+        }
+        return res.json({ success: true, message: 'User deleted permanently' });
       }
 
-      res.json({ success: true, message: 'User deleted permanently' });
+      // Otherwise, soft delete (move to trash)
+      await UserModel.moveToTrash(id);
+      res.json({ success: true, message: 'User moved to trash' });
     } catch (error) {
       console.error('Delete user error:', error);
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete user' } });

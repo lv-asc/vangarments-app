@@ -8,8 +8,11 @@ export interface CreateUserData {
   name: string;
   birthDate: Date;
   gender: string;
+  genderOther?: string;
+  bodyType?: string;
   location?: Location;
   username: string; // Ensure this is consistent
+  telephone: string;
 }
 
 
@@ -25,18 +28,23 @@ export interface UpdateUserData {
     height: boolean;
     weight: boolean;
     birthDate: boolean;
+    gender: boolean;
+    telephone: boolean;
   };
 }
 
 export class UserModel {
   static async create(userData: CreateUserData): Promise<UserProfile> {
-    const { cpf, email, passwordHash, name, birthDate, gender, location, username } = userData;
+    const { cpf, email, passwordHash, name, birthDate, gender, location, username, telephone } = userData;
 
     const profile = {
       name,
       birthDate: birthDate.toISOString(),
       gender,
+      genderOther: userData.genderOther,
+      bodyType: userData.bodyType,
       location: location || {},
+      telephone
     };
 
     const query = `
@@ -330,8 +338,8 @@ export class UserModel {
     return { success: true };
   }
 
-  static async findAll(filters: { search?: string; limit?: number; offset?: number; roles?: string[] } = {}): Promise<{ users: UserProfile[], total: number }> {
-    const { search, limit = 20, offset = 0, roles } = filters;
+  static async findAll(filters: { search?: string; limit?: number; offset?: number; roles?: string[]; status?: string } = {}): Promise<{ users: UserProfile[], total: number }> {
+    const { search, limit = 20, offset = 0, roles, status } = filters;
     const params: any[] = [];
     let whereClause = '';
     const conditions: string[] = [];
@@ -345,6 +353,26 @@ export class UserModel {
       // Filter users who have at least one of the specified roles
       params.push(roles);
       conditions.push(`EXISTS (SELECT 1 FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.role = ANY($${params.length}))`);
+    }
+
+    if (status) {
+      // If status is specific (e.g. 'trashed', 'active'), filter by it.
+      // If status is 'all', show everything EXCEPT trashed (unless specific trash view requested? No, 'all' usually means valid users).
+      if (status === 'trashed') {
+        params.push('trashed');
+        conditions.push(`u.status = $${params.length}`);
+      } else if (status !== 'all') {
+        params.push(status);
+        conditions.push(`u.status = $${params.length}`);
+      } else {
+        // status === 'all': exclude trashed by default to keep them hidden
+        params.push('trashed');
+        conditions.push(`u.status != $${params.length}`);
+      }
+    } else {
+      // Default: exclude trashed
+      params.push('trashed');
+      conditions.push(`u.status != $${params.length}`);
     }
 
     if (conditions.length > 0) {
@@ -375,14 +403,14 @@ export class UserModel {
     return { users, total };
   }
 
-  private static mapToUserProfile(row: any): UserProfile {
+  public static mapToUserProfile(row: any): UserProfile {
     const profile = typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile;
     const measurements = row.measurements ?
       (typeof row.measurements === 'string' ? JSON.parse(row.measurements) : row.measurements) : {};
     const preferences = row.preferences ?
       (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {};
     const privacySettings = row.privacy_settings ?
-      (typeof row.privacy_settings === 'string' ? JSON.parse(row.privacy_settings) : row.privacy_settings) : { height: false, weight: false, birthDate: false };
+      (typeof row.privacy_settings === 'string' ? JSON.parse(row.privacy_settings) : row.privacy_settings) : { height: false, weight: false, birthDate: false, gender: false };
 
     return {
       id: row.id,
@@ -395,8 +423,12 @@ export class UserModel {
         birthDate: new Date(profile.birthDate),
         location: profile.location || {},
         gender: profile.gender,
-        avatarUrl: profile.avatarUrl,
+        genderOther: profile.genderOther,
+        bodyType: profile.bodyType,
+        avatarUrl: profile.avatarUrl || profile.profilePicture || profile.image || profile.profileImage,
         bio: profile.bio,
+        telephone: profile.telephone,
+        contactEmail: profile.contactEmail,
       },
       measurements: measurements,
       preferences: preferences,
@@ -423,6 +455,14 @@ export class UserModel {
       WHERE id = $4
     `;
     await db.query(query, [status, banExpiresAt || null, banReason || null, userId]);
+  }
+
+  static async moveToTrash(userId: string): Promise<void> {
+    return this.updateStatus(userId, 'trashed');
+  }
+
+  static async restore(userId: string): Promise<void> {
+    return this.updateStatus(userId, 'active');
   }
 
   static async delete(userId: string): Promise<boolean> {

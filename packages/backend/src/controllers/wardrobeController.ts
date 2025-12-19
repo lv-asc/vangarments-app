@@ -3,7 +3,6 @@ import multer from 'multer';
 import { VUFSItemModel } from '../models/VUFSItem';
 import { ItemImageModel } from '../models/ItemImage';
 import { AIProcessingService } from '../services/aiProcessingService';
-import { AWSService } from '../services/awsService';
 import { LocalStorageService } from '../services/localStorageService';
 import { AuthenticatedRequest } from '../utils/auth';
 import { VUFSUtils } from '../utils/vufs';

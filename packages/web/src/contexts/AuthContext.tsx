@@ -59,6 +59,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateProfile: (userData: Partial<User>) => Promise<void>;
   refreshAuth: () => Promise<void>;
+  activeRole: string | null;
+  setActiveRole: (role: string) => void;
 }
 
 interface RegisterData {
@@ -67,8 +69,11 @@ interface RegisterData {
   password: string;
   cpf: string;
   birthDate?: string;
-  gender?: 'male' | 'female' | 'non-binary' | 'prefer-not-to-say';
+  gender?: 'male' | 'female' | 'other' | 'prefer-not-to-say';
+  genderOther?: string;
+  bodyType?: 'male' | 'female';
   username?: string;
+  telephone: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -76,7 +81,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeRole, setActiveRoleState] = useState<string | null>(null);
   const router = useRouter();
+
+  const setActiveRole = (role: string) => {
+    setActiveRoleState(role);
+    localStorage.setItem('activeRole', role);
+  };
+
+  useEffect(() => {
+    const storedRole = localStorage.getItem('activeRole');
+    if (storedRole) {
+      setActiveRoleState(storedRole);
+    }
+  }, []);
 
   const isAuthenticated = !!user;
 
@@ -205,6 +223,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     updateProfile,
     refreshAuth,
+    activeRole,
+    setActiveRole,
   };
 
   return (

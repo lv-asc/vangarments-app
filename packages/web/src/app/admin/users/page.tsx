@@ -22,7 +22,7 @@ interface User {
     email: string;
     avatarUrl?: string;
     roles: string[];
-    status: 'active' | 'banned' | 'deactivated';
+    status: 'active' | 'banned' | 'deactivated' | 'trashed';
     banExpiresAt?: string;
     brands?: { id: string; name: string }[];
     linkedEntities?: LinkedEntity[];
@@ -78,6 +78,7 @@ export default function AdminUsersPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortBy, setSortBy] = useState('username_asc');
     const [groupBy, setGroupBy] = useState('status');
+    const [view, setView] = useState<'active' | 'trash'>('active');
 
     // Modals State
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -95,13 +96,14 @@ export default function AdminUsersPage() {
         if (user?.roles?.includes('admin')) {
             fetchUsers();
         }
-    }, [user, authLoading, router]);
+    }, [user, authLoading, router, view]);
 
     const fetchUsers = async () => {
         try {
             setLoading(true);
+            const statusParam = view === 'trash' ? 'trashed' : undefined;
             const [usersResponse, brandsResponse, storesResponse, pagesResponse, suppliersResponse] = await Promise.all([
-                apiClient.get('/users') as any,
+                apiClient.get(`/users${statusParam ? `?status=${statusParam}` : ''}`) as any,
                 apiClient.get('/brands') as any,
                 apiClient.get('/stores') as any,
                 apiClient.get('/pages') as any,
@@ -196,12 +198,26 @@ export default function AdminUsersPage() {
         setDeleteModalOpen(true);
     };
 
+    const handleRestore = async (user: User) => {
+        if (!confirm(`Are you sure you want to restore ${user.name}?`)) return;
+        try {
+            await apiClient.restoreUser(user.id);
+            toast.success('User restored successfully');
+            setUsers(users.filter(u => u.id !== user.id));
+        } catch (error) {
+            console.error('Failed to restore user', error);
+            toast.error('Failed to restore user');
+        }
+    };
+
     const confirmDelete = async () => {
         if (!userToDelete) return;
 
         try {
-            await apiClient.deleteUser(userToDelete.id);
-            toast.success('User deleted successfully');
+            // If in trash, force delete. If active, soft delete.
+            const force = view === 'trash';
+            await apiClient.deleteUser(userToDelete.id, force);
+            toast.success(force ? 'User permanently deleted' : 'User moved to trash');
             setUsers(users.filter(u => u.id !== userToDelete.id));
             setDeleteModalOpen(false);
             setUserToDelete(null);
@@ -258,9 +274,9 @@ export default function AdminUsersPage() {
             return { 'All Users': processedUsers };
         }
         if (groupBy === 'status') {
-            const groups: Record<string, User[]> = { 'Active': [], 'Banned': [], 'Deactivated': [] };
+            const groups: Record<string, User[]> = { 'Active': [], 'Banned': [], 'Deactivated': [], 'Trashed': [] };
             processedUsers.forEach(u => {
-                const key = u.status === 'active' ? 'Active' : u.status === 'banned' ? 'Banned' : 'Deactivated';
+                const key = u.status === 'active' ? 'Active' : u.status === 'banned' ? 'Banned' : u.status === 'deactivated' ? 'Deactivated' : 'Trashed';
                 groups[key].push(u);
             });
             return Object.fromEntries(Object.entries(groups).filter(([, v]) => v.length > 0));
@@ -286,6 +302,8 @@ export default function AdminUsersPage() {
                 return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Banned</span>;
             case 'deactivated':
                 return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Deactivated</span>;
+            case 'trashed':
+                return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-50 text-red-500 border border-red-200">Trashed</span>;
             default:
                 return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-500">Unknown</span>;
         }
@@ -312,6 +330,31 @@ export default function AdminUsersPage() {
                 >
                     Create User
                 </button>
+            </div>
+
+            {/* View Tabs */}
+            <div className="border-b border-gray-200 mb-6">
+                <nav className="-mb-px flex space-x-8">
+                    <button
+                        onClick={() => setView('active')}
+                        className={`${view === 'active'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                    >
+                        Active Users
+                    </button>
+                    <button
+                        onClick={() => setView('trash')}
+                        className={`${view === 'trash'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        Trash
+                        <TrashIcon className="h-4 w-4" />
+                    </button>
+                </nav>
             </div>
 
             {/* Filter Controls (omitted for brevity, keep as is) */}
@@ -373,197 +416,216 @@ export default function AdminUsersPage() {
                 </div>
             </div>
 
-            {Object.entries(groupedUsers).map(([groupName, groupUsers]) => (
-                <div key={groupName} className="mb-8">
-                    {groupBy !== 'none' && (
-                        <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                            {groupName}
-                            <span className="text-sm font-normal text-gray-500">({groupUsers.length})</span>
-                        </h2>
-                    )}
-                    <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roles</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Entities</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {groupUsers.map((userItem) => (
-                                    <tr key={userItem.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center">
-                                                {userItem.avatarUrl ? (
-                                                    <img
-                                                        src={userItem.avatarUrl}
-                                                        alt={userItem.name || 'User'}
-                                                        className="h-10 w-10 rounded-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                                        <span className="text-gray-500 font-medium text-sm">
-                                                            {(userItem.name?.[0] || userItem.username?.[0] || '?').toUpperCase()}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <div className="ml-4">
-                                                    <div className="text-sm font-medium text-gray-900">{userItem.name || '-'}</div>
-                                                    <div className="text-sm text-gray-500">@{userItem.username || '-'}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm text-gray-900">{userItem.email}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex flex-wrap gap-1">
-                                                {userItem.roles?.map((role: string) => (
-                                                    <span key={role} className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                        {role}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-wrap gap-1 max-w-xs">
-                                                {userItem.linkedEntities && userItem.linkedEntities.length > 0 ? (
-                                                    userItem.linkedEntities.map(entity => {
-                                                        const badgeStyles: Record<string, string> = {
-                                                            brand: 'bg-purple-100 text-purple-800 hover:bg-purple-200',
-                                                            store: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
-                                                            page: 'bg-green-100 text-green-800 hover:bg-green-200',
-                                                            supplier: 'bg-orange-100 text-orange-800 hover:bg-orange-200',
-                                                            non_profit: 'bg-pink-100 text-pink-800 hover:bg-pink-200',
-                                                            designer: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200',
-                                                            manufacturer: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                                        };
-                                                        const adminPaths: Record<string, string> = {
-                                                            brand: 'brands',
-                                                            store: 'brands', // stores are in brand_accounts table
-                                                            page: 'pages',
-                                                            supplier: 'suppliers',
-                                                            non_profit: 'brands',
-                                                            designer: 'brands',
-                                                            manufacturer: 'brands'
-                                                        };
-                                                        // Use relative path for storage URLs to go through frontend proxy
-                                                        const logoUrl = entity.logo ?
-                                                            (entity.logo.startsWith('http') ? entity.logo : entity.logo)
-                                                            : null;
-                                                        return (
-                                                            <a
-                                                                key={`${entity.type}-${entity.id}`}
-                                                                href={`/admin/${adminPaths[entity.type] || 'brands'}/${entity.id}`}
-                                                                className={`px-2 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${badgeStyles[entity.type] || badgeStyles.brand}`}
-                                                                title={entity.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                                            >
-                                                                {logoUrl && (
-                                                                    <img
-                                                                        src={logoUrl}
-                                                                        alt=""
-                                                                        className="h-4 w-4 rounded-full object-cover"
-                                                                    />
-                                                                )}
-                                                                {entity.name}
-                                                            </a>
-                                                        );
-                                                    })
-                                                ) : (
-                                                    <span className="text-xs text-gray-400">None</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {getStatusBadge(userItem.status)}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                            <a href={`/admin/users/${userItem.id}`} className="text-indigo-600 hover:text-indigo-900">
-                                                Edit
-                                            </a>
-                                            <button
-                                                onClick={() => handleDeleteClick(userItem)}
-                                                className="text-red-600 hover:text-red-900"
-                                            >
-                                                Delete
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {groupUsers.length === 0 && (
+            {
+                Object.entries(groupedUsers).map(([groupName, groupUsers]) => (
+                    <div key={groupName} className="mb-8">
+                        {groupBy !== 'none' && (
+                            <h2 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                {groupName}
+                                <span className="text-sm font-normal text-gray-500">({groupUsers.length})</span>
+                            </h2>
+                        )}
+                        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">No users in this group.</td>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roles</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Entities</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {groupUsers.map((userItem) => (
+                                        <tr key={userItem.id}>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    {userItem.avatarUrl ? (
+                                                        <img
+                                                            src={userItem.avatarUrl}
+                                                            alt={userItem.name || 'User'}
+                                                            className="h-10 w-10 rounded-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                                            <span className="text-gray-500 font-medium text-sm">
+                                                                {(userItem.name?.[0] || userItem.username?.[0] || '?').toUpperCase()}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{userItem.name || '-'}</div>
+                                                        <div className="text-sm text-gray-500">@{userItem.username || '-'}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{userItem.email}</div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {userItem.roles?.map((role: string) => (
+                                                        <span key={role} className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                            {role}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                                    {userItem.linkedEntities && userItem.linkedEntities.length > 0 ? (
+                                                        userItem.linkedEntities.map(entity => {
+                                                            const badgeStyles: Record<string, string> = {
+                                                                brand: 'bg-purple-100 text-purple-800 hover:bg-purple-200',
+                                                                store: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+                                                                page: 'bg-green-100 text-green-800 hover:bg-green-200',
+                                                                supplier: 'bg-orange-100 text-orange-800 hover:bg-orange-200',
+                                                                non_profit: 'bg-pink-100 text-pink-800 hover:bg-pink-200',
+                                                                designer: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200',
+                                                                manufacturer: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                                            };
+                                                            const adminPaths: Record<string, string> = {
+                                                                brand: 'brands',
+                                                                store: 'brands', // stores are in brand_accounts table
+                                                                page: 'pages',
+                                                                supplier: 'suppliers',
+                                                                non_profit: 'brands',
+                                                                designer: 'brands',
+                                                                manufacturer: 'brands'
+                                                            };
+                                                            // Use relative path for storage URLs to go through frontend proxy
+                                                            const logoUrl = entity.logo ?
+                                                                (entity.logo.startsWith('http') ? entity.logo : entity.logo)
+                                                                : null;
+                                                            return (
+                                                                <a
+                                                                    key={`${entity.type}-${entity.id}`}
+                                                                    href={`/admin/${adminPaths[entity.type] || 'brands'}/${entity.id}`}
+                                                                    className={`px-2 py-1 inline-flex items-center gap-1 text-xs leading-5 font-semibold rounded-full ${badgeStyles[entity.type] || badgeStyles.brand}`}
+                                                                    title={entity.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                                                >
+                                                                    {logoUrl && (
+                                                                        <img
+                                                                            src={logoUrl}
+                                                                            alt=""
+                                                                            className="h-4 w-4 rounded-full object-cover"
+                                                                        />
+                                                                    )}
+                                                                    {entity.name}
+                                                                </a>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">None</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {getStatusBadge(userItem.status)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                                <a href={`/admin/users/${userItem.id}`} className="text-indigo-600 hover:text-indigo-900">
+                                                    Edit
+                                                </a>
+                                                {view === 'trash' && (
+                                                    <button
+                                                        onClick={() => handleRestore(userItem)}
+                                                        className="text-green-600 hover:text-green-900"
+                                                    >
+                                                        Restore
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => handleDeleteClick(userItem)}
+                                                    className="text-red-600 hover:text-red-900"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {groupUsers.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="px-6 py-4 text-center text-gray-500">No users in this group.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))
+            }
 
-            {Object.keys(groupedUsers).length === 0 && (
-                <div className="bg-white shadow rounded-lg p-10 text-center text-gray-500">
-                    No users found matching your criteria.
-                </div>
-            )}
+            {
+                Object.keys(groupedUsers).length === 0 && (
+                    <div className="bg-white shadow rounded-lg p-10 text-center text-gray-500">
+                        No users found matching your criteria.
+                    </div>
+                )
+            }
 
             {/* Delete Confirmation Modal */}
-            {deleteModalOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setDeleteModalOpen(false)}></div>
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-                            <div className="sm:flex sm:items-start">
-                                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                    <TrashIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
-                                </div>
-                                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">Delete User</h3>
-                                    <div className="mt-2">
-                                        <p className="text-sm text-gray-500">
-                                            Are you sure you want to delete <span className="font-bold">{userToDelete?.name || userToDelete?.email}</span>? This action cannot be undone. All data associated with this user, including brands and outfits, will be permanently removed.
-                                        </p>
+            {
+                deleteModalOpen && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setDeleteModalOpen(false)}></div>
+                            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+                                <div className="sm:flex sm:items-start">
+                                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                        <TrashIcon className="h-6 w-6 text-red-600" aria-hidden="true" />
+                                    </div>
+                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                                        <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">Delete User</h3>
+                                        <div className="mt-2">
+                                            <p className="text-sm text-gray-500">
+                                                {view === 'trash'
+                                                    ? <span>Are you sure you want to <span className="font-bold text-red-600">PERMANENTLY DELETE</span> <span className="font-bold">{userToDelete?.name || userToDelete?.email}</span>? This action cannot be undone.</span>
+                                                    : <span>Are you sure you want to move <span className="font-bold">{userToDelete?.name || userToDelete?.email}</span> to trash? You can restore them later.</span>
+                                                }
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                                <button
-                                    type="button"
-                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                                    onClick={confirmDelete}
-                                >
-                                    Delete
-                                </button>
-                                <button
-                                    type="button"
-                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
-                                    onClick={() => setDeleteModalOpen(false)}
-                                >
-                                    Cancel
-                                </button>
+                                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                                    <button
+                                        type="button"
+                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                                        onClick={confirmDelete}
+                                    >
+                                        Delete
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                                        onClick={() => setDeleteModalOpen(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Create User Modal */}
-            {createModalOpen && (
-                <CreateUserModal
-                    isOpen={createModalOpen}
-                    onClose={() => setCreateModalOpen(false)}
-                    onSuccess={() => {
-                        setCreateModalOpen(false);
-                        fetchUsers();
-                    }}
-                />
-            )}
-        </div>
+            {
+                createModalOpen && (
+                    <CreateUserModal
+                        isOpen={createModalOpen}
+                        onClose={() => setCreateModalOpen(false)}
+                        onSuccess={() => {
+                            setCreateModalOpen(false);
+                            fetchUsers();
+                        }}
+                    />
+                )
+            }
+        </div >
     );
 }
 

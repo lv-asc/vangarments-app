@@ -10,6 +10,7 @@ import { CPFInput } from '@/components/ui/CPFInput';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useNavigation } from '@/hooks/useNavigation';
+import { formatPhone } from '@/lib/masks';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -17,10 +18,15 @@ export default function RegisterPage() {
     username: '',
     email: '',
     cpf: '',
+    telephone: '',
     password: '',
     confirmPassword: '',
     acceptTerms: false,
     acceptMarketing: false,
+    gender: '',
+    genderOther: '',
+    bodyType: '',
+    birthDate: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -40,6 +46,14 @@ export default function RegisterPage() {
     setFormData(prev => ({
       ...prev,
       cpf
+    }));
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value);
+    setFormData(prev => ({
+      ...prev,
+      telephone: formatted
     }));
   };
 
@@ -64,7 +78,13 @@ export default function RegisterPage() {
         username: formData.username,
         email: formData.email,
         password: formData.password,
+        password: formData.password,
         cpf: formData.cpf,
+        telephone: formData.telephone,
+        birthDate: formData.birthDate,
+        gender: formData.gender as any,
+        genderOther: formData.genderOther,
+        bodyType: formData.bodyType as any,
       });
     } catch (error) {
       // Error is handled by the useAuth hook
@@ -158,11 +178,11 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors"
                   placeholder="Seu nome de usuário (ex: usuario123)"
-                  pattern="[a-zA-Z0-9_]+"
-                  title="Apenas letras, números e sublinhados"
+                  pattern="[a-zA-Z0-9_.]+"
+                  title="Apenas letras, números, sublinhados e pontos"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Apenas letras, números e sublinhados
+                  Apenas letras, números, sublinhados e pontos
                 </p>
               </div>
 
@@ -195,6 +215,26 @@ export default function RegisterPage() {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Necessário para verificação de identidade no Brasil
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="telephone" className="block text-sm font-medium text-gray-700 mb-2">
+                  Telefone (WhatsApp)
+                </label>
+                <input
+                  id="telephone"
+                  name="telephone"
+                  type="tel"
+                  autoComplete="tel"
+                  required
+                  value={formData.telephone}
+                  onChange={handlePhoneChange}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors"
+                  placeholder="(00) 00000-0000"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Para contato e recuperação de conta
                 </p>
               </div>
 
@@ -277,6 +317,72 @@ export default function RegisterPage() {
                 {formData.confirmPassword && formData.password !== formData.confirmPassword && (
                   <p className="text-xs text-red-600 mt-1">As senhas não coincidem</p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Gênero
+                </label>
+                <div className="space-y-3">
+                  <div className="flex gap-4">
+                    {['male', 'female', 'other'].map((option) => (
+                      <label key={option} className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="gender"
+                          value={option}
+                          checked={formData.gender === option}
+                          onChange={handleChange}
+                          className="w-4 h-4 text-pink-600 focus:ring-pink-500 border-gray-300"
+                        />
+                        <span className="ml-2 text-gray-700 capitalize">
+                          {option === 'male' ? 'Masculino' : option === 'female' ? 'Feminino' : 'Outro'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {formData.gender === 'other' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="space-y-3 pl-4 border-l-2 border-pink-100"
+                    >
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Especifique (opcional)</label>
+                        <input
+                          type="text"
+                          name="genderOther"
+                          value={formData.genderOther}
+                          onChange={handleChange}
+                          placeholder="ex: Não-binário"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Tipo de corpo (para provador virtual)</label>
+                        <div className="flex gap-4">
+                          {['male', 'female'].map((type) => (
+                            <label key={type} className="flex items-center cursor-pointer">
+                              <input
+                                type="radio"
+                                name="bodyType"
+                                value={type}
+                                checked={formData.bodyType === type}
+                                onChange={handleChange}
+                                required={formData.gender === 'other'}
+                                className="w-4 h-4 text-pink-600 focus:ring-pink-500 border-gray-300"
+                              />
+                              <span className="ml-2 text-sm text-gray-700">
+                                corpo {type === 'male' ? 'masculino' : 'feminino'}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
               </div>
 
               {/* Terms and Marketing */}

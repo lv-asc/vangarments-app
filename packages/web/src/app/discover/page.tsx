@@ -200,13 +200,13 @@ export default function DiscoverPage() {
   );
 
   const UserCard = ({ user }: { user: any }) => (
-    <div className="flex items-center space-x-3 p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/profile/${user.id}`)}>
+    <div className="flex items-center space-x-3 p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/u/${user.username || user.name?.toLowerCase().replace(/\s/g, '')}`)}>
       <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-        {user.profilePicture ? (
-          <img src={getImageUrl(user.profilePicture)} alt={user.name} className="h-full w-full object-cover" />
+        {user.personalInfo?.avatarUrl ? (
+          <img src={getImageUrl(user.personalInfo.avatarUrl)} alt={user.name || user.personalInfo?.name} className="h-full w-full object-cover" />
         ) : (
           <div className="h-full w-full flex items-center justify-center text-gray-500 text-xs font-bold">
-            {user.name?.substring(0, 2).toUpperCase()}
+            {(user.name || user.personalInfo?.name || '').substring(0, 2).toUpperCase()}
           </div>
         )}
       </div>

@@ -24,7 +24,7 @@ export class AuthController {
                 });
             }
 
-            const { cpf, email, password, name, birthDate, gender, username } = validationResult.data;
+            const { cpf, email, password, name, birthDate, gender, genderOther, bodyType, username, telephone } = validationResult.data;
 
             // Validate CPF
             if (!CPFValidator.isValid(cpf)) {
@@ -81,7 +81,10 @@ export class AuthController {
                 name,
                 birthDate,
                 gender,
+                genderOther,
+                bodyType,
                 username,
+                telephone,
             });
 
             // Add default consumer role

@@ -731,6 +731,40 @@ export class VUFSManagementService {
     return this.updateItem('vufs_sizes', id, name);
   }
 
+  // --- STANDARDS MANAGEMENT ---
+
+  static async getStandards(): Promise<any[]> {
+    const query = 'SELECT * FROM vufs_standards ORDER BY sort_order ASC';
+    const result = await db.query(query);
+    return result.rows;
+  }
+
+  static async addStandard(data: { name: string, label: string, region: string, category: string, approach: string, description: string }): Promise<any> {
+    const query = `
+      INSERT INTO vufs_standards (name, label, region, category, approach, description, sort_order)
+      VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort_order), 0) + 10 FROM vufs_standards))
+      RETURNING *
+    `;
+    const result = await db.query(query, [data.name, data.label, data.region, data.category, data.approach, data.description]);
+    return result.rows[0];
+  }
+
+  static async updateStandard(id: string, data: { name: string, label: string, region: string, category: string, approach: string, description: string }): Promise<any> {
+    const query = `
+      UPDATE vufs_standards
+      SET name = $1, label = $2, region = $3, category = $4, approach = $5, description = $6
+      WHERE id = $7
+      RETURNING *
+    `;
+    const result = await db.query(query, [data.name, data.label, data.region, data.category, data.approach, data.description, id]);
+    if (result.rows.length === 0) throw new Error('Standard not found');
+    return result.rows[0];
+  }
+
+  static async deleteStandard(id: string): Promise<void> {
+    await db.query('DELETE FROM vufs_standards WHERE id = $1', [id]);
+  }
+
   // --- DYNAMIC ATTRIBUTE MANAGEMENT ---
 
   static async getAttributeTypes(): Promise<any[]> {

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 import { Pool } from 'pg';
-import * as AWS from 'aws-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import * as dotenv from 'dotenv';
+import { Storage } from '@google-cloud/storage';
 
 // Load environment configuration
 const environment = process.env.NODE_ENV || 'development';
@@ -21,20 +21,20 @@ interface BackupOptions {
   type: 'full' | 'schema' | 'data';
   compress: boolean;
   encrypt: boolean;
-  uploadToS3: boolean;
+  uploadToCloud: boolean;
   retentionDays: number;
 }
 
 class DatabaseBackup {
-  private s3: AWS.S3;
   private backupDir: string;
+  private storage: Storage;
+  private bucketName: string;
 
   constructor() {
-    this.s3 = new AWS.S3({
-      region: process.env.AWS_REGION || 'us-east-1'
-    });
     this.backupDir = path.join(__dirname, '../../backups');
-    
+    this.storage = new Storage();
+    this.bucketName = process.env.GCS_BACKUPS_BUCKET || 'vangarments-backups';
+
     // Ensure backup directory exists
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
@@ -50,7 +50,7 @@ class DatabaseBackup {
 
     try {
       await this.runPgDump(filepath, options);
-      
+
       if (options.compress) {
         await this.compressFile(filepath);
       }
@@ -59,8 +59,8 @@ class DatabaseBackup {
         await this.encryptFile(filepath);
       }
 
-      if (options.uploadToS3) {
-        await this.uploadToS3(filepath, filename);
+      if (options.uploadToCloud) {
+        await this.uploadToGCS(filepath);
       }
 
       console.log(`✅ Backup created successfully: ${filename}`);
@@ -74,7 +74,7 @@ class DatabaseBackup {
   private async runPgDump(filepath: string, options: BackupOptions): Promise<void> {
     return new Promise((resolve, reject) => {
       const dbUrl = new URL(process.env.DATABASE_URL!);
-      
+
       const args = [
         '--host', dbUrl.hostname,
         '--port', dbUrl.port || '5432',
@@ -135,7 +135,7 @@ class DatabaseBackup {
   private async compressFile(filepath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const gzip = spawn('gzip', [filepath]);
-      
+
       gzip.on('close', (code) => {
         if (code === 0) {
           resolve();
@@ -178,30 +178,29 @@ class DatabaseBackup {
     });
   }
 
-  private async uploadToS3(filepath: string, filename: string): Promise<void> {
-    const bucketName = process.env.S3_BACKUPS_BUCKET;
-    if (!bucketName) {
-      throw new Error('S3_BACKUPS_BUCKET environment variable is required');
-    }
-
-    const fileContent = fs.readFileSync(filepath);
+  private async uploadToGCS(filepath: string): Promise<void> {
+    const filename = path.basename(filepath);
     const key = `database-backups/${environment}/${filename}`;
 
-    const params = {
-      Bucket: bucketName,
-      Key: key,
-      Body: fileContent,
-      ServerSideEncryption: 'AES256',
-      StorageClass: 'STANDARD_IA',
-      Metadata: {
-        environment,
-        'backup-type': 'database',
-        'created-at': new Date().toISOString()
-      }
-    };
+    console.log(`☁️ Uploading to GCS: ${this.bucketName}/${key}`);
 
-    await this.s3.upload(params).promise();
-    console.log(`📤 Backup uploaded to S3: s3://${bucketName}/${key}`);
+    try {
+      await this.storage.bucket(this.bucketName).upload(filepath, {
+        destination: key,
+        metadata: {
+          contentType: 'application/octet-stream',
+          metadata: {
+            environment,
+            'backup-type': 'database',
+            'created-at': new Date().toISOString()
+          }
+        }
+      });
+      console.log('✅ Upload to GCS successful');
+    } catch (error) {
+      console.error(`❌ GCS upload failed: ${error.message}`);
+      throw error;
+    }
   }
 
   async listBackups(): Promise<void> {
@@ -222,37 +221,29 @@ class DatabaseBackup {
       });
     }
 
-    // List S3 backups if configured
-    const bucketName = process.env.S3_BACKUPS_BUCKET;
-    if (bucketName) {
-      try {
-        console.log('\n☁️ S3 Backups:');
-        const params = {
-          Bucket: bucketName,
-          Prefix: `database-backups/${environment}/`
-        };
+    // List Cloud backups if configured
+    try {
+      console.log('\n☁️ Cloud Backups (GCS):');
+      const [files] = await this.storage.bucket(this.bucketName).getFiles({
+        prefix: `database-backups/${environment}/`
+      });
 
-        const result = await this.s3.listObjectsV2(params).promise();
-        
-        if (!result.Contents || result.Contents.length === 0) {
-          console.log('  No S3 backups found');
-        } else {
-          result.Contents
-            .sort((a, b) => (b.LastModified?.getTime() || 0) - (a.LastModified?.getTime() || 0))
-            .forEach(obj => {
-              const size = ((obj.Size || 0) / 1024 / 1024).toFixed(2);
-              console.log(`  - ${obj.Key} (${size} MB) - ${obj.LastModified?.toISOString()}`);
-            });
-        }
-      } catch (error) {
-        console.error('❌ Failed to list S3 backups:', error.message);
+      if (files.length === 0) {
+        console.log('  No cloud backups found');
+      } else {
+        files.forEach(file => {
+          const size = (parseInt(file.metadata.size || '0') / 1024 / 1024).toFixed(2);
+          console.log(`  - ${file.name} (${size} MB) - ${file.metadata.updated}`);
+        });
       }
+    } catch (error) {
+      console.warn(`⚠️ Could not list cloud backups: ${error.message}`);
     }
   }
 
   async cleanupOldBackups(retentionDays: number): Promise<void> {
     console.log(`🧹 Cleaning up backups older than ${retentionDays} days...`);
-    
+
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
@@ -263,7 +254,7 @@ class DatabaseBackup {
     for (const file of files) {
       const filepath = path.join(this.backupDir, file);
       const stats = fs.statSync(filepath);
-      
+
       if (stats.mtime < cutoffDate) {
         fs.unlinkSync(filepath);
         localDeleted++;
@@ -271,85 +262,71 @@ class DatabaseBackup {
       }
     }
 
-    // Cleanup S3 backups
-    const bucketName = process.env.S3_BACKUPS_BUCKET;
-    if (bucketName) {
-      try {
-        const params = {
-          Bucket: bucketName,
-          Prefix: `database-backups/${environment}/`
-        };
+    // Cleanup Cloud backups
+    try {
+      const [files] = await this.storage.bucket(this.bucketName).getFiles({
+        prefix: `database-backups/${environment}/`
+      });
 
-        const result = await this.s3.listObjectsV2(params).promise();
-        let s3Deleted = 0;
-
-        if (result.Contents) {
-          for (const obj of result.Contents) {
-            if (obj.LastModified && obj.LastModified < cutoffDate) {
-              await this.s3.deleteObject({
-                Bucket: bucketName,
-                Key: obj.Key!
-              }).promise();
-              s3Deleted++;
-              console.log(`🗑️ Deleted S3 backup: ${obj.Key}`);
-            }
-          }
+      let cloudDeleted = 0;
+      for (const file of files) {
+        const updatedDate = new Date(file.metadata.updated || 0);
+        if (updatedDate < cutoffDate) {
+          await file.delete();
+          cloudDeleted++;
+          console.log(`🗑️ Deleted cloud backup: ${file.name}`);
         }
-
-        console.log(`✅ Cleanup completed: ${localDeleted} local, ${s3Deleted} S3 backups deleted`);
-      } catch (error) {
-        console.error('❌ S3 cleanup failed:', error.message);
       }
-    } else {
-      console.log(`✅ Local cleanup completed: ${localDeleted} backups deleted`);
+      console.log(`✅ Cloud cleanup completed: ${cloudDeleted} backups deleted`);
+    } catch (error) {
+      console.warn(`⚠️ Cloud cleanup failed: ${error.message}`);
+    }
+
+  async restoreBackup(backupPath: string, targetDatabase ?: string): Promise < void> {
+      console.log(`🔄 Restoring backup: ${backupPath}`);
+
+      const dbUrl = new URL(process.env.DATABASE_URL!);
+      const database = targetDatabase || dbUrl.pathname.slice(1);
+
+      return new Promise((resolve, reject) => {
+        const args = [
+          '--host', dbUrl.hostname,
+          '--port', dbUrl.port || '5432',
+          '--username', dbUrl.username,
+          '--dbname', database,
+          '--no-password',
+          '--verbose',
+          '--clean',
+          '--if-exists',
+          backupPath
+        ];
+
+        const pgRestore = spawn('pg_restore', args, {
+          env: {
+            ...process.env,
+            PGPASSWORD: dbUrl.password
+          },
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+
+        let errorOutput = '';
+        pgRestore.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+
+        pgRestore.on('close', (code) => {
+          if (code === 0) {
+            console.log(`✅ Backup restored successfully to database: ${database}`);
+            resolve();
+          } else {
+            reject(new Error(`pg_restore failed with code ${code}: ${errorOutput}`));
+          }
+        });
+
+        pgRestore.on('error', reject);
+      });
     }
   }
-
-  async restoreBackup(backupPath: string, targetDatabase?: string): Promise<void> {
-    console.log(`🔄 Restoring backup: ${backupPath}`);
-    
-    const dbUrl = new URL(process.env.DATABASE_URL!);
-    const database = targetDatabase || dbUrl.pathname.slice(1);
-
-    return new Promise((resolve, reject) => {
-      const args = [
-        '--host', dbUrl.hostname,
-        '--port', dbUrl.port || '5432',
-        '--username', dbUrl.username,
-        '--dbname', database,
-        '--no-password',
-        '--verbose',
-        '--clean',
-        '--if-exists',
-        backupPath
-      ];
-
-      const pgRestore = spawn('pg_restore', args, {
-        env: {
-          ...process.env,
-          PGPASSWORD: dbUrl.password
-        },
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-
-      let errorOutput = '';
-      pgRestore.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      pgRestore.on('close', (code) => {
-        if (code === 0) {
-          console.log(`✅ Backup restored successfully to database: ${database}`);
-          resolve();
-        } else {
-          reject(new Error(`pg_restore failed with code ${code}: ${errorOutput}`));
-        }
-      });
-
-      pgRestore.on('error', reject);
-    });
-  }
-}
 
 async function main() {
   const command = process.argv[2];
@@ -363,7 +340,7 @@ async function main() {
           type,
           compress: !process.argv.includes('--no-compress'),
           encrypt: process.argv.includes('--encrypt'),
-          uploadToS3: !process.argv.includes('--no-s3'),
+          uploadToCloud: !process.argv.includes('--no-cloud'),
           retentionDays: parseInt(process.argv.find(arg => arg.startsWith('--retention='))?.split('=')[1] || '30')
         };
         await backup.createBackup(options);
@@ -401,7 +378,7 @@ Commands:
 Options for create:
   --no-compress            Skip compression
   --encrypt               Encrypt backup file
-  --no-s3                 Skip S3 upload
+  --no-cloud            Skip Cloud upload
   --retention=<days>      Set retention period (default: 30)
 
 Examples:

@@ -8,10 +8,22 @@ import {
   PhotoIcon,
   PlusIcon,
   SparklesIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  StarIcon
 } from '@heroicons/react/24/outline';
+import { useAuth } from '@/contexts/AuthWrapper';
+import { useRouter } from 'next/navigation';
+import { AVAILABLE_ROLES } from '@/constants/roles';
 
 export default function HomePage() {
+  const { setActiveRole } = useAuth();
+  const router = useRouter();
+
+  const handleRoleSelect = (role: typeof AVAILABLE_ROLES[0]) => {
+    setActiveRole(role.id);
+    router.push(role.route);
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -145,6 +157,33 @@ export default function HomePage() {
                   </div>
                 </div>
               </motion.a>
+            </div>
+
+            {/* Experience / Roles Section */}
+            <div className="mt-16">
+              <motion.div variants={itemVariants} className="mb-8">
+                <h2 className="text-3xl font-bold mb-4">Escolha sua Experiência</h2>
+                <p className="text-muted-foreground">Selecione como você deseja interagir com o Vangarments hoje.</p>
+              </motion.div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {AVAILABLE_ROLES.map((role) => (
+                  <motion.button
+                    key={role.id}
+                    variants={itemVariants}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleRoleSelect(role)}
+                    className="flex flex-col items-start p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-colors text-left group"
+                  >
+                    <div className="p-3 bg-secondary/10 rounded-xl mb-4 group-hover:bg-secondary/20 transition-colors">
+                      <StarIcon className="w-6 h-6 text-secondary" />
+                    </div>
+                    <h3 className="font-semibold text-lg mb-1">{role.label}</h3>
+                    <p className="text-sm text-gray-400 line-clamp-2">{role.description}</p>
+                  </motion.button>
+                ))}
+              </div>
             </div>
 
             {/* Quick Stats / Footerish area */}

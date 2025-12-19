@@ -41,11 +41,9 @@ export class CSPPolicyMiddleware {
           // Allow specific trusted CDNs
           'https://cdn.jsdelivr.net',
           'https://unpkg.com',
-          // Google Analytics (if used)
-          'https://www.google-analytics.com',
-          'https://www.googletagmanager.com',
-          // AWS SDK
-          'https://sdk.amazonaws.com',
+          // Google APIs
+          'https://apis.google.com',
+          'https://*.googleapis.com',
         ],
 
         // Style sources
@@ -73,11 +71,9 @@ export class CSPPolicyMiddleware {
           'data:',
           'blob:',
           'https:',
-          // AWS S3 buckets
-          'https://*.s3.amazonaws.com',
-          'https://*.s3.*.amazonaws.com',
-          // CloudFront CDN
-          'https://*.cloudfront.net',
+          // Google Cloud Storage
+          'https://storage.googleapis.com',
+          'https://*.storage.googleapis.com',
           // Social media platforms for profile images
           'https://graph.facebook.com',
           'https://pbs.twimg.com',
@@ -91,10 +87,9 @@ export class CSPPolicyMiddleware {
           "'self'",
           'blob:',
           'https:',
-          // AWS S3 for media files
-          'https://*.s3.amazonaws.com',
-          'https://*.s3.*.amazonaws.com',
-          'https://*.cloudfront.net',
+          // Google Cloud Storage
+          'https://storage.googleapis.com',
+          'https://*.storage.googleapis.com',
         ],
 
         // Connection sources (AJAX, WebSocket, EventSource)
@@ -103,8 +98,9 @@ export class CSPPolicyMiddleware {
           // API endpoints
           'https://api.vangarments.com',
           'https://*.vangarments.com',
-          // AWS services
-          'https://*.amazonaws.com',
+          // Google Cloud / GCP services
+          'https://*.googleapis.com',
+          'https://storage.googleapis.com',
           // Analytics
           'https://www.google-analytics.com',
           'https://analytics.google.com',
@@ -183,13 +179,13 @@ export class CSPPolicyMiddleware {
   createNonceMiddleware() {
     return (req: Request, res: Response, next: NextFunction) => {
       const nonce = this.generateNonce();
-      
+
       // Store nonce for this request
       res.locals.nonce = nonce;
-      
+
       // Add nonce to CSP header
       const originalSetHeader = res.setHeader;
-      res.setHeader = function(name: string, value: any) {
+      res.setHeader = function (name: string, value: any) {
         if (name.toLowerCase() === 'content-security-policy') {
           value = value.replace(/{nonce}/g, nonce);
         }
@@ -207,7 +203,7 @@ export class CSPPolicyMiddleware {
     return async (req: Request, res: Response) => {
       try {
         const violation = req.body;
-        
+
         // Log CSP violation
         console.warn('[CSP VIOLATION]', {
           timestamp: new Date().toISOString(),
@@ -309,7 +305,7 @@ export class CSPPolicyMiddleware {
       }
 
       const origin = req.get('Origin');
-      
+
       if (origin && allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
       }
@@ -348,7 +344,7 @@ export class CSPPolicyMiddleware {
     return (req: Request, res: Response, next: NextFunction) => {
       const crypto = require('crypto');
       const requestId = req.get('X-Request-ID') || crypto.randomUUID();
-      
+
       req.headers['x-request-id'] = requestId;
       res.setHeader('X-Request-ID', requestId);
 
@@ -363,10 +359,10 @@ export class CSPPolicyMiddleware {
     return (req: Request, res: Response, next: NextFunction) => {
       // Set API version header
       res.setHeader('X-API-Version', '1.0.0');
-      
+
       // Check for deprecated API usage
       const apiVersion = req.get('X-API-Version') || req.query.version;
-      
+
       if (apiVersion && apiVersion !== '1.0.0') {
         res.setHeader('X-API-Deprecated', 'true');
         res.setHeader('X-API-Sunset', '2025-12-31'); // Deprecation date

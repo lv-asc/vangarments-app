@@ -1,5 +1,6 @@
 import { db } from '../database/connection';
 import { UserFollow, UserProfile } from '@vangarments/shared';
+import { UserModel } from './User';
 
 export interface CreateUserFollowData {
   followerId: string;
@@ -55,11 +56,13 @@ export class UserFollowModel {
     offset = 0
   ): Promise<{ users: UserProfile[]; total: number }> {
     const query = `
-      SELECT u.id, u.profile, u.username,
+      SELECT u.*, array_agg(ur.role) as roles,
              COUNT(*) OVER() as total
       FROM user_follows uf
       JOIN users u ON uf.follower_id = u.id
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE uf.following_id = $1 AND uf.status = 'accepted'
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.created_at, u.updated_at, uf.created_at
       ORDER BY uf.created_at DESC
       LIMIT $2 OFFSET $3
     `;
@@ -67,11 +70,7 @@ export class UserFollowModel {
     const result = await db.query(query, [userId, limit, offset]);
 
     return {
-      users: result.rows.map(row => ({
-        id: row.id,
-        username: row.username,
-        profile: typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile,
-      } as any)),
+      users: result.rows.map(row => UserModel.mapToUserProfile(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
     };
   }
@@ -82,11 +81,13 @@ export class UserFollowModel {
     offset = 0
   ): Promise<{ users: UserProfile[]; total: number }> {
     const query = `
-      SELECT u.id, u.profile, u.username,
+      SELECT u.*, array_agg(ur.role) as roles,
              COUNT(*) OVER() as total
       FROM user_follows uf
       JOIN users u ON uf.following_id = u.id
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE uf.follower_id = $1 AND uf.status = 'accepted'
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.created_at, u.updated_at, uf.created_at
       ORDER BY uf.created_at DESC
       LIMIT $2 OFFSET $3
     `;
@@ -94,11 +95,7 @@ export class UserFollowModel {
     const result = await db.query(query, [userId, limit, offset]);
 
     return {
-      users: result.rows.map(row => ({
-        id: row.id,
-        username: row.username,
-        profile: typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile,
-      } as any)),
+      users: result.rows.map(row => UserModel.mapToUserProfile(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
     };
   }
@@ -109,12 +106,14 @@ export class UserFollowModel {
     offset = 0
   ): Promise<{ users: UserProfile[]; total: number }> {
     const query = `
-      SELECT u.id, u.profile, u.username,
+      SELECT u.*, array_agg(ur.role) as roles,
              COUNT(*) OVER() as total
       FROM user_follows uf1
       JOIN user_follows uf2 ON uf1.follower_id = uf2.following_id AND uf1.following_id = uf2.follower_id
       JOIN users u ON uf1.following_id = u.id
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE uf1.follower_id = $1 AND uf1.status = 'accepted' AND uf2.status = 'accepted'
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.created_at, u.updated_at, uf1.created_at
       ORDER BY uf1.created_at DESC
       LIMIT $2 OFFSET $3
     `;
@@ -122,11 +121,7 @@ export class UserFollowModel {
     const result = await db.query(query, [userId, limit, offset]);
 
     return {
-      users: result.rows.map(row => ({
-        id: row.id,
-        username: row.username,
-        profile: typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile,
-      } as any)),
+      users: result.rows.map(row => UserModel.mapToUserProfile(row)),
       total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
     };
   }

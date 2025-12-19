@@ -28,6 +28,7 @@ router.put('/:id', AuthUtils.authenticateToken, UserController.adminUpdateUser);
 router.post('/:id/ban', AuthUtils.authenticateToken, UserController.banUser);
 router.post('/:id/deactivate', AuthUtils.authenticateToken, UserController.deactivateUser);
 router.post('/:id/reactivate', AuthUtils.authenticateToken, UserController.reactivateUser);
+router.post('/:id/restore', AuthUtils.authenticateToken, UserController.restoreUser);
 router.delete('/:id', AuthUtils.authenticateToken, UserController.deleteUser);
 
 export default router;

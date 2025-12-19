@@ -801,6 +801,10 @@ export class VUFSManagementController {
       const size = await VUFSManagementService.updateSize(id, name);
       res.json({ message: 'Size updated successfully', size });
     } catch (error: any) {
+      if (error.message.includes('already exists')) {
+        res.status(409).json({ error: { code: 'CONFLICT', message: error.message } });
+        return;
+      }
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }
@@ -810,6 +814,62 @@ export class VUFSManagementController {
       const { id } = req.params;
       await VUFSManagementService.deleteSize(id);
       res.json({ message: 'Size deleted successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  // --- STANDARDS MANAGEMENT ---
+
+  static async getStandards(req: Request, res: Response): Promise<void> {
+    try {
+      const standards = await VUFSManagementService.getStandards();
+      res.json({ message: 'Standards retrieved successfully', standards });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async addStandard(req: Request, res: Response): Promise<void> {
+    try {
+      const { name, label, region, category, approach, description } = req.body;
+      if (!name || !label) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name and Label are required' } });
+        return;
+      }
+      // Note: region, category, approach, description are optional in schema but good to provide
+      const standard = await VUFSManagementService.addStandard({ name, label, region, category, approach, description });
+      res.status(201).json({ message: 'Standard created successfully', standard });
+    } catch (error: any) {
+      if (error.message.includes('unique constraint')) {
+        res.status(409).json({ error: { code: 'CONFLICT', message: 'Standard with this name already exists' } });
+        return;
+      }
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async updateStandard(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { name, label, region, category, approach, description } = req.body;
+      // We allow updating metadata even if name/label stays same
+      const standard = await VUFSManagementService.updateStandard(id, { name, label, region, category, approach, description });
+      res.json({ message: 'Standard updated successfully', standard });
+    } catch (error: any) {
+      if (error.message === 'Standard not found') {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Standard not found' } });
+        return;
+      }
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async deleteStandard(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.deleteStandard(id);
+      res.json({ message: 'Standard deleted successfully' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }

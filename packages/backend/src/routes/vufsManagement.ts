@@ -64,6 +64,12 @@ router.post('/sizes', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin
 router.patch('/sizes/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateSize);
 router.delete('/sizes/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteSize);
 
+// Standards routes
+router.get('/standards', VUFSManagementController.getStandards);
+router.post('/standards', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addStandard);
+router.patch('/standards/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateStandard);
+router.delete('/standards/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteStandard);
+
 // Care instruction routes
 router.get('/care-instructions', VUFSManagementController.getCareInstructions);
 

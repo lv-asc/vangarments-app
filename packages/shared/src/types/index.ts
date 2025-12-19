@@ -11,8 +11,12 @@ export interface UserProfile {
     birthDate: Date;
     location: Location;
     gender: Gender;
+    genderOther?: string;
+    bodyType?: BodyType;
     avatarUrl?: string;
     bio?: string;
+    contactEmail?: string;
+    telephone?: string;
   };
   measurements: UserMeasurements;
   preferences: FashionPreferences;
@@ -25,6 +29,8 @@ export interface UserProfile {
     country?: boolean;
     state?: boolean;
     city?: boolean;
+    gender?: boolean;
+    telephone?: boolean;
   };
   roles: UserRole[];
   status: 'active' | 'banned' | 'deactivated';
@@ -101,10 +107,10 @@ export interface AIProcessingResult {
 }
 
 // Additional type definitions
-export type Gender = 'male' | 'female' | 'non-binary' | 'prefer-not-to-say';
+export type Gender = 'male' | 'female' | 'other' | 'prefer-not-to-say';
+export type BodyType = 'male' | 'female';
 export type UserRole =
   | 'admin'
-  | 'common_user'
   | 'influencer'
   | 'model'
   | 'journalist'
@@ -113,8 +119,7 @@ export type UserRole =
   | 'stylist'
   | 'independent_reseller'
   | 'store_owner'
-  | 'fashion_designer'
-  | 'sewer';
+  | 'fashion_designer';
 
 export interface Location {
   country: string;

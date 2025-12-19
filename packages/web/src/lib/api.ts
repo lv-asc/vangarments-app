@@ -335,7 +335,10 @@ class ApiClient {
     password: string;
     cpf: string;
     birthDate?: string;
-    gender?: 'male' | 'female' | 'non-binary' | 'prefer-not-to-say';
+    gender?: 'male' | 'female' | 'other' | 'prefer-not-to-say';
+    genderOther?: string;
+    bodyType?: 'male' | 'female';
+    telephone: string;
   }): Promise<{
     user: any;
     token: string;
@@ -496,8 +499,17 @@ class ApiClient {
     return (response as any).users || response.data || response;
   }
 
-  async deleteUser(userId: string): Promise<void> {
-    await this.request(`/users/${userId}`, { method: 'DELETE' });
+  async deleteUser(userId: string, force?: boolean): Promise<void> {
+    const query = force ? '?force=true' : '';
+    await this.request(`/users/${userId}${query}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async restoreUser(userId: string): Promise<void> {
+    await this.request(`/users/${userId}/restore`, {
+      method: 'POST',
+    });
   }
 
   async adminCreateUser(userData: {
@@ -798,6 +810,21 @@ class ApiClient {
   async updateVUFSBrand(id: string, name: string) { return this.request(`/vufs-management/brands/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
 
   // --- COLORS ---
+
+  // --- STANDARDS ---
+  async getVUFSStandards() {
+    const response = await this.request<any>('/vufs-management/standards');
+    return (response as any).standards || response.data || response;
+  }
+  async addVUFSStandard(data: { name: string, label: string, region?: string, category?: string, approach?: string, description?: string }) {
+    return this.request('/vufs-management/standards', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async updateVUFSStandard(id: string, data: { name: string, label: string, region?: string, category?: string, approach?: string, description?: string }) {
+    return this.request(`/vufs-management/standards/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  async deleteVUFSStandard(id: string) {
+    return this.request(`/vufs-management/standards/${id}`, { method: 'DELETE' });
+  }
   async getVUFSColors() {
     const response = await this.request<any>('/vufs-management/colors');
     return (response as any).colors || response.data || response;

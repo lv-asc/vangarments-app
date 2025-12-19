@@ -48,7 +48,7 @@ export class HealthCheckService {
     services.push(await this.checkDatabase());
 
     // Check external services
-    services.push(await this.checkAWSServices());
+    services.push(await this.checkGCPConnectivity());
     services.push(await this.checkRedisCache());
 
     // Check system resources
@@ -137,34 +137,34 @@ export class HealthCheckService {
   }
 
   /**
-   * Check AWS services connectivity
+   * Check GCP services connectivity
    */
-  private async checkAWSServices(): Promise<HealthCheckResult> {
+  private async checkGCPConnectivity(): Promise<HealthCheckResult> {
     const startTime = Date.now();
 
     try {
-      // In production, this would check actual AWS services
+      // In production, this would check actual GCP services (Cloud Storage, Vision AI, etc.)
       // For now, simulate the check
-      const awsServices = {
-        s3: 'healthy',
-        rekognition: 'healthy',
-        sagemaker: 'healthy',
+      const gcpServices = {
+        cloudStorage: 'healthy',
+        visionAI: 'healthy',
+        vertexAI: 'healthy',
       };
 
       const responseTime = Date.now() - startTime;
 
       return {
-        service: 'aws_services',
+        service: 'gcp_services',
         status: 'healthy',
         responseTime,
-        details: awsServices,
+        details: gcpServices,
       };
     } catch (error) {
       return {
-        service: 'aws_services',
+        service: 'gcp_services',
         status: 'unhealthy',
         responseTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : 'AWS services check failed',
+        error: error instanceof Error ? error.message : 'GCP services check failed',
       };
     }
   }
@@ -345,12 +345,12 @@ export class HealthCheckService {
     const startTime = Date.now();
 
     try {
-      // In production, this would check S3 or local file system
+      // In production, this would check Cloud Storage or local file system
       // For now, simulate the check
       const storageInfo = {
-        provider: 'AWS S3',
+        provider: 'Google Cloud Storage',
         bucket: 'vangarments-storage',
-        region: 'us-east-1',
+        location: 'us-east1',
         accessible: true,
       };
 

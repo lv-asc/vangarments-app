@@ -15,7 +15,8 @@ import {
   TagIcon,
   SparklesIcon,
   ChatBubbleLeftRightIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -174,14 +175,23 @@ export function Header() {
 
             {isAuthenticated && user ? (
               <div className="relative">
-                <button
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <UserAvatar user={user} size="sm" />
-                  <span className="font-medium">{user.name}</span>
-                  <span className="text-sm text-muted-foreground">@{user.username || user.email?.split('@')[0] || 'user'}</span>
-                </button>
+                <div className="flex items-center">
+                  <Link
+                    href="/profile"
+                    onClick={(e) => handleNavigation('/profile', e)}
+                    className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors mr-1"
+                  >
+                    <UserAvatar user={user} size="sm" />
+                    <span className="font-medium">{user.name}</span>
+                    <span className="text-sm text-muted-foreground">@{user.username || user.email?.split('@')[0] || 'user'}</span>
+                  </Link>
+                  <button
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className="p-1 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-primary"
+                  >
+                    <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
 
                 {/* User Dropdown Menu */}
                 <AnimatePresence>

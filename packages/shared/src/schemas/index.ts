@@ -7,11 +7,22 @@ export const UserRegistrationSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   birthDate: z.string().transform((str) => new Date(str)),
-  gender: z.enum(['male', 'female', 'non-binary', 'prefer-not-to-say']),
+  gender: z.enum(['male', 'female', 'other', 'prefer-not-to-say']),
+  genderOther: z.string().optional(),
+  bodyType: z.enum(['male', 'female']).optional(),
+  telephone: z.string().min(8, 'Phone number must be at least 8 characters'),
   username: z.string()
     .min(3, 'Username must be at least 3 characters')
     .max(30, 'Username must be at most 30 characters')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Username must only contain letters, numbers, and underscores'),
+    .regex(/^[a-zA-Z0-9_.]+$/, 'Username must only contain letters, numbers, underscores, and dots'),
+}).refine((data) => {
+  if (data.gender === 'other') {
+    return !!data.bodyType;
+  }
+  return true;
+}, {
+  message: "If gender is 'Other', you must specify the body type for app features",
+  path: ['bodyType'],
 });
 
 export const VUFSItemSchema = z.object({

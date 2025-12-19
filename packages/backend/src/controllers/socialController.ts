@@ -265,6 +265,10 @@ export class SocialController {
         parseInt(limit as string)
       );
 
+      if (result.users.length > 0) {
+        console.log('[DEBUG] getFollowing first user:', JSON.stringify(result.users[0], null, 2));
+      }
+
       res.json({
         success: true,
         data: {

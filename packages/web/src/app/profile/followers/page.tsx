@@ -70,20 +70,20 @@ export default function FollowersPage() {
                                     className="flex items-center p-4 hover:bg-gray-50 transition-colors"
                                 >
                                     <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 border border-gray-200 mr-4">
-                                        {follower.profileImage ? (
+                                        {follower.personalInfo?.avatarUrl ? (
                                             <img
-                                                src={getImageUrl(follower.profileImage)}
-                                                alt={follower.name}
+                                                src={getImageUrl(follower.personalInfo.avatarUrl)}
+                                                alt={follower.personalInfo?.name || follower.username}
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold text-lg">
-                                                {follower.name?.charAt(0).toUpperCase()}
+                                                {(follower.personalInfo?.name || follower.username || '').charAt(0).toUpperCase()}
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="font-semibold text-gray-900">{follower.name}</h3>
+                                        <h3 className="font-semibold text-gray-900">{follower.personalInfo?.name || follower.username}</h3>
                                         <p className="text-sm text-gray-500">@{follower.username}</p>
                                     </div>
                                 </Link>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthWrapper';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -40,6 +41,7 @@ interface Conversation {
 }
 
 export default function MessagesPage() {
+    const { user } = useAuth();
     const router = useRouter();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loading, setLoading] = useState(true);
@@ -238,7 +240,12 @@ export default function MessagesPage() {
                                     </span>
                                 </div>
                                 <p className={`text-sm truncate ${(conv.unreadCount || 0) > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
-                                    {conv.lastMessage?.content || 'No messages yet'}
+                                    {conv.lastMessage ? (
+                                        <>
+                                            {user?.username && conv.lastMessage.sender?.username === user.username && 'You: '}
+                                            {conv.lastMessage.content}
+                                        </>
+                                    ) : 'No messages yet'}
                                 </p>
                             </div>
                         </Link>

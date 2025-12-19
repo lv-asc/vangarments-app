@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthWrapper';
 import { apiClient } from '@/lib/api';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useToast } from '@/components/ui/Toast';
-import { formatCEP } from '@/lib/masks';
+import { formatCEP, formatPhone } from '@/lib/masks';
 import { SocialIcon } from '@/components/ui/social-icons';
 import {
   CameraIcon,
@@ -25,6 +25,8 @@ import {
   LockClosedIcon
 } from '@heroicons/react/24/outline';
 import { BRAZILIAN_STATES } from '../../constants/address';
+import ImageCropper from '@/components/ui/ImageCropper';
+import { AVAILABLE_ROLES } from '@/constants/roles';
 
 interface UserProfile {
   id: string;
@@ -70,19 +72,7 @@ const SOCIAL_PLATFORMS = [
   'Facebook', 'Spotify', 'Apple Music', 'YouTube Music'
 ];
 
-const AVAILABLE_ROLES = [
-  { id: 'common_user', label: 'Common User' },
-  { id: 'influencer', label: 'Influencer' },
-  { id: 'model', label: 'Model' },
-  { id: 'journalist', label: 'Journalist' },
-  { id: 'brand_owner', label: 'Brand Owner' },
-  { id: 'supplier', label: 'Supplier' },
-  { id: 'stylist', label: 'Stylist' },
-  { id: 'independent_reseller', label: 'Independent Reseller' },
-  { id: 'store_owner', label: 'Store Owner' },
-  { id: 'fashion_designer', label: 'Fashion Designer' },
-  { id: 'sewer', label: 'Sewer' },
-];
+
 
 export default function ProfilePage() {
   const { user, isAuthenticated, refreshAuth } = useAuth();
@@ -112,7 +102,9 @@ export default function ProfilePage() {
       birthDate: false,
       country: false,
       state: false,
-      city: false
+      city: false,
+      gender: false,
+      telephone: true
     },
     birthDate: '',
     height: '',
@@ -124,8 +116,17 @@ export default function ProfilePage() {
     street: '',
     neighborhood: '',
     number: '',
-    complement: ''
+    complement: '',
+    gender: '',
+    genderOther: '',
+    bodyType: '',
+    contactEmail: '',
+    telephone: ''
   });
+
+  // Cropper state
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropperImageSrc, setCropperImageSrc] = useState<string>('');
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -156,7 +157,9 @@ export default function ProfilePage() {
             birthDate: false,
             country: false,
             state: false,
-            city: false
+            city: false,
+            gender: false,
+            telephone: true // Private by default
           },
           birthDate: response.profile.personalInfo?.birthDate ? new Date(response.profile.personalInfo.birthDate).toISOString().split('T')[0] : '',
           height: response.profile.measurements?.height || '',
@@ -168,7 +171,12 @@ export default function ProfilePage() {
           street: response.profile.personalInfo?.location?.street || '',
           neighborhood: response.profile.personalInfo?.location?.neighborhood || '',
           number: response.profile.personalInfo?.location?.number || '',
-          complement: response.profile.personalInfo?.location?.complement || ''
+          complement: response.profile.personalInfo?.location?.complement || '',
+          gender: response.profile.personalInfo?.gender || '',
+          genderOther: response.profile.personalInfo?.genderOther || '',
+          bodyType: response.profile.personalInfo?.bodyType || '',
+          contactEmail: response.profile.personalInfo?.contactEmail || '',
+          telephone: response.profile.personalInfo?.telephone || ''
         });
       }
     } catch (err: any) {
@@ -187,10 +195,10 @@ export default function ProfilePage() {
       return;
     }
 
-    const usernameRegex = /^[a-zA-Z0-9_]{1,30}$/;
+    const usernameRegex = /^[a-zA-Z0-9_.]*$/;
     if (!usernameRegex.test(username)) {
       setUsernameStatus('invalid');
-      setUsernameError('Only letters, numbers, and underscore allowed');
+      setUsernameError('Only letters, numbers, underscore, and dots allowed');
       return;
     }
 
@@ -287,7 +295,8 @@ export default function ProfilePage() {
           birthDate: false,
           country: false,
           state: false,
-          city: false
+          city: false,
+          gender: false
         },
         birthDate: userProfile.personalInfo?.birthDate ? new Date(userProfile.personalInfo.birthDate).toISOString().split('T')[0] : '',
         height: userProfile.measurements?.height || '',
@@ -299,7 +308,10 @@ export default function ProfilePage() {
         street: userProfile.personalInfo?.location?.street || '',
         neighborhood: userProfile.personalInfo?.location?.neighborhood || '',
         number: userProfile.personalInfo?.location?.number || '',
-        complement: userProfile.personalInfo?.location?.complement || ''
+        complement: userProfile.personalInfo?.location?.complement || '',
+        gender: userProfile.personalInfo?.gender || '',
+        genderOther: userProfile.personalInfo?.genderOther || '',
+        bodyType: userProfile.personalInfo?.bodyType || ''
       });
       setUsernameStatus('idle');
       setUsernameError(null);
@@ -339,8 +351,14 @@ export default function ProfilePage() {
           street: editForm.street,
           neighborhood: editForm.neighborhood,
           number: editForm.number,
+          number: editForm.number,
           complement: editForm.complement
-        }
+        },
+        gender: editForm.gender,
+        genderOther: editForm.genderOther,
+        bodyType: editForm.bodyType,
+        contactEmail: editForm.contactEmail,
+        telephone: editForm.telephone
       });
       await loadProfile();
       setIsEditing(false);
@@ -358,16 +376,65 @@ export default function ProfilePage() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !userProfile) return;
+    let file = e.target.files?.[0];
+    if (!file) return;
+
+    // Handle HEIC/HEIF files
+    if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+      try {
+        toast.info('Converting HEIC image...');
+        const heic2any = (await import('heic2any')).default;
+        const convertedBlob = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.8
+        });
+
+        // heic2any can return an array if multiple images, but we only handle one
+        const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+        file = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+        toast.success('Image converted successfully');
+      } catch (error) {
+        console.error('HEIC conversion failed:', error);
+        toast.error('Failed to process HEIC image. Please try a different format.');
+        return;
+      }
+    }
+
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      setCropperImageSrc(reader.result?.toString() || '');
+      setShowCropper(true);
+    });
+    reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleCropSave = async (croppedBlob: Blob) => {
+    if (!userProfile) return;
+
+    // Create a File object from the Blob
+    const fileKey = 'avatar.jpg';
+    const file = new File([croppedBlob], fileKey, { type: 'image/jpeg' });
 
     try {
       await apiClient.uploadAvatar(file);
       await loadProfile();
       await refreshAuth();
+      setShowCropper(false);
+      setCropperImageSrc('');
       toast.success('Profile picture updated!');
     } catch (err: any) {
       toast.error('Failed to upload image: ' + (err.message || 'Unknown error'));
+      setShowCropper(false);
+    }
+  };
+
+  const handleEditExistingPhoto = () => {
+    if (userProfile?.profileImage) {
+      setCropperImageSrc(getImageUrl(userProfile.profileImage));
+      setShowCropper(true);
     }
   };
 
@@ -420,6 +487,17 @@ export default function ProfilePage() {
                   className="hidden"
                 />
               </label>
+
+              {/* Edit Existing Button */}
+              {userProfile.profileImage && (
+                <button
+                  onClick={handleEditExistingPhoto}
+                  className="absolute bottom-0 left-0 bg-white text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors shadow-lg border border-gray-200"
+                  title="Adjust photo"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </button>
+              )}
             </div>
 
             {/* User Info */}
@@ -459,7 +537,7 @@ export default function ProfilePage() {
                             <input
                               type="text"
                               value={editForm.username}
-                              onChange={(e) => handleUsernameChange(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                              onChange={(e) => handleUsernameChange(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
                               className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${usernameStatus === 'available' ? 'border-green-300 focus:ring-green-200' :
                                 usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-red-300 focus:ring-red-200' :
                                   'border-gray-300 focus:ring-[#00132d]/20'
@@ -482,7 +560,7 @@ export default function ProfilePage() {
                           {usernameError && (
                             <p className="text-sm text-red-600 mt-1">{usernameError}</p>
                           )}
-                          <p className="text-xs text-gray-500 mt-1">1-30 characters, letters, numbers, and underscore only</p>
+                          <p className="text-xs text-gray-500 mt-1">1-30 characters, letters, numbers, underscore, and dots only</p>
                         </div>
                       );
                     })()}
@@ -610,6 +688,120 @@ export default function ProfilePage() {
                             }`}
                         >
                           {editForm.privacySettings.weight ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col space-y-2 py-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium text-gray-700">Gender</label>
+                          <button
+                            onClick={() => setEditForm(prev => ({
+                              ...prev,
+                              privacySettings: {
+                                ...prev.privacySettings,
+                                gender: !prev.privacySettings.gender
+                              }
+                            }))}
+                            className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${editForm.privacySettings.gender ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                              }`}
+                          >
+                            {editForm.privacySettings.gender ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <div className="flex gap-4">
+                          {['male', 'female', 'other', 'prefer-not-to-say'].map((option) => (
+                            <label key={option} className="flex items-center cursor-pointer">
+                              <input
+                                type="radio"
+                                name="gender"
+                                value={option}
+                                checked={editForm.gender === option}
+                                onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                                className="w-4 h-4 text-pink-600 focus:ring-pink-500 border-gray-300"
+                              />
+                              <span className="ml-2 text-sm text-gray-700 capitalize">
+                                {option === 'male' ? 'Masculino' : option === 'female' ? 'Feminino' : option === 'prefer-not-to-say' ? 'Prefer not to say' : 'Outro'}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        {editForm.gender === 'other' && (
+                          <div className="space-y-3 pl-4 border-l-2 border-pink-100 mt-2">
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Specify (optional)</label>
+                              <input
+                                type="text"
+                                name="genderOther"
+                                value={editForm.genderOther}
+                                onChange={(e) => setEditForm({ ...editForm, genderOther: e.target.value })}
+                                placeholder="ex: Non-binary"
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Body Type (for virtual try-on)</label>
+                              <div className="flex gap-4">
+                                {['male', 'female'].map((type) => (
+                                  <label key={type} className="flex items-center cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="bodyType"
+                                      value={type}
+                                      checked={editForm.bodyType === type}
+                                      onChange={(e) => setEditForm({ ...editForm, bodyType: e.target.value })}
+                                      className="w-4 h-4 text-pink-600 focus:ring-pink-500 border-gray-300"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">
+                                      {type === 'male' ? 'Male' : 'Female'}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col flex-1 mr-4">
+                          <label className="text-sm font-medium text-gray-700">Contact Email (Public)</label>
+                          <input
+                            type="email"
+                            value={editForm.contactEmail}
+                            onChange={(e) => setEditForm({ ...editForm, contactEmail: e.target.value })}
+                            className="text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 mt-1 focus:outline-none focus:border-[#00132d]"
+                            placeholder="public@email.com"
+                          />
+                        </div>
+                        <div className="p-2 text-sm text-gray-500 flex items-center gap-2">
+                          <EyeIcon className="w-4 h-4 text-blue-800" />
+                          <span className="text-xs">Always Public (if set)</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col flex-1 mr-4">
+                          <label className="text-sm font-medium text-gray-700">Telephone (WhatsApp)</label>
+                          <input
+                            type="tel"
+                            value={editForm.telephone}
+                            onChange={(e) => setEditForm({ ...editForm, telephone: formatPhone(e.target.value) })}
+                            className="text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 mt-1 focus:outline-none focus:border-[#00132d]"
+                            placeholder="(00) 00000-0000"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setEditForm(prev => ({
+                            ...prev,
+                            privacySettings: {
+                              ...prev.privacySettings,
+                              telephone: !prev.privacySettings.telephone
+                            }
+                          }))}
+                          className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${editForm.privacySettings.telephone ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                            }`}
+                        >
+                          {editForm.privacySettings.telephone ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
                         </button>
                       </div>
 
@@ -875,7 +1067,24 @@ export default function ProfilePage() {
                     })}
                   </div>
 
-                  <p className="text-sm text-gray-500 mb-3">{userProfile.email}</p>
+                  {/* Contact Info Display */}
+                  <div className="space-y-1 mb-3">
+                    {userProfile.personalInfo?.contactEmail && (
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium mr-1">Email:</span>
+                        <a href={`mailto:${userProfile.personalInfo.contactEmail}`} className="hover:text-[#00132d] underline">
+                          {userProfile.personalInfo.contactEmail}
+                        </a>
+                      </p>
+                    )}
+
+                    {userProfile.privacySettings?.telephone && userProfile.personalInfo?.telephone && (
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium mr-1">Phone:</span>
+                        {userProfile.personalInfo.telephone}
+                      </p>
+                    )}
+                  </div>
 
                   {userProfile.bio && (
                     <p className="text-gray-700 mb-3">{userProfile.bio}</p>
@@ -903,6 +1112,16 @@ export default function ProfilePage() {
                               userProfile.privacySettings?.state && userProfile.personalInfo.location.state,
                               userProfile.privacySettings?.country && userProfile.personalInfo.location.country
                             ].filter(Boolean).join(', ')}
+                          </>
+                        )}
+                        {/* Gender Display */}
+                        {userProfile.privacySettings?.gender && userProfile.personalInfo?.gender && (
+                          <>
+                            <span className="mx-2">|</span>
+                            {userProfile.personalInfo.gender === 'male' ? 'Masculino' :
+                              userProfile.personalInfo.gender === 'female' ? 'Feminino' :
+                                userProfile.personalInfo.gender === 'other' ? (userProfile.personalInfo.genderOther || 'Other') :
+                                  'Prefer not to say'}
                           </>
                         )}
                       </span>
@@ -1089,6 +1308,17 @@ export default function ProfilePage() {
           </div>
         </div>
       </main >
+
+      {showCropper && (
+        <ImageCropper
+          imageSrc={cropperImageSrc}
+          onCancel={() => {
+            setShowCropper(false);
+            setCropperImageSrc('');
+          }}
+          onCropComplete={handleCropSave}
+        />
+      )}
       <toast.ToastComponent />
     </div >
   );

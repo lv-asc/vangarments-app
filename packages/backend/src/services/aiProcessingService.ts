@@ -1,4 +1,3 @@
-import { AWSService } from './awsService';
 import {
   VUFS_BRANDS,
   VUFS_COLORS,
@@ -13,10 +12,8 @@ import {
   BrandHierarchy,
   ItemMetadata,
   ItemCondition,
-  VUFSColor,
-  ApparelPieceType,
-  FootwearType
 } from '@vangarments/shared/types/vufs';
+import { GoogleCloudService } from './googleCloudService';
 
 export interface AIAnalysisResult {
   domain: VUFSDomain | null;
@@ -77,60 +74,33 @@ export interface UserFeedback {
 
 export class AIProcessingService {
   /**
-   * Check if AWS is properly configured
-   */
-  private static isAWSConfigured(): boolean {
-    return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
-  }
-
-  /**
    * Process fashion item image with comprehensive AI analysis
    */
   static async processItemImage(
     imageBuffer: Buffer,
     originalFilename: string
   ): Promise<AIAnalysisResult> {
-    // If AWS is not configured, use mock analysis
-    if (!this.isAWSConfigured()) {
-      console.log('AWS not configured, using mock analysis for:', originalFilename);
-      return this.getMockAnalysis(originalFilename);
-    }
+    console.log('AI processing requested for:', originalFilename);
 
     try {
-      // 1. Remove background
-      const processedBuffer = await AWSService.removeBackground(imageBuffer);
+      // 1. Analyze image using Google Vision AI
+      const { labels, textDetections } = await GoogleCloudService.analyzeImage(imageBuffer);
 
-      // 2. Upload processed image
-      const imageKey = `processed/${Date.now()}-${originalFilename}`;
-      const processedImageUrl = await AWSService.uploadImage(
-        processedBuffer,
-        imageKey,
-        'image/jpeg'
-      );
+      // 2. Perform fashion-specific analysis (heuristic-based for now, until Vertex AI is tuned)
+      const analysisDetails = this.analyzeFashionAttributes(labels, textDetections, null);
 
-      // 3. Detect labels using AWS Rekognition
-      const labels = await AWSService.detectLabels(processedBuffer);
-
-      // 4. Detect text (for brand/size detection)
-      const textDetections = await AWSService.detectText(processedBuffer);
-
-      // 5. Try custom fashion model
-      const customModelResult = await AWSService.invokeFashionModel(processedBuffer);
-
-      // 6. Analyze and extract fashion attributes
-      const analysis = this.analyzeFashionAttributes(
-        labels,
-        textDetections,
-        customModelResult
-      );
+      // 3. Upload to Google Cloud Storage
+      const timestamp = Date.now();
+      const imageKey = `processed/${timestamp}-${originalFilename}`;
+      const processedImageUrl = await GoogleCloudService.uploadImage(imageBuffer, imageKey, 'image/jpeg');
 
       return {
-        ...analysis,
-        backgroundRemoved: true,
+        ...analysisDetails,
+        backgroundRemoved: false, // GCP Vision doesn't remove background natively, would need Vertex AI or a custom model
         processedImageUrl,
       };
     } catch (error) {
-      console.error('AI processing error, falling back to mock:', error);
+      console.error('AI processing failed, falling back to mock:', error);
       return this.getMockAnalysis(originalFilename);
     }
   }
