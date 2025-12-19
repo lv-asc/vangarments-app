@@ -232,7 +232,8 @@ class DatabaseBackup {
         console.log('  No cloud backups found');
       } else {
         files.forEach(file => {
-          const size = (parseInt(file.metadata.size || '0') / 1024 / 1024).toFixed(2);
+          const rawSize = file.metadata.size?.toString() || '0';
+          const size = (parseInt(rawSize) / 1024 / 1024).toFixed(2);
           console.log(`  - ${file.name} (${size} MB) - ${file.metadata.updated}`);
         });
       }
@@ -281,52 +282,53 @@ class DatabaseBackup {
     } catch (error) {
       console.warn(`⚠️ Cloud cleanup failed: ${error.message}`);
     }
-
-  async restoreBackup(backupPath: string, targetDatabase ?: string): Promise < void> {
-      console.log(`🔄 Restoring backup: ${backupPath}`);
-
-      const dbUrl = new URL(process.env.DATABASE_URL!);
-      const database = targetDatabase || dbUrl.pathname.slice(1);
-
-      return new Promise((resolve, reject) => {
-        const args = [
-          '--host', dbUrl.hostname,
-          '--port', dbUrl.port || '5432',
-          '--username', dbUrl.username,
-          '--dbname', database,
-          '--no-password',
-          '--verbose',
-          '--clean',
-          '--if-exists',
-          backupPath
-        ];
-
-        const pgRestore = spawn('pg_restore', args, {
-          env: {
-            ...process.env,
-            PGPASSWORD: dbUrl.password
-          },
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
-
-        let errorOutput = '';
-        pgRestore.stderr.on('data', (data) => {
-          errorOutput += data.toString();
-        });
-
-        pgRestore.on('close', (code) => {
-          if (code === 0) {
-            console.log(`✅ Backup restored successfully to database: ${database}`);
-            resolve();
-          } else {
-            reject(new Error(`pg_restore failed with code ${code}: ${errorOutput}`));
-          }
-        });
-
-        pgRestore.on('error', reject);
-      });
-    }
   }
+
+  async restoreBackup(backupPath: string, targetDatabase?: string): Promise<void> {
+    console.log(`🔄 Restoring backup: ${backupPath}`);
+
+    const dbUrl = new URL(process.env.DATABASE_URL!);
+    const database = targetDatabase || dbUrl.pathname.slice(1);
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        '--host', dbUrl.hostname,
+        '--port', dbUrl.port || '5432',
+        '--username', dbUrl.username,
+        '--dbname', database,
+        '--no-password',
+        '--verbose',
+        '--clean',
+        '--if-exists',
+        backupPath
+      ];
+
+      const pgRestore = spawn('pg_restore', args, {
+        env: {
+          ...process.env,
+          PGPASSWORD: dbUrl.password
+        },
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      let errorOutput = '';
+      pgRestore.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      pgRestore.on('close', (code) => {
+        if (code === 0) {
+          console.log(`✅ Backup restored successfully to database: ${database}`);
+          resolve();
+        } else {
+          reject(new Error(`pg_restore failed with code ${code}: ${errorOutput}`));
+        }
+      });
+
+      pgRestore.on('error', reject);
+    });
+  }
+}
 
 async function main() {
   const command = process.argv[2];
