@@ -63,6 +63,8 @@ export class AdminUserInitializer {
         birthDate: new Date('1990-01-01'), // Default birth date for admin
         gender: 'other',
         cpf: config.cpf,
+        username: config.email.split('@')[0],
+        telephone: '0000000000',
       });
 
       // Add admin role

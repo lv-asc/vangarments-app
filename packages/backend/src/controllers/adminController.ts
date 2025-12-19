@@ -100,7 +100,8 @@ export class AdminController {
                 passwordHash,
                 birthDate: birthDate ? new Date(birthDate) : new Date(),
                 gender: gender || 'prefer-not-to-say',
-                cpf: cpf || null
+                cpf: cpf || null,
+                telephone: req.body.telephone || ''
             });
 
             // Set roles if provided

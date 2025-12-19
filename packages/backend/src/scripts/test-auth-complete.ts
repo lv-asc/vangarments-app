@@ -16,7 +16,7 @@ async function testCompleteAuthFlow() {
     // Test 1: Admin User Creation and Authentication
     console.log('1️⃣ Testing admin user "lv" authentication...');
     const adminAuth = await AdminAuthService.authenticateAdmin('lv@vangarments.com', 'admin123');
-    
+
     if (!adminAuth) {
       throw new Error('Admin authentication failed');
     }
@@ -38,7 +38,7 @@ async function testCompleteAuthFlow() {
     const permissions = adminAuth.permissions;
     const expectedPermissions = [
       'system:configure',
-      'users:manage', 
+      'users:manage',
       'vufs:edit',
       'marketplace:moderate',
       'content:moderate'
@@ -82,17 +82,19 @@ async function testCompleteAuthFlow() {
     // Test 6: Create Regular User and Test Role Differences
     console.log('\n6️⃣ Testing regular user creation and role differences...');
     const testUserEmail = `test.user.${Date.now()}@example.com`;
-    
+
     // Hash password for regular user
     const userPasswordHash = await AuthUtils.hashPassword('testpassword123');
-    
+
     const regularUser = await UserModel.create({
       email: testUserEmail,
       passwordHash: userPasswordHash,
       name: 'Test User',
       birthDate: new Date('1995-05-15'),
       gender: 'other',
-      cpf: '12345678901'
+      cpf: '12345678901',
+      username: `testuser_${Date.now()}`,
+      telephone: '123456789'
     });
 
     // Add consumer role
@@ -113,7 +115,7 @@ async function testCompleteAuthFlow() {
     // Test 7: Grant Admin Privileges
     console.log('\n7️⃣ Testing admin privilege granting...');
     await AdminAuthService.grantAdminPrivileges(regularUser.id);
-    
+
     const newlyGrantedAdmin = await AdminAuthService.isAdmin(regularUser.id);
     console.log(`✅ Admin privileges granted: ${newlyGrantedAdmin}`);
 
@@ -125,14 +127,14 @@ async function testCompleteAuthFlow() {
     console.log('\n8️⃣ Testing admin user listing...');
     const adminUsers = await AdminAuthService.getAdminUsers();
     console.log(`✅ Found ${adminUsers.length} admin users`);
-    
+
     const lvAdmin = adminUsers.find(user => user.email === 'lv@vangarments.com');
     const newAdmin = adminUsers.find(user => user.email === testUserEmail);
-    
+
     if (!lvAdmin) {
       throw new Error('Admin user "lv" not found in admin users list');
     }
-    
+
     if (!newAdmin) {
       throw new Error('Newly granted admin user not found in admin users list');
     }
@@ -142,7 +144,7 @@ async function testCompleteAuthFlow() {
 
     // Test 9: Data Persistence Verification
     console.log('\n9️⃣ Testing data persistence...');
-    
+
     // Re-fetch admin user to verify persistence
     const persistedAdmin = await UserModel.findByEmail('lv@vangarments.com');
     if (!persistedAdmin) {

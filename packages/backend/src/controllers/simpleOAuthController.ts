@@ -74,6 +74,7 @@ export class SimpleOAuthController {
           birthDate: new Date(), // Will be updated during onboarding
           gender: 'not_specified', // Will be updated during onboarding
           username: googleUser.email.split('@')[0] + Math.floor(Math.random() * 1000), // Temp username
+          telephone: '', // Will be updated during onboarding
         });
 
         // Add default consumer role
@@ -167,6 +168,7 @@ export class SimpleOAuthController {
           birthDate: new Date(), // Will be updated during onboarding
           gender: 'not_specified', // Will be updated during onboarding
           username: facebookUser.email.split('@')[0] + Math.floor(Math.random() * 1000), // Temp username
+          telephone: '', // Will be updated during onboarding
         });
 
         // Add default consumer role
