@@ -89,6 +89,7 @@ export class AdminAuthService {
         gender: 'other',
         cpf: adminData.cpf || '00000000000', // Default CPF for admin
         username: adminData.email.split('@')[0], // Default username
+        telephone: '0000000000', // Default telephone for admin
       });
 
       // Add admin role

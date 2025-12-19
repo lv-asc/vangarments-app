@@ -10,6 +10,10 @@ WORKDIR /app
 COPY package*.json ./
 COPY packages/backend/package*.json ./packages/backend/
 COPY packages/shared/package*.json ./packages/shared/
+COPY packages/web/package*.json ./packages/web/
+COPY packages/mobile-android/package*.json ./packages/mobile-android/
+COPY packages/mobile-expo/package*.json ./packages/mobile-expo/
+COPY packages/mobile-ios/package*.json ./packages/mobile-ios/
 
 # Install dependencies
 RUN npm ci && npm cache clean --force

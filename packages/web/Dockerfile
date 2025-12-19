@@ -10,6 +10,11 @@ WORKDIR /app
 COPY package*.json ./
 # Copy package files for web and shared
 COPY packages/web/package*.json ./packages/web/
+COPY packages/shared/package*.json ./packages/shared/
+COPY packages/backend/package*.json ./packages/backend/
+COPY packages/mobile-android/package*.json ./packages/mobile-android/
+COPY packages/mobile-expo/package*.json ./packages/mobile-expo/
+COPY packages/mobile-ios/package*.json ./packages/mobile-ios/
 RUN npm ci && npm cache clean --force
 
 # 2. Rebuild the source code only when needed

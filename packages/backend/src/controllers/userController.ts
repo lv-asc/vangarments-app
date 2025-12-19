@@ -699,7 +699,7 @@ export class UserController {
 
   static async getAllUsers(req: AuthenticatedRequest, res: Response) {
     try {
-      const { search, page = 1, limit = 20, roles } = req.query;
+      const { search, page = 1, limit = 20, roles, status } = req.query;
 
       // Ensure user is admin
       if (!req.user?.roles.includes('admin')) {
