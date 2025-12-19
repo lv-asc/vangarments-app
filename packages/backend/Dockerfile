@@ -20,6 +20,9 @@ WORKDIR /app
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 
+# Build the shared package first as backend depends on it
+RUN npm run build --workspace=@vangarments/shared
+
 # Build the backend application
 RUN npm run build --workspace=packages/backend
 
