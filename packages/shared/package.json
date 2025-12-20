@@ -4,6 +4,10 @@
   "description": "Shared types and utilities for Vangarments platform",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./*": "./dist/*.js"
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest"
