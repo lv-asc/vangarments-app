@@ -27,6 +27,9 @@ RUN npm run build --workspace=@vangarments/shared
 # Build the backend application
 RUN npm run build --workspace=@vangarments/backend
 
+# Debug: show what's in the dist folder
+RUN ls -la packages/backend/dist/ && ls -la packages/backend/dist/index.js || echo "index.js not found"
+
 # Production image, copy all the files and run the app
 FROM base AS runner
 WORKDIR /app
