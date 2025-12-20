@@ -182,7 +182,7 @@ export default function AdminNonProfitsPage() {
             )}
 
             {/* Create Modal */}
-            {/* @ts-expect-error AnimatePresence type mismatch */}
+            {/* @ts-ignore AnimatePresence type mismatch */}
             <AnimatePresence>
                 {showCreateModal && (
                     <MotionDiv

@@ -81,14 +81,10 @@ const nextConfig = {
     NEXT_PUBLIC_APP_VERSION: '1.0.0',
   },
 
-  // Enable SWC minification for better performance
-  swcMinify: true,
 
   // Enable React strict mode
   reactStrictMode: true,
 
-  // Optimize fonts
-  optimizeFonts: true,
 
   // Enable modern JavaScript features
   compiler: {

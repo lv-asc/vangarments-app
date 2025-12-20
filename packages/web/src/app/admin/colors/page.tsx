@@ -562,7 +562,7 @@ export default function AdminColorsPage() {
                                             {groupColors.length === 0 ? (
                                                 <p className="text-sm text-gray-400 text-center py-4">No colors in this group yet.</p>
                                             ) : (
-                                                // @ts-expect-error DndContext type incompatibility with React 18 types
+                                                // @ts-ignore DndContext type incompatibility with React 18 types
                                                 <DndContext
                                                     sensors={sensors}
                                                     collisionDetection={closestCenter}
