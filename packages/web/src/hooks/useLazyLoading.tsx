@@ -147,7 +147,7 @@ interface LazyListOptions<T> {
 interface LazyListResult<T> {
   visibleItems: T[];
   isLoadingMore: boolean;
-  loadMoreRef: React.RefObject<HTMLElement>;
+  loadMoreRef: React.RefObject<HTMLElement | null>;
 }
 
 /**
