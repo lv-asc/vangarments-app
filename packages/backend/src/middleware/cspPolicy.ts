@@ -306,7 +306,14 @@ export class CSPPolicyMiddleware {
 
       const origin = req.get('Origin');
 
-      if (origin && allowedOrigins.includes(origin)) {
+      // Check if origin is allowed
+      const isAllowed = origin && (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.run.app') ||
+        process.env.CORS_ALLOW_ALL === 'true'
+      );
+
+      if (isAllowed && origin) {
         res.setHeader('Access-Control-Allow-Origin', origin);
       }
 

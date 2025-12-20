@@ -75,7 +75,23 @@ app.use('/api', standardRateLimit);
 
 // CORS for static files - allow frontend to load images from backend
 app.use('/storage', cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (
+      origin.startsWith('http://localhost') ||
+      origin.startsWith('http://127.0.0.1') ||
+      origin.endsWith('.vangarments.com') ||
+      origin.endsWith('.run.app')
+    ) {
+      return callback(null, true);
+    }
+
+    // In production, we might want to block unknown origins, 
+    // but for now behave correctly if it matches our patterns
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 
