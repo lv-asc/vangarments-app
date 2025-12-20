@@ -27,8 +27,6 @@ RUN npm run build --workspace=@vangarments/shared
 # Build the backend application
 RUN npm run build --workspace=@vangarments/backend
 
-# Debug: show full dist folder tree structure
-RUN find packages/backend/dist -type f -name "*.js" | head -30
 
 # Production image, copy all the files and run the app
 FROM base AS runner
@@ -61,4 +59,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Start the application
-CMD ["node", "dist/backend/index.js"]
+CMD ["node", "dist/backend/src/index.js"]
