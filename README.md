@@ -8,7 +8,7 @@ A comprehensive fashion platform built with modern web technologies, featuring t
 - **Digital Wardrobe**: Organize and manage your clothing items with real data persistence
 - **Marketplace**: Buy and sell fashion items with integrated payment processing
 - **Social Platform**: Share outfits and connect with fashion enthusiasts
-- **AI-Powered Features**: Smart recommendations and styling suggestions
+- **AI-Powered Features**: Smart recommendations and Google Cloud Vision AI analysis
 - **Cross-Platform**: Web, iOS, Android, and Expo mobile apps
 - **Real-time Sync**: Data synchronization across all platforms
 - **Admin Dashboard**: Configuration management and system administration
@@ -17,9 +17,10 @@ A comprehensive fashion platform built with modern web technologies, featuring t
 
 - **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
 - **Backend**: Node.js, Express, TypeScript
-- **Database**: PostgreSQL with real data persistence
+- **Database**: PostgreSQL (Cloud SQL) with real data persistence
 - **Mobile**: React Native (iOS/Android), Expo
-- **Infrastructure**: Docker, Local development setup
+- **GCP Services**: Cloud Run, Cloud Storage, Vision AI, Vertex AI
+- **Infrastructure**: Docker, Google Artifact Registry
 - **Testing**: Jest, Integration tests, Real usage validation
 
 ## 📱 Platforms
@@ -35,7 +36,8 @@ A comprehensive fashion platform built with modern web technologies, featuring t
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL (local installation)
+- PostgreSQL (local installation for development)
+- Google Cloud SDK (for deployment and cloud services)
 - npm or yarn
 - Git
 
@@ -111,9 +113,9 @@ npm run dev
 - ✅ **Marketplace**: Item listing, search, and transaction system
 - ✅ **Social Platform**: Posts, likes, comments, following system
 - ✅ **VUFS Integration**: Complete fashion categorization system
-- ✅ **Image Storage**: Local file system with optimization
-- ✅ **Configuration Management**: Real-time admin configuration updates
-- ✅ **Cross-Platform Navigation**: Functional routing across all platforms
+- ✅ **AI Processing**: Google Cloud Vision AI for image analysis
+- ✅ **Cloud Storage**: GCS-backed file storage and backups
+- ✅ **GCP Deployment**: Automated Cloud Run deployment pipeline
 
 ### Key Commands
 
@@ -127,9 +129,9 @@ npm test               # Run test suites
 npm run migrate        # Run database migrations
 npm run seed          # Seed development data
 
-# Production
-npm run start         # Start production servers
-npm run deploy        # Deploy to production
+# GCP Deployment
+./scripts/gcp-deploy.sh staging    # Deploy to GCP Staging
+./scripts/gcp-deploy.sh production # Deploy to GCP Production
 ```
 
 ## 🧪 Testing
@@ -185,7 +187,8 @@ npm run start
 ## 📝 Documentation
 
 - [Development Guide](DEVELOPMENT_GUIDE.md)
-- [Deployment Guide](DEPLOYMENT.md)
+- [GCP Deployment Guide](GCP_DEPLOYMENT.md)
+- [GCP Setup Guide](GCP_SETUP_GUIDE.md)
 - [API Documentation](packages/backend/docs/)
 - [Frontend Components](packages/web/src/components/)
 - [VUFS System](packages/shared/src/constants/vufs.ts)

@@ -1,0 +1,5 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'us-central1-docker.pkg.dev/nodal-deck-481823-e8/vangarments-repo/backend:latest', '-f', 'packages/backend/Dockerfile', '.']
+images:
+- 'us-central1-docker.pkg.dev/nodal-deck-481823-e8/vangarments-repo/backend:latest'

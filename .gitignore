@@ -97,3 +97,8 @@ packages/backend/storage/
 
 # Embedded repositories
 vangarments-mobile/
+# Secrets
+packages/backend/gcp-key.json
+
+# Backups
+packages/backend/backups/

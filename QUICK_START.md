@@ -2,20 +2,20 @@
 
 ## Prerequisites
 
-- **Backend**: Real Node.js/Express server (Mocked mode disabled)
-- **Database**: PostgreSQL (Required)
+- **Backend**: Real Node.js/Express server
+- **Database**: PostgreSQL (Cloud SQL or Local)
 - **Frontend**: Next.js 14
 - **Mobile**: React Native / Expo
+- **GCP**: Google Cloud SDK and Service Account (Required for AI & Storage)
 
 ## Step 1: Install Dependencies
 
 From the root directory:
 
-```bash
-npm install
-```
+This will install dependencies for all packages (backend, web, shared, etc.).
 
-This will install dependencies for all packages (backend, web, shared, etc.)
+> [!IMPORTANT]
+> To use AI features and image storage, you must configure Google Cloud Platform. See [GCP Setup Guide](GCP_SETUP_GUIDE.md) for details.
 
 ## Step 2: Set Up Database
 
@@ -71,9 +71,12 @@ JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 # CORS
 CORS_ORIGIN=http://localhost:3000
 
-# File Upload (local storage for development)
-UPLOAD_DIR=./uploads
-MAX_FILE_SIZE=10485760
+# File Upload (Google Cloud Storage)
+GCS_BUCKET_NAME=your-vangarments-bucket
+GOOGLE_APPLICATION_CREDENTIALS=./gcp-key.json
+
+# Vision AI
+GCP_PROJECT_ID=your-project-id
 ```
 
 ### Frontend Configuration
