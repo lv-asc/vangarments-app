@@ -26,6 +26,9 @@ import GroupSettingsModal from '@/components/messaging/GroupSettingsModal';
 import AudioRecorder from '@/components/messaging/AudioRecorder';
 import MentionSuggestions from '@/components/messaging/MentionSuggestions';
 
+// Workaround for framer-motion type issues with React 18
+const MotionDiv = motion.div as any;
+
 interface MessageReaction {
     emoji: string;
     count: number;
@@ -455,7 +458,7 @@ export default function ConversationPage() {
                     <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
                 </button>
 
-                <motion.div
+                <MotionDiv
                     whileHover={{ scale: 1.01 }}
                     className="flex items-center gap-3 flex-1 cursor-pointer"
                     onClick={() => {
@@ -506,7 +509,7 @@ export default function ConversationPage() {
                             <span className="text-xs text-gray-500 block -mt-1">Tap to edit info</span>
                         )}
                     </div>
-                </motion.div>
+                </MotionDiv>
 
                 <button
                     onClick={() => conversation?.conversationType === 'group' ? setIsSettingsOpen(true) : null}
@@ -548,7 +551,7 @@ export default function ConversationPage() {
                             )}
 
                             <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group items-end gap-2`}>
-                                <motion.div whileHover={{ scale: 1.1 }}>
+                                <MotionDiv whileHover={{ scale: 1.1 }}>
                                     <Link href={`/u/${msg.sender?.username || ''}`} className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden relative mb-1 block">
                                         {getUserAvatarUrl(msg.sender) ? (
                                             <Image
@@ -563,14 +566,14 @@ export default function ConversationPage() {
                                             </div>
                                         )}
                                     </Link>
-                                </motion.div>
+                                </MotionDiv>
                                 <div className="relative max-w-[75%]">
                                     {!isOwn && conversation?.conversationType === 'group' && (
-                                        <motion.div whileHover={{ x: 2 }}>
+                                        <MotionDiv whileHover={{ x: 2 }}>
                                             <Link href={`/u/${msg.sender?.username || ''}`} className="text-xs font-medium text-gray-500 mb-1 ml-1 block hover:underline">
                                                 {msg.sender?.profile?.name || msg.sender?.username}
                                             </Link>
-                                        </motion.div>
+                                        </MotionDiv>
                                     )}
                                     {editingMessageId === msg.id ? (
                                         <div className="bg-white border border-gray-300 rounded-lg p-3">
