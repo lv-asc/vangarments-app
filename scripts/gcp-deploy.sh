@@ -28,7 +28,7 @@ DB_INSTANCE="$PROJECT_ID:$REGION:vangarments-db"
 
 gcloud run deploy "vangarments-backend-$ENVIRONMENT" \
     --image "$IMAGE_BACKEND" \
-    --set-env-vars="NODE_ENV=$ENVIRONMENT,DB_HOST=/cloudsql/$DB_INSTANCE,PORT=3001" \
+    --set-env-vars="NODE_ENV=$ENVIRONMENT,DB_HOST=/cloudsql/$DB_INSTANCE,DB_USER=postgres,DB_NAME=vangarments,PORT=3001" \
     --add-cloudsql-instances="$DB_INSTANCE" \
     --allow-unauthenticated \
     --region="$REGION" \
@@ -40,13 +40,13 @@ echo "✅ Backend deployed at: $BACKEND_URL"
 # 3. Build and push Web with Backend URL as build-arg
 echo "📦 Building Web Frontend..."
 IMAGE_WEB="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/frontend:latest"
-gcloud builds submit --config=packages/web/cloudbuild.yaml --substitutions=_NEXT_PUBLIC_API_URL="$BACKEND_URL/api/v1" . || exit 1
+gcloud builds submit --config=packages/web/cloudbuild.yaml --substitutions=_NEXT_PUBLIC_API_URL="$BACKEND_URL/api" . || exit 1
 
 # 4. Deploy Web to Cloud Run
 echo "☁️ Deploying Web to Cloud Run..."
 gcloud run deploy "vangarments-web-$ENVIRONMENT" \
     --image "$IMAGE_WEB" \
-    --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL/api/v1,NODE_ENV=$ENVIRONMENT" \
+    --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL/api,NODE_ENV=$ENVIRONMENT" \
     --allow-unauthenticated \
     --region="$REGION" \
     --port=3000 || exit 1

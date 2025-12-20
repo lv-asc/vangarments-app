@@ -4,14 +4,26 @@ class Database {
   private pool: Pool;
 
   constructor() {
-    console.log('🔌 Initializing database pool with URL:', this.maskUrl(process.env.DATABASE_URL));
-
-    this.pool = new Pool({
+    const config = {
       connectionString: process.env.DATABASE_URL,
+      user: process.env.DB_USER || process.env.POSTGRES_USER || 'postgres',
+      password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD,
+      host: process.env.DB_HOST || process.env.POSTGRES_HOST,
+      database: process.env.DB_NAME || process.env.POSTGRES_DB || 'vangarments',
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
+    };
+
+    console.log('🔌 Initializing database pool with config:', {
+      host: config.host,
+      database: config.database,
+      user: config.user,
+      hasPassword: !!config.password,
+      hasUrl: !!config.connectionString
     });
+
+    this.pool = new Pool(config);
 
     // Handle pool errors
     this.pool.on('error', (err) => {
