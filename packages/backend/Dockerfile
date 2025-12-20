@@ -27,6 +27,8 @@ RUN npm run build --workspace=@vangarments/shared
 # Build the backend application
 RUN npm run build --workspace=@vangarments/backend
 
+# Debug: show full dist folder tree structure
+RUN find packages/backend/dist -type f -name "*.js" | head -30
 
 # Production image, copy all the files and run the app
 FROM base AS runner
