@@ -8,7 +8,7 @@ interface LazyLoadingOptions {
 
 interface LazyLoadingResult<T extends HTMLElement> {
   isVisible: boolean;
-  ref: React.RefObject<T>;
+  ref: React.RefObject<T | null>;
 }
 
 /**
@@ -90,7 +90,7 @@ export function LazyImage({
   }, [onError]);
 
   return (
-    <div ref={ref} className={`relative overflow-hidden ${className}`}>
+    <div ref={ref as React.RefObject<HTMLDivElement>} className={`relative overflow-hidden ${className}`}>
       {/* Thumbnail placeholder */}
       {thumbnailSrc && !imageLoaded && !imageError && (
         <img
