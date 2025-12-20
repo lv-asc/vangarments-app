@@ -18,33 +18,38 @@ echo "🚀 Deploying Vangarments to $ENVIRONMENT ($PROJECT_ID)..."
 # 1. Build and push Backend
 echo "📦 Building Backend..."
 IMAGE_BACKEND="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/backend:latest"
-gcloud builds submit --tag "$IMAGE_BACKEND" ./packages/backend
+# Build from monorepo root to include shared package
+gcloud builds submit --config=packages/backend/cloudbuild.yaml . || exit 1
 
-# 2. Deploy Backend to Cloud Run
+# 2. Extract Backend URL for Frontend Build
+# We deploy backend first to get the URL
 echo "☁️ Deploying Backend to Cloud Run..."
 DB_INSTANCE="$PROJECT_ID:$REGION:vangarments-db"
+
 gcloud run deploy "vangarments-backend-$ENVIRONMENT" \
     --image "$IMAGE_BACKEND" \
-    --set-env-vars="NODE_ENV=$ENVIRONMENT,DB_HOST=/cloudsql/$DB_INSTANCE" \
+    --set-env-vars="NODE_ENV=$ENVIRONMENT,DB_HOST=/cloudsql/$DB_INSTANCE,PORT=3001" \
     --add-cloudsql-instances="$DB_INSTANCE" \
     --allow-unauthenticated \
-    --region="$REGION"
+    --region="$REGION" \
+    --port=3001 || exit 1
 
 BACKEND_URL=$(gcloud run services describe "vangarments-backend-$ENVIRONMENT" --region="$REGION" --format='value(status.url)')
 echo "✅ Backend deployed at: $BACKEND_URL"
 
-# 3. Build and push Web
+# 3. Build and push Web with Backend URL as build-arg
 echo "📦 Building Web Frontend..."
-IMAGE_WEB="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/web:latest"
-gcloud builds submit --tag "$IMAGE_WEB" ./packages/web
+IMAGE_WEB="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/frontend:latest"
+gcloud builds submit --config=packages/web/cloudbuild.yaml --substitutions=_NEXT_PUBLIC_API_URL="$BACKEND_URL/api/v1" . || exit 1
 
 # 4. Deploy Web to Cloud Run
 echo "☁️ Deploying Web to Cloud Run..."
 gcloud run deploy "vangarments-web-$ENVIRONMENT" \
     --image "$IMAGE_WEB" \
-    --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL,NODE_ENV=$ENVIRONMENT" \
+    --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL/api/v1,NODE_ENV=$ENVIRONMENT" \
     --allow-unauthenticated \
-    --region="$REGION"
+    --region="$REGION" \
+    --port=3000 || exit 1
 
 WEB_URL=$(gcloud run services describe "vangarments-web-$ENVIRONMENT" --region="$REGION" --format='value(status.url)')
 echo "✅ Web deployed at: $WEB_URL"

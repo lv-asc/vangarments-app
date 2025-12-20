@@ -25,7 +25,7 @@ COPY --from=deps /app/node_modules ./node_modules
 RUN npm run build --workspace=@vangarments/shared
 
 # Build the backend application
-RUN npm run build --workspace=packages/backend
+RUN npm run build --workspace=@vangarments/backend
 
 # Production image, copy all the files and run the app
 FROM base AS runner
