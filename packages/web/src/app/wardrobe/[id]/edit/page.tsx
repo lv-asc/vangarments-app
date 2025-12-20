@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/Button';
@@ -24,12 +24,13 @@ const conditionBackendToFrontend: Record<string, string> = {
 };
 
 interface EditWardrobeItemPageProps {
-    params: {
+    params: Promise<{
         id: string;
-    };
+    }>;
 }
 
 export default function EditWardrobeItemPage({ params }: EditWardrobeItemPageProps) {
+    const { id } = use(params);
     const router = useRouter();
     const { isAuthenticated } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -92,11 +93,11 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
     // Load Item Data
     useEffect(() => {
         const loadItem = async () => {
-            if (!params.id || !isAuthenticated) return;
+            if (!id || !isAuthenticated) return;
 
             try {
                 setLoading(true);
-                const response = await apiClient.getWardrobeItem(params.id);
+                const response = await apiClient.getWardrobeItem(id);
                 const currentItem = response.item || response;
 
                 setItem(currentItem);
@@ -124,7 +125,7 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
         };
 
         loadItem();
-    }, [params.id, isAuthenticated]);
+    }, [id, isAuthenticated]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -167,8 +168,8 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
                 }
             };
 
-            await apiClient.updateWardrobeItem(params.id, updatePayload);
-            router.push(`/wardrobe/${params.id}`);
+            await apiClient.updateWardrobeItem(id, updatePayload);
+            router.push(`/wardrobe/${id}`);
         } catch (error: any) {
             console.error('Failed to update item:', error);
             setSubmitError(`Failed to update item: ${error.message || 'Please check your inputs and try again.'}`);
@@ -188,7 +189,7 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
 
     return (
         <div className="min-h-screen bg-gray-50">
-            
+
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-6">
