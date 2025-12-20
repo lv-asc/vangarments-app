@@ -41,6 +41,9 @@ COPY --from=builder --chown=vangarments:nodejs /app/packages/backend/dist ./dist
 COPY --from=builder --chown=vangarments:nodejs /app/packages/backend/package*.json ./
 COPY --from=deps --chown=vangarments:nodejs /app/node_modules ./node_modules
 
+# Copy the shared package (required at runtime)
+COPY --from=builder --chown=vangarments:nodejs /app/packages/shared ./node_modules/@vangarments/shared
+
 # Copy database initialization scripts
 COPY --from=builder --chown=vangarments:nodejs /app/packages/backend/database ./database
 
