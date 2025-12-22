@@ -37,7 +37,7 @@ fi
 echo "📦 Dumping local database..."
 # Use pg_dump to create a SQL file compatible with Cloud SQL
 # Note: Cloud SQL import prefers plain SQL format
-pg_dump "$LOCAL_DB_URL" --no-owner --no-privileges --plain > "$LOCAL_SQL_FILE"
+pg_dump "$LOCAL_DB_URL" --no-owner --no-privileges --format=plain > "$LOCAL_SQL_FILE"
 
 if [ $? -ne 0 ]; then
     echo "❌ Error: Local database dump failed."

@@ -4,7 +4,7 @@ import { db } from '../database/connection';
 export interface VUFSCategoryOption {
   id: string;
   name: string;
-  level: 'page' | 'blue' | 'white' | 'gray';
+  level: 'subcategory1' | 'subcategory2' | 'apparel' | 'page' | 'blue' | 'white' | 'gray';
   parentId?: string;
   description?: string;
   isActive: boolean;
@@ -77,6 +77,9 @@ export class VUFSManagementService {
 
     // Determine integer level based on string level
     const levelMap: Record<string, number> = {
+      'subcategory1': 1,
+      'subcategory2': 2,
+      'apparel': 3,
       'page': 1,
       'blue': 2,
       'white': 3,
@@ -108,7 +111,7 @@ export class VUFSManagementService {
    * Get categories by level and parent
    */
   static async getCategoriesByLevel(
-    level: 'page' | 'blue' | 'white' | 'gray',
+    level: 'subcategory1' | 'subcategory2' | 'apparel' | 'page' | 'blue' | 'white' | 'gray',
     parentId?: string
   ): Promise<VUFSCategoryOption[]> {
     const allCategories = await this.getCategories();
@@ -145,7 +148,7 @@ export class VUFSManagementService {
     return {
       id: row.id.toString(),
       name: row.name,
-      level: row.level === 1 ? 'page' : row.level === 2 ? 'blue' : row.level === 3 ? 'white' : 'gray',
+      level: row.level === 1 ? 'subcategory1' : row.level === 2 ? 'subcategory2' : row.level === 3 ? 'apparel' : 'gray',
       parentId: row.parent_id?.toString(),
       isActive: row.is_active
     };
@@ -254,14 +257,16 @@ export class VUFSManagementService {
   }
 
   /**
-   * Get all categories (updated to support delete)
+   * Get all categories (updated to support soft delete)
    */
-  static async getCategories(): Promise<VUFSCategoryOption[]> {
-    const query = 'SELECT * FROM vufs_categories ORDER BY level, name';
+  static async getCategories(includeDeleted: boolean = false): Promise<VUFSCategoryOption[]> {
+    const query = includeDeleted
+      ? 'SELECT * FROM vufs_categories ORDER BY level, name'
+      : 'SELECT * FROM vufs_categories WHERE is_deleted = false OR is_deleted IS NULL ORDER BY level, name';
     const result = await db.query(query);
 
-    const levelMapReverse: Record<number, 'page' | 'blue' | 'white' | 'gray'> = {
-      1: 'page', 2: 'blue', 3: 'white', 4: 'gray'
+    const levelMapReverse: Record<number, 'subcategory1' | 'subcategory2' | 'apparel' | 'gray'> = {
+      1: 'subcategory1', 2: 'subcategory2', 3: 'apparel', 4: 'gray'
     };
 
     return result.rows.map((row: any) => ({
@@ -269,15 +274,64 @@ export class VUFSManagementService {
       name: row.name,
       level: levelMapReverse[row.level] || 'page',
       parentId: row.parent_id?.toString(),
-      isActive: true
+      isActive: !row.is_deleted,
+      isDeleted: row.is_deleted || false,
+      deletedAt: row.deleted_at || null
     }));
   }
 
+  /**
+   * Get only deleted categories (for trash view)
+   */
+  static async getDeletedCategories(): Promise<VUFSCategoryOption[]> {
+    const query = 'SELECT * FROM vufs_categories WHERE is_deleted = true ORDER BY deleted_at DESC';
+    const result = await db.query(query);
+
+    const levelMapReverse: Record<number, 'subcategory1' | 'subcategory2' | 'apparel' | 'gray'> = {
+      1: 'subcategory1', 2: 'subcategory2', 3: 'apparel', 4: 'gray'
+    };
+
+    return result.rows.map((row: any) => ({
+      id: row.id.toString(),
+      name: row.name,
+      level: levelMapReverse[row.level] || 'page',
+      parentId: row.parent_id?.toString(),
+      isActive: false,
+      isDeleted: true,
+      deletedAt: row.deleted_at
+    }));
+  }
+
+  /**
+   * Soft delete a category (move to trash)
+   */
   static async deleteCategory(id: string): Promise<void> {
+    // Recursively soft-delete children first
+    const childrenResult = await db.query('SELECT id FROM vufs_categories WHERE parent_id = $1 AND (is_deleted = false OR is_deleted IS NULL)', [id]);
+    for (const row of childrenResult.rows) {
+      await this.deleteCategory(row.id.toString());
+    }
+    // Soft delete by setting is_deleted flag
+    await db.query('UPDATE vufs_categories SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  /**
+   * Restore a category from trash
+   */
+  static async restoreCategory(id: string): Promise<void> {
+    // Restore by clearing the is_deleted flag
+    await db.query('UPDATE vufs_categories SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+    // Note: Children remain deleted - user needs to restore them individually if desired
+  }
+
+  /**
+   * Permanently delete a category (hard delete from trash)
+   */
+  static async permanentlyDeleteCategory(id: string): Promise<void> {
     // Recursively delete children first to satisfy foreign key constraints
     const childrenResult = await db.query('SELECT id FROM vufs_categories WHERE parent_id = $1', [id]);
     for (const row of childrenResult.rows) {
-      await this.deleteCategory(row.id.toString());
+      await this.permanentlyDeleteCategory(row.id.toString());
     }
     await this.deleteItem('vufs_categories', id);
   }
@@ -312,7 +366,7 @@ export class VUFSManagementService {
    * Get all colors from DB
    */
   static async getColors(): Promise<VUFSColorOption[]> {
-    const query = 'SELECT * FROM vufs_colors ORDER BY name';
+    const query = 'SELECT * FROM vufs_colors WHERE is_active = true ORDER BY name';
     const result = await db.query(query);
     return result.rows.map((row: any) => ({
       id: row.id,
@@ -338,7 +392,7 @@ export class VUFSManagementService {
    * Get all materials from DB
    */
   static async getMaterials(): Promise<VUFSMaterialOption[]> {
-    const query = 'SELECT * FROM vufs_materials ORDER BY name';
+    const query = 'SELECT * FROM vufs_materials WHERE is_active = true ORDER BY name';
     const result = await db.query(query);
     return result.rows.map((row: any) => ({
       id: row.id,
@@ -539,13 +593,13 @@ export class VUFSManagementService {
     const sql = 'SELECT * FROM vufs_categories WHERE name ILIKE $1 AND is_active = true';
     const result = await db.query(sql, [`%${query}%`]);
     // ... mapping logic similar to getCategories
-    const levelMapReverse: Record<number, 'page' | 'blue' | 'white' | 'gray'> = {
-      1: 'page', 2: 'blue', 3: 'white', 4: 'gray'
+    const levelMapReverse: Record<number, 'subcategory1' | 'subcategory2' | 'apparel' | 'gray'> = {
+      1: 'subcategory1', 2: 'subcategory2', 3: 'apparel', 4: 'gray'
     };
     return result.rows.map((row: any) => ({
       id: row.id.toString(),
       name: row.name,
-      level: levelMapReverse[row.level] || 'page',
+      level: levelMapReverse[row.level] || 'subcategory1',
       parentId: row.parent_id?.toString(),
       isActive: true
     }));
@@ -675,7 +729,7 @@ export class VUFSManagementService {
    * Get Patterns from DB
    */
   static async getPatterns(): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_patterns ORDER BY name';
+    const query = 'SELECT * FROM vufs_patterns WHERE is_active = true ORDER BY name';
     const result = await db.query(query);
     return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
   }
@@ -695,7 +749,7 @@ export class VUFSManagementService {
    * Get Fits from DB
    */
   static async getFits(): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_fits ORDER BY name';
+    const query = 'SELECT * FROM vufs_fits WHERE is_active = true ORDER BY name';
     const result = await db.query(query);
     return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
   }
@@ -803,21 +857,32 @@ export class VUFSManagementService {
   }
 
   static async getAttributeValues(typeSlug: string): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_attribute_values WHERE type_slug = $1 ORDER BY name';
+    const query = 'SELECT * FROM vufs_attribute_values WHERE type_slug = $1 ORDER BY sort_order, name';
     const result = await db.query(query, [typeSlug]);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
+    return result.rows.map((row: any) => ({
+      ...row,
+      isActive: row.is_active,
+      sortOrder: row.sort_order || 0,
+      parentId: row.parent_id || null
+    }));
   }
 
-  static async addAttributeValue(typeSlug: string, name: string): Promise<any> {
-    // Verify type exists first? Not strictly needed with FK constraint but good for error msg.
+  static async addAttributeValue(typeSlug: string, name: string, parentId?: string): Promise<any> {
+    // Get max sort_order for this type
+    const maxOrderRes = await db.query(
+      'SELECT COALESCE(MAX(sort_order), 0) as max_order FROM vufs_attribute_values WHERE type_slug = $1',
+      [typeSlug]
+    );
+    const nextOrder = (maxOrderRes.rows[0]?.max_order || 0) + 1;
+
     const query = `
-      INSERT INTO vufs_attribute_values (type_slug, name)
-      VALUES ($1, $2)
+      INSERT INTO vufs_attribute_values (type_slug, name, sort_order, parent_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
     try {
-      const result = await db.query(query, [typeSlug, name]);
-      return { ...result.rows[0], isActive: true };
+      const result = await db.query(query, [typeSlug, name, nextOrder, parentId || null]);
+      return { ...result.rows[0], isActive: true, sortOrder: nextOrder, parentId: parentId || null };
     } catch (error: any) {
       if (error.code === '23505') {
         throw new Error(`Value "${name}" already exists for this attribute.`);
@@ -830,25 +895,115 @@ export class VUFSManagementService {
     const query = 'DELETE FROM vufs_attribute_values WHERE id = $1';
     await db.query(query, [id]);
   }
-  static async updateAttributeValue(id: string, name: string): Promise<any> {
+
+  static async updateAttributeValue(id: string, updates: { name?: string; parentId?: string | null }): Promise<any> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (updates.name !== undefined) {
+      fields.push(`name = $${++paramIndex}`);
+      values.push(updates.name);
+    }
+    if (updates.parentId !== undefined) {
+      fields.push(`parent_id = $${++paramIndex}`);
+      values.push(updates.parentId);
+    }
+
+    if (fields.length === 0) {
+      throw new Error('No updates provided');
+    }
+
     const query = `
       UPDATE vufs_attribute_values
-      SET name = $2
+      SET ${fields.join(', ')}
       WHERE id = $1
       RETURNING *;
     `;
 
     try {
-      const result = await db.query(query, [id, name]);
+      const result = await db.query(query, [id, ...values]);
       if (result.rowCount === 0) {
         throw new Error('Attribute value not found');
       }
-      return { ...result.rows[0], isActive: true };
+      return { ...result.rows[0], isActive: true, sortOrder: result.rows[0].sort_order, parentId: result.rows[0].parent_id };
     } catch (error: any) {
       if (error.code === '23505') {
-        throw new Error(`Value "${name}" already exists for this attribute.`);
+        throw new Error(`Value "${updates.name}" already exists for this attribute.`);
       }
       throw error;
+    }
+  }
+
+  static async reorderAttributeValues(orders: { id: string; sortOrder: number }[]): Promise<void> {
+    for (const order of orders) {
+      await db.query(
+        'UPDATE vufs_attribute_values SET sort_order = $2 WHERE id = $1',
+        [order.id, order.sortOrder]
+      );
+    }
+  }
+
+  /**
+   * Change an item's hierarchy level (promote/demote) and cascade children.
+   * Hierarchy: subcategory-1 → subcategory-2 → subcategory-3 → apparel
+   */
+  static async changeHierarchyLevel(
+    itemId: string,
+    targetLevel: 'subcategory-1' | 'subcategory-2' | 'subcategory-3' | 'apparel',
+    newParentId?: string | null
+  ): Promise<void> {
+    const hierarchyOrder = ['subcategory-1', 'subcategory-2', 'subcategory-3', 'apparel'];
+    const targetIndex = hierarchyOrder.indexOf(targetLevel);
+
+    if (targetIndex === -1) {
+      throw new Error(`Invalid target level: ${targetLevel}`);
+    }
+
+    // Get the item's current level
+    const itemResult = await db.query(
+      'SELECT id, type_slug, name FROM vufs_attribute_values WHERE id = $1',
+      [itemId]
+    );
+
+    if (itemResult.rowCount === 0) {
+      throw new Error('Item not found');
+    }
+
+    const item = itemResult.rows[0];
+    const currentLevel = item.type_slug;
+    const currentIndex = hierarchyOrder.indexOf(currentLevel);
+
+    if (currentIndex === -1) {
+      throw new Error(`Item has invalid level: ${currentLevel}`);
+    }
+
+    // Update the item's type_slug and parent_id
+    await db.query(
+      'UPDATE vufs_attribute_values SET type_slug = $2, parent_id = $3 WHERE id = $1',
+      [itemId, targetLevel, newParentId || null]
+    );
+
+    // Cascade: update all children to move one level deeper/shallower accordingly
+    const levelDiff = targetIndex - currentIndex;
+
+    if (levelDiff !== 0) {
+      // Get all direct children of this item
+      const childrenResult = await db.query(
+        'SELECT id, type_slug FROM vufs_attribute_values WHERE parent_id = $1',
+        [itemId]
+      );
+
+      for (const child of childrenResult.rows) {
+        const childCurrentIndex = hierarchyOrder.indexOf(child.type_slug);
+        const childNewIndex = childCurrentIndex + levelDiff;
+
+        if (childNewIndex >= 0 && childNewIndex < hierarchyOrder.length) {
+          const childNewLevel = hierarchyOrder[childNewIndex] as 'subcategory-1' | 'subcategory-2' | 'subcategory-3' | 'apparel';
+          // Recursively cascade to children
+          await this.changeHierarchyLevel(child.id, childNewLevel, itemId);
+        }
+      }
     }
   }
 }

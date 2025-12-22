@@ -28,7 +28,7 @@ DB_INSTANCE="$PROJECT_ID:$REGION:vangarments-db"
 
 gcloud run deploy "vangarments-backend-$ENVIRONMENT" \
     --image "$IMAGE_BACKEND" \
-    --set-env-vars="NODE_ENV=$ENVIRONMENT,DB_HOST=/cloudsql/$DB_INSTANCE,DB_USER=postgres,DB_NAME=vangarments,PORT=3001" \
+    --update-env-vars="NODE_ENV=$ENVIRONMENT,DB_HOST=/cloudsql/$DB_INSTANCE,DB_USER=postgres,DB_NAME=vangarments" \
     --add-cloudsql-instances="$DB_INSTANCE" \
     --allow-unauthenticated \
     --region="$REGION" \
@@ -46,7 +46,7 @@ gcloud builds submit --config=packages/web/cloudbuild.yaml --substitutions=_NEXT
 echo "☁️ Deploying Web to Cloud Run..."
 gcloud run deploy "vangarments-web-$ENVIRONMENT" \
     --image "$IMAGE_WEB" \
-    --set-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL/api,NODE_ENV=$ENVIRONMENT" \
+    --update-env-vars="NEXT_PUBLIC_API_URL=$BACKEND_URL/api,NODE_ENV=$ENVIRONMENT" \
     --allow-unauthenticated \
     --region="$REGION" \
     --port=3000 || exit 1

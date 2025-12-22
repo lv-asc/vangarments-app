@@ -154,6 +154,42 @@ export class BrandTeamModel {
         return result.rows.length > 0;
     }
 
+    /**
+     * Get all team memberships with brand information
+     * Used by admin dashboard to show entities linked to users
+     */
+    static async getAllMemberships(): Promise<Array<{
+        userId: string;
+        brandId: string;
+        brandName: string;
+        brandLogo?: string;
+        businessType: string;
+        roles: BrandRole[];
+        title?: string;
+    }>> {
+        const query = `
+            SELECT btm.user_id, btm.brand_id, btm.roles, btm.title,
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'logo' as brand_logo,
+                   COALESCE(ba.brand_info->>'businessType', 'brand') as business_type
+            FROM brand_team_members btm
+            JOIN brand_accounts ba ON btm.brand_id = ba.id
+            WHERE ba.deleted_at IS NULL
+            ORDER BY btm.joined_at DESC
+        `;
+
+        const result = await db.query(query);
+        return result.rows.map(row => ({
+            userId: row.user_id,
+            brandId: row.brand_id,
+            brandName: row.brand_name || 'Unnamed',
+            brandLogo: row.brand_logo || undefined,
+            businessType: row.business_type || 'brand',
+            roles: parseRoles(row.roles, null),
+            title: row.title || undefined
+        }));
+    }
+
     private static mapRowToTeamMember(row: any): BrandTeamMember {
         return {
             id: row.id,

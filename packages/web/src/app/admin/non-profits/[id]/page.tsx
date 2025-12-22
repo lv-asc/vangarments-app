@@ -39,6 +39,7 @@ export default function AdminEditNonProfitPage() {
 
     const [formData, setFormData] = useState({
         brandName: '',
+        slug: '',
         description: '',
         website: '',
         contactEmail: '',
@@ -72,6 +73,7 @@ export default function AdminEditNonProfitPage() {
 
             setFormData({
                 brandName: loadedBrand.brandInfo.name || '',
+                slug: loadedBrand.brandInfo.slug || '',
                 description: loadedBrand.brandInfo.description || '',
                 website: loadedBrand.brandInfo.website || '',
                 contactEmail: loadedBrand.brandInfo.contactInfo?.email || '',
@@ -182,7 +184,7 @@ export default function AdminEditNonProfitPage() {
                 phone: formData.contactPhone
             };
 
-            const brandSlug = slugify(formData.brandName);
+            const brandSlug = formData.slug ? slugify(formData.slug) : slugify(formData.brandName);
 
             await brandApi.updateBrand(brandId, {
                 brandInfo: {
@@ -205,6 +207,11 @@ export default function AdminEditNonProfitPage() {
             });
 
             toast.success('Non-Profit updated successfully');
+
+            if (brandSlug) {
+                window.history.replaceState(null, '', `/admin/non-profits/${brandSlug}`);
+            }
+
             loadBrand();
         } catch (error: any) {
             console.error('Failed to update non-profit', error);
@@ -351,6 +358,26 @@ export default function AdminEditNonProfitPage() {
                                     required
                                     className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2"
                                 />
+                            </div>
+
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700">URL Slug</label>
+                                <div className="mt-1 flex rounded-md shadow-sm">
+                                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                                        /non-profits/
+                                    </span>
+                                    <input
+                                        type="text"
+                                        name="slug"
+                                        value={formData.slug}
+                                        onChange={handleChange}
+                                        placeholder={slugify(formData.brandName)}
+                                        className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300 border"
+                                    />
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    The URL-friendly version of the name. Leave empty to auto-generate.
+                                </p>
                             </div>
 
                             <div className="col-span-2">

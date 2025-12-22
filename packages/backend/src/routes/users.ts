@@ -13,9 +13,11 @@ router.post('/activity', AuthUtils.authenticateToken, UserController.updateActiv
 
 // Public user routes
 router.get('/', AuthUtils.authenticateToken, UserController.getAllUsers);
+router.get('/team-memberships', AuthUtils.authenticateToken, UserController.getAllTeamMemberships);
 router.get('/:id/profile', UserController.getProfile);
 router.get('/u/:username', UserController.getByUsername);
 router.get('/check-username/:username', UserController.checkUsernameAvailability);
+router.get('/lookup-cep/:cep', UserController.lookupCEP);
 router.post('/avatar', AuthUtils.authenticateToken, UserController.uploadAvatarMiddleware, UserController.uploadAvatar);
 
 // Public utility routes

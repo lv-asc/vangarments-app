@@ -294,17 +294,8 @@ export default function UserProfileLayout({
                                             )}
                                         </button>
                                         <button
-                                            onClick={async () => {
-                                                try {
-                                                    const conv = await apiClient.startConversation(profile.id);
-                                                    router.push(`/messages/${conv.id}`);
-                                                } catch (err: any) {
-                                                    if (err.status === 401) {
-                                                        router.push('/login');
-                                                    } else {
-                                                        alert(err.message || 'Failed to start conversation');
-                                                    }
-                                                }
+                                            onClick={() => {
+                                                router.push(`/messages/u/${profile.username}`);
                                             }}
                                             className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                                         >

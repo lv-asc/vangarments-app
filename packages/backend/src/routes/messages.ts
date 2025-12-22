@@ -14,6 +14,11 @@ const startConversationValidation = [
         .optional()
         .isUUID()
         .withMessage('Recipient ID must be a valid UUID'),
+    body('recipientUsername')
+        .optional()
+        .isString()
+        .isLength({ min: 1, max: 50 })
+        .withMessage('Recipient username must be a valid string'),
     body('entityType')
         .optional()
         .isIn(['brand', 'store', 'supplier', 'page'])
@@ -34,8 +39,8 @@ const startConversationValidation = [
 
 const sendMessageValidation = [
     param('conversationId')
-        .isUUID()
-        .withMessage('Conversation ID must be a valid UUID'),
+        .isString()
+        .withMessage('Conversation ID or slug is required'),
     body('content')
         .optional()
         .isLength({ max: 5000 })
@@ -48,8 +53,8 @@ const sendMessageValidation = [
 
 const conversationIdValidation = [
     param('conversationId')
-        .isUUID()
-        .withMessage('Conversation ID must be a valid UUID'),
+        .isString()
+        .withMessage('Conversation ID or slug is required'),
 ];
 
 const messageIdValidation = [
@@ -89,8 +94,8 @@ const paginationValidation = [
 
 const updateConversationValidation = [
     param('conversationId')
-        .isUUID()
-        .withMessage('Conversation ID must be a valid UUID'),
+        .isString()
+        .withMessage('Conversation ID or slug is required'),
     body('name')
         .optional()
         .isLength({ min: 1, max: 100 })
@@ -99,6 +104,26 @@ const updateConversationValidation = [
         .optional()
         .isString()
         .withMessage('Avatar URL must be a string'),
+    body('description')
+        .optional()
+        .isString()
+        .withMessage('Description must be a string'),
+];
+
+const addParticipantValidation = [
+    param('conversationId').isString().withMessage('Invalid conversation ID'),
+    body('userId').isUUID().withMessage('Invalid user ID'),
+];
+
+const removeParticipantValidation = [
+    param('conversationId').isString().withMessage('Invalid conversation ID'),
+    param('userId').isUUID().withMessage('Invalid user ID'),
+];
+
+const updateRoleValidation = [
+    param('conversationId').isString().withMessage('Invalid conversation ID'),
+    param('userId').isUUID().withMessage('Invalid user ID'),
+    body('role').isIn(['admin', 'member']).withMessage('Invalid role'),
 ];
 
 // Routes
@@ -137,6 +162,15 @@ router.patch(
     updateConversationValidation,
     validateRequest,
     messagingController.updateConversation.bind(messagingController)
+);
+
+// Delete conversation (leave group)
+router.delete(
+    '/conversations/:conversationId',
+    AuthUtils.authenticateToken,
+    conversationIdValidation,
+    validateRequest,
+    messagingController.deleteConversation.bind(messagingController)
 );
 
 // Get messages in a conversation
@@ -234,6 +268,40 @@ router.post(
     AuthUtils.authenticateToken,
     StorageController.uploadMiddleware,
     messagingController.uploadMedia.bind(messagingController)
+);
+
+// Participant management
+router.post(
+    '/conversations/:conversationId/participants',
+    AuthUtils.authenticateToken,
+    addParticipantValidation,
+    validateRequest,
+    messagingController.addParticipant.bind(messagingController)
+);
+
+router.delete(
+    '/conversations/:conversationId/participants/:userId',
+    AuthUtils.authenticateToken,
+    removeParticipantValidation,
+    validateRequest,
+    messagingController.removeParticipant.bind(messagingController)
+);
+
+router.patch(
+    '/conversations/:conversationId/participants/:userId/role',
+    AuthUtils.authenticateToken,
+    updateRoleValidation,
+    validateRequest,
+    messagingController.updateParticipantRole.bind(messagingController)
+);
+
+// Media retrieval
+router.get(
+    '/conversations/:conversationId/media',
+    AuthUtils.authenticateToken,
+    conversationIdValidation,
+    validateRequest,
+    messagingController.getConversationMedia.bind(messagingController)
 );
 
 export default router;

@@ -12,6 +12,8 @@ import { SupplierModel } from '../models/Supplier';
 import { PageModel } from '../models/Page';
 import { SocialService } from '../services/socialService';
 import { OutfitModel } from '../models/Outfit';
+import { BrandTeamModel } from '../models/BrandTeam';
+import axios from 'axios';
 
 const socialService = new SocialService();
 
@@ -123,6 +125,74 @@ export class UserController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: 'An error occurred while checking username availability'
+        }
+      });
+    }
+  }
+
+  static async lookupCEP(req: Request, res: Response) {
+    const { cep } = req.params;
+    console.log(`[CEP Proxy] Received request for CEP: ${cep}`);
+
+    try {
+      const cleanCEP = cep.replace(/\D/g, '');
+
+      if (cleanCEP.length !== 8) {
+        console.warn(`[CEP Proxy] Invalid CEP length: ${cleanCEP}`);
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_CEP',
+            message: 'CEP must be 8 digits'
+          }
+        });
+      }
+
+      console.log(`[CEP Proxy] Fetching from ViaCEP: https://viacep.com.br/ws/${cleanCEP}/json/`);
+
+      const response = await axios.get(`https://viacep.com.br/ws/${cleanCEP}/json/`, {
+        timeout: 5000,
+        headers: {
+          'User-Agent': 'Vangarments-Platform/1.0'
+        }
+      });
+
+      const data = response.data;
+      console.log(`[CEP Proxy] ViaCEP response received:`, data);
+
+      if (data.erro) {
+        console.warn(`[CEP Proxy] CEP not found in ViaCEP: ${cleanCEP}`);
+        return res.status(404).json({
+          error: {
+            code: 'CEP_NOT_FOUND',
+            message: 'CEP not found'
+          }
+        });
+      }
+
+      const formattedData = {
+        cep: data.cep,
+        street: data.logradouro,
+        neighborhood: data.bairro,
+        city: data.localidade,
+        state: data.uf,
+        complement: data.complemento,
+        ibge: data.ibge,
+        gia: data.gia,
+        ddd: data.ddd,
+        siafi: data.siafi
+      };
+
+      res.json({ data: formattedData });
+    } catch (error: any) {
+      console.error('[CEP Proxy] Critical error:', error.message);
+      if (error.response) {
+        console.error('[CEP Proxy] ViaCEP error response:', error.response.status, error.response.data);
+      }
+
+      res.status(500).json({
+        error: {
+          code: 'CEP_LOOKUP_ERROR',
+          message: error.message || 'Failed to lookup CEP'
         }
       });
     }
@@ -991,6 +1061,28 @@ export class UserController {
     } catch (error) {
       console.error('Restore user error:', error);
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to restore user' } });
+    }
+  }
+
+  /**
+   * Get all team memberships across all brands
+   * Used by admin dashboard to show entities linked to users
+   */
+  static async getAllTeamMemberships(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({
+          error: { code: 'FORBIDDEN', message: 'Admin access required' }
+        });
+      }
+
+      const memberships = await BrandTeamModel.getAllMemberships();
+      res.json({ success: true, memberships });
+    } catch (error) {
+      console.error('Get all team memberships error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get team memberships' }
+      });
     }
   }
 

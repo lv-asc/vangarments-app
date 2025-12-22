@@ -25,6 +25,23 @@ router.post('/', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), 
     }
 });
 
+router.put('/reorder', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), async (req, res) => {
+    try {
+        const { orders } = req.body;
+        console.log('[Sizes Route] Received reorder request:', JSON.stringify(orders));
+        if (!Array.isArray(orders)) {
+            console.warn('[Sizes Route] Reorder failed: orders is not an array');
+            return res.status(400).json({ error: 'Orders must be an array' });
+        }
+        await SizeModel.updateOrder(orders);
+        console.log('[Sizes Route] Reorder successful');
+        res.json({ success: true });
+    } catch (error: any) {
+        console.error('[Sizes Route] Reorder error:', error.message, error.stack);
+        res.status(500).json({ error: 'Failed to reorder sizes', details: error.message });
+    }
+});
+
 router.put('/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), async (req, res) => {
     try {
         const { name, sortOrder, conversions, validCategoryIds } = req.body;

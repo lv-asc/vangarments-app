@@ -472,6 +472,11 @@ class ApiClient {
     return response as any;
   }
 
+  async lookupCEP(cep: string): Promise<{ data: any }> {
+    const response = await this.request<any>(`/users/lookup-cep/${encodeURIComponent(cep)}`);
+    return response as any;
+  }
+
   async updateProfile(profileData: {
     name?: string;
     username?: string;
@@ -798,7 +803,21 @@ class ApiClient {
     return (response as any).categories || response.data || response;
   }
 
+  async getDeletedVUFSCategories() {
+    const response = await this.request<any>('/vufs-management/categories/trash');
+    return (response as any).categories || response.data || response;
+  }
+
+  async restoreVUFSCategory(id: string) {
+    return this.request(`/vufs-management/categories/${id}/restore`, { method: 'POST' });
+  }
+
+  async permanentlyDeleteVUFSCategory(id: string) {
+    return this.request(`/vufs-management/categories/${id}/permanent`, { method: 'DELETE' });
+  }
+
   // --- BRANDS ---
+
   async getVUFSBrands() {
     const response = await this.request<any>('/vufs-management/brands');
     return (response as any).brands || response.data || response;
@@ -896,6 +915,9 @@ class ApiClient {
   async updateSize(id: string, data: { name?: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[] }) {
     return this.request(`/sizes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
+  async reorderSizes(orders: { id: string; sortOrder: number }[]) {
+    return this.request('/sizes/reorder', { method: 'PUT', body: JSON.stringify({ orders }) });
+  }
   async deleteSize(id: string) { return this.request(`/sizes/${id}`, { method: 'DELETE' }); }
 
   // --- SKU Global Management ---
@@ -944,15 +966,25 @@ class ApiClient {
     const response = await this.request<any>(`/vufs-management/attributes/${typeSlug}/values`);
     return (response as any).values || response.data || response;
   }
-  async addVUFSAttributeValue(typeSlug: string, name: string) {
-    return this.request(`/vufs-management/attributes/${typeSlug}/values`, { method: 'POST', body: JSON.stringify({ name }) });
+  async addVUFSAttributeValue(typeSlug: string, name: string, parentId?: string) {
+    return this.request(`/vufs-management/attributes/${typeSlug}/values`, { method: 'POST', body: JSON.stringify({ name, parentId }) });
   }
-  async updateVUFSAttributeValue(id: string, name: string) {
-    return this.request(`/vufs-management/attributes/values/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+  async updateVUFSAttributeValue(id: string, updates: { name?: string; parentId?: string | null }) {
+    return this.request(`/vufs-management/attributes/values/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
   }
   async deleteVUFSAttributeValue(id: string) { return this.request(`/vufs-management/attributes/values/${id}`, { method: 'DELETE' }); }
+  async reorderVUFSAttributeValues(orders: { id: string; sortOrder: number }[]) {
+    return this.request('/vufs-management/attributes/values/reorder', { method: 'PUT', body: JSON.stringify({ orders }) });
+  }
+  async changeVUFSAttributeHierarchy(id: string, targetLevel: string, newParentId?: string | null) {
+    return this.request(`/vufs-management/attributes/values/${id}/hierarchy`, {
+      method: 'PUT',
+      body: JSON.stringify({ targetLevel, newParentId })
+    });
+  }
 
   // --- MATRIX VIEW ---
+
   async getAllCategoryAttributes() {
     return this.request('/vufs-management/matrix').then((res: any) => (res as any).attributes || res.data || res);
   }
@@ -1385,10 +1417,34 @@ class ApiClient {
 
   /**
    * Start or get existing conversation with a user
+   * @param recipientIdOrUsernames - Single recipient ID (UUID) or array of usernames
+   * @param entityType - For entity conversations (brand, store, supplier, page)
+   * @param entityId - Entity ID for entity conversations
    */
-  async startConversation(recipientId?: string, entityType?: string, entityId?: string): Promise<any> {
+  async startConversation(recipientIdOrUsernames?: string | string[], entityType?: string, entityId?: string): Promise<any> {
     const body: any = {};
-    if (recipientId) body.recipientId = recipientId;
+
+    if (recipientIdOrUsernames) {
+      if (Array.isArray(recipientIdOrUsernames)) {
+        // Array of usernames - send first one as recipientUsername for direct, or handle as group
+        if (recipientIdOrUsernames.length === 1) {
+          // Single username - direct conversation
+          body.recipientUsername = recipientIdOrUsernames[0];
+        } else {
+          // Multiple - this would be a group chat, not supported yet via username
+          body.participantIds = recipientIdOrUsernames;
+        }
+      } else {
+        // Single value - check if it's a UUID or username
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipientIdOrUsernames);
+        if (isUUID) {
+          body.recipientId = recipientIdOrUsernames;
+        } else {
+          body.recipientUsername = recipientIdOrUsernames;
+        }
+      }
+    }
+
     if (entityType) body.entityType = entityType;
     if (entityId) body.entityId = entityId;
 
@@ -1517,12 +1573,43 @@ class ApiClient {
     });
     return response.data?.conversation || response;
   }
-  async updateConversation(conversationId: string, updates: { name?: string; avatarUrl?: string }): Promise<any> {
+  async updateConversation(conversationId: string, updates: { name?: string; avatarUrl?: string; description?: string }): Promise<any> {
     const response = await this.request<any>(`/messages/conversations/${conversationId}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
     return response.data?.conversation || response;
+  }
+
+  async addConversationParticipant(conversationId: string, userId: string): Promise<any> {
+    return this.request<any>(`/messages/conversations/${conversationId}/participants`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  async removeConversationParticipant(conversationId: string, userId: string): Promise<any> {
+    return this.request<any>(`/messages/conversations/${conversationId}/participants/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateParticipantRole(conversationId: string, userId: string, role: 'admin' | 'member'): Promise<any> {
+    return this.request<any>(`/messages/conversations/${conversationId}/participants/${userId}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async getConversationMedia(conversationId: string): Promise<any> {
+    const response = await this.request<any>(`/messages/conversations/${conversationId}/media`);
+    return response.data;
+  }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    await this.request(`/messages/conversations/${conversationId}`, {
+      method: 'DELETE',
+    });
   }
 
   async uploadMessageMedia(file: File): Promise<any> {

@@ -12,7 +12,7 @@ class Database {
       database: process.env.DB_NAME || process.env.POSTGRES_DB || 'vangarments',
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000,
     };
 
     console.log('🔌 Initializing database pool with config:', {

@@ -1,4 +1,5 @@
 import { db } from '../database/connection';
+import { slugify } from '../utils/slugify';
 
 export interface Conversation {
     id: string;
@@ -7,6 +8,8 @@ export interface Conversation {
     entityId?: string;
     name?: string;
     avatarUrl?: string;
+    description?: string;
+    slug?: string;
     createdBy?: string;
     lastMessageAt?: Date;
     createdAt: Date;
@@ -21,6 +24,7 @@ export interface ConversationParticipant {
     id: string;
     conversationId: string;
     userId: string;
+    role: 'admin' | 'member';
     lastReadAt?: Date;
     joinedAt: Date;
     // Populated
@@ -56,6 +60,7 @@ export class ConversationModel {
     static async create(
         participantIds: string[],
         type: 'direct' | 'entity' | 'group' = 'direct',
+        createdBy?: string,
         entityType?: string,
         entityId?: string,
         name?: string
@@ -66,19 +71,21 @@ export class ConversationModel {
             await client.query('BEGIN');
 
             // Create conversation
+            const slug = name && type === 'group' ? `${slugify(name)}-${Math.random().toString(36).substring(2, 7)}` : null;
             const convQuery = `
-                INSERT INTO conversations (conversation_type, entity_type, entity_id, name)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO conversations (conversation_type, entity_type, entity_id, name, created_by, slug)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING *
             `;
-            const convResult = await client.query(convQuery, [type, entityType || null, entityId || null, name || null]);
+            const convResult = await client.query(convQuery, [type, entityType || null, entityId || null, name || null, createdBy || null, slug]);
             const conversation = convResult.rows[0];
 
             // Add participants
             for (const userId of participantIds) {
+                const role = userId === createdBy ? 'admin' : 'member';
                 await client.query(
-                    `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2)`,
-                    [conversation.id, userId]
+                    `INSERT INTO conversation_participants (conversation_id, user_id, role) VALUES ($1, $2, $3)`,
+                    [conversation.id, userId, role]
                 );
             }
 
@@ -93,16 +100,16 @@ export class ConversationModel {
     }
 
     /**
-     * Find a conversation by ID
+     * Find a conversation by ID or Slug
      */
-    static async findById(id: string): Promise<Conversation | null> {
-        const query = `SELECT * FROM conversations WHERE id = $1`;
-        const result = await db.query(query, [id]);
+    static async findById(idOrSlug: string): Promise<Conversation | null> {
+        const query = `SELECT * FROM conversations WHERE id::text = $1 OR slug = $1`;
+        const result = await db.query(query, [idOrSlug]);
 
         if (result.rows.length === 0) return null;
 
         const conversation = this.mapRowToConversation(result.rows[0]);
-        conversation.participants = await this.getParticipants(id);
+        conversation.participants = await this.getParticipants(conversation.id);
 
         return conversation;
     }
@@ -224,6 +231,7 @@ export class ConversationModel {
             id: row.id,
             conversationId: row.conversation_id,
             userId: row.user_id,
+            role: row.role,
             lastReadAt: row.last_read_at,
             joinedAt: row.joined_at,
             user: {
@@ -282,7 +290,10 @@ export class ConversationModel {
     /**
      * Update a conversation's details
      */
-    static async update(id: string, updates: { name?: string; avatarUrl?: string }): Promise<Conversation | null> {
+    static async update(id: string, updates: { name?: string; avatarUrl?: string; description?: string }): Promise<Conversation | null> {
+        const current = await this.findById(id);
+        if (!current) return null;
+
         const fields: string[] = [];
         const values: any[] = [];
         let index = 1;
@@ -290,10 +301,26 @@ export class ConversationModel {
         if (updates.name !== undefined) {
             fields.push(`name = $${index++}`);
             values.push(updates.name);
+
+            // Generate slug if name changed OR if slug doesn't exist yet
+            if (current.conversationType === 'group' && (updates.name !== current.name || !current.slug)) {
+                const newSlug = `${slugify(updates.name)}-${Math.random().toString(36).substring(2, 7)}`;
+                fields.push(`slug = $${index++}`);
+                values.push(newSlug);
+            }
+        } else if (current.conversationType === 'group' && !current.slug && current.name) {
+            // Generate slug if it doesn't exist and we have a name
+            const newSlug = `${slugify(current.name)}-${Math.random().toString(36).substring(2, 7)}`;
+            fields.push(`slug = $${index++}`);
+            values.push(newSlug);
         }
         if (updates.avatarUrl !== undefined) {
             fields.push(`avatar_url = $${index++}`);
             values.push(updates.avatarUrl);
+        }
+        if (updates.description !== undefined) {
+            fields.push(`description = $${index++}`);
+            values.push(updates.description);
         }
 
         if (fields.length === 0) return this.findById(id);
@@ -326,6 +353,61 @@ export class ConversationModel {
         return result.rows.length > 0;
     }
 
+    /**
+     * Add a participant to a conversation
+     */
+    static async addParticipant(conversationId: string, userId: string, role: 'admin' | 'member' = 'member'): Promise<void> {
+        const query = `
+            INSERT INTO conversation_participants (conversation_id, user_id, role)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (conversation_id, user_id) DO NOTHING
+        `;
+        await db.query(query, [conversationId, userId, role]);
+    }
+
+    /**
+     * Remove a participant from a conversation
+     */
+    static async removeParticipant(conversationId: string, userId: string): Promise<void> {
+        const query = `DELETE FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`;
+        await db.query(query, [conversationId, userId]);
+    }
+
+    /**
+     * Update a participant's role
+     */
+    static async updateParticipantRole(conversationId: string, userId: string, role: 'admin' | 'member'): Promise<void> {
+        const query = `UPDATE conversation_participants SET role = $1 WHERE conversation_id = $2 AND user_id = $3`;
+        await db.query(query, [role, conversationId, userId]);
+    }
+
+    /**
+     * Check if user is an admin of a conversation
+     */
+    static async isAdmin(conversationId: string, userId: string): Promise<boolean> {
+        const query = `
+            SELECT 1 FROM conversation_participants 
+            WHERE conversation_id = $1 AND user_id = $2 AND role = 'admin'
+        `;
+        const result = await db.query(query, [conversationId, userId]);
+        return result.rows.length > 0;
+    }
+
+    /**
+     * Get the oldest participant of a conversation
+     */
+    static async getOldestMember(conversationId: string): Promise<string | null> {
+        const query = `
+            SELECT user_id 
+            FROM conversation_participants 
+            WHERE conversation_id = $1 
+            ORDER BY joined_at ASC 
+            LIMIT 1
+        `;
+        const result = await db.query(query, [conversationId]);
+        return result.rows.length > 0 ? result.rows[0].user_id : null;
+    }
+
     private static mapRowToConversation(row: any): Conversation {
         return {
             id: row.id,
@@ -334,6 +416,8 @@ export class ConversationModel {
             entityId: row.entity_id,
             name: row.name,
             avatarUrl: row.avatar_url,
+            description: row.description,
+            slug: row.slug,
             createdBy: row.created_by,
             lastMessageAt: row.last_message_at,
             createdAt: row.created_at,

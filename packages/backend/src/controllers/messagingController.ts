@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../utils/auth';
 import { MessageModel } from '../models/Message';
 import { ConversationModel } from '../models/Conversation';
 import { StorageController } from './storageController';
+import { UserModel } from '../models/User';
 
 const messagingService = new MessagingService();
 
@@ -13,13 +14,29 @@ export class MessagingController {
      */
     async startConversation(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
-            const { recipientId, entityType, entityId, participantIds, name } = req.body;
+            let { recipientId, entityType, entityId, participantIds, name } = req.body;
+            const { recipientUsername } = req.body;
             const senderId = req.user!.id;
+
+            // If recipientUsername is provided, look up the user
+            if (recipientUsername && !recipientId) {
+                const user = await UserModel.findByUsername(recipientUsername);
+                if (!user) {
+                    res.status(404).json({
+                        error: {
+                            code: 'USER_NOT_FOUND',
+                            message: `User '${recipientUsername}' not found`,
+                        },
+                    });
+                    return;
+                }
+                recipientId = user.id;
+            }
 
             // Group chat support
             if (participantIds && Array.isArray(participantIds) && participantIds.length > 1) {
                 const allParticipants = [senderId, ...participantIds.filter((id: string) => id !== senderId)];
-                const conversation = await ConversationModel.create(allParticipants, 'group', undefined, undefined, name);
+                const conversation = await ConversationModel.create(allParticipants, 'group', senderId, undefined, undefined, name);
                 res.status(201).json({
                     success: true,
                     data: { conversation },
@@ -476,10 +493,14 @@ export class MessagingController {
     async updateConversation(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { conversationId } = req.params;
-            const { name, avatarUrl } = req.body;
+            const { name, avatarUrl, description } = req.body;
             const userId = req.user!.id;
 
-            const conversation = await messagingService.updateConversation(conversationId, userId, { name, avatarUrl });
+            const conversation = await messagingService.updateConversation(conversationId, userId, {
+                name,
+                avatarUrl,
+                description
+            });
 
             res.json({
                 success: true,
@@ -501,6 +522,122 @@ export class MessagingController {
                     },
                 });
             }
+        }
+    }
+
+    /**
+     * Delete/Leave a conversation
+     * - For groups: removes the user from the group. If last member, deletes the conversation.
+     * - For direct: user leaves the conversation (soft delete for them)
+     */
+    async deleteConversation(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            const { conversationId } = req.params;
+            const userId = req.user!.id;
+
+            await messagingService.leaveOrDeleteConversation(conversationId, userId);
+
+            res.json({
+                success: true,
+                message: 'Conversation left/deleted successfully',
+            });
+        } catch (error: any) {
+            res.status(400).json({
+                error: {
+                    code: 'DELETE_CONVERSATION_FAILED',
+                    message: error.message,
+                },
+            });
+        }
+    }
+
+    /**
+     * Add participant to conversation
+     */
+    async addParticipant(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            const { conversationId } = req.params;
+            const { userId } = req.body;
+            const adminId = req.user!.id;
+
+            await messagingService.addParticipant(conversationId, userId, adminId);
+
+            res.json({
+                success: true,
+                message: 'Participant added successfully',
+            });
+        } catch (error: any) {
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Failed to add participant',
+            });
+        }
+    }
+
+    /**
+     * Remove participant from conversation
+     */
+    async removeParticipant(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            const { conversationId, userId } = req.params;
+            const adminId = req.user!.id;
+
+            await messagingService.removeParticipant(conversationId, userId, adminId);
+
+            res.json({
+                success: true,
+                message: 'Participant removed successfully',
+            });
+        } catch (error: any) {
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Failed to remove participant',
+            });
+        }
+    }
+
+    /**
+     * Update participant role
+     */
+    async updateParticipantRole(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            const { conversationId, userId } = req.params;
+            const { role } = req.body;
+            const adminId = req.user!.id;
+
+            await messagingService.updateParticipantRole(conversationId, userId, adminId, role);
+
+            res.json({
+                success: true,
+                message: 'Participant role updated successfully',
+            });
+        } catch (error: any) {
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Failed to update participant role',
+            });
+        }
+    }
+
+    /**
+     * Get conversation media, links and docs
+     */
+    async getConversationMedia(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            const { conversationId } = req.params;
+            const userId = req.user!.id;
+
+            const media = await messagingService.getConversationMedia(conversationId, userId);
+
+            res.json({
+                success: true,
+                data: media,
+            });
+        } catch (error: any) {
+            res.status(400).json({
+                success: false,
+                message: error.message || 'Failed to fetch conversation media',
+            });
         }
     }
 }

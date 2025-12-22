@@ -613,7 +613,7 @@ router.post(
   body('name').isLength({ min: 1, max: 200 }).withMessage('Name must be between 1 and 200 characters'),
   body('description').optional().isLength({ max: 2000 }).withMessage('Description must be 2000 characters or less'),
   body('coverImageUrl').optional().isString(),
-  body('collectionType').optional().isIn(['Seasonal', 'Capsule', 'Collaboration', 'Limited', 'Core', 'Other']).withMessage('Invalid collection type'),
+  body('collectionType').optional().isIn(['Seasonal', 'Capsule', 'Collaboration', 'Limited', 'Core', 'Curatorship', 'Other']).withMessage('Invalid collection type'),
   body('season').optional().isLength({ max: 50 }).withMessage('Season must be 50 characters or less'),
   body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
   validateRequest,

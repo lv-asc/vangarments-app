@@ -37,6 +37,7 @@ interface Conversation {
     };
     entity?: any;
     avatarUrl?: string;
+    slug?: string;
     createdAt: string;
 }
 
@@ -70,10 +71,24 @@ export default function MessagesPage() {
         }
     };
 
-    const handleConversationCreated = (conversationId: string) => {
-        router.push(`/messages/${conversationId}`);
+    const handleConversationCreated = (conversationId: string, slug?: string, otherUsername?: string) => {
+        // For direct conversations, use username-based URL
+        if (otherUsername) {
+            router.push(`/messages/u/${otherUsername}`);
+        } else {
+            router.push(`/messages/${slug || conversationId}`);
+        }
         // Optionally refresh list
         loadConversations();
+    };
+
+    const getConversationUrl = (conv: Conversation): string => {
+        // For direct conversations, use username-based URL
+        if (conv.conversationType === 'direct' && conv.otherParticipant) {
+            return `/messages/u/${conv.otherParticipant.username}`;
+        }
+        // For group and entity conversations, use slug or ID
+        return `/messages/${conv.slug || conv.id}`;
     };
 
     const getConversationTitle = (conv: Conversation): string => {
@@ -190,7 +205,7 @@ export default function MessagesPage() {
                     {filteredConversations.map((conv) => (
                         <Link
                             key={conv.id}
-                            href={`/messages/${conv.id}`}
+                            href={getConversationUrl(conv)}
                             className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all"
                         >
                             {/* Avatar */}

@@ -5,6 +5,7 @@ import { BrandAccountModel } from '../models/BrandAccount';
 import { StoreModel } from '../models/Store';
 import { SupplierModel } from '../models/Supplier';
 import { PageModel } from '../models/Page';
+import { db } from '../database/connection';
 
 export type EntityType = 'brand' | 'store' | 'supplier' | 'page';
 
@@ -50,7 +51,7 @@ export class MessagingService {
             }
 
             // Create new direct conversation
-            return ConversationModel.create([senderId, recipientId], 'direct');
+            return ConversationModel.create([senderId, recipientId], 'direct', senderId);
         }
 
         // Case 2: Entity conversation
@@ -73,7 +74,7 @@ export class MessagingService {
 
             // Create new entity conversation
             // Participants: sender + entity owner
-            return ConversationModel.create([senderId, entityOwner], 'entity', entityType, entityId);
+            return ConversationModel.create([senderId, entityOwner], 'entity', senderId, entityType, entityId);
         }
 
         throw new Error('Must provide either recipientId or entityType/entityId');
@@ -230,12 +231,12 @@ export class MessagingService {
     }
 
     /**
-     * Update conversation details (name, avatar)
+     * Update conversation details (name, avatar, description)
      */
     async updateConversation(
         conversationId: string,
         userId: string,
-        updates: { name?: string; avatarUrl?: string }
+        updates: { name?: string; avatarUrl?: string; description?: string }
     ): Promise<Conversation> {
         // Check if user is a participant
         const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
@@ -249,6 +250,182 @@ export class MessagingService {
         }
 
         return updated;
+    }
+
+    /**
+     * Add participant to conversation
+     */
+    async addParticipant(conversationId: string, userId: string, adminId: string): Promise<void> {
+        // Check if admin is authorized
+        const isAdmin = await ConversationModel.isAdmin(conversationId, adminId);
+        if (!isAdmin) {
+            throw new Error('Not authorized to add participants');
+        }
+
+        await ConversationModel.addParticipant(conversationId, userId);
+    }
+
+    /**
+     * Remove participant from conversation
+     */
+    async removeParticipant(conversationId: string, userId: string, adminId: string): Promise<void> {
+        // Check if admin is authorized (or if user is removing themselves)
+        const isSelf = userId === adminId;
+        const isAdmin = await ConversationModel.isAdmin(conversationId, adminId);
+
+        if (!isAdmin && !isSelf) {
+            throw new Error('Not authorized to remove participants');
+        }
+
+        // Before removing, check if they are the last admin
+        const wasAdmin = await ConversationModel.isAdmin(conversationId, userId);
+
+        await ConversationModel.removeParticipant(conversationId, userId);
+
+        // If the removed user was an admin, ensure there is at least one admin left
+        if (wasAdmin) {
+            const hasOtherAdmins = await db.query(
+                `SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND role = 'admin' LIMIT 1`,
+                [conversationId]
+            );
+
+            if (hasOtherAdmins.rows.length === 0) {
+                // Stay safe: promote the oldest member
+                const oldestMemberId = await ConversationModel.getOldestMember(conversationId);
+                if (oldestMemberId) {
+                    await ConversationModel.updateParticipantRole(conversationId, oldestMemberId, 'admin');
+                }
+            }
+        }
+    }
+
+    /**
+     * Leave or delete a conversation
+     * - For groups: removes the user from the group. If last member, deletes the conversation entirely.
+     */
+    async leaveOrDeleteConversation(conversationId: string, userId: string): Promise<void> {
+        const conv = await ConversationModel.findById(conversationId);
+        if (!conv) {
+            throw new Error('Conversation not found');
+        }
+
+        const isParticipant = await ConversationModel.isParticipant(conv.id, userId);
+        if (!isParticipant) {
+            throw new Error('Not a participant in this conversation');
+        }
+
+        // Count current participants
+        const participantCount = conv.participants?.length || 0;
+
+        if (participantCount <= 1) {
+            // Last member - delete the conversation entirely
+            await db.query('DELETE FROM message_attachments WHERE message_id IN (SELECT id FROM messages WHERE conversation_id = $1)', [conv.id]);
+            await db.query('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE conversation_id = $1)', [conv.id]);
+            await db.query('DELETE FROM messages WHERE conversation_id = $1', [conv.id]);
+            await db.query('DELETE FROM conversation_participants WHERE conversation_id = $1', [conv.id]);
+            await db.query('DELETE FROM conversations WHERE id = $1', [conv.id]);
+        } else {
+            // Just remove self from the conversation
+            await this.removeParticipant(conv.id, userId, userId);
+        }
+    }
+
+    /**
+     * Update participant role
+     */
+    async updateParticipantRole(
+        conversationId: string,
+        userId: string,
+        adminId: string,
+        role: 'admin' | 'member'
+    ): Promise<void> {
+        // Check if admin is authorized
+        const isAdmin = await ConversationModel.isAdmin(conversationId, adminId);
+        if (!isAdmin) {
+            throw new Error('Not authorized to update roles');
+        }
+
+        // Prevent self-demotion
+        if (userId === adminId && role === 'member') {
+            throw new Error('You cannot remove your own admin status');
+        }
+
+        await ConversationModel.updateParticipantRole(conversationId, userId, role);
+    }
+
+    /**
+     * Get media, links and docs for a conversation
+     */
+    async getConversationMedia(conversationId: string, userId: string): Promise<{
+        media: any[];
+        links: any[];
+        docs: any[];
+    }> {
+        // Check if participant
+        const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
+        if (!isParticipant) {
+            throw new Error('Not authorized');
+        }
+
+        // Fetch attachments
+        const attachmentsQuery = `
+            SELECT ma.*, m.created_at as message_at, m.sender_id
+            FROM message_attachments ma
+            JOIN messages m ON ma.message_id = m.id
+            WHERE m.conversation_id = $1 AND m.deleted_at IS NULL
+            ORDER BY m.created_at DESC
+        `;
+        const attachmentsResult = await db.query(attachmentsQuery, [conversationId]);
+
+        const media: any[] = [];
+        const docs: any[] = [];
+
+        for (const row of attachmentsResult.rows) {
+            const item = {
+                id: row.id,
+                type: row.attachment_type,
+                url: row.file_url,
+                name: row.file_name,
+                size: row.file_size,
+                mimeType: row.mime_type,
+                createdAt: row.message_at,
+                senderId: row.sender_id
+            };
+
+            if (row.attachment_type === 'image' || row.attachment_type === 'video') {
+                media.push(item);
+            } else {
+                docs.push(item);
+            }
+        }
+
+        // Extract links from messages
+        // Simple regex for URLs
+        const linksQuery = `
+            SELECT content, created_at, sender_id
+            FROM messages
+            WHERE conversation_id = $1 AND content ~* 'https?://[\\w\\d\\.\\/\\-]+' AND deleted_at IS NULL
+            ORDER BY created_at DESC
+        `;
+        const linksResult = await db.query(linksQuery, [conversationId]);
+
+        const links: any[] = [];
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+        for (const row of linksResult.rows) {
+            const matches = row.content.match(urlRegex);
+            if (matches) {
+                for (const url of matches) {
+                    links.push({
+                        url,
+                        createdAt: row.created_at,
+                        senderId: row.sender_id
+                    });
+                }
+            }
+        }
+
+        return { media, links, docs };
     }
 
     // Helper methods

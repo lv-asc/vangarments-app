@@ -24,7 +24,13 @@ router.get('/categories/search', VUFSManagementController.searchCategories);
 router.get('/categories/:id/path', VUFSManagementController.getCategoryPath);
 router.post('/categories/build-hierarchy', VUFSManagementController.buildCategoryHierarchy);
 
+// Category Trash routes
+router.get('/categories/trash', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.getDeletedCategories);
+router.post('/categories/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restoreCategory);
+router.delete('/categories/:id/permanent', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.permanentlyDeleteCategory);
+
 // Brand routes
+
 router.get('/brands', VUFSManagementController.getBrands);
 router.post('/brands', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addBrand);
 router.patch('/brands/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateBrand);
@@ -90,8 +96,11 @@ router.get('/attributes/:typeSlug/values', VUFSManagementController.getAttribute
 router.post('/attributes/:typeSlug/values', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addAttributeValue);
 router.patch('/attributes/values/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateAttributeValue);
 router.delete('/attributes/values/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteAttributeValue);
+router.put('/attributes/values/reorder', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.reorderAttributeValues);
+router.put('/attributes/values/:id/hierarchy', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.changeHierarchyLevel);
 
 // --- MATRIX VIEW ---
+
 router.get('/matrix', VUFSManagementController.getAllCategoryAttributes);
 router.post('/matrix', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.setCategoryAttribute);
 

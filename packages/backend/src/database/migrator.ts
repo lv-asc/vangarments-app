@@ -40,7 +40,7 @@ export class DatabaseMigrator {
 
   async getMigrationFiles(): Promise<Migration[]> {
     const files = fs.readdirSync(this.migrationsPath)
-      .filter(file => file.endsWith('.sql'))
+      .filter(file => file.endsWith('.sql') && !file.endsWith('.rollback.sql'))
       .sort();
 
     const migrations: Migration[] = [];

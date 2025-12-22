@@ -8,6 +8,9 @@ import LogoUploader from './LogoUploader';
 
 interface CollectionManagementProps {
     brandId: string;
+    title?: string;
+    itemName?: string;
+    hideSeason?: boolean;
 }
 
 interface Collection {
@@ -22,9 +25,9 @@ interface Collection {
     isPublished?: boolean;
 }
 
-const COLLECTION_TYPES = ['Seasonal', 'Capsule', 'Collaboration', 'Limited', 'Core', 'Other'];
+const COLLECTION_TYPES = ['Seasonal', 'Capsule', 'Collaboration', 'Limited', 'Core', 'Curatorship', 'Other'];
 
-export default function CollectionManagement({ brandId }: CollectionManagementProps) {
+export default function CollectionManagement({ brandId, title = 'Collections', itemName = 'Collection', hideSeason = false }: CollectionManagementProps) {
     const [collections, setCollections] = useState<Collection[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
@@ -52,7 +55,7 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
             setCollections(res.collections || []);
         } catch (error) {
             console.error('Failed to fetch collections:', error);
-            toast.error('Failed to load collections');
+            toast.error(`Failed to load ${itemName.toLowerCase()}s`);
         } finally {
             setLoading(false);
         }
@@ -73,28 +76,28 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
 
             if (editingCollection) {
                 await apiClient.updateBrandCollection(brandId, editingCollection.id, payload);
-                toast.success('Collection updated successfully');
+                toast.success(`${itemName} updated successfully`);
             } else {
                 await apiClient.createBrandCollection(brandId, payload);
-                toast.success('Collection created successfully');
+                toast.success(`${itemName} created successfully`);
             }
             fetchCollections();
             resetForm();
         } catch (error) {
             console.error('Save collection error:', error);
-            toast.error('Failed to save collection');
+            toast.error(`Failed to save ${itemName.toLowerCase()}`);
         }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this collection? items associated with it might lose their grouping.')) return;
+        if (!confirm(`Are you sure you want to delete this ${itemName.toLowerCase()}? items associated with it might lose their grouping.`)) return;
         try {
             await apiClient.deleteBrandCollection(brandId, id);
-            toast.success('Collection deleted');
+            toast.success(`${itemName} deleted`);
             fetchCollections();
         } catch (error) {
             console.error('Delete collection error:', error);
-            toast.error('Failed to delete collection');
+            toast.error(`Failed to delete ${itemName.toLowerCase()}`);
         }
     };
 
@@ -155,10 +158,10 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium text-gray-900">Collections</h3>
+                <h3 className="text-lg font-medium text-gray-900">{title}</h3>
                 {!showAddForm && (
                     <Button onClick={() => setShowAddForm(true)}>
-                        Add New Collection
+                        Add New {itemName}
                     </Button>
                 )}
             </div>
@@ -167,7 +170,7 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
                     <div className="flex justify-between items-center mb-4">
                         <h4 className="text-lg font-medium text-gray-900">
-                            {editingCollection ? 'Edit Collection' : 'New Collection'}
+                            {editingCollection ? `Edit ${itemName}` : `New ${itemName}`}
                         </h4>
                         <Button variant="outline" size="sm" onClick={resetForm}>Cancel</Button>
                     </div>
@@ -181,13 +184,13 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
                                 label="Cover Image"
                                 buttonLabel="Upload Cover Image"
                                 emptyStateMessage="No cover image uploaded yet"
-                                helperText="Upload a cover image for this collection."
+                                helperText={`Upload a cover image for this ${itemName.toLowerCase()}.`}
                             />
                         </div>
 
                         {/* Collection Name */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Collection Name *</label>
+                            <label className="block text-sm font-medium text-gray-700">{itemName} Name *</label>
                             <input
                                 type="text"
                                 value={formData.name}
@@ -223,17 +226,19 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
                                 </select>
                             </div>
 
-                            {/* Season */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Season</label>
-                                <input
-                                    type="text"
-                                    value={formData.season}
-                                    onChange={e => setFormData({ ...formData, season: e.target.value })}
-                                    placeholder="e.g. SS24, FW24"
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
-                                />
-                            </div>
+                            {/* Season - Hidden for Store Drops */}
+                            {!hideSeason && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Season</label>
+                                    <input
+                                        type="text"
+                                        value={formData.season}
+                                        onChange={e => setFormData({ ...formData, season: e.target.value })}
+                                        placeholder="e.g. SS24, FW24"
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+                                    />
+                                </div>
+                            )}
 
                             {/* Year */}
                             <div>
@@ -264,7 +269,7 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
 
                         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                             <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
-                            <Button type="submit">{editingCollection ? 'Save Changes' : 'Create Collection'}</Button>
+                            <Button type="submit">{editingCollection ? 'Save Changes' : `Create ${itemName}`}</Button>
                         </div>
                     </form>
                 </div>
@@ -273,7 +278,7 @@ export default function CollectionManagement({ brandId }: CollectionManagementPr
             <div className="bg-white shadow overflow-hidden sm:rounded-md border border-gray-200">
                 <ul className="divide-y divide-gray-200">
                     {collections.length === 0 ? (
-                        <li className="px-6 py-4 text-center text-gray-500 text-sm">No collections registered yet.</li>
+                        <li className="px-6 py-4 text-center text-gray-500 text-sm">No {title.toLowerCase()} registered yet.</li>
                     ) : (
                         collections.map(collection => (
                             <li key={collection.id} className="px-6 py-4 hover:bg-gray-50 flex items-center justify-between">

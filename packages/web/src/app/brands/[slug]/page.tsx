@@ -26,6 +26,18 @@ export default function BrandProfilePage() {
             setLoading(true);
             const data = await brandApi.getFullProfile(slug);
 
+            // Redirect if this is a store
+            if (data.brand.brandInfo.businessType === 'store') {
+                router.replace(`/stores/${slug}`);
+                return;
+            }
+
+            // Redirect if this is a supplier
+            if (data.brand.brandInfo.businessType === 'supplier') {
+                router.replace(`/suppliers/${slug}`);
+                return;
+            }
+
             // Redirect if this is a non-profit
             if (data.brand.brandInfo.businessType === 'non_profit') {
                 router.replace(`/non-profits/${slug}`);

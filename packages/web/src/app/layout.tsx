@@ -25,8 +25,8 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Vangs. - Home',
-    template: 'Vangs. - %s',
+    default: 'Vangs - Home',
+    template: 'Vangs - %s',
   },
   description: 'Organize seu guarda-roupa, descubra tendências e conecte-se com a comunidade da moda brasileira.',
   keywords: [

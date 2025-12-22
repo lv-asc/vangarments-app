@@ -504,19 +504,58 @@ export class VUFSManagementController {
   }
 
   /**
-   * Delete a category
+   * Delete a category (soft delete - moves to trash)
    */
   static async deleteCategory(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
       await VUFSManagementService.deleteCategory(id);
-      res.json({ message: 'Category deleted successfully' });
+      res.json({ message: 'Category moved to trash successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  /**
+   * Get deleted categories (trash)
+   */
+  static async getDeletedCategories(req: Request, res: Response): Promise<void> {
+    try {
+      const categories = await VUFSManagementService.getDeletedCategories();
+      res.json({ message: 'Deleted categories retrieved successfully', categories });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  /**
+   * Restore a category from trash
+   */
+  static async restoreCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restoreCategory(id);
+      res.json({ message: 'Category restored successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  /**
+   * Permanently delete a category (hard delete from trash)
+   */
+  static async permanentlyDeleteCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.permanentlyDeleteCategory(id);
+      res.json({ message: 'Category permanently deleted' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }
 
   // --- BRAND MANAGEMENT ---
+
 
   static async addBrand(req: Request, res: Response): Promise<void> {
     try {
@@ -974,12 +1013,16 @@ export class VUFSManagementController {
   static async updateAttributeValue(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name } = req.body;
-      if (!name) {
-        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
+      const { name, parentId } = req.body;
+      if (!name && parentId === undefined) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name or parentId is required' } });
         return;
       }
-      const value = await VUFSManagementService.updateAttributeValue(id, name);
+      const updates: { name?: string; parentId?: string | null } = {};
+      if (name) updates.name = name;
+      if (parentId !== undefined) updates.parentId = parentId;
+
+      const value = await VUFSManagementService.updateAttributeValue(id, updates);
       res.json({ message: 'Attribute value updated successfully', value });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -990,6 +1033,43 @@ export class VUFSManagementController {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: error.message } });
         return;
       }
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async reorderAttributeValues(req: Request, res: Response): Promise<void> {
+    try {
+      const { orders } = req.body;
+      if (!orders || !Array.isArray(orders)) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Orders array is required' } });
+        return;
+      }
+      await VUFSManagementService.reorderAttributeValues(orders);
+      res.json({ message: 'Attribute values reordered successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async changeHierarchyLevel(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { targetLevel, newParentId } = req.body;
+
+      if (!targetLevel) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'targetLevel is required' } });
+        return;
+      }
+
+      const validLevels = ['subcategory-1', 'subcategory-2', 'subcategory-3', 'apparel'];
+      if (!validLevels.includes(targetLevel)) {
+        res.status(400).json({ error: { code: 'INVALID_LEVEL', message: `targetLevel must be one of: ${validLevels.join(', ')}` } });
+        return;
+      }
+
+      await VUFSManagementService.changeHierarchyLevel(id, targetLevel, newParentId);
+      res.json({ message: 'Hierarchy level changed successfully' });
+    } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }

@@ -176,4 +176,22 @@ export class SizeModel {
         const res = await db.query(query, [id]);
         return (res.rowCount || 0) > 0;
     }
+
+    static async updateOrder(orders: { id: string, sortOrder: number }[]): Promise<void> {
+        console.log(`[SizeModel] Updating order for ${orders.length} items`);
+        try {
+            await db.transaction(async (client) => {
+                const query = 'UPDATE vufs_sizes SET sort_order = $1 WHERE id = $2';
+                for (const item of orders) {
+                    console.log(`[SizeModel] Executing: UPDATE vufs_sizes SET sort_order = ${item.sortOrder} WHERE id = ${item.id}`);
+                    const result = await client.query(query, [item.sortOrder, item.id]);
+                    console.log(`[SizeModel] Rows affected: ${result.rowCount}`);
+                }
+            });
+            console.log('[SizeModel] Transaction committed successfully');
+        } catch (error: any) {
+            console.error('[SizeModel] Update status failed:', error.message);
+            throw error;
+        }
+    }
 }

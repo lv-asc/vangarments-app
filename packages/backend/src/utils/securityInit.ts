@@ -239,10 +239,15 @@ export class SecurityInitializer {
     const requiredEnvVars = [
       'JWT_SECRET',
       'SESSION_SECRET',
-      'DATABASE_URL',
     ];
 
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    const hasDatabaseConfig = process.env.DATABASE_URL ||
+      (process.env.DB_HOST && process.env.DB_USER && (process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD));
+
+    const missingVars = requiredEnvVars.filter(varName => {
+      if (varName === 'DATABASE_URL' && hasDatabaseConfig) return false;
+      return !process.env[varName];
+    });
 
     if (missingVars.length > 0) {
       throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);

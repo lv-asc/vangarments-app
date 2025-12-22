@@ -2,7 +2,10 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'Admin',
+    title: {
+        default: 'Admin - Dashboard',
+        template: 'Admin - %s',
+    },
     description: 'Administrative dashboard',
 };
 
