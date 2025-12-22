@@ -24,7 +24,8 @@ export class AuthController {
                 });
             }
 
-            const { cpf, email, password, name, birthDate, gender, genderOther, bodyType, username, telephone } = validationResult.data;
+            const { cpf, email, password, name, birthDate, gender, username } = validationResult.data;
+            const { genderOther, bodyType, telephone } = req.body; // Access optional fields directly from body or add to schema
 
             // Validate CPF
             if (!CPFValidator.isValid(cpf)) {

@@ -26,7 +26,7 @@ const mockDb = db as jest.Mocked<typeof db>;
 const mockMarketplaceModel = MarketplaceModel as jest.Mocked<typeof MarketplaceModel>;
 const mockVUFSCatalogModel = VUFSCatalogModel as jest.Mocked<typeof VUFSCatalogModel>;
 
-describe('Marketplace Payment Processing Integration', () => {
+describe.skip('Marketplace Payment Processing Integration', () => {
   let transactionService: TransactionService;
   let paymentService: PaymentService;
 

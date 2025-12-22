@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-12-09T00:29:55.644Z",
+  "timestamp": "2025-12-22T15:11:20.842Z",
   "testConfiguration": {
     "totalUsers": 3,
     "apiBaseUrl": "http://localhost:3001",
@@ -10,17 +10,17 @@
       {
         "user": "Maria Silva",
         "registration": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m400\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 400"
       },
       {
         "user": "João Santos",
         "registration": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m400\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 400"
       },
       {
         "user": "Ana Costa",
         "registration": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m400\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 400"
       }
     ],
     "wardrobeBuilding": [
@@ -28,19 +28,19 @@
         "user": "Maria Silva",
         "item": "Blusa Floral Zara",
         "creation": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m403\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 403"
       },
       {
         "user": "João Santos",
         "item": "Camisa Social Hugo Boss",
         "creation": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m403\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 403"
       },
       {
         "user": "Ana Costa",
         "item": "Vestido Midi Farm",
         "creation": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m201\u001b[39m\nReceived: \u001b[31m403\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 201\nReceived: 403"
       }
     ],
     "marketplaceInteractions": [
@@ -59,26 +59,26 @@
       {
         "test": "cross_session_availability",
         "status": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m401\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 401"
       }
     ],
     "adminFunctionality": [
       {
         "test": "admin_authentication",
         "status": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mundefined\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: undefined"
       },
       {
         "test": "configuration_persistence",
         "status": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m404\u001b[39m"
+        "error": "expect(received).toBe(expected) // Object.is equality\n\nExpected: 200\nReceived: 404"
       }
     ],
     "crossPlatformValidation": [
       {
         "test": "api_endpoints",
         "status": "failed",
-        "error": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeLessThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: < \u001b[32m400\u001b[39m\nReceived:   \u001b[31m403\u001b[39m"
+        "error": "expect(received).toBeLessThan(expected)\n\nExpected: < 400\nReceived:   403"
       }
     ],
     "overallSuccess": false

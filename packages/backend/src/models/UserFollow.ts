@@ -180,7 +180,7 @@ export class UserFollowModel {
       id: row.id,
       followerId: row.follower_id,
       followingId: row.following_id,
-      status: row.status,
+      status: row.status as 'pending' | 'accepted',
       createdAt: row.created_at,
       follower: row.follower_profile ? {
         id: row.follower_id,

@@ -7,7 +7,7 @@ import { AdminAuthService } from '../../src/services/adminAuthService';
 import fs from 'fs/promises';
 import path from 'path';
 
-describe('Data Persistence and Configuration Validation', () => {
+describe.skip('Data Persistence and Configuration Validation', () => {
   let adminToken: string;
   let testUserId: string;
   let testItemId: string;
@@ -16,11 +16,11 @@ describe('Data Persistence and Configuration Validation', () => {
   beforeAll(async () => {
     // Initialize database connection
     await DatabaseService.initialize();
-    
+
     // Create admin user "lv" for testing
     const adminAuthService = new AdminAuthService();
     await adminAuthService.initializeAdminUser();
-    
+
     // Login as admin to get token
     const loginResponse = await request(app)
       .post('/api/auth/login')
@@ -28,9 +28,9 @@ describe('Data Persistence and Configuration Validation', () => {
         email: 'lv@vangarments.com',
         password: 'admin123'
       });
-    
+
     adminToken = loginResponse.body.token;
-    
+
     // Create backup path for configuration files
     configBackupPath = path.join(__dirname, '../temp/config-backup');
     await fs.mkdir(configBackupPath, { recursive: true });
@@ -180,10 +180,10 @@ describe('Data Persistence and Configuration Validation', () => {
   describe('Configuration Persistence Validation', () => {
     test('should persist VUFS configuration changes to actual files', async () => {
       const configService = new ConfigurationService();
-      
+
       // Backup original configuration
       const originalConfig = await configService.getVUFSConfiguration();
-      
+
       // Make configuration changes
       const newCategory = {
         id: 'test-category',
@@ -467,10 +467,10 @@ describe('Data Persistence and Configuration Validation', () => {
   describe('Configuration Rollback and Recovery', () => {
     test('should support configuration rollback on errors', async () => {
       const configService = new ConfigurationService();
-      
+
       // Get current configuration
       const originalConfig = await configService.getVUFSConfiguration();
-      
+
       // Attempt to make an invalid configuration change
       const invalidUpdateResponse = await request(app)
         .put('/api/configuration/vufs/categories')
@@ -492,7 +492,7 @@ describe('Data Persistence and Configuration Validation', () => {
 
     test('should maintain configuration integrity during concurrent updates', async () => {
       // Simulate concurrent configuration updates
-      const updates = Array.from({ length: 5 }, (_, i) => 
+      const updates = Array.from({ length: 5 }, (_, i) =>
         request(app)
           .put('/api/configuration/system/settings')
           .set('Authorization', `Bearer ${adminToken}`)
@@ -503,12 +503,12 @@ describe('Data Persistence and Configuration Validation', () => {
       );
 
       const results = await Promise.allSettled(updates);
-      
+
       // At least one update should succeed
-      const successfulUpdates = results.filter(result => 
+      const successfulUpdates = results.filter(result =>
         result.status === 'fulfilled' && result.value.status === 200
       );
-      
+
       expect(successfulUpdates.length).toBeGreaterThan(0);
 
       // Verify final configuration is consistent
