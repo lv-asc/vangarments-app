@@ -151,8 +151,8 @@ export class BrandCatalogModel {
     limit = 20,
     offset = 0
   ): Promise<{ items: BrandCatalogItem[]; total: number }> {
-    let whereConditions: string[] = ['bci.brand_id = $1'];
-    let values: any[] = [brandId];
+    const whereConditions: string[] = ['bci.brand_id = $1'];
+    const values: any[] = [brandId];
     let paramIndex = 2;
 
     if (filters.availabilityStatus) {

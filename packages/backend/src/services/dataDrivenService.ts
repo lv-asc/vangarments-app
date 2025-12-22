@@ -290,7 +290,7 @@ export class DataDrivenService {
     ];
 
     // Filter by context if provided
-    let filteredRecommendations = recommendations;
+    const filteredRecommendations = recommendations;
     
     if (context.occasion) {
       // Filter by occasion logic would go here

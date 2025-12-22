@@ -291,7 +291,7 @@ export class TransactionService {
     type: 'buyer' | 'seller' | 'all' = 'all',
     status?: TransactionStatus
   ): Promise<Transaction[]> {
-    let whereConditions = [];
+    const whereConditions = [];
     const values: any[] = [];
     let paramCount = 1;
 

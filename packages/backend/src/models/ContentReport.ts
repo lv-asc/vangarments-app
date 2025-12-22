@@ -104,8 +104,8 @@ export class ContentReportModel {
     limit = 20,
     offset = 0
   ): Promise<{ reports: ContentReport[]; total: number }> {
-    let whereConditions: string[] = [];
-    let values: any[] = [];
+    const whereConditions: string[] = [];
+    const values: any[] = [];
     let paramIndex = 1;
 
     if (filters.status) {

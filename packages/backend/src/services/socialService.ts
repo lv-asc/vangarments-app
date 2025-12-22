@@ -66,7 +66,7 @@ export class SocialService {
     const { userId, page = 1, limit = 20, feedType = 'discover' } = options;
     const offset = (page - 1) * limit;
 
-    let filters: any = {};
+    const filters: any = {};
 
     switch (feedType) {
       case 'following':

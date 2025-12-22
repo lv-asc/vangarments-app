@@ -199,8 +199,8 @@ export class BrandAccountModel {
     limit = 20,
     offset = 0
   ): Promise<{ brands: BrandAccount[]; total: number }> {
-    let whereConditions: string[] = ['ba.deleted_at IS NULL'];
-    let values: any[] = [];
+    const whereConditions: string[] = ['ba.deleted_at IS NULL'];
+    const values: any[] = [];
     let paramIndex = 1;
 
     if (filters.verificationStatus) {

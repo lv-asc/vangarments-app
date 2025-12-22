@@ -216,7 +216,7 @@ export class AIProcessingService {
     aiAnalysis: AIAnalysisResult
   ): number {
     // Base confidence from AI analysis
-    let baseConfidence = aiAnalysis.confidence.overall;
+    const baseConfidence = aiAnalysis.confidence.overall;
 
     // Adjust based on property type and detection quality
     switch (property) {

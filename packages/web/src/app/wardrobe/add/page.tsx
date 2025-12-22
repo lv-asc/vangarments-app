@@ -376,7 +376,7 @@ export default function AddWardrobeItemPage() {
 
             // Consolidate Data
             const newFormData = { ...formData };
-            let detectedLabels: Record<number, string> = {};
+            const detectedLabels: Record<number, string> = {};
 
             results.forEach(({ item, analysis, index }) => {
                 console.log(`Processing result for image ${index}:`, analysis);

@@ -124,8 +124,8 @@ export class SocialPostModel {
     limit = 20,
     offset = 0
   ): Promise<{ posts: SocialPost[]; total: number }> {
-    let whereConditions: string[] = [];
-    let values: any[] = [];
+    const whereConditions: string[] = [];
+    const values: any[] = [];
     let paramIndex = 1;
 
     if (filters.userId) {

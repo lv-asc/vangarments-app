@@ -126,8 +126,8 @@ export class InventoryManagementModel {
     limit = 50,
     offset = 0
   ): Promise<{ items: InventoryItem[]; total: number }> {
-    let whereConditions: string[] = ['ii.brand_id = $1'];
-    let values: any[] = [brandId];
+    const whereConditions: string[] = ['ii.brand_id = $1'];
+    const values: any[] = [brandId];
     let paramIndex = 2;
 
     if (filters.lowStock) {

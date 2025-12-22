@@ -92,8 +92,8 @@ export class MarketplaceEnhancedModel {
     limit: number = 50,
     offset: number = 0
   ): Promise<{ listings: MarketplaceListing[]; total: number }> {
-    let whereConditions: string[] = ['ml.status = $1'];
-    let values: any[] = ['active'];
+    const whereConditions: string[] = ['ml.status = $1'];
+    const values: any[] = ['active'];
     let paramCount = 2;
 
     // Apply filters with VUFS integration

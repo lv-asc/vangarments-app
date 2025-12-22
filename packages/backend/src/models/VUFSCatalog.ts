@@ -110,8 +110,8 @@ export class VUFSCatalogModel {
     items: VUFSCatalogEntry[];
     total: number;
   }> {
-    let whereConditions: string[] = [];
-    let values: any[] = [];
+    const whereConditions: string[] = [];
+    const values: any[] = [];
     let paramCount = 1;
 
     // Build WHERE conditions

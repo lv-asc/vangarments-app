@@ -120,8 +120,8 @@ export class CommissionTrackingModel {
     limit = 20,
     offset = 0
   ): Promise<{ commissions: Commission[]; total: number }> {
-    let whereConditions: string[] = [];
-    let values: any[] = [];
+    const whereConditions: string[] = [];
+    const values: any[] = [];
     let paramIndex = 1;
 
     if (filters.brandId) {

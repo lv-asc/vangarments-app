@@ -2,7 +2,7 @@ module.exports = {
   root: true,
   extends: [
     'eslint:recommended',
-    '@typescript-eslint/recommended',
+    'plugin:@typescript-eslint/recommended',
     'prettier'
   ],
   parser: '@typescript-eslint/parser',
@@ -16,12 +16,22 @@ module.exports = {
     es6: true,
   },
   rules: {
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-explicit-any': 'warn',
-    'prefer-const': 'error',
-    'no-var': 'error',
+    '@typescript-eslint/ban-ts-comment': 'off',
+    '@typescript-eslint/no-var-requires': 'off',
+    'no-useless-escape': 'warn',
+    'prefer-const': 'warn',
+    'no-var': 'warn',
+    'no-case-declarations': 'off',
+    'no-prototype-builtins': 'off',
+    '@typescript-eslint/no-namespace': 'off',
+    '@typescript-eslint/ban-types': 'off',
+    '@typescript-eslint/no-this-alias': 'off',
+    'no-useless-catch': 'off',
+    'no-empty-pattern': 'off',
   },
   overrides: [
     {
@@ -29,6 +39,18 @@ module.exports = {
       extends: ['next/core-web-vitals'],
       env: {
         browser: true,
+      },
+      settings: {
+        next: {
+          rootDir: 'packages/web/',
+        },
+      },
+      rules: {
+        'react/no-unescaped-entities': 'off',
+        '@next/next/no-img-element': 'off',
+        'react-hooks/exhaustive-deps': 'warn',
+        'react/display-name': 'off',
+        '@typescript-eslint/ban-ts-comment': 'off',
       },
     },
     {

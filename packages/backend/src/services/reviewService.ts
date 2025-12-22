@@ -126,7 +126,7 @@ export class ReviewService {
     total: number;
     stats: ReviewStats;
   }> {
-    let whereConditions = ['reviewee_id = $1'];
+    const whereConditions = ['reviewee_id = $1'];
     const values: any[] = [userId];
     let paramCount = 2;
 
@@ -172,7 +172,7 @@ export class ReviewService {
     userId: string,
     type?: 'buyer_to_seller' | 'seller_to_buyer'
   ): Promise<ReviewStats> {
-    let whereConditions = ['reviewee_id = $1'];
+    const whereConditions = ['reviewee_id = $1'];
     const values: any[] = [userId];
     let paramCount = 2;
 
