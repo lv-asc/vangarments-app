@@ -158,6 +158,7 @@ export default function AdminVUFSPage() {
     const [patterns, setPatterns] = useState<VUFSItem[]>([]);
     const [fits, setFits] = useState<VUFSItem[]>([]);
     const [sizes, setSizes] = useState<VUFSItem[]>([]);
+    const [genders, setGenders] = useState<VUFSItem[]>([]);
 
     // Dynamic Attributes State
     const [customTypes, setCustomTypes] = useState<AttributeType[]>([]);
@@ -297,6 +298,7 @@ export default function AdminVUFSPage() {
                 patsRes,
                 fitsRes,
                 sizesRes,
+                gendersRes,
                 typesRes,
                 catMatrixRes,
                 brandMatrixRes,
@@ -310,6 +312,7 @@ export default function AdminVUFSPage() {
                 apiClient.getVUFSPatterns(),
                 apiClient.getVUFSFits(),
                 apiClient.getVUFSSizes(),
+                apiClient.getVUFSGenders(),
                 apiClient.getVUFSAttributeTypes(),
                 apiClient.getAllCategoryAttributes(),
                 apiClient.getAllBrandAttributes(),
@@ -338,6 +341,7 @@ export default function AdminVUFSPage() {
             setPatterns(Array.isArray(patsRes) ? patsRes : (patsRes?.patterns || []));
             setFits(Array.isArray(fitsRes) ? fitsRes : (fitsRes?.fits || []));
             setSizes(Array.isArray(sizesRes) ? sizesRes : (sizesRes?.sizes || []));
+            setGenders(Array.isArray(gendersRes) ? gendersRes : (gendersRes?.genders || []));
 
             // Handle Custom Attributes
             const typesData: AttributeType[] = Array.isArray(typesRes) ? typesRes : (typesRes?.types || []);
@@ -356,12 +360,12 @@ export default function AdminVUFSPage() {
             setCustomValues(valuesMap);
 
             // Column Order
-            const allColumns = ['Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit', ...typesData.map(t => t.slug)];
+            const allColumns = ['Style / Category', 'Brand', 'Gender', 'Size', 'Color', 'Material', 'Pattern', 'Fit', ...typesData.map(t => t.slug)];
             const storedOrder = localStorage.getItem('vufs_list_column_order');
             if (storedOrder) {
                 try {
                     const parsedOrder = JSON.parse(storedOrder);
-                    const currentSet = new Set(typesData.map(t => t.slug).concat(['Style / Category', 'Brand', 'Size', 'Color', 'Material', 'Pattern', 'Fit']));
+                    const currentSet = new Set(typesData.map(t => t.slug).concat(['Style / Category', 'Brand', 'Gender', 'Size', 'Color', 'Material', 'Pattern', 'Fit']));
                     const validStored = parsedOrder.filter((s: string) => currentSet.has(s));
                     const storedSet = new Set(validStored);
                     const missing = Array.from(currentSet).filter((s) => !storedSet.has(s as string));
@@ -522,6 +526,7 @@ export default function AdminVUFSPage() {
                     case 'Pattern': await apiClient.updateVUFSPattern(selectedId, inputValue.trim()); break;
                     case 'Fit': await apiClient.updateVUFSFit(selectedId, inputValue.trim()); break;
                     case 'Size': await apiClient.updateVUFSSize(selectedId, inputValue.trim()); break;
+                    case 'Gender': await apiClient.updateVUFSGender(selectedId, inputValue.trim()); break;
                 }
             }
             await fetchAllData();
@@ -563,6 +568,7 @@ export default function AdminVUFSPage() {
                     case 'Pattern': await apiClient.deleteVUFSPattern(selectedId); break;
                     case 'Fit': await apiClient.deleteVUFSFit(selectedId); break;
                     case 'Size': await apiClient.deleteVUFSSize(selectedId); break;
+                    case 'Gender': await apiClient.deleteVUFSGender(selectedId); break;
                 }
             }
             await fetchAllData();
@@ -586,6 +592,7 @@ export default function AdminVUFSPage() {
                     case 'Pattern': await apiClient.addVUFSPattern(inputValue); break;
                     case 'Fit': await apiClient.addVUFSFit(inputValue); break;
                     case 'Size': await apiClient.addVUFSSize(inputValue); break;
+                    case 'Gender': await apiClient.addVUFSGender(inputValue); break;
                 }
             }
             await fetchAllData();
@@ -796,6 +803,7 @@ export default function AdminVUFSPage() {
         switch (colId) {
             case 'Style / Category': return renderList(displayName, categories, 'bg-purple-50', 'text-purple-900', colId);
             case 'Brand': return renderList(displayName, brands, 'bg-gray-100', 'text-gray-900', colId);
+            case 'Gender': return renderList(displayName, genders, 'bg-pink-50', 'text-pink-900', colId);
             case 'Size': return renderList(displayName, sizes, 'bg-indigo-50', 'text-indigo-900', colId);
             case 'Color': return renderList(displayName, colors, 'bg-pink-50', 'text-pink-900', colId);
             case 'Material': return renderList(displayName, materials, 'bg-green-50', 'text-green-900', colId);

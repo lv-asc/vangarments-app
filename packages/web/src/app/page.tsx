@@ -4,11 +4,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  UserGroupIcon,
-  PhotoIcon,
-  PlusIcon,
-  SparklesIcon,
-  ArrowRightIcon,
   StarIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -72,92 +67,7 @@ export default function HomePage() {
               </p>
             </motion.div>
 
-            {/* Main Navigation Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Social Card */}
-              <motion.a
-                href="/social"
-                variants={itemVariants}
-                whileHover={{ y: -5, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="group relative bg-card/5 border border-border/10 rounded-3xl p-8 hover:bg-card/10 transition-colors cursor-pointer overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <UserGroupIcon className="w-32 h-32 transform rotate-12" />
-                </div>
 
-                <div className="relative z-10 h-full flex flex-col justify-between">
-                  <div>
-                    <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-6 text-blue-400">
-                      <UserGroupIcon className="w-6 h-6" />
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2">Comunidade</h2>
-                    <p className="text-muted-foreground">Explore o feed, conecte-se com outros amantes da moda e descubra tendências.</p>
-                  </div>
-
-                  <div className="mt-8 flex items-center text-secondary font-medium group-hover:gap-2 transition-all">
-                    <span>Acessar Social</span>
-                    <ArrowRightIcon className="w-4 h-4 ml-2" />
-                  </div>
-                </div>
-              </motion.a>
-
-              {/* Wardrobe Card */}
-              <motion.a
-                href="/wardrobe"
-                variants={itemVariants}
-                whileHover={{ y: -5, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="group relative bg-card/5 border border-border/10 rounded-3xl p-8 hover:bg-card/10 transition-colors cursor-pointer overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <PhotoIcon className="w-32 h-32 transform -rotate-6" />
-                </div>
-
-                <div className="relative z-10 h-full flex flex-col justify-between">
-                  <div>
-                    <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center mb-6 text-emerald-400">
-                      <PhotoIcon className="w-6 h-6" />
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2">Guarda-roupa</h2>
-                    <p className="text-muted-foreground">Gerencie suas peças, crie outfits e mantenha seu acervo digital organizado.</p>
-                  </div>
-
-                  <div className="mt-8 flex items-center text-secondary font-medium group-hover:gap-2 transition-all">
-                    <span>Ver Guarda-roupa</span>
-                    <ArrowRightIcon className="w-4 h-4 ml-2" />
-                  </div>
-                </div>
-              </motion.a>
-
-              {/* Create Card */}
-              <motion.a
-                href="/social/create"
-                variants={itemVariants}
-                whileHover={{ y: -5, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="group relative bg-gradient-to-br from-secondary/10 to-transparent border border-secondary/20 rounded-3xl p-8 hover:border-secondary/40 transition-colors cursor-pointer overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <PlusIcon className="w-32 h-32 transform rotate-45" />
-                </div>
-
-                <div className="relative z-10 h-full flex flex-col justify-between">
-                  <div>
-                    <div className="w-12 h-12 bg-secondary/20 rounded-2xl flex items-center justify-center mb-6 text-secondary">
-                      <PlusIcon className="w-6 h-6" />
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2 text-secondary">Criar Novo</h2>
-                    <p className="text-secondary/70">Compartilhe um look, adicione uma peça ou inicie uma discussão.</p>
-                  </div>
-
-                  <div className="mt-8 flex items-center text-white font-medium group-hover:gap-2 transition-all">
-                    <span>Começar agora</span>
-                    <ArrowRightIcon className="w-4 h-4 ml-2" />
-                  </div>
-                </div>
-              </motion.a>
-            </div>
 
             {/* Experience / Roles Section */}
             <div className="mt-16">
@@ -187,16 +97,7 @@ export default function HomePage() {
             </div>
 
             {/* Quick Stats / Footerish area */}
-            <motion.div variants={itemVariants} className="mt-12 pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-gray-500">
-              <div className="flex items-center gap-2">
-                <SparklesIcon className="w-4 h-4" />
-                <span>Vangarments 2.0 &bull; Experiência Premium</span>
-              </div>
-              <div className="flex gap-6">
-                <a href="/profile" className="hover:text-white transition-colors">Meu Perfil</a>
-                <a href="/settings" className="hover:text-white transition-colors">Configurações</a>
-              </div>
-            </motion.div>
+
 
           </motion.div>
         </div>

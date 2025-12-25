@@ -1,10 +1,11 @@
 // @ts-nocheck
 'use client';
 
-import { useState } from 'react';
-import { XMarkIcon, CameraIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect } from 'react';
+import { XMarkIcon, CameraIcon, LockClosedIcon, GlobeAltIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthWrapper';
+import { apiClient } from '@/lib/api';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -29,13 +30,33 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
       instagram: '',
       tiktok: '',
       website: ''
-    },
-    visibility: {
-      profile: 'public' as 'public' | 'private' | 'friends',
-      measurements: 'private' as 'public' | 'private' | 'friends',
-      wardrobe: 'public' as 'public' | 'private' | 'friends'
     }
   });
+
+  // Privacy settings state
+  const [privacySettings, setPrivacySettings] = useState({
+    isPrivate: false,
+    wardrobe: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] },
+    activity: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] },
+    outfits: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] },
+    marketplace: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] }
+  });
+
+  const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
+
+  // Load user's current privacy settings
+  useEffect(() => {
+    if (user?.privacySettings) {
+      setPrivacySettings(prev => ({
+        ...prev,
+        isPrivate: user.privacySettings?.isPrivate || false,
+        wardrobe: user.privacySettings?.wardrobe || prev.wardrobe,
+        activity: user.privacySettings?.activity || prev.activity,
+        outfits: user.privacySettings?.outfits || prev.outfits,
+        marketplace: user.privacySettings?.marketplace || prev.marketplace
+      }));
+    }
+  }, [user]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,10 +109,12 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
           preferences: {
             ...user?.preferences,
             bio: formData.bio,
-            socialLinks: formData.socialLinks,
-            visibility: formData.visibility
+            socialLinks: formData.socialLinks
           }
         });
+
+        // Update privacy settings
+        await apiClient.updatePrivacySettings(privacySettings);
       }
 
       onClose();
@@ -102,6 +125,13 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
       setIsLoading(false);
     }
   };
+
+  const visibilityOptions = [
+    { value: 'public', label: 'Público' },
+    { value: 'followers', label: 'Apenas Seguidores' },
+    { value: 'custom', label: 'Personalizado (Lista)' },
+    { value: 'hidden', label: 'Oculto' }
+  ];
 
   if (!isOpen) return null;
 
@@ -300,6 +330,102 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Privacy Settings */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                <LockClosedIcon className="h-5 w-5" />
+                Privacidade
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowPrivacyDetails(!showPrivacyDetails)}
+                className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+              >
+                {showPrivacyDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+                {showPrivacyDetails ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />}
+              </button>
+            </div>
+
+            {/* Account Privacy Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <div className="font-medium text-gray-900 flex items-center gap-2">
+                  {privacySettings.isPrivate ? (
+                    <><LockClosedIcon className="h-4 w-4" /> Conta Privada</>
+                  ) : (
+                    <><GlobeAltIcon className="h-4 w-4" /> Conta Pública</>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  {privacySettings.isPrivate
+                    ? 'Usuários precisam solicitar para seguir você'
+                    : 'Qualquer pessoa pode seguir você'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrivacySettings(prev => ({ ...prev, isPrivate: !prev.isPrivate }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${privacySettings.isPrivate ? 'bg-[#00132d]' : 'bg-gray-300'
+                  }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${privacySettings.isPrivate ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                />
+              </button>
+            </div>
+
+            {/* Feature Visibility Controls */}
+            {showPrivacyDetails && (
+              <div className="space-y-6 pt-4 border-t border-gray-200">
+                <p className="text-sm text-gray-600">Controle quem pode ver cada seção do seu perfil:</p>
+
+                {[
+                  { id: 'wardrobe', label: 'Guarda-roupa' },
+                  { id: 'activity', label: 'Atividade' },
+                  { id: 'outfits', label: 'Looks' },
+                  { id: 'marketplace', label: 'Marketplace' }
+                ].map((feature) => (
+                  <div key={feature.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-700">{feature.label}</label>
+                      <select
+                        value={(privacySettings as any)[feature.id].visibility}
+                        onChange={(e) => setPrivacySettings(prev => ({
+                          ...prev,
+                          [feature.id]: { ...(prev as any)[feature.id], visibility: e.target.value as any }
+                        }))}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#00132d] focus:border-transparent"
+                      >
+                        {visibilityOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {(privacySettings as any)[feature.id].visibility === 'custom' && (
+                      <div className="bg-gray-50 p-3 rounded-lg border border-dashed border-gray-300">
+                        <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold">IDs de Usuários ou Usernames</p>
+                        <textarea
+                          placeholder="Ex: lv, joao, maria (um por linha ou vírgula)"
+                          value={(privacySettings as any)[feature.id].exceptUsers?.join(', ') || ''}
+                          onChange={(e) => {
+                            const list = e.target.value.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+                            setPrivacySettings(prev => ({
+                              ...prev,
+                              [feature.id]: { ...(prev as any)[feature.id], exceptUsers: list }
+                            }));
+                          }}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs min-h-[60px]"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}

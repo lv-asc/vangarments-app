@@ -3,9 +3,11 @@
 import { useEffect, useState, createContext, useContext } from 'react';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import { apiClient } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { getImageUrl } from '@/lib/utils';
 import Image from 'next/image';
 import Link from 'next/link';
+import ProfilePageClient from '@/app/profile/ProfilePageClient';
 import {
     ArrowLeftIcon,
     MapPinIcon,
@@ -25,6 +27,8 @@ interface UserProfile {
     username: string;
     bio: string;
     profileImage: string;
+    bannerImage?: string;
+    bannerImages?: string[];
     createdAt: string;
     personalInfo: {
         location?: {
@@ -32,6 +36,7 @@ interface UserProfile {
             state?: string;
             country?: string;
         };
+        gender?: string;
     };
     stats: {
         wardrobeItems: number;
@@ -39,6 +44,7 @@ interface UserProfile {
         following: number;
         friendsCount: number;
         outfitsCreated: number;
+        pendingFollowRequests?: number;
     };
     measurements?: {
         height?: number;
@@ -46,6 +52,13 @@ interface UserProfile {
     };
     socialLinks: { platform: string; url: string }[];
     roles: string[];
+    privacySettings?: {
+        isPrivate?: boolean;
+        wardrobe?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+        activity?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+        outfits?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+        marketplace?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+    };
 }
 
 const ProfileContext = createContext<{
@@ -54,6 +67,7 @@ const ProfileContext = createContext<{
     loading: boolean;
     followLoading: boolean;
     handleFollowClick: () => Promise<void>;
+    canViewSection: (section: 'wardrobe' | 'activity' | 'outfits' | 'marketplace') => boolean;
 } | null>(null);
 
 export const useProfile = () => {
@@ -72,11 +86,22 @@ export default function UserProfileLayout({
     const pathname = usePathname();
     const username = params.username as string;
 
+    const { user } = useAuth();
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [followStatus, setFollowStatus] = useState<{ isFollowing: boolean; status?: 'pending' | 'accepted' }>({ isFollowing: false });
     const [loading, setLoading] = useState(true);
     const [followLoading, setFollowLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+
+    const isOwnProfile = user?.id === profile?.id;
+
+    // Update document title when profile is loaded
+    useEffect(() => {
+        if (profile) {
+            document.title = `User @${profile.username}`;
+        }
+    }, [profile]);
 
     useEffect(() => {
         async function loadProfile() {
@@ -104,6 +129,18 @@ export default function UserProfileLayout({
 
         loadProfile();
     }, [username]);
+
+    // Banner slideshow - auto-rotate every 5 seconds (same as brands/stores)
+    useEffect(() => {
+        const banners = profile?.bannerImages || [];
+        if (banners.length <= 1) return;
+
+        const interval = setInterval(() => {
+            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [profile?.bannerImages]);
 
     const handleFollowClick = async () => {
         if (!profile) return;
@@ -171,8 +208,43 @@ export default function UserProfileLayout({
         return pathname.startsWith(path);
     };
 
+    // If viewing own profile, render the full editable profile UI (Instagram-style)
+    if (isOwnProfile) {
+        return <ProfilePageClient />;
+    }
+
+    /**
+     * Check if the current viewer can see a specific section based on privacy settings
+     */
+    const canViewSection = (section: 'wardrobe' | 'activity' | 'outfits' | 'marketplace'): boolean => {
+        // If profile doesn't have privacy settings, default to public
+        if (!profile?.privacySettings) return true;
+
+        const sectionSettings = profile.privacySettings[section];
+        if (!sectionSettings) return true;
+
+        const visibility = sectionSettings.visibility || 'public';
+
+        // Check based on visibility level
+        switch (visibility) {
+            case 'public':
+                return true;
+            case 'followers':
+                // Only accepted followers can see
+                return followStatus.isFollowing && followStatus.status === 'accepted';
+            case 'custom':
+                // Check if current user is in the exception list
+                if (!user?.id) return false;
+                return sectionSettings.exceptUsers?.includes(user.id) || false;
+            case 'hidden':
+                return false;
+            default:
+                return true;
+        }
+    };
+
     return (
-        <ProfileContext.Provider value={{ profile, followStatus, loading, followLoading, handleFollowClick }}>
+        <ProfileContext.Provider value={{ profile, followStatus, loading, followLoading, handleFollowClick, canViewSection }}>
             <div className="container mx-auto px-4 py-8">
                 <Link
                     href=".."
@@ -189,17 +261,55 @@ export default function UserProfileLayout({
                 <div className="max-w-4xl mx-auto">
                     {/* Profile Header */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-                        <div className="h-32 bg-gradient-to-r from-gray-100 to-gray-200"></div>
+                        {/* Banner Slideshow */}
+                        <div className="relative h-48 md:h-64 bg-gradient-to-r from-gray-800 to-gray-900 overflow-hidden">
+                            {(() => {
+                                const banners = profile.bannerImages || [];
+                                const currentBanner = banners[currentBannerIndex] || profile.bannerImage;
+
+                                if (currentBanner) {
+                                    return (
+                                        <>
+                                            <div
+                                                key={currentBannerIndex}
+                                                className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
+                                                style={{
+                                                    backgroundImage: `url(${getImageUrl(currentBanner)})`,
+                                                    backgroundSize: 'cover',
+                                                    backgroundPosition: 'center'
+                                                }}
+                                            />
+                                            {banners.length > 1 && (
+                                                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-10">
+                                                    {banners.map((_, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => setCurrentBannerIndex(idx)}
+                                                            className={`w-2 h-2 rounded-full transition-all ${idx === currentBannerIndex
+                                                                ? 'bg-white w-4'
+                                                                : 'bg-white/50 hover:bg-white/80'
+                                                                }`}
+                                                            aria-label={`Go to slide ${idx + 1}`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                }
+                                return null;
+                            })()}
+                        </div>
                         <div className="px-8 pb-8">
                             <div className="relative flex justify-between items-end -mt-12 mb-6">
                                 <div className="relative">
-                                    <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-gray-100 shadow-md">
+                                    <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden bg-gray-100 shadow-md relative">
                                         {profile.profileImage ? (
                                             <Image
                                                 src={getImageUrl(profile.profileImage)}
                                                 alt={profile.name}
                                                 fill
-                                                className="object-cover"
+                                                className="object-cover rounded-full"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-3xl font-bold">
@@ -270,39 +380,41 @@ export default function UserProfileLayout({
                                         </h1>
                                         <p className="text-gray-500">@{profile.username}</p>
                                     </div>
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={handleFollowClick}
-                                            disabled={followLoading}
-                                            className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all font-medium ${followStatus.isFollowing
-                                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                                : 'bg-primary text-white hover:bg-primary/90 shadow-sm'
-                                                }`}
-                                        >
-                                            {followLoading ? (
-                                                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                                            ) : followStatus.isFollowing ? (
-                                                <>
-                                                    <CheckIcon className="w-5 h-5" />
-                                                    {getFollowButtonText()}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <UserPlusIcon className="w-5 h-5" />
-                                                    Follow
-                                                </>
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                router.push(`/messages/u/${profile.username}`);
-                                            }}
-                                            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                                        >
-                                            <ChatBubbleLeftIcon className="w-4 h-4" />
-                                            Message
-                                        </button>
-                                    </div>
+                                    {!isOwnProfile && (
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={handleFollowClick}
+                                                disabled={followLoading}
+                                                className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-all font-medium ${followStatus.isFollowing
+                                                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                    : 'bg-primary text-white hover:bg-primary/90 shadow-sm'
+                                                    }`}
+                                            >
+                                                {followLoading ? (
+                                                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                                ) : followStatus.isFollowing ? (
+                                                    <>
+                                                        <CheckIcon className="w-5 h-5" />
+                                                        {getFollowButtonText()}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <UserPlusIcon className="w-5 h-5" />
+                                                        Follow
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    router.push(`/messages/u/${profile.username}`);
+                                                }}
+                                                className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                            >
+                                                <ChatBubbleLeftIcon className="w-4 h-4" />
+                                                Message
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {profile.bio && (
@@ -340,6 +452,17 @@ export default function UserProfileLayout({
                                             <div className="flex items-center">
                                                 <ScaleIcon className="w-4 h-4 mr-2" />
                                                 {profile.measurements.weight} kg
+                                            </div>
+                                        )}
+                                        {/* Gender icons - only show for male/female */}
+                                        {profile.personalInfo?.gender === 'male' && (
+                                            <div className="flex items-center">
+                                                <span className="text-blue-500 font-medium text-lg">♂</span>
+                                            </div>
+                                        )}
+                                        {profile.personalInfo?.gender === 'female' && (
+                                            <div className="flex items-center">
+                                                <span className="text-pink-500 font-medium text-lg">♀</span>
                                             </div>
                                         )}
                                     </div>

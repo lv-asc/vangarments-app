@@ -800,6 +800,60 @@ export class VUFSManagementController {
     }
   }
 
+  // --- GENDER MANAGEMENT ---
+
+  static async getGenders(req: Request, res: Response): Promise<void> {
+    try {
+      const genders = await VUFSManagementService.getGenders();
+      res.json({ message: 'Genders retrieved successfully', genders });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async addGender(req: Request, res: Response): Promise<void> {
+    try {
+      const { name } = req.body;
+      if (!name) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
+        return;
+      }
+      const gender = await VUFSManagementService.addGender(name);
+      res.status(201).json({ message: 'Gender created successfully', gender });
+    } catch (error: any) {
+      if (error.message.includes('already exists')) {
+        res.status(409).json({ error: { code: 'CONFLICT', message: error.message } });
+        return;
+      }
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async updateGender(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      if (!name) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
+        return;
+      }
+      const gender = await VUFSManagementService.updateGender(id, name);
+      res.json({ message: 'Gender updated successfully', gender });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async deleteGender(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.deleteGender(id);
+      res.json({ message: 'Gender deleted successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
   // --- SIZE MANAGEMENT ---
 
   static async getSizes(req: Request, res: Response): Promise<void> {
@@ -1010,6 +1064,20 @@ export class VUFSManagementController {
     }
   }
 
+  static async getAttributeValueDescendants(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const descendants = await VUFSManagementService.getAttributeValueDescendants(id);
+      res.json({
+        message: 'Descendants retrieved successfully',
+        descendants,
+        count: descendants.length
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
   static async updateAttributeValue(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -1070,6 +1138,10 @@ export class VUFSManagementController {
       await VUFSManagementService.changeHierarchyLevel(id, targetLevel, newParentId);
       res.json({ message: 'Hierarchy level changed successfully' });
     } catch (error: any) {
+      if (error.message && error.message.includes('already exists')) {
+        res.status(409).json({ error: { code: 'CONFLICT', message: error.message } });
+        return;
+      }
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }

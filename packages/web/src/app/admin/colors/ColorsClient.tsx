@@ -370,68 +370,72 @@ export default function AdminColorsPage() {
 
             {/* Color Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-lg w-full">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">{editingColor ? 'Edit Color' : 'Add Color'}</h3>
+                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] flex flex-col">
+                        <div className="p-6 pb-0">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">{editingColor ? 'Edit Color' : 'Add Color'}</h3>
+                        </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Name</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
-                                <div className="flex justify-center bg-gray-50 p-4 rounded border">
-                                    <ShopColorPicker
-                                        color={hexCode}
-                                        onChange={setHexCode}
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2 mt-2">
-                                    <span className="text-sm text-gray-500">Selected Hex:</span>
+                        <div className="flex-1 overflow-y-auto px-6 py-2">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Name</label>
                                     <input
                                         type="text"
-                                        value={hexCode}
-                                        onChange={(e) => setHexCode(e.target.value)}
-                                        className="w-28 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-1"
-                                    />
-                                    <div
-                                        className="h-6 w-6 rounded border border-gray-300 shadow-sm"
-                                        style={{ backgroundColor: hexCode }}
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
                                     />
                                 </div>
-                            </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                                    <div className="flex justify-center bg-gray-50 p-4 rounded border">
+                                        <ShopColorPicker
+                                            color={hexCode}
+                                            onChange={setHexCode}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <span className="text-sm text-gray-500">Selected Hex:</span>
+                                        <input
+                                            type="text"
+                                            value={hexCode}
+                                            onChange={(e) => setHexCode(e.target.value)}
+                                            className="w-28 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-1"
+                                        />
+                                        <div
+                                            className="h-6 w-6 rounded border border-gray-300 shadow-sm"
+                                            style={{ backgroundColor: hexCode }}
+                                        />
+                                    </div>
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Color Groups</label>
-                                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border rounded p-2">
-                                    {groups.map(group => (
-                                        <button
-                                            key={group.id}
-                                            type="button"
-                                            onClick={() => toggleGroupSelection(group.id)}
-                                            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${selectedGroupIds.includes(group.id)
-                                                ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
-                                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                }`}
-                                        >
-                                            <span
-                                                className="w-2 h-2 rounded-full mr-2"
-                                                style={{ backgroundColor: group.representativeColor || '#ccc' }}
-                                            ></span>
-                                            {group.name}
-                                        </button>
-                                    ))}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Color Groups</label>
+                                    <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border rounded p-2">
+                                        {groups.map(group => (
+                                            <button
+                                                key={group.id}
+                                                type="button"
+                                                onClick={() => toggleGroupSelection(group.id)}
+                                                className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${selectedGroupIds.includes(group.id)
+                                                    ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                    }`}
+                                            >
+                                                <span
+                                                    className="w-2 h-2 rounded-full mr-2"
+                                                    style={{ backgroundColor: group.representativeColor || '#ccc' }}
+                                                ></span>
+                                                {group.name}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="mt-5 sm:mt-6 flex justify-end gap-3">
+                        <div className="p-6 pt-4 border-t border-gray-200 flex justify-end gap-3">
                             <button
                                 type="button"
                                 onClick={() => setIsModalOpen(false)}

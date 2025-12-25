@@ -91,6 +91,21 @@ export class BrandLineModel {
         return result.rows.map(row => this.mapRowToBrandLine(row));
     }
 
+    /**
+     * Find brand lines by VUFS brand ID
+     * Looks up brand_accounts that are linked to the given VUFS brand and returns their lines
+     */
+    static async findByVufsBrandId(vufsBrandId: string): Promise<BrandLine[]> {
+        const query = `
+      SELECT bl.* FROM brand_lines bl
+      JOIN brand_accounts ba ON bl.brand_id = ba.id
+      WHERE ba.vufs_brand_id = $1 AND bl.deleted_at IS NULL
+      ORDER BY bl.name ASC
+    `;
+        const result = await db.query(query, [vufsBrandId]);
+        return result.rows.map(row => this.mapRowToBrandLine(row));
+    }
+
     static async update(id: string, data: UpdateBrandLineData): Promise<BrandLine | null> {
         const updates: string[] = [];
         const values: any[] = [];

@@ -13,6 +13,7 @@ import { PageModel } from '../models/Page';
 import { SocialService } from '../services/socialService';
 import { OutfitModel } from '../models/Outfit';
 import { BrandTeamModel } from '../models/BrandTeam';
+import { UserFollowModel } from '../models/UserFollow';
 import axios from 'axios';
 
 const socialService = new SocialService();
@@ -34,6 +35,7 @@ const upload = multer({
 
 export class UserController {
   static uploadAvatarMiddleware = upload.single('avatar');
+  static uploadBannerMiddleware = upload.single('banner');
 
   static async uploadAvatar(req: AuthenticatedRequest, res: Response) {
     try {
@@ -94,6 +96,207 @@ export class UserController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: 'An error occurred while uploading avatar'
+        }
+      });
+    }
+  }
+
+  static async uploadBanner(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({
+          error: {
+            code: 'NO_FILE',
+            message: 'No image file provided'
+          }
+        });
+      }
+
+      const uploadResult = await LocalStorageService.uploadImage(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        'banners',
+        req.user.userId
+      );
+
+      const bannerUrl = uploadResult.optimizedUrl || uploadResult.url;
+
+      // Update user profile with new banner URL
+      const updateData: any = {
+        profile: {
+          bannerUrl
+        }
+      };
+
+      const updatedUser = await UserModel.update(req.user.userId, updateData);
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        });
+      }
+
+      res.json({
+        message: 'Banner uploaded successfully',
+        bannerUrl
+      });
+    } catch (error) {
+      console.error('Upload banner error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while uploading banner'
+        }
+      });
+    }
+  }
+
+  static async updateProfileImages(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }
+        });
+      }
+
+      const { profileImages } = req.body;
+
+      if (!Array.isArray(profileImages)) {
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_DATA',
+            message: 'profileImages must be an array'
+          }
+        });
+      }
+
+      // Limit to 5 images
+      if (profileImages.length > 5) {
+        return res.status(400).json({
+          error: {
+            code: 'TOO_MANY_IMAGES',
+            message: 'Maximum 5 profile images allowed'
+          }
+        });
+      }
+
+      // First image becomes the main avatar
+      const avatarUrl = profileImages.length > 0 ? profileImages[0] : null;
+
+      const updateData: any = {
+        profile: {
+          profileImages,
+          avatarUrl
+        }
+      };
+
+      const updatedUser = await UserModel.update(req.user.userId, updateData);
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        });
+      }
+
+      res.json({
+        message: 'Profile images updated successfully',
+        profileImages,
+        avatarUrl
+      });
+    } catch (error) {
+      console.error('Update profile images error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while updating profile images'
+        }
+      });
+    }
+  }
+
+  static async updateBannerImages(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }
+        });
+      }
+
+      const { bannerImages } = req.body;
+
+      if (!Array.isArray(bannerImages)) {
+        return res.status(400).json({
+          error: {
+            code: 'INVALID_DATA',
+            message: 'bannerImages must be an array'
+          }
+        });
+      }
+
+      // Limit to 5 banner images
+      if (bannerImages.length > 5) {
+        return res.status(400).json({
+          error: {
+            code: 'TOO_MANY_IMAGES',
+            message: 'Maximum 5 banner images allowed'
+          }
+        });
+      }
+
+      // First banner becomes the main banner
+      const bannerUrl = bannerImages.length > 0 ? bannerImages[0] : null;
+
+      const updateData: any = {
+        profile: {
+          bannerImages,
+          bannerUrl
+        }
+      };
+
+      const updatedUser = await UserModel.update(req.user.userId, updateData);
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        });
+      }
+
+      res.json({
+        message: 'Banner images updated successfully',
+        bannerImages,
+        bannerUrl
+      });
+    } catch (error) {
+      console.error('Update banner images error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while updating banner images'
         }
       });
     }
@@ -327,6 +530,7 @@ export class UserController {
       const socialStats = {
         followers: socialStatsRaw.followersCount,
         following: socialStatsRaw.followingCount,
+        pendingFollowRequests: socialStatsRaw.pendingFollowRequestsCount,
         outfitsCreated: userOutfits.length
       };
 
@@ -340,7 +544,9 @@ export class UserController {
         birthDate: user.personalInfo.birthDate,
         bio: (user.personalInfo as any).bio || '',
         profileImage: (user.personalInfo as any).avatarUrl,
-        bannerImage: null,
+        bannerImage: (user as any)._rawProfile?.bannerUrl || null,
+        profileImages: (user as any)._rawProfile?.profileImages || [],
+        bannerImages: (user as any)._rawProfile?.bannerImages || [],
         socialLinks: user.socialLinks || [],
         roles: (user as any).roles || [],
         createdAt: user.createdAt,
@@ -407,7 +613,9 @@ export class UserController {
         // birthDate: user.personalInfo.birthDate,
         bio: (user.personalInfo as any).bio || '',
         profileImage: (user.personalInfo as any).avatarUrl,
-        bannerImage: null,
+        bannerImage: (user as any)._rawProfile?.bannerUrl || null,
+        bannerImages: (user as any)._rawProfile?.bannerImages || [],
+        // Only expose main profile image (first one) to public
         socialLinks: user.socialLinks || [],
         roles: (user as any).roles || [],
         createdAt: user.createdAt,
@@ -425,6 +633,7 @@ export class UserController {
           followers: socialStats.followersCount || 0,
           following: socialStats.followingCount || 0,
           friendsCount: socialStats.friendsCount || 0,
+          pendingFollowRequests: socialStats.pendingFollowRequestsCount || 0,
           outfitsCreated: outfitStats.totalOutfits || 0
         },
         preferences: {
@@ -1086,6 +1295,28 @@ export class UserController {
     }
   }
 
+  /**
+   * Get current user's team memberships with full entity details
+   * Used by profile page to show linked entities
+   */
+  static async getMyMemberships(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const memberships = await BrandTeamModel.getUserMembershipsWithDetails(req.user.userId);
+      res.json({ success: true, memberships });
+    } catch (error) {
+      console.error('Get my memberships error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get memberships' }
+      });
+    }
+  }
+
   static async deleteUser(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;
@@ -1116,6 +1347,209 @@ export class UserController {
     } catch (error) {
       console.error('Delete user error:', error);
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete user' } });
+    }
+  }
+
+  /**
+   * Update privacy settings for the current user
+   */
+  static async updatePrivacySettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const { isPrivate, wardrobe, activity, outfits, marketplace, height, weight, birthDate, gender, telephone } = req.body;
+
+      // Build the privacy settings object
+      const privacySettings: any = {};
+
+      if (isPrivate !== undefined) privacySettings.isPrivate = isPrivate;
+      if (wardrobe !== undefined) privacySettings.wardrobe = wardrobe;
+      if (activity !== undefined) privacySettings.activity = activity;
+      if (outfits !== undefined) privacySettings.outfits = outfits;
+      if (marketplace !== undefined) privacySettings.marketplace = marketplace;
+      if (height !== undefined) privacySettings.height = height;
+      if (weight !== undefined) privacySettings.weight = weight;
+      if (birthDate !== undefined) privacySettings.birthDate = birthDate;
+      if (gender !== undefined) privacySettings.gender = gender;
+      if (telephone !== undefined) privacySettings.telephone = telephone;
+
+      const updatedUser = await UserModel.update(req.user.userId, { privacySettings });
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          error: { code: 'USER_NOT_FOUND', message: 'User not found' }
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Privacy settings updated',
+        privacySettings: updatedUser.privacySettings
+      });
+    } catch (error) {
+      console.error('Update privacy settings error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to update privacy settings' }
+      });
+    }
+  }
+
+  /**
+   * Get pending follow requests for the current user
+   */
+  static async getFollowRequests(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const { page = 1, limit = 20 } = req.query;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+      const { users, total } = await UserFollowModel.getPendingFollowRequests(
+        req.user.userId,
+        parseInt(limit as string),
+        offset
+      );
+
+      res.json({
+        success: true,
+        requests: users,
+        pagination: {
+          total,
+          page: parseInt(page as string),
+          limit: parseInt(limit as string)
+        }
+      });
+    } catch (error) {
+      console.error('Get follow requests error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get follow requests' }
+      });
+    }
+  }
+
+  /**
+   * Accept a follow request
+   */
+  static async acceptFollowRequest(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const { requesterId } = req.params;
+
+      const success = await UserFollowModel.acceptFollowRequest(requesterId, req.user.userId);
+
+      if (!success) {
+        return res.status(404).json({
+          error: { code: 'REQUEST_NOT_FOUND', message: 'Follow request not found' }
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Follow request accepted'
+      });
+    } catch (error) {
+      console.error('Accept follow request error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to accept follow request' }
+      });
+    }
+  }
+
+  /**
+   * Decline a follow request
+   */
+  static async declineFollowRequest(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const { requesterId } = req.params;
+
+      const success = await UserFollowModel.declineFollowRequest(requesterId, req.user.userId);
+
+      if (!success) {
+        return res.status(404).json({
+          error: { code: 'REQUEST_NOT_FOUND', message: 'Follow request not found' }
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Follow request declined'
+      });
+    } catch (error) {
+      console.error('Decline follow request error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to decline follow request' }
+      });
+    }
+  }
+
+  /**
+   * Get follow status between current user and target user
+   */
+  static async getFollowStatus(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const { userId } = req.params;
+
+      const status = await UserFollowModel.getFollowStatus(req.user.userId, userId);
+
+      res.json({
+        success: true,
+        status
+      });
+    } catch (error) {
+      console.error('Get follow status error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get follow status' }
+      });
+    }
+  }
+
+  /**
+   * Get pending follow request count for the current user
+   */
+  static async getFollowRequestCount(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const count = await UserFollowModel.getPendingFollowRequestCount(req.user.userId);
+
+      res.json({
+        success: true,
+        count
+      });
+    } catch (error) {
+      console.error('Get follow request count error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get follow request count' }
+      });
     }
   }
 }

@@ -52,6 +52,7 @@
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.11.1",
+    "psd": "^3.4.0",
     "sharp": "^0.34.4",
     "uuid": "^9.0.1"
   },

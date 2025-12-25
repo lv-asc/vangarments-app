@@ -46,7 +46,37 @@ export class BrandTeamModel {
     `;
 
         const result = await db.query(query, [brandId, userId, roles, title, isPublic]);
-        return this.mapRowToTeamMember(result.rows[0]);
+        const member = this.mapRowToTeamMember(result.rows[0]);
+
+        // Auto-follow: new team member automatically follows the entity
+        try {
+            // Get the brand to determine its business type
+            const { BrandAccountModel } = await import('./BrandAccount');
+            const { EntityFollowModel } = await import('./EntityFollow');
+
+            const brand = await BrandAccountModel.findById(brandId);
+            if (brand) {
+                const businessType = brand.brandInfo.businessType || 'brand';
+                const entityType = businessType === 'store' ? 'store' :
+                    businessType === 'supplier' ? 'supplier' : 'brand';
+
+                // Check if already following, if not, create the follow
+                const isFollowing = await EntityFollowModel.isFollowing(userId, entityType as any, brandId);
+                if (!isFollowing) {
+                    await EntityFollowModel.follow({
+                        followerId: userId,
+                        entityType: entityType as any,
+                        entityId: brandId
+                    });
+                    console.log(`Auto-follow: User ${userId} now follows ${entityType} ${brandId}`);
+                }
+            }
+        } catch (error) {
+            // Don't fail the team member addition if auto-follow fails
+            console.error('Auto-follow failed (non-critical):', error);
+        }
+
+        return member;
     }
 
     static async removeMember(brandId: string, userId: string): Promise<boolean> {
@@ -145,6 +175,54 @@ export class BrandTeamModel {
             brandId: row.brand_id,
             roles: row.roles, // Postgres driver should automatically parse text[] to string[]
             title: row.title || undefined
+        }));
+    }
+
+    /**
+     * Get user's team memberships with full brand details
+     * Used by profile page to show linked entities
+     */
+    static async getUserMembershipsWithDetails(userId: string): Promise<Array<{
+        brandId: string;
+        brandName: string;
+        brandSlug?: string;
+        brandLogo?: string;
+        businessType: string;
+        roles: BrandRole[];
+        title?: string;
+        isOwner: boolean;
+        followersCount: number;
+    }>> {
+        const query = `
+            SELECT btm.brand_id, btm.roles, btm.title,
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'slug' as brand_slug,
+                   ba.brand_info->>'logo' as brand_logo,
+                   COALESCE(ba.brand_info->>'businessType', 'brand') as business_type,
+                   ba.user_id as owner_id,
+                   (
+                       SELECT COUNT(*)::int 
+                       FROM entity_follows ef 
+                       WHERE ef.entity_id = ba.id 
+                       AND ef.entity_type = COALESCE(ba.brand_info->>'businessType', 'brand')
+                   ) as followers_count
+            FROM brand_team_members btm
+            JOIN brand_accounts ba ON btm.brand_id = ba.id
+            WHERE btm.user_id = $1 AND ba.deleted_at IS NULL
+            ORDER BY btm.joined_at DESC
+        `;
+
+        const result = await db.query(query, [userId]);
+        return result.rows.map(row => ({
+            brandId: row.brand_id,
+            brandName: row.brand_name || 'Unnamed',
+            brandSlug: row.brand_slug || undefined,
+            brandLogo: row.brand_logo || undefined,
+            businessType: row.business_type || 'brand',
+            roles: parseRoles(row.roles, null),
+            title: row.title || undefined,
+            isOwner: row.owner_id === userId,
+            followersCount: parseInt(row.followers_count, 10) || 0
         }));
     }
 

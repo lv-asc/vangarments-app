@@ -64,6 +64,12 @@ router.post('/fits', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin'
 router.patch('/fits/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateFit);
 router.delete('/fits/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteFit);
 
+// Gender routes
+router.get('/genders', VUFSManagementController.getGenders);
+router.post('/genders', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addGender);
+router.patch('/genders/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateGender);
+router.delete('/genders/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteGender);
+
 // Size routes
 router.get('/sizes', VUFSManagementController.getSizes);
 router.post('/sizes', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addSize);
@@ -96,6 +102,7 @@ router.get('/attributes/:typeSlug/values', VUFSManagementController.getAttribute
 router.post('/attributes/:typeSlug/values', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addAttributeValue);
 router.patch('/attributes/values/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateAttributeValue);
 router.delete('/attributes/values/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteAttributeValue);
+router.get('/attributes/values/:id/descendants', VUFSManagementController.getAttributeValueDescendants);
 router.put('/attributes/values/reorder', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.reorderAttributeValues);
 router.put('/attributes/values/:id/hierarchy', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.changeHierarchyLevel);
 

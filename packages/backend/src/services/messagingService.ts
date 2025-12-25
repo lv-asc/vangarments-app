@@ -26,6 +26,21 @@ interface ConversationWithDetails extends Conversation {
 }
 
 export class MessagingService {
+    private async resolveConversationId(idOrSlug: string): Promise<string> {
+        // Check if it's already a UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(idOrSlug)) {
+            return idOrSlug;
+        }
+
+        // Try to find by slug
+        const conversation = await ConversationModel.findById(idOrSlug);
+        if (!conversation) {
+            throw new Error('Conversation not found');
+        }
+        return conversation.id;
+    }
+
     /**
      * Start or get existing conversation
      */
@@ -92,8 +107,10 @@ export class MessagingService {
         attachments?: any[],
         mentions?: any[]
     ): Promise<Message> {
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
         // Check if sender is a participant
-        const isParticipant = await ConversationModel.isParticipant(conversationId, senderId);
+        const isParticipant = await ConversationModel.isParticipant(resolvedConversationId, senderId);
         if (!isParticipant) {
             throw new Error('Not authorized to send messages in this conversation');
         }
@@ -108,7 +125,7 @@ export class MessagingService {
         }
 
         return MessageModel.create({
-            conversationId,
+            conversationId: resolvedConversationId,
             senderId,
             content: content?.trim() || '',
             messageType,
@@ -165,25 +182,29 @@ export class MessagingService {
         limit = 50,
         offset = 0
     ): Promise<{ messages: Message[]; total: number }> {
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
         // Check if user is a participant
-        const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
+        const isParticipant = await ConversationModel.isParticipant(resolvedConversationId, userId);
         if (!isParticipant) {
             throw new Error('Not authorized to view messages in this conversation');
         }
 
-        return MessageModel.getByConversation(conversationId, limit, offset);
+        return MessageModel.getByConversation(resolvedConversationId, limit, offset);
     }
 
     /**
      * Mark a conversation as read
      */
     async markAsRead(conversationId: string, userId: string): Promise<void> {
-        const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
+        const isParticipant = await ConversationModel.isParticipant(resolvedConversationId, userId);
         if (!isParticipant) {
             throw new Error('Not authorized for this conversation');
         }
 
-        await ConversationModel.markAsRead(conversationId, userId);
+        await ConversationModel.markAsRead(resolvedConversationId, userId);
     }
 
     /**
@@ -197,12 +218,14 @@ export class MessagingService {
      * Get a single conversation by ID
      */
     async getConversation(conversationId: string, userId: string): Promise<ConversationWithDetails | null> {
-        const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
+        const isParticipant = await ConversationModel.isParticipant(resolvedConversationId, userId);
         if (!isParticipant) {
             throw new Error('Not authorized to view this conversation');
         }
 
-        const conv = await ConversationModel.findById(conversationId);
+        const conv = await ConversationModel.findById(resolvedConversationId);
         if (!conv) return null;
 
         const enriched: ConversationWithDetails = { ...conv };
@@ -238,8 +261,10 @@ export class MessagingService {
         userId: string,
         updates: { name?: string; avatarUrl?: string; description?: string }
     ): Promise<Conversation> {
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
         // Check if user is a participant
-        const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
+        const isParticipant = await ConversationModel.isParticipant(resolvedConversationId, userId);
         if (!isParticipant) {
             throw new Error('Not authorized to update this conversation');
         }
@@ -256,44 +281,54 @@ export class MessagingService {
      * Add participant to conversation
      */
     async addParticipant(conversationId: string, userId: string, adminId: string): Promise<void> {
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
         // Check if admin is authorized
-        const isAdmin = await ConversationModel.isAdmin(conversationId, adminId);
+        const isAdmin = await ConversationModel.isAdmin(resolvedConversationId, adminId);
         if (!isAdmin) {
             throw new Error('Not authorized to add participants');
         }
 
-        await ConversationModel.addParticipant(conversationId, userId);
+        await ConversationModel.addParticipant(resolvedConversationId, userId);
     }
 
     /**
      * Remove participant from conversation
      */
     async removeParticipant(conversationId: string, userId: string, adminId: string): Promise<void> {
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
         // Check if admin is authorized (or if user is removing themselves)
         const isSelf = userId === adminId;
-        const isAdmin = await ConversationModel.isAdmin(conversationId, adminId);
+        const isAdmin = await ConversationModel.isAdmin(resolvedConversationId, adminId);
 
         if (!isAdmin && !isSelf) {
             throw new Error('Not authorized to remove participants');
         }
 
         // Before removing, check if they are the last admin
-        const wasAdmin = await ConversationModel.isAdmin(conversationId, userId);
+        const wasAdmin = await ConversationModel.isAdmin(resolvedConversationId, userId);
 
-        await ConversationModel.removeParticipant(conversationId, userId);
+        // Fetch conversation to check creator
+        const conversation = await ConversationModel.findById(resolvedConversationId);
+        if (conversation && conversation.createdBy === userId && userId !== adminId) {
+            throw new Error('Cannot remove the group creator');
+        }
+
+        await ConversationModel.removeParticipant(resolvedConversationId, userId);
 
         // If the removed user was an admin, ensure there is at least one admin left
         if (wasAdmin) {
             const hasOtherAdmins = await db.query(
                 `SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND role = 'admin' LIMIT 1`,
-                [conversationId]
+                [resolvedConversationId]
             );
 
             if (hasOtherAdmins.rows.length === 0) {
                 // Stay safe: promote the oldest member
-                const oldestMemberId = await ConversationModel.getOldestMember(conversationId);
+                const oldestMemberId = await ConversationModel.getOldestMember(resolvedConversationId);
                 if (oldestMemberId) {
-                    await ConversationModel.updateParticipantRole(conversationId, oldestMemberId, 'admin');
+                    await ConversationModel.updateParticipantRole(resolvedConversationId, oldestMemberId, 'admin');
                 }
             }
         }
@@ -304,7 +339,9 @@ export class MessagingService {
      * - For groups: removes the user from the group. If last member, deletes the conversation entirely.
      */
     async leaveOrDeleteConversation(conversationId: string, userId: string): Promise<void> {
-        const conv = await ConversationModel.findById(conversationId);
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
+        const conv = await ConversationModel.findById(resolvedConversationId);
         if (!conv) {
             throw new Error('Conversation not found');
         }
@@ -339,8 +376,10 @@ export class MessagingService {
         adminId: string,
         role: 'admin' | 'member'
     ): Promise<void> {
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
         // Check if admin is authorized
-        const isAdmin = await ConversationModel.isAdmin(conversationId, adminId);
+        const isAdmin = await ConversationModel.isAdmin(resolvedConversationId, adminId);
         if (!isAdmin) {
             throw new Error('Not authorized to update roles');
         }
@@ -350,7 +389,13 @@ export class MessagingService {
             throw new Error('You cannot remove your own admin status');
         }
 
-        await ConversationModel.updateParticipantRole(conversationId, userId, role);
+        // Fetch conversation to check creator
+        const conversation = await ConversationModel.findById(resolvedConversationId);
+        if (conversation && conversation.createdBy === userId && role === 'member') {
+            throw new Error('Cannot demote the group creator');
+        }
+
+        await ConversationModel.updateParticipantRole(resolvedConversationId, userId, role);
     }
 
     /**
@@ -361,8 +406,10 @@ export class MessagingService {
         links: any[];
         docs: any[];
     }> {
+        const resolvedConversationId = await this.resolveConversationId(conversationId);
+
         // Check if participant
-        const isParticipant = await ConversationModel.isParticipant(conversationId, userId);
+        const isParticipant = await ConversationModel.isParticipant(resolvedConversationId, userId);
         if (!isParticipant) {
             throw new Error('Not authorized');
         }
@@ -375,7 +422,7 @@ export class MessagingService {
             WHERE m.conversation_id = $1 AND m.deleted_at IS NULL
             ORDER BY m.created_at DESC
         `;
-        const attachmentsResult = await db.query(attachmentsQuery, [conversationId]);
+        const attachmentsResult = await db.query(attachmentsQuery, [resolvedConversationId]);
 
         const media: any[] = [];
         const docs: any[] = [];
@@ -407,7 +454,7 @@ export class MessagingService {
             WHERE conversation_id = $1 AND content ~* 'https?://[\\w\\d\\.\\/\\-]+' AND deleted_at IS NULL
             ORDER BY created_at DESC
         `;
-        const linksResult = await db.query(linksQuery, [conversationId]);
+        const linksResult = await db.query(linksQuery, [resolvedConversationId]);
 
         const links: any[] = [];
         const urlRegex = /(https?:\/\/[^\s]+)/g;

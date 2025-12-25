@@ -21,6 +21,13 @@ export default function SupplierProfilePage() {
         }
     }, [slug]);
 
+    // Update document title when profile is loaded
+    useEffect(() => {
+        if (profile) {
+            document.title = `Supplier @${profile.brand.brandInfo.name}`;
+        }
+    }, [profile]);
+
     const loadProfile = async () => {
         try {
             setLoading(true);

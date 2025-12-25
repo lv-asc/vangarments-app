@@ -21,6 +21,13 @@ export default function NonProfitProfilePage() {
         }
     }, [slug]);
 
+    // Update document title when profile is loaded
+    useEffect(() => {
+        if (profile) {
+            document.title = `Non-Profit @${profile.brand.brandInfo.name}`;
+        }
+    }, [profile]);
+
     const loadProfile = async () => {
         try {
             setLoading(true);

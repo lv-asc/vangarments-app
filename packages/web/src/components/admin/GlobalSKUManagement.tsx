@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
-import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import SearchableCombobox from '../ui/Combobox';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 interface GlobalSKUManagementProps {
 }
@@ -24,7 +25,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [vufsBrands, setVufsBrands] = useState<any[]>([]);
     const [lines, setLines] = useState<any[]>([]);
     const [collections, setCollections] = useState<any[]>([]);
-    const [categories, setCategories] = useState<any[]>([]); // All Categories
+    const [categories, setCategories] = useState<any[]>([]); // Keep for backward compat if needed, or remove
+    const [apparels, setApparels] = useState<any[]>([]);
+    const [styles, setStyles] = useState<any[]>([]);
     const [patterns, setPatterns] = useState<any[]>([]);
     const [materials, setMaterials] = useState<any[]>([]);
     const [fits, setFits] = useState<any[]>([]);
@@ -36,6 +39,28 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [showModal, setShowModal] = useState(false);
     const [editingSku, setEditingSku] = useState<any>(null);
     const [modalLoading, setModalLoading] = useState(false);
+
+    // Trash State
+    const [showTrash, setShowTrash] = useState(false);
+    const [deletedSkus, setDeletedSkus] = useState<any[]>([]);
+    const [trashLoading, setTrashLoading] = useState(false);
+
+    // Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        variant: 'danger' | 'primary';
+        onConfirm: () => void;
+        isLoading: boolean;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        variant: 'danger',
+        onConfirm: () => { },
+        isLoading: false
+    });
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -94,8 +119,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         const lineName = lines.find(l => l.id === formData.lineId)?.name || '';
         const modelName = formData.modelName;
 
-        const apparelName = categories.find(c => c.id === formData.apparelId)?.name || '';
-        const styleName = categories.find(c => c.id === formData.styleId)?.name || '';
+        const apparelName = apparels.find(c => c.id === formData.apparelId)?.name || '';
+        const styleName = styles.find(c => c.id === formData.styleId)?.name || '';
         const patternName = patterns.find(p => p.id === formData.patternId)?.name || '';
         const materialName = materials.find(m => m.id === formData.materialId)?.name || '';
         const fitName = fits.find(f => f.id === formData.fitId)?.name || '';
@@ -131,15 +156,14 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
     const fetchAllVUFSData = async () => {
         try {
-            // Try fetching genders. If fails, we default to static list or empty.
+            // Fetch Genders from API (now fixed in backend)
             let gendersData = [];
             try {
-                // Assuming 'gender' or 'genders' attribute exists. 
-                // If not, we might need to add it or use hardcoded.
-                // We'll try fetching attribute values for 'gender'.
-                gendersData = await apiClient.getVUFSAttributeValues('gender');
+                const genderRes = await apiClient.getVUFSGenders();
+                gendersData = genderRes || [];
             } catch (e) {
-                // If 'gender' attribute type doesn't exist, we provide standard options
+                console.error("Failed to fetch genders", e);
+                // Fallback if API fails (e.g. backend not updated yet)
                 gendersData = [
                     { id: 'Men', name: 'Men' },
                     { id: 'Women', name: 'Women' },
@@ -149,10 +173,18 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             }
 
             const [
-                brandsRes, catsRes, patternsRes, materialsRes, fitsRes, colorsRes, sizesRes
+                brandsRes,
+                apparelsRes,
+                stylesRes,
+                patternsRes,
+                materialsRes,
+                fitsRes,
+                colorsRes,
+                sizesRes
             ] = await Promise.all([
                 apiClient.getVUFSBrands(),
-                apiClient.getVUFSCategories(),
+                apiClient.getVUFSAttributeValues('apparel'),
+                apiClient.getVUFSAttributeValues('style'),
                 apiClient.getVUFSPatterns(),
                 apiClient.getVUFSMaterials(),
                 apiClient.getVUFSFits(),
@@ -161,7 +193,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             ]);
 
             setVufsBrands(brandsRes || []);
-            setCategories(catsRes || []);
+            setApparels(apparelsRes || []);
+            setStyles(stylesRes || []);
             setPatterns(patternsRes || []);
             setMaterials(materialsRes || []);
             setFits(fitsRes || []);
@@ -217,46 +250,47 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     };
 
     // Category Hierarchy Logic
-    // Apparel -> Style
-    // Apparel = Root Categories (e.g. T-Shirt, Belt) if DB is flat/root-based
-    const apparelOptions = useMemo(() => categories.filter(c => !c.parentId), [categories]);
 
-    // Style = Children of selected Apparel
-    // Style = Children of selected Apparel, OR all children if no Apparel selected
+
+    // Since I cannot rewrite whole function easily with replacement chunk, I will just fix the Promise.all and setters below
+    // But I already messed up the ReplacementChunk for Promise.all.
+    // Let me provide a cleaner replacement for the WHOLE fetchAllVUFSData function to be safe.
+
+    // See separate chunk below.
+
+    // Category Hierarchy Logic
+    // Apparel -> Style
+    // Link: Style items should have parentId = selectedApparelId
+    // If no hierarchy in DB (separate types), we might show all styles or filter if we can establish a link.
+    // Assuming 'Style' items have 'parent_id' pointing to 'Apparel' items even across types (since same table).
+    const apparelOptions = apparels; // Root level apparels
+
     const styleOptions = useMemo(() => {
         if (!formData.apparelId) {
-            // Return all categories that have a parent (are styles)
-            return categories.filter(c => !!c.parentId);
+            return styles;
         }
-        return categories.filter(c => c.parentId === formData.apparelId);
-    }, [categories, formData.apparelId]);
+        // Filter styles that are children of the selected apparel
+        return styles.filter(s => s.parentId === formData.apparelId);
+    }, [styles, formData.apparelId]);
 
 
     const openModal = (sku?: any) => {
         if (sku) {
-            // Edit Mode - Note: Bulk edit might be complex so maybe we only support single edit or recreate
-            // For now, mapping existing SKU flat fields back to this complex form might be hard if data strictly follows hierarchy
-            // Assuming existing SKUs might not have all these fields.
-            // We will do best effort mapping or just basic fields.
-            // User requested "Enhance SKU Creation Fields", implying creation flow is key.
             setEditingSku(sku);
+            const metadata = sku.metadata || {};
             setFormData({
                 brandId: sku.brandId,
                 lineId: sku.lineId || '',
                 collection: sku.collection || '',
-                modelName: sku.name, // Mapping Name to ModelName might be lossy if Name was auto-generated.
-                // Re-parsing name is hard. Ideally SKU has these fields stored in JSON or columns.
-                // Since this is a UI enhancement request, we might assume we are just setting this for NEW SKUs.
-                // For Editing, we might need to just show what we can. 
-                // Let's reset hierarchy vars for safety or try to find them if stored.
-                genderId: '',
-                apparelId: '',
-                styleId: '',
-                patternId: '',
-                materialId: '',
-                fitId: '',
-                selectedSizes: [],
-                selectedColors: [],
+                modelName: metadata.modelName || sku.name,
+                genderId: metadata.genderId || '',
+                apparelId: metadata.apparelId || '',
+                styleId: metadata.styleId || '',
+                patternId: metadata.patternId || '',
+                materialId: metadata.materialId || '',
+                fitId: metadata.fitId || '',
+                selectedSizes: metadata.sizeId ? [metadata.sizeId] : [],
+                selectedColors: metadata.colorId ? [metadata.colorId] : [],
                 description: sku.description || '',
                 images: sku.images || [],
                 videos: sku.videos || [],
@@ -306,76 +340,106 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         e.preventDefault();
         setModalLoading(true);
         try {
-            // Loop through selected Sizes and Colors to create SKUs
-            // If no size/color selected, maybe create one generic? Or error?
-            // User said: "Each color and size will have their own respective SKU"
+            if (editingSku) {
+                // Update specific SKU
+                const colorId = formData.selectedColors[0];
+                const sizeId = formData.selectedSizes[0];
 
-            const sizesToCreate = formData.selectedSizes.length > 0 ? formData.selectedSizes : [null];
-            const colorsToCreate = formData.selectedColors.length > 0 ? formData.selectedColors : [null];
+                const colorName = colorId ? colors.find(c => c.id === colorId)?.name : '';
+                const sizeName = sizeId ? sizes.find(s => s.id === sizeId)?.name : '';
 
-            let createdCount = 0;
+                const nameParts = [formData.generatedName];
+                // Note: If we are editing, we usually don't want to re-append color/size if they are already in generatedName
+                // But the preview shows generatedName WITHOUT color/size, and we append them.
+                if (colorName && !formData.generatedName.includes(`(${colorName})`)) nameParts.push('(' + colorName + ')');
+                if (sizeName && !formData.generatedName.includes(`[${sizeName}]`)) nameParts.push('[' + sizeName + ']');
 
-            for (const colorId of colorsToCreate) {
-                for (const sizeId of sizesToCreate) {
+                const finalName = nameParts.join(' ');
 
-                    const colorName = colorId ? colors.find(c => c.id === colorId)?.name : '';
-                    const sizeName = sizeId ? sizes.find(s => s.id === sizeId)?.name : '';
+                const payload = {
+                    name: finalName,
+                    brandId: formData.brandId,
+                    lineId: formData.lineId || null,
+                    collection: formData.collection || null,
+                    description: formData.description,
+                    images: formData.images,
+                    videos: formData.videos,
+                    materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
+                    category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
+                    metadata: {
+                        modelName: formData.modelName,
+                        genderId: formData.genderId,
+                        apparelId: formData.apparelId,
+                        styleId: formData.styleId,
+                        patternId: formData.patternId,
+                        materialId: formData.materialId,
+                        fitId: formData.fitId,
+                        sizeId: sizeId,
+                        colorId: colorId,
+                        genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
+                        apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
+                        styleName: styles.find(c => c.id === formData.styleId)?.name,
+                        patternName: patterns.find(p => p.id === formData.patternId)?.name,
+                        fitName: fits.find(f => f.id === formData.fitId)?.name
+                    }
+                };
 
-                    // Generate specific name
-                    // "Line/Brand" "Model" "Style" "Pattern" "Material" "Fit" "Apparel" "(Color)" "[Size]"
-                    const nameParts = [formData.generatedName];
-                    if (colorName) nameParts.push('(' + colorName + ')');
-                    if (sizeName) nameParts.push('[' + sizeName + ']');
+                await apiClient.updateSKU(editingSku.id, payload);
+                toast.success('SKU updated successfully');
+            } else {
+                // Bulk Create Logic
+                const sizesToCreate = formData.selectedSizes.length > 0 ? formData.selectedSizes : [null];
+                const colorsToCreate = formData.selectedColors.length > 0 ? formData.selectedColors : [null];
 
-                    const finalName = nameParts.join(' ');
+                let createdCount = 0;
 
-                    // Construct Payload
-                    // Note: We need to store these specific Attribute IDs somewhere in SKU or Item.
-                    // Currently `createSKU` takes a payload. 
-                    // We might need to store these in `metadata` or specific columns if they exist.
-                    // For now I'll put them in `attributes` map or `metadata` if SKU schema supports it.
-                    // Checking SKU model... it has `identifiers`, `category`, `materials` (string array).
-                    // I will populate `category` with the leaf category (Style or Apparel).
-                    // I will populate `materials` with the selected Material name.
-                    // I will put others in Metadata for now or implicit fields.
+                for (const colorId of colorsToCreate) {
+                    for (const sizeId of sizesToCreate) {
+                        const colorName = colorId ? colors.find(c => c.id === colorId)?.name : '';
+                        const sizeName = sizeId ? sizes.find(s => s.id === sizeId)?.name : '';
 
-                    const payload = {
-                        name: finalName,
-                        code: 'TEMP-' + Date.now() + '-' + createdCount, // Temporary code
-                        brandId: formData.brandId,
-                        lineId: formData.lineId || undefined,
-                        collection: formData.collection || undefined,
-                        description: formData.description,
-                        images: formData.images,
-                        videos: formData.videos,
-                        materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
-                        // We map Category to Style or Apparel
-                        category: { page: categories.find(c => c.id === formData.styleId)?.name || categories.find(c => c.id === formData.apparelId)?.name || '' },
-                        metadata: {
-                            modelName: formData.modelName,
-                            genderId: formData.genderId, // Store Gender
-                            apparelId: formData.apparelId,
-                            styleId: formData.styleId,
-                            patternId: formData.patternId,
-                            materialId: formData.materialId,
-                            fitId: formData.fitId,
-                            sizeId: sizeId,
-                            colorId: colorId,
-                            // Store names too for easier display if IDs fail to resolve later
-                            genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId, // If hardcoded, ID is Name sometimes
-                            apparelName: categories.find(c => c.id === formData.apparelId)?.name,
-                            styleName: categories.find(c => c.id === formData.styleId)?.name,
-                            patternName: patterns.find(p => p.id === formData.patternId)?.name,
-                            fitName: fits.find(f => f.id === formData.fitId)?.name
-                        }
-                    };
+                        const nameParts = [formData.generatedName];
+                        if (colorName) nameParts.push('(' + colorName + ')');
+                        if (sizeName) nameParts.push('[' + sizeName + ']');
 
-                    await apiClient.createSKU(formData.brandId, payload);
-                    createdCount++;
+                        const finalName = nameParts.join(' ');
+
+                        const payload = {
+                            name: finalName,
+                            code: 'TEMP-' + Date.now() + '-' + createdCount,
+                            brandId: formData.brandId,
+                            lineId: formData.lineId || undefined,
+                            collection: formData.collection || undefined,
+                            description: formData.description,
+                            images: formData.images,
+                            videos: formData.videos,
+                            materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
+                            category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
+                            metadata: {
+                                modelName: formData.modelName,
+                                genderId: formData.genderId,
+                                apparelId: formData.apparelId,
+                                styleId: formData.styleId,
+                                patternId: formData.patternId,
+                                materialId: formData.materialId,
+                                fitId: formData.fitId,
+                                sizeId: sizeId,
+                                colorId: colorId,
+                                genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
+                                apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
+                                styleName: styles.find(c => c.id === formData.styleId)?.name,
+                                patternName: patterns.find(p => p.id === formData.patternId)?.name,
+                                fitName: fits.find(f => f.id === formData.fitId)?.name
+                            }
+                        };
+
+                        await apiClient.createSKU(formData.brandId, payload);
+                        createdCount++;
+                    }
                 }
+                toast.success(`${createdCount} SKUs created`);
             }
 
-            toast.success(`${createdCount} SKUs created`);
             setShowModal(false);
             fetchSkus();
         } catch (error) {
@@ -387,16 +451,93 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     };
 
     const handleDelete = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this SKU?')) return;
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete SKU',
+            message: 'Are you sure you want to delete this SKU? It will be moved to trash.',
+            variant: 'danger',
+            isLoading: false,
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await apiClient.deleteSKU(id);
+                    toast.success('SKU moved to trash');
+                    fetchSkus();
+                } catch (error) {
+                    console.error('Failed to delete SKU', error);
+                    toast.error('Failed to delete SKU');
+                } finally {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                }
+            }
+        });
+    };
+
+    const fetchDeletedSkus = async () => {
+        setTrashLoading(true);
         try {
-            await apiClient.deleteSKU(id);
-            toast.success('SKU deleted');
-            fetchSkus();
+            const res = await apiClient.getDeletedSKUs({ search });
+            setDeletedSkus(res.skus || []);
         } catch (error) {
-            console.error('Failed to delete SKU', error);
-            toast.error('Failed to delete SKU');
+            console.error('Failed to fetch deleted SKUs', error);
+            toast.error('Failed to load trash');
+        } finally {
+            setTrashLoading(false);
         }
     };
+
+    const handleRestore = async (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Restore SKU',
+            message: 'Are you sure you want to restore this SKU?',
+            variant: 'primary',
+            isLoading: false,
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await apiClient.restoreSKU(id);
+                    toast.success('SKU restored');
+                    fetchDeletedSkus();
+                } catch (error) {
+                    console.error('Failed to restore SKU', error);
+                    toast.error('Failed to restore SKU');
+                } finally {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                }
+            }
+        });
+    };
+
+    const handlePermanentDelete = async (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Permanently Delete SKU',
+            message: 'This action cannot be undone. The SKU will be permanently removed.',
+            variant: 'danger',
+            isLoading: false,
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isLoading: true }));
+                try {
+                    await apiClient.permanentDeleteSKU(id);
+                    toast.success('SKU permanently deleted');
+                    fetchDeletedSkus();
+                } catch (error) {
+                    console.error('Failed to permanently delete SKU', error);
+                    toast.error('Failed to permanently delete SKU');
+                } finally {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
+                }
+            }
+        });
+    };
+
+    // Fetch trash when switching to trash view
+    useEffect(() => {
+        if (showTrash) {
+            fetchDeletedSkus();
+        }
+    }, [showTrash, search]);
 
     return (
         <div className="space-y-6">
@@ -413,59 +554,159 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <Button onClick={() => openModal()}>
-                    <PlusIcon className="h-5 w-5 mr-2" />
-                    New SKU
-                </Button>
+                <div className="flex items-center gap-2">
+                    {!showTrash && (
+                        <Button onClick={() => openModal()}>
+                            <PlusIcon className="h-5 w-5 mr-2" />
+                            New SKU
+                        </Button>
+                    )}
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${showTrash
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                    >
+                        <TrashIcon className="h-4 w-4 inline mr-1" />
+                        {showTrash ? 'Back to SKUs' : 'Trash'}
+                    </button>
+                </div>
             </div>
 
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                <ul className="divide-y divide-gray-200">
-                    {skus.map(sku => (
-                        <li key={sku.id} className="block hover:bg-gray-50">
-                            <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    {/* Image Thumbnail */}
-                                    <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
-                                        {sku.images?.[0]?.url ? (
-                                            <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
-                                        ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                <MagnifyingGlassIcon className="h-6 w-6" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-sm font-medium text-blue-600 truncate">{sku.name}</p>
-                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                {sku.code}
-                                            </span>
-                                        </div>
-                                        <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                                            {sku.brand?.name && (
-                                                <span className="mr-4">
-                                                    Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
-                                                </span>
+            {/* View Tabs */}
+            <div className="flex gap-2 border-b border-gray-200 pb-2">
+                <button
+                    onClick={() => setShowTrash(false)}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${!showTrash
+                        ? 'bg-white border-b-2 border-blue-500 text-blue-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    Active SKUs
+                </button>
+                <button
+                    onClick={() => setShowTrash(true)}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${showTrash
+                        ? 'bg-white border-b-2 border-red-500 text-red-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    <TrashIcon className="h-4 w-4 inline mr-1" />
+                    Trash ({deletedSkus.length})
+                </button>
+            </div>
+
+            {/* Active SKUs List */}
+            {!showTrash && (
+                <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                    <ul className="divide-y divide-gray-200">
+                        {skus.map(sku => (
+                            <li key={sku.id} className="block hover:bg-gray-50">
+                                <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        {/* Image Thumbnail */}
+                                        <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                            {sku.images?.[0]?.url ? (
+                                                <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                    <MagnifyingGlassIcon className="h-6 w-6" />
+                                                </div>
                                             )}
                                         </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-sm font-medium text-blue-600 truncate">{sku.name}</p>
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                    {sku.code}
+                                                </span>
+                                            </div>
+                                            <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                                                {sku.brand?.name && (
+                                                    <span className="mr-4">
+                                                        Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={() => openModal(sku)} className="p-2 text-gray-400 hover:text-blue-500">
+                                            <PencilIcon className="h-5 w-5" />
+                                        </button>
+                                        <button onClick={() => handleDelete(sku.id)} className="p-2 text-gray-400 hover:text-red-500">
+                                            <TrashIcon className="h-5 w-5" />
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => handleDelete(sku.id)} className="p-2 text-gray-400 hover:text-red-500">
-                                        <TrashIcon className="h-5 w-5" />
-                                    </button>
+                            </li>
+                        ))}
+                        {skus.length === 0 && !loading && (
+                            <li className="px-4 py-8 text-center text-gray-500">
+                                No SKUs found.
+                            </li>
+                        )}
+                    </ul>
+                </div>
+            )}
+
+            {/* Trash List */}
+            {showTrash && (
+                <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                    <ul className="divide-y divide-gray-200">
+                        {deletedSkus.map(sku => (
+                            <li key={sku.id} className="block hover:bg-gray-50 bg-red-50/30">
+                                <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 opacity-60">
+                                            {sku.images?.[0]?.url ? (
+                                                <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                    <MagnifyingGlassIcon className="h-6 w-6" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-sm font-medium text-gray-600 truncate line-through">{sku.name}</p>
+                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                                    Deleted
+                                                </span>
+                                            </div>
+                                            <div className="mt-1 text-xs text-gray-400">
+                                                {sku.code} • {sku.brand?.name || 'Unknown Brand'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleRestore(sku.id)}
+                                            className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                                            title="Restore"
+                                        >
+                                            <ArrowPathIcon className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                            onClick={() => handlePermanentDelete(sku.id)}
+                                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                            title="Permanently Delete"
+                                        >
+                                            <TrashIcon className="h-5 w-5" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        </li>
-                    ))}
-                    {skus.length === 0 && !loading && (
-                        <li className="px-4 py-8 text-center text-gray-500">
-                            No SKUs found.
-                        </li>
-                    )}
-                </ul>
-            </div>
+                            </li>
+                        ))}
+                        {deletedSkus.length === 0 && !trashLoading && (
+                            <li className="px-4 py-8 text-center text-gray-500">
+                                Trash is empty.
+                            </li>
+                        )}
+                    </ul>
+                </div>
+            )}
 
             {/* Modal */}
             {showModal && (
@@ -536,7 +777,6 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                                             value={formData.modelName}
                                             onChange={e => setFormData({ ...formData, modelName: e.target.value })}
-                                            required
                                         />
                                     </div>
 
@@ -545,9 +785,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                     <div>
                                         <SearchableCombobox
                                             label="Apparel"
-                                            value={categories.find(c => c.id === formData.apparelId)?.name || ''}
+                                            value={apparels.find(c => c.id === formData.apparelId)?.name || ''}
                                             onChange={(name) => {
-                                                const cat = categories.find(c => c.name === name && !c.parentId); // Ensure it matches root logic if names dupe
+                                                const cat = apparels.find(c => c.name === name);
                                                 setFormData({ ...formData, apparelId: cat?.id || '', styleId: '' });
                                             }}
                                             options={apparelOptions}
@@ -558,16 +798,15 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                     <div>
                                         <SearchableCombobox
                                             label="Style"
-                                            value={categories.find(c => c.id === formData.styleId)?.name || ''}
+                                            value={styles.find(c => c.id === formData.styleId)?.name || ''}
                                             onChange={(name) => {
-                                                const cat = categories.find(c => c.name === name); // Search in all categories
+                                                const cat = styles.find(c => c.name === name);
                                                 if (cat) {
                                                     setFormData(prev => ({
                                                         ...prev,
                                                         styleId: cat.id,
-                                                        // Auto-set apparelId if not set or if different??
-                                                        // Ideally we only override if empty or if we want strict consistency.
-                                                        // If user changes style, usually implies parent might change.
+                                                        // Automatically set parent apparel if the found style has one and it matches
+                                                        // or if we want to enforce reverse-selection (selecting style selects the parent apparel)
                                                         apparelId: cat.parentId || prev.apparelId || ''
                                                     }));
                                                 } else {
@@ -576,6 +815,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             }}
                                             options={styleOptions}
                                             placeholder="Select Style..."
+                                            disabled={!formData.apparelId && styleOptions.length === 0}
                                         />
                                     </div>
 
@@ -636,41 +876,85 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                     {/* Size(s) - Multi-Select */}
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
+                                        <div className="mb-2">
+                                            <SearchableCombobox
+                                                placeholder="Search and Select Sizes..."
+                                                value={null}
+                                                onChange={(name) => {
+                                                    if (!name) return;
+                                                    const size = sizes.find(s => s.name === name);
+                                                    if (size && !formData.selectedSizes.includes(size.id)) {
+                                                        handleMultiSelect('sizes', size.id);
+                                                    }
+                                                }}
+                                                options={sizes.filter(s => !formData.selectedSizes.includes(s.id))}
+                                            />
+                                        </div>
                                         <div className="flex flex-wrap gap-2">
-                                            {sizes.map(size => (
-                                                <button
-                                                    key={size.id}
-                                                    type="button"
-                                                    onClick={() => handleMultiSelect('sizes', size.id)}
-                                                    className={`px-3 py-1 rounded-full text-sm border ${formData.selectedSizes.includes(size.id)
-                                                        ? 'bg-blue-600 text-white border-blue-600'
-                                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                        } `}
-                                                >
-                                                    {size.name}
-                                                </button>
-                                            ))}
+                                            {formData.selectedSizes.map(sizeId => {
+                                                const size = sizes.find(s => s.id === sizeId);
+                                                return (
+                                                    <span
+                                                        key={sizeId}
+                                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                                    >
+                                                        {size?.name || sizeId}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleMultiSelect('sizes', sizeId)}
+                                                            className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
+                                                        >
+                                                            &times;
+                                                        </button>
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
                                     {/* Color(s) - Multi-Select */}
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
+                                        <div className="mb-2">
+                                            <SearchableCombobox
+                                                placeholder="Search and Select Colors..."
+                                                value={null}
+                                                onChange={(name) => {
+                                                    if (!name) return;
+                                                    const color = colors.find(c => c.name === name);
+                                                    if (color && !formData.selectedColors.includes(color.id)) {
+                                                        handleMultiSelect('colors', color.id);
+                                                    }
+                                                }}
+                                                options={colors.filter(c => !formData.selectedColors.includes(c.id)).map(c => ({
+                                                    id: c.id,
+                                                    name: c.name,
+                                                    hex: c.hex // Pass hex code
+                                                }))}
+                                            />
+                                        </div>
                                         <div className="flex flex-wrap gap-2">
-                                            {colors.map(color => (
-                                                <button
-                                                    key={color.id}
-                                                    type="button"
-                                                    onClick={() => handleMultiSelect('colors', color.id)}
-                                                    className={`px-3 py-1 rounded-full text-sm border flex items-center gap-2 ${formData.selectedColors.includes(color.id)
-                                                        ? 'bg-gray-100 text-gray-900 border-blue-600 ring-1 ring-blue-600'
-                                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                        } `}
-                                                >
-                                                    <span className="w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: color.hex }}></span>
-                                                    {color.name}
-                                                </button>
-                                            ))}
+                                            {formData.selectedColors.map(colorId => {
+                                                const color = colors.find(c => c.id === colorId);
+                                                return (
+                                                    <span
+                                                        key={colorId}
+                                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 border border-gray-200"
+                                                    >
+                                                        {color?.hex && (
+                                                            <span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: color.hex }}></span>
+                                                        )}
+                                                        {color?.name || colorId}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleMultiSelect('colors', colorId)}
+                                                            className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
+                                                        >
+                                                            &times;
+                                                        </button>
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
@@ -722,7 +1006,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                         disabled={modalLoading}
                                         className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
                                     >
-                                        {modalLoading ? 'Creating...' : 'Create SKUs'}
+                                        {modalLoading ? (editingSku ? 'Saving...' : 'Creating...') : (editingSku ? 'Save Changes' : 'Create SKUs')}
                                     </button>
                                     <button
                                         type="button"
@@ -737,6 +1021,18 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                     </div>
                 </div>
             )}
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                variant={confirmModal.variant}
+                isLoading={confirmModal.isLoading}
+                confirmText={confirmModal.variant === 'danger' ? 'Delete' : 'Confirm'}
+            />
         </div>
     );
 }

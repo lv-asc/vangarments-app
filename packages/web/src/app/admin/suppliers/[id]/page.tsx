@@ -8,12 +8,14 @@ import toast from 'react-hot-toast';
 import { ArrowLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
+import CountrySelector from '@/components/ui/CountrySelector';
 import { CheckIcon } from '@heroicons/react/20/solid';
 import { formatPhone } from '@/lib/masks';
 
 import TeamManagement from '@/components/admin/TeamManagement';
 import LogoUploader, { LogoItem } from '@/components/admin/LogoUploader';
 import BannerUploader, { BannerItem } from '@/components/admin/BannerUploader';
+import FoundationDateInput from '@/components/ui/FoundationDateInput';
 import { Modal } from '@/components/ui/Modal';
 
 export default function AdminEditSupplierPage() {
@@ -39,7 +41,10 @@ export default function AdminEditSupplierPage() {
         contactEmail: '',
         contactPhone: '',
         country: '',
-        tags: [] as string[]
+        tags: [] as string[],
+        foundedBy: '',
+        foundedDate: '',
+        foundedDatePrecision: 'year' as 'year' | 'month' | 'day'
     });
 
     useEffect(() => {
@@ -52,6 +57,13 @@ export default function AdminEditSupplierPage() {
             loadSupplier();
         }
     }, [user, authLoading, router, supplierId]);
+
+    // Update document title when supplier is loaded
+    useEffect(() => {
+        if (supplier?.brandInfo?.name) {
+            document.title = `Admin - Supplier @${supplier.brandInfo.name}`;
+        }
+    }, [supplier]);
 
     const loadSupplier = async () => {
         try {
@@ -73,7 +85,10 @@ export default function AdminEditSupplierPage() {
                 contactEmail: loadedSupplier.brandInfo.contactInfo?.email || '',
                 contactPhone: loadedSupplier.brandInfo.contactInfo?.phone || '',
                 country: loadedSupplier.brandInfo.country || '',
-                tags: loadedSupplier.brandInfo.tags || []
+                tags: loadedSupplier.brandInfo.tags || [],
+                foundedBy: loadedSupplier.profileData?.foundedBy || '',
+                foundedDate: loadedSupplier.profileData?.foundedDate || '',
+                foundedDatePrecision: loadedSupplier.profileData?.foundedDatePrecision || 'year'
             });
 
             // Initialize Banners
@@ -184,7 +199,10 @@ export default function AdminEditSupplierPage() {
 
             await brandApi.updateProfileData(targetId, {
                 additionalLogos: additionalLogos,
-                logoMetadata: logoMetadata
+                logoMetadata: logoMetadata,
+                foundedBy: formData.foundedBy || undefined,
+                foundedDate: formData.foundedDate || undefined,
+                foundedDatePrecision: formData.foundedDate ? formData.foundedDatePrecision : undefined
             });
 
             toast.success('Supplier updated successfully');
@@ -387,22 +405,34 @@ export default function AdminEditSupplierPage() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Country</label>
-                                <div className="mt-1 relative">
-                                    <select
-                                        name="country"
-                                        value={formData.country}
-                                        onChange={handleChange}
-                                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-                                    >
-                                        <option value="">Select a country</option>
-                                        {COUNTRIES.map((c) => (
-                                            <option key={c.code} value={c.name}>
-                                                {c.flag} {c.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <CountrySelector
+                                    value={formData.country}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, country: val }))}
+                                    label="Country"
+                                />
+                            </div>
+
+                            {/* Founded By */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Founded by</label>
+                                <input
+                                    type="text"
+                                    name="foundedBy"
+                                    value={formData.foundedBy}
+                                    onChange={handleChange}
+                                    placeholder="e.g., John Smith, Jane Doe"
+                                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2"
+                                />
+                            </div>
+
+                            {/* Date of Foundation */}
+                            <div>
+                                <FoundationDateInput
+                                    value={formData.foundedDate}
+                                    precision={formData.foundedDatePrecision}
+                                    onChange={(date, precision) => setFormData(prev => ({ ...prev, foundedDate: date, foundedDatePrecision: precision }))}
+                                    label="Date of Foundation"
+                                />
                             </div>
 
                             <div>

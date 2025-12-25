@@ -213,6 +213,13 @@ export default function AdminEditUserPage() {
         }
     }, [id, currentUser, authLoading, router]);
 
+    // Update document title when user profile is loaded
+    useEffect(() => {
+        if (userProfile?.username) {
+            document.title = `Admin - User @${userProfile.username}`;
+        }
+    }, [userProfile]);
+
     const loadUser = async () => {
         try {
             setLoading(true);

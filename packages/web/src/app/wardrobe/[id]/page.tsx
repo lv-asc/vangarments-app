@@ -44,9 +44,12 @@ interface WardrobeItem {
   sizeId?: string;
   metadata: {
     name: string;
-    composition: Array<{ name: string; percentage: number }>;
-    colors: Array<{ name: string; hex?: string }>;
+    composition: Array<{ name?: string; material?: string; percentage: number }>;
+    colors: Array<{ name?: string; primary?: string; hex?: string }>;
     careInstructions: string[];
+    size?: string;
+    pattern?: string;
+    fit?: string;
     [key: string]: any;
   };
   condition: {
@@ -347,41 +350,78 @@ export default function WardrobeItemDetailPage() {
             </div>
 
             {/* Colors */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-2">Cores</h3>
-              <div className="flex items-center space-x-2">
-                {item.metadata.colors.map((color, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <div
-                      className="w-6 h-6 rounded-full border border-gray-200"
-                      style={{ backgroundColor: color.hex || '#gray' }}
-                    />
-                    <span className="text-sm text-gray-600">{color.name}</span>
-                  </div>
-                ))}
+            {item.metadata.colors && item.metadata.colors.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Cores</h3>
+                <div className="flex flex-wrap items-center gap-3">
+                  {item.metadata.colors.map((color, index) => {
+                    const colorName = color.name || color.primary || '';
+                    return colorName ? (
+                      <div key={index} className="flex items-center space-x-2">
+                        <div
+                          className="w-6 h-6 rounded-full border border-gray-200"
+                          style={{ backgroundColor: color.hex || '#6b7280' }}
+                        />
+                        <span className="text-sm text-gray-600">{colorName}</span>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Composition */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-2">Composição</h3>
-              <div className="space-y-1">
-                {item.metadata.composition.map((comp, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span className="text-gray-600">{comp.name}</span>
-                    <span className="text-gray-900">{comp.percentage}%</span>
-                  </div>
-                ))}
+            {item.metadata.composition && item.metadata.composition.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Composição</h3>
+                <div className="space-y-1">
+                  {item.metadata.composition.map((comp, index) => {
+                    const materialName = comp.name || comp.material || '';
+                    return materialName ? (
+                      <div key={index} className="flex justify-between text-sm">
+                        <span className="text-gray-600">{materialName}</span>
+                        <span className="text-gray-900">{comp.percentage}%</span>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Category */}
             <div>
               <h3 className="text-sm font-medium text-gray-900 mb-2">Categoria</h3>
               <div className="text-sm text-gray-600">
-                {item.category.page} → {item.category.blueSubcategory} → {item.category.whiteSubcategory}
+                {/* Only show unique category parts */}
+                {[item.category.page, item.category.blueSubcategory, item.category.whiteSubcategory]
+                  .filter((cat, idx, arr) => cat && arr.indexOf(cat) === idx)
+                  .join(' → ')}
               </div>
             </div>
+
+            {/* Size */}
+            {item.metadata.size && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Tamanho</h3>
+                <div className="text-sm text-gray-600">{item.metadata.size}</div>
+              </div>
+            )}
+
+            {/* Pattern */}
+            {item.metadata.pattern && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Estampa</h3>
+                <div className="text-sm text-gray-600">{item.metadata.pattern}</div>
+              </div>
+            )}
+
+            {/* Fit */}
+            {item.metadata.fit && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">Caimento</h3>
+                <div className="text-sm text-gray-600">{item.metadata.fit}</div>
+              </div>
+            )}
 
             {/* Dynamic Visible Attributes */}
             {visibleAttributes.length > 0 && (

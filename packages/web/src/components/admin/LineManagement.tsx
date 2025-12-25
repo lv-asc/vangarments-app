@@ -203,7 +203,7 @@ export default function LineManagement({ brandId }: LineManagementProps) {
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Logo Uploader */}
                         <div>
-                            <LogoUploader logos={getLogosArray()} onChange={handleLogoChange} />
+                            <LogoUploader logos={getLogosArray()} onChange={handleLogoChange} showNameInput={false} />
                             <p className="text-xs text-gray-500 mt-1">Upload a logo for this line. Only one logo is allowed.</p>
                         </div>
 

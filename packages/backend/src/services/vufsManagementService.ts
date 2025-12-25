@@ -212,6 +212,7 @@ export class VUFSManagementService {
       case 'pattern': table = 'vufs_patterns'; break;
       case 'fit': table = 'vufs_fits'; break;
       case 'size': table = 'vufs_sizes'; break;
+      case 'gender': table = 'vufs_genders'; break;
       default:
         // If attributeSlug is provided, we assume it's a custom attribute
         if (attributeSlug) {
@@ -257,26 +258,27 @@ export class VUFSManagementService {
   }
 
   /**
-   * Get all categories (updated to support soft delete)
+   * Get all categories from vufs_attribute_values (unified data source)
+   * This reads from the same table as admin/categories for consistency
    */
   static async getCategories(includeDeleted: boolean = false): Promise<VUFSCategoryOption[]> {
-    const query = includeDeleted
-      ? 'SELECT * FROM vufs_categories ORDER BY level, name'
-      : 'SELECT * FROM vufs_categories WHERE is_deleted = false OR is_deleted IS NULL ORDER BY level, name';
+    // Read from vufs_attribute_values where type_slug = 'apparel' (unified source)
+    const query = `
+      SELECT id, name, type_slug, parent_id, sort_order 
+      FROM vufs_attribute_values 
+      WHERE type_slug = 'apparel' 
+      ORDER BY sort_order ASC, name ASC
+    `;
     const result = await db.query(query);
-
-    const levelMapReverse: Record<number, 'subcategory1' | 'subcategory2' | 'apparel' | 'gray'> = {
-      1: 'subcategory1', 2: 'subcategory2', 3: 'apparel', 4: 'gray'
-    };
 
     return result.rows.map((row: any) => ({
       id: row.id.toString(),
       name: row.name,
-      level: levelMapReverse[row.level] || 'page',
+      level: 'apparel' as const,
       parentId: row.parent_id?.toString(),
-      isActive: !row.is_deleted,
-      isDeleted: row.is_deleted || false,
-      deletedAt: row.deleted_at || null
+      isActive: true,
+      isDeleted: false,
+      deletedAt: null
     }));
   }
 
@@ -746,12 +748,17 @@ export class VUFSManagementService {
   }
 
   /**
-   * Get Fits from DB
+   * Get Fits from vufs_attribute_values (unified data source)
    */
   static async getFits(): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_fits WHERE is_active = true ORDER BY name';
+    const query = `
+      SELECT id, name, sort_order 
+      FROM vufs_attribute_values 
+      WHERE type_slug = 'fit' 
+      ORDER BY sort_order ASC, name ASC
+    `;
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
+    return result.rows.map((row: any) => ({ ...row, isActive: true }));
   }
 
   static async addFit(name: string): Promise<any> {
@@ -766,12 +773,17 @@ export class VUFSManagementService {
   }
 
   /**
-   * Get Sizes from DB
+   * Get Sizes from vufs_attribute_values (unified data source)
    */
   static async getSizes(): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_sizes ORDER BY sort_order ASC, name ASC';
+    const query = `
+      SELECT id, name, sort_order 
+      FROM vufs_attribute_values 
+      WHERE type_slug = 'possible-sizes' 
+      ORDER BY sort_order ASC, name ASC
+    `;
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
+    return result.rows.map((row: any) => ({ ...row, isActive: true }));
   }
 
   static async addSize(name: string): Promise<any> {
@@ -783,6 +795,29 @@ export class VUFSManagementService {
   }
   static async updateSize(id: string, name: string): Promise<any> {
     return this.updateItem('vufs_sizes', id, name);
+  }
+
+  // --- GENDER MANAGEMENT ---
+
+  /**
+   * Get Genders from DB
+   */
+  static async getGenders(): Promise<any[]> {
+    const query = 'SELECT * FROM vufs_genders WHERE is_active = true ORDER BY name';
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
+  }
+
+  static async addGender(name: string): Promise<any> {
+    return this.addItem('vufs_genders', name);
+  }
+
+  static async deleteGender(id: string): Promise<void> {
+    await this.deleteItem('vufs_genders', id);
+  }
+
+  static async updateGender(id: string, name: string): Promise<any> {
+    return this.updateItem('vufs_genders', id, name);
   }
 
   // --- STANDARDS MANAGEMENT ---
@@ -892,8 +927,94 @@ export class VUFSManagementService {
   }
 
   static async deleteAttributeValue(id: string): Promise<void> {
-    const query = 'DELETE FROM vufs_attribute_values WHERE id = $1';
-    await db.query(query, [id]);
+    // 1. Get all descendants (tree structure) using Recursive CTE
+    // We select ID and Depth to know delete order (deepest first)
+    const treeQuery = `
+      WITH RECURSIVE descendants AS (
+          SELECT id, parent_id, 1 as depth
+          FROM vufs_attribute_values
+          WHERE id = $1
+          
+          UNION ALL
+          
+          SELECT t.id, t.parent_id, d.depth + 1
+          FROM vufs_attribute_values t
+          JOIN descendants d ON t.parent_id = d.id
+      )
+      SELECT id FROM descendants ORDER BY depth DESC;
+    `;
+
+    // Note: We include the item itself in the CTE (WHERE id = $1) so we get the full list to delete matching the target + children
+    // If we only wanted children we'd change the base case. 
+    // Actually, let's keep it simple: Find all descendants of ID, delete them, then delete ID.
+
+    // Revised Strategy:
+    // 1. Find all children (recursive)
+    // 2. Delete them in reverse order of depth
+    // 3. Delete the parent
+
+    const descendantsQuery = `
+      WITH RECURSIVE descendants AS (
+          SELECT id, parent_id, 1 as depth
+          FROM vufs_attribute_values
+          WHERE parent_id = $1
+          
+          UNION ALL
+          
+          SELECT t.id, t.parent_id, d.depth + 1
+          FROM vufs_attribute_values t
+          JOIN descendants d ON t.parent_id = d.id
+      )
+      SELECT id FROM descendants ORDER BY depth DESC;
+    `;
+
+    try {
+      // Get all children first
+      const res = await db.query(descendantsQuery, [id]);
+
+      // Delete each descendant one by one (safe way to ensure FKs are respected if there are other constraints)
+      // Or we could do DELETE FROM ... WHERE id IN (...) if pure self-ref allows it?
+      // Postgres checks constraints row-by-row or at end of statement. 
+      // Safest is iterative for now to be sure.
+      for (const row of res.rows) {
+        await db.query('DELETE FROM vufs_attribute_values WHERE id = $1', [row.id]);
+      }
+
+      // Finally delete the item itself
+      await db.query('DELETE FROM vufs_attribute_values WHERE id = $1', [id]);
+
+    } catch (error: any) {
+      console.error('Error deleting attribute value:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all descendants of an attribute value (for preview before deletion)
+   */
+  static async getAttributeValueDescendants(id: string): Promise<{ id: string; name: string; type_slug: string; depth: number }[]> {
+    const descendantsQuery = `
+      WITH RECURSIVE descendants AS (
+          SELECT id, name, type_slug, parent_id, 1 as depth
+          FROM vufs_attribute_values
+          WHERE parent_id = $1
+          
+          UNION ALL
+          
+          SELECT t.id, t.name, t.type_slug, t.parent_id, d.depth + 1
+          FROM vufs_attribute_values t
+          JOIN descendants d ON t.parent_id = d.id
+      )
+      SELECT id, name, type_slug, depth FROM descendants ORDER BY depth ASC, name ASC;
+    `;
+
+    const res = await db.query(descendantsQuery, [id]);
+    return res.rows.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      type_slug: row.type_slug,
+      depth: row.depth
+    }));
   }
 
   static async updateAttributeValue(id: string, updates: { name?: string; parentId?: string | null }): Promise<any> {
@@ -979,10 +1100,17 @@ export class VUFSManagementService {
     }
 
     // Update the item's type_slug and parent_id
-    await db.query(
-      'UPDATE vufs_attribute_values SET type_slug = $2, parent_id = $3 WHERE id = $1',
-      [itemId, targetLevel, newParentId || null]
-    );
+    try {
+      await db.query(
+        'UPDATE vufs_attribute_values SET type_slug = $2, parent_id = $3 WHERE id = $1',
+        [itemId, targetLevel, newParentId || null]
+      );
+    } catch (error: any) {
+      if (error.code === '23505') {
+        throw new Error(`An item named "${item.name}" already exists in ${targetLevel}. Please rename one of them first.`);
+      }
+      throw error;
+    }
 
     // Cascade: update all children to move one level deeper/shallower accordingly
     const levelDiff = targetIndex - currentIndex;

@@ -51,6 +51,10 @@ export default function MessagesPage() {
     const [isNewConversationModalOpen, setIsNewConversationModalOpen] = useState(false);
 
     useEffect(() => {
+        document.title = 'DMs';
+    }, []);
+
+    useEffect(() => {
         loadConversations();
     }, []);
 

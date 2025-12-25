@@ -22,10 +22,18 @@ import {
   XCircleIcon,
   EyeIcon,
   EyeSlashIcon,
-  LockClosedIcon
+  LockClosedIcon,
+  ArrowRightOnRectangleIcon,
+  BuildingStorefrontIcon,
+  SparklesIcon,
+  DocumentTextIcon,
+  TruckIcon,
+  NewspaperIcon
 } from '@heroicons/react/24/outline';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { BRAZILIAN_STATES } from '../../constants/address';
 import ImageCropper from '@/components/ui/ImageCropper';
+import { SortableImageGrid } from '@/components/profile/SortableImageGrid';
 import { AVAILABLE_ROLES } from '@/constants/roles';
 
 interface UserProfile {
@@ -37,6 +45,8 @@ interface UserProfile {
   bio?: string;
   profileImage?: string;
   bannerImage?: string;
+  profileImages?: string[]; // Array of up to 5 profile images
+  bannerImages?: string[]; // Array of up to 5 banner images for slideshow
   cpf?: string;
   birthDate?: string;
   socialLinks?: { platform: string; url: string }[];
@@ -55,6 +65,7 @@ interface UserProfile {
     outfitsCreated: number;
     followers: number;
     following: number;
+    pendingFollowRequests?: number;
   };
   preferences?: {
     style: string[];
@@ -75,11 +86,13 @@ const SOCIAL_PLATFORMS = [
 
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, refreshAuth } = useAuth();
+  const { user, isAuthenticated, refreshAuth, logout: userLogout } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('wardrobe');
+  const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
+  const [wardrobeLoading, setWardrobeLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const toast = useToast();
@@ -127,6 +140,31 @@ export default function ProfilePage() {
   // Cropper state
   const [showCropper, setShowCropper] = useState(false);
   const [cropperImageSrc, setCropperImageSrc] = useState<string>('');
+  const [photoQueue, setPhotoQueue] = useState<File[]>([]);
+  const [bannerQueue, setBannerQueue] = useState<File[]>([]);
+  const [croppingMode, setCroppingMode] = useState<'profile' | 'banner'>('profile');
+  const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null);
+
+  // Refs for scrolling
+  const profilePicturesRef = useRef<HTMLDivElement>(null);
+  const bannersRef = useRef<HTMLDivElement>(null);
+
+  // Banner slideshow state
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+
+  // Linked entities state
+  interface LinkedEntity {
+    brandId: string;
+    brandName: string;
+    brandSlug?: string;
+    brandLogo?: string;
+    businessType: string;
+    roles: string[];
+    title?: string;
+    isOwner: boolean;
+    followersCount: number;
+  }
+  const [linkedEntities, setLinkedEntities] = useState<LinkedEntity[]>([]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -134,24 +172,61 @@ export default function ProfilePage() {
     }
   }, [isAuthenticated, user]);
 
+  // Fetch wardrobe items when wardrobe tab is active
+  useEffect(() => {
+    if (activeTab === 'wardrobe' && wardrobeItems.length === 0 && !wardrobeLoading) {
+      const fetchWardrobeItems = async () => {
+        setWardrobeLoading(true);
+        try {
+          const response = await apiClient.getWardrobeItems({ limit: 6 });
+          setWardrobeItems(response.items || []);
+        } catch (err) {
+          console.error('Error fetching wardrobe items:', err);
+        } finally {
+          setWardrobeLoading(false);
+        }
+      };
+      fetchWardrobeItems();
+    }
+  }, [activeTab, wardrobeItems.length, wardrobeLoading]);
+
+  // Banner slideshow - auto-rotate every 5 seconds (same as brands/stores)
+  useEffect(() => {
+    const banners = userProfile?.bannerImages || [];
+    if (banners.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [userProfile?.bannerImages]);
+
   const loadProfile = async () => {
     if (!user?.id) return;
 
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.getUserProfile(user.id);
-      console.log('DEBUG: getUserProfile response:', JSON.stringify(response, null, 2));
-      setUserProfile(response.profile);
-      if (response.profile) {
+      // Fetch profile and linked entities in parallel
+      const [profileResponse, membershipsResponse] = await Promise.all([
+        apiClient.getUserProfile(user.id),
+        apiClient.getMyMemberships().catch(() => ({ memberships: [] }))
+      ]);
+
+      console.log('DEBUG: getUserProfile response:', JSON.stringify(profileResponse, null, 2));
+      setUserProfile(profileResponse.profile);
+      setLinkedEntities(membershipsResponse.memberships || []);
+
+      if (profileResponse.profile) {
         setEditForm({
-          name: response.profile.name || response.profile.personalInfo?.name || '',
-          username: response.profile.username || '',
-          bio: response.profile.bio || response.profile.personalInfo?.bio || '',
-          profileImage: response.profile.profileImage || response.profile.personalInfo?.avatarUrl || '',
-          socialLinks: response.profile.socialLinks || [],
-          roles: response.profile.roles || ['common_user'],
-          privacySettings: response.profile.privacySettings || {
+          name: profileResponse.profile.name || profileResponse.profile.personalInfo?.name || '',
+          username: profileResponse.profile.username || '',
+          bio: profileResponse.profile.bio || profileResponse.profile.personalInfo?.bio || '',
+          profileImage: profileResponse.profile.profileImage || profileResponse.profile.personalInfo?.avatarUrl || '',
+          socialLinks: profileResponse.profile.socialLinks || [],
+          roles: profileResponse.profile.roles || ['common_user'],
+          privacySettings: profileResponse.profile.privacySettings || {
             height: false,
             weight: false,
             birthDate: false,
@@ -161,22 +236,22 @@ export default function ProfilePage() {
             gender: false,
             telephone: true // Private by default
           },
-          birthDate: response.profile.personalInfo?.birthDate ? new Date(response.profile.personalInfo.birthDate).toISOString().split('T')[0] : '',
-          height: response.profile.measurements?.height || '',
-          weight: response.profile.measurements?.weight || '',
-          country: response.profile.personalInfo?.location?.country || '',
-          state: response.profile.personalInfo?.location?.state || '',
-          city: response.profile.personalInfo?.location?.city || '',
-          cep: response.profile.personalInfo?.location?.cep || '',
-          street: response.profile.personalInfo?.location?.street || '',
-          neighborhood: response.profile.personalInfo?.location?.neighborhood || '',
-          number: response.profile.personalInfo?.location?.number || '',
-          complement: response.profile.personalInfo?.location?.complement || '',
-          gender: response.profile.personalInfo?.gender || '',
-          genderOther: response.profile.personalInfo?.genderOther || '',
-          bodyType: response.profile.personalInfo?.bodyType || '',
-          contactEmail: response.profile.personalInfo?.contactEmail || '',
-          telephone: response.profile.personalInfo?.telephone || ''
+          birthDate: profileResponse.profile.personalInfo?.birthDate ? new Date(profileResponse.profile.personalInfo.birthDate).toISOString().split('T')[0] : '',
+          height: profileResponse.profile.measurements?.height || '',
+          weight: profileResponse.profile.measurements?.weight || '',
+          country: profileResponse.profile.personalInfo?.location?.country || '',
+          state: profileResponse.profile.personalInfo?.location?.state || '',
+          city: profileResponse.profile.personalInfo?.location?.city || '',
+          cep: profileResponse.profile.personalInfo?.location?.cep || '',
+          street: profileResponse.profile.personalInfo?.location?.street || '',
+          neighborhood: profileResponse.profile.personalInfo?.location?.neighborhood || '',
+          number: profileResponse.profile.personalInfo?.location?.number || '',
+          complement: profileResponse.profile.personalInfo?.location?.complement || '',
+          gender: profileResponse.profile.personalInfo?.gender || '',
+          genderOther: profileResponse.profile.personalInfo?.genderOther || '',
+          bodyType: profileResponse.profile.personalInfo?.bodyType || '',
+          contactEmail: profileResponse.profile.personalInfo?.contactEmail || '',
+          telephone: profileResponse.profile.personalInfo?.telephone || ''
         });
       }
     } catch (err: any) {
@@ -378,65 +453,313 @@ export default function ProfilePage() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    let file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !userProfile) return;
 
-    // Handle HEIC/HEIF files
-    if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
-      try {
-        toast.info('Converting HEIC image...');
-        const heic2any = (await import('heic2any')).default;
-        const convertedBlob = await heic2any({
-          blob: file,
-          toType: 'image/jpeg',
-          quality: 0.8
-        });
-
-        // heic2any can return an array if multiple images, but we only handle one
-        const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
-        file = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
-        toast.success('Image converted successfully');
-      } catch (error) {
-        console.error('HEIC conversion failed:', error);
-        toast.error('Failed to process HEIC image. Please try a different format.');
-        return;
-      }
+    // Check if already at max profile images
+    const currentImages = userProfile.profileImages || [];
+    if (currentImages.length >= 5) {
+      toast.error('Maximum 5 profile pictures allowed. Remove one to add more.');
+      return;
     }
 
-    const reader = new FileReader();
-    reader.addEventListener('load', () => {
-      setCropperImageSrc(reader.result?.toString() || '');
-      setShowCropper(true);
-    });
-    reader.readAsDataURL(file);
-    // Reset input so same file can be selected again
-    e.target.value = '';
+    const remainingSlots = 5 - currentImages.length;
+    const filesToProcess = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      toast.warning(`Only ${remainingSlots} more photos can be added. Skipping the rest.`);
+    }
+
+    const processedFiles: File[] = [];
+
+    setIsSaving(true);
+    try {
+      for (let file of filesToProcess) {
+        // Handle HEIC/HEIF files
+        if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+          try {
+            toast.info(`Converting "${file.name}"...`);
+            const heic2any = (await import('heic2any')).default;
+            const convertedBlob = await heic2any({
+              blob: file,
+              toType: 'image/jpeg',
+              quality: 0.8
+            });
+            const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+            file = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+          } catch (error) {
+            console.error('HEIC conversion failed:', error);
+            toast.error(`Failed to process "${file.name}".`);
+            continue;
+          }
+        }
+        processedFiles.push(file);
+      }
+
+      if (processedFiles.length > 0) {
+        setCroppingMode('profile');
+        setPhotoQueue(processedFiles);
+        // Start cropping the first one
+        const reader = new FileReader();
+        reader.addEventListener('load', () => {
+          setCropperImageSrc(reader.result?.toString() || '');
+          setShowCropper(true);
+        });
+        reader.readAsDataURL(processedFiles[0]);
+      }
+    } finally {
+      setIsSaving(false);
+      e.target.value = '';
+    }
   };
 
   const handleCropSave = async (croppedBlob: Blob) => {
     if (!userProfile) return;
 
-    // Create a File object from the Blob
-    const fileKey = 'avatar.jpg';
-    const file = new File([croppedBlob], fileKey, { type: 'image/jpeg' });
+    const currentFile = photoQueue[0] || (croppingMode === 'banner' ? bannerQueue[0] : null);
+    const fileName = currentFile ? currentFile.name : (editingImageUrl ? 'edit.jpg' : (croppingMode === 'profile' ? 'avatar.jpg' : 'banner.jpg'));
+    const file = new File([croppedBlob], fileName, { type: 'image/jpeg' });
 
     try {
-      await apiClient.uploadAvatar(file);
+      setIsSaving(true);
+
+      let uploadedUrl: string;
+
+      if (croppingMode === 'profile') {
+        const result = await apiClient.uploadAvatar(file);
+        uploadedUrl = result.avatarUrl;
+
+        // Update profile images list
+        const currentImages = [...(userProfile.profileImages || [])];
+        if (editingImageUrl) {
+          const idx = currentImages.indexOf(editingImageUrl);
+          if (idx !== -1) {
+            currentImages[idx] = uploadedUrl;
+            await apiClient.updateProfileImages(currentImages);
+          }
+        } else if (!currentImages.includes(uploadedUrl)) {
+          currentImages.push(uploadedUrl);
+          await apiClient.updateProfileImages(currentImages);
+        }
+      } else {
+        const result = await apiClient.uploadBanner(file);
+        uploadedUrl = result.bannerUrl;
+
+        // Update banner images list
+        const currentBanners = [...(userProfile.bannerImages || [])];
+        if (editingImageUrl) {
+          const idx = currentBanners.indexOf(editingImageUrl);
+          if (idx !== -1) {
+            currentBanners[idx] = uploadedUrl;
+            await apiClient.updateBannerImages(currentBanners);
+          }
+        } else if (!currentBanners.includes(uploadedUrl)) {
+          currentBanners.push(uploadedUrl);
+          await apiClient.updateBannerImages(currentBanners);
+        }
+      }
+
       await loadProfile();
-      await refreshAuth();
-      setShowCropper(false);
-      setCropperImageSrc('');
-      toast.success('Profile picture updated!');
+      if (croppingMode === 'profile') {
+        await refreshAuth();
+      }
+
+      // Handle queue if any
+      if (editingImageUrl) {
+        // We were editing a single existing image
+        setShowCropper(false);
+        setCropperImageSrc('');
+        setEditingImageUrl(null);
+        toast.success(`Image updated successfully!`);
+      } else {
+        // Multi-upload queue logic
+        if (croppingMode === 'profile') {
+          const nextQueue = photoQueue.slice(1);
+          setPhotoQueue(nextQueue);
+          if (nextQueue.length > 0) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              setCropperImageSrc(reader.result?.toString() || '');
+            };
+            reader.readAsDataURL(nextQueue[0]);
+            toast.info(`Photo added. ${nextQueue.length} more to crop...`);
+            return; // Exit and wait for next crop
+          }
+        } else {
+          const nextQueue = bannerQueue.slice(1);
+          setBannerQueue(nextQueue);
+          if (nextQueue.length > 0) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              setCropperImageSrc(reader.result?.toString() || '');
+            };
+            reader.readAsDataURL(nextQueue[0]);
+            toast.info(`Banner added. ${nextQueue.length} more to crop...`);
+            return; // Exit and wait for next crop
+          }
+        }
+
+        setShowCropper(false);
+        setCropperImageSrc('');
+        toast.success('All images saved to your profile!');
+      }
     } catch (err: any) {
       toast.error('Failed to upload image: ' + (err.message || 'Unknown error'));
       setShowCropper(false);
+      setPhotoQueue([]);
+      setBannerQueue([]);
+      setEditingImageUrl(null);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleEditExistingPhoto = () => {
-    if (userProfile?.profileImage) {
-      setCropperImageSrc(getImageUrl(userProfile.profileImage));
-      setShowCropper(true);
+  const handleProfileImagesOrderChange = async (newImages: string[]) => {
+    try {
+      await apiClient.updateProfileImages(newImages);
+      await loadProfile();
+      await refreshAuth();
+    } catch (err: any) {
+      toast.error('Failed to update photos order: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleRemoveProfileImage = async (index: number) => {
+    if (!userProfile?.profileImages) return;
+    try {
+      const newImages = [...userProfile.profileImages];
+      newImages.splice(index, 1);
+      await apiClient.updateProfileImages(newImages);
+      await loadProfile();
+      await refreshAuth();
+      toast.success('Photo removed');
+    } catch (err: any) {
+      toast.error('Failed to remove photo: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleBannerImagesOrderChange = async (newBanners: string[]) => {
+    try {
+      await apiClient.updateBannerImages(newBanners);
+      await loadProfile();
+    } catch (err: any) {
+      toast.error('Failed to update banners order: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleRemoveBannerImage = async (index: number) => {
+    if (!userProfile?.bannerImages) return;
+    try {
+      const newBanners = [...userProfile.bannerImages];
+      newBanners.splice(index, 1);
+      await apiClient.updateBannerImages(newBanners);
+      await loadProfile();
+      toast.success('Banner removed');
+    } catch (err: any) {
+      toast.error('Failed to remove banner: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleEditExistingPhoto = (url: string) => {
+    setCroppingMode('profile');
+    setEditingImageUrl(url);
+    setCropperImageSrc(getImageUrl(url));
+    setShowCropper(true);
+    setPhotoQueue([]);
+  };
+
+  const handleEditExistingBanner = (bannerUrl: string) => {
+    setCroppingMode('banner');
+    setEditingImageUrl(bannerUrl);
+    setCropperImageSrc(getImageUrl(bannerUrl));
+    setShowCropper(true);
+    setBannerQueue([]);
+  };
+
+  const scrollToProfilePictures = () => {
+    setIsEditing(true);
+    setTimeout(() => {
+      profilePicturesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
+  const scrollToBanners = () => {
+    setIsEditing(true);
+    setTimeout(() => {
+      bannersRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !userProfile) return;
+
+    // Check if already at max banners
+    const currentBanners = userProfile.bannerImages || [];
+    if (currentBanners.length >= 5) {
+      toast.error('Maximum 5 banner images allowed. Remove one to add more.');
+      return;
+    }
+
+    const remainingSlots = 5 - currentBanners.length;
+    const filesToProcess = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      toast.warning(`Only ${remainingSlots} more banners can be added. Skipping the rest.`);
+    }
+
+    const processedFiles: File[] = [];
+
+    setIsSaving(true);
+    try {
+      for (let file of filesToProcess) {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          toast.error(`"${file.name}" is not an image file.`);
+          continue;
+        }
+
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`"${file.name}" is too large (max 10MB).`);
+          continue;
+        }
+
+        // Handle HEIC/HEIF files
+        if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+          try {
+            toast.info(`Converting "${file.name}"...`);
+            const heic2any = (await import('heic2any')).default;
+            const convertedBlob = await heic2any({
+              blob: file,
+              toType: 'image/jpeg',
+              quality: 0.8
+            });
+            const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+            file = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+          } catch (error) {
+            console.error('HEIC conversion failed:', error);
+            toast.error(`Failed to process "${file.name}".`);
+            continue;
+          }
+        }
+        processedFiles.push(file);
+      }
+
+      if (processedFiles.length > 0) {
+        setCroppingMode('banner');
+        setBannerQueue(processedFiles);
+        // Start cropping the first one
+        const reader = new FileReader();
+        reader.addEventListener('load', () => {
+          setCropperImageSrc(reader.result?.toString() || '');
+          setShowCropper(true);
+        });
+        reader.readAsDataURL(processedFiles[0]);
+      }
+    } finally {
+      setIsSaving(false);
+      e.target.value = '';
     }
   };
 
@@ -454,15 +777,64 @@ export default function ProfilePage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Profile Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          {userProfile.bannerImage && (
-            <div className="relative -m-6 mb-6 h-32 bg-gradient-to-r from-[#00132d] to-[#1e3a5f] rounded-t-lg overflow-hidden">
-              <img
-                src={userProfile.bannerImage}
-                alt="Profile banner"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
+          {/* Banner Section - Slideshow with animation like brands/stores */}
+          <div className="relative -m-6 mb-6 h-48 md:h-64 bg-gradient-to-r from-[#00132d] to-[#1e3a5f] rounded-t-lg overflow-hidden group">
+            {(() => {
+              const banners = userProfile.bannerImages || [];
+              const currentBanner = banners[currentBannerIndex] || userProfile.bannerImage;
+
+              if (currentBanner) {
+                return (
+                  <>
+                    {/* Current Banner with fade transition */}
+                    <div
+                      key={currentBannerIndex}
+                      className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
+                      style={{
+                        backgroundImage: `url(${getImageUrl(currentBanner)})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                      }}
+                    />
+
+                    {/* Dot Indicators - only show if multiple banners */}
+                    {banners.length > 1 && (
+                      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-10">
+                        {banners.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentBannerIndex(idx)}
+                            className={`w-2 h-2 rounded-full transition-all ${idx === currentBannerIndex
+                              ? 'bg-white w-4'
+                              : 'bg-white/50 hover:bg-white/80'
+                              }`}
+                            aria-label={`Go to slide ${idx + 1}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              } else {
+                return (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-white/50 text-sm">Hover to add banner images</span>
+                  </div>
+                );
+              }
+            })()}
+
+            {/* Banner Edit/Upload Button */}
+            <button
+              onClick={scrollToBanners}
+              className="absolute top-3 right-3 bg-white/90 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-white transition-colors shadow-lg cursor-pointer flex items-center gap-2 opacity-0 group-hover:opacity-100 z-20"
+            >
+              <CameraIcon className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                Add Banners
+              </span>
+            </button>
+          </div>
 
           <div className="flex items-start space-x-6">
             {/* Avatar */}
@@ -480,15 +852,12 @@ export default function ProfilePage() {
                   </span>
                 </div>
               )}
-              <label className="absolute bottom-0 right-0 bg-[#00132d] text-[#fff7d7] p-2 rounded-full hover:bg-[#00132d]/90 transition-colors shadow-lg cursor-pointer">
+              <button
+                onClick={scrollToProfilePictures}
+                className="absolute bottom-0 right-0 bg-[#00132d] text-[#fff7d7] p-2 rounded-full hover:bg-[#00132d]/90 transition-colors shadow-lg cursor-pointer"
+              >
                 <CameraIcon className="h-4 w-4" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </label>
+              </button>
 
               {/* Edit Existing Button */}
               {userProfile.profileImage && (
@@ -1017,6 +1386,54 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
+                  {/* Multi-Photo Management */}
+                  <div className="mt-8 pt-6 border-t border-gray-100" ref={profilePicturesRef}>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+                      <UserIcon className="h-4 w-4" /> Profile Pictures (Max 5)
+                    </h3>
+                    <SortableImageGrid
+                      images={userProfile.profileImages || []}
+                      onOrderChange={handleProfileImagesOrderChange}
+                      onRemoveImage={handleRemoveProfileImage}
+                      onEditImage={(url) => handleEditExistingPhoto(url)}
+                      onAddImage={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.multiple = true;
+                        input.onchange = (e) => handleImageUpload(e as any);
+                        input.click();
+                      }}
+                      maxImages={5}
+                      columns={5}
+                      helperText="Drag and drop to reorder. The first photo is your main profile picture."
+                    />
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-gray-100" ref={bannersRef}>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-4 uppercase tracking-wider flex items-center gap-2">
+                      <BuildingStorefrontIcon className="h-4 w-4" /> Profile Banners (Max 5)
+                    </h3>
+                    <SortableImageGrid
+                      images={userProfile.bannerImages || []}
+                      onOrderChange={handleBannerImagesOrderChange}
+                      onRemoveImage={handleRemoveBannerImage}
+                      onEditImage={(url) => handleEditExistingBanner(url)}
+                      onAddImage={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.multiple = true;
+                        input.onchange = (e) => handleBannerUpload(e as any);
+                        input.click();
+                      }}
+                      maxImages={5}
+                      columns={3}
+                      aspectRatio="aspect-[4/1]"
+                      helperText="Drag and drop to reorder. The first banner is the main one in your profile."
+                    />
+                  </div>
+
                   <div className="flex space-x-2 pt-4">
                     <button
                       onClick={handleSaveProfile}
@@ -1059,14 +1476,22 @@ export default function ProfilePage() {
 
                   {/* Roles Display */}
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {userProfile.roles && userProfile.roles.map((roleId) => {
-                      const role = AVAILABLE_ROLES.find(r => r.id === roleId) || { label: roleId };
-                      return (
-                        <span key={roleId} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full border border-gray-200 font-medium">
-                          {role.label}
-                        </span>
-                      );
-                    })}
+                    {userProfile.roles && userProfile.roles
+                      .filter(roleId => !['consumer', 'common_user', 'admin'].includes(roleId))
+                      .map((roleId) => {
+                        const role = AVAILABLE_ROLES.find(r => r.id === roleId) || { label: roleId };
+                        return (
+                          <span key={roleId} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full border border-gray-200 font-medium">
+                            {role.label}
+                          </span>
+                        );
+                      })}
+                    {/* Admin badge - shown separately with special styling */}
+                    {userProfile.roles?.includes('admin') && (
+                      <span className="px-2 py-0.5 bg-gray-900 text-white text-xs rounded font-bold">
+                        ADMIN
+                      </span>
+                    )}
                   </div>
 
                   {/* Contact Info Display */}
@@ -1103,8 +1528,6 @@ export default function ProfilePage() {
                           // Display date using UTC parts to avoid timezone shift
                           return `${d.getUTCDate().toString().padStart(2, '0')}/${(d.getUTCMonth() + 1).toString().padStart(2, '0')}/${d.getUTCFullYear()}`;
                         })() : 'unknown'}
-                        <span className="mx-2">|</span>
-                        CPF: {userProfile.cpf ? userProfile.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.***-$4') : 'unknown'}
                         {/* Display location based on privacy settings */}
                         {(userProfile.privacySettings?.city || userProfile.privacySettings?.state || userProfile.privacySettings?.country) && userProfile.personalInfo?.location && (
                           <>
@@ -1116,16 +1539,18 @@ export default function ProfilePage() {
                             ].filter(Boolean).join(', ')}
                           </>
                         )}
-                        {/* Gender Display */}
-                        {userProfile.privacySettings?.gender && userProfile.personalInfo?.gender && (
-                          <>
-                            <span className="mx-2">|</span>
-                            {userProfile.personalInfo.gender === 'male' ? 'Masculino' :
-                              userProfile.personalInfo.gender === 'female' ? 'Feminino' :
-                                userProfile.personalInfo.gender === 'other' ? (userProfile.personalInfo.genderOther || 'Other') :
-                                  'Prefer not to say'}
-                          </>
-                        )}
+                        {/* Gender Display - Only show for male/female with icons */}
+                        {userProfile.privacySettings?.gender && userProfile.personalInfo?.gender &&
+                          (userProfile.personalInfo.gender === 'male' || userProfile.personalInfo.gender === 'female') && (
+                            <>
+                              <span className="mx-2">|</span>
+                              {userProfile.personalInfo.gender === 'male' ? (
+                                <span className="text-blue-500 font-medium">♂</span>
+                              ) : (
+                                <span className="text-pink-500 font-medium">♀</span>
+                              )}
+                            </>
+                          )}
                       </span>
                     </div>
 
@@ -1164,21 +1589,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div
-            onClick={() => setActiveTab('wardrobe')}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors"
-          >
-            <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.wardrobeItems}</div>
-            <div className="text-sm text-gray-600">Wardrobe Items</div>
-          </div>
-          <div
-            onClick={() => setActiveTab('outfits')}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors"
-          >
-            <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.outfitsCreated}</div>
-            <div className="text-sm text-gray-600">Outfits Created</div>
-          </div>
+        <div className={`grid grid-cols-1 md:grid-cols-${(userProfile.stats.pendingFollowRequests || 0) > 0 ? '3' : '2'} gap-6 mb-6`}>
           <Link href="/profile/followers" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors block">
             <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.followers}</div>
             <div className="text-sm text-gray-600">Followers</div>
@@ -1187,14 +1598,103 @@ export default function ProfilePage() {
             <div className="text-2xl font-bold text-[#00132d] mb-1">{userProfile.stats.following}</div>
             <div className="text-sm text-gray-600">Following</div>
           </Link>
+          {(userProfile.stats.pendingFollowRequests || 0) > 0 && (
+            <Link href="/profile/follow-requests" className="bg-white rounded-lg shadow-sm border-2 border-primary p-6 cursor-pointer hover:bg-primary/5 transition-colors block animate-pulse-subtle">
+              <div className="text-2xl font-bold text-primary mb-1">{userProfile.stats.pendingFollowRequests}</div>
+              <div className="text-sm text-primary font-medium">Follow Requests</div>
+            </Link>
+          )}
         </div>
+
+        {/* Linked Entities Section */}
+        {linkedEntities.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Linked Entities</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {linkedEntities.map((entity) => {
+                const displayRoles = entity.isOwner
+                  ? ['Owner', ...entity.roles.filter(r => r !== 'Owner')]
+                  : entity.roles;
+
+                const businessTypeLabels: Record<string, string> = {
+                  brand: 'Brand',
+                  store: 'Store',
+                  non_profit: 'Non-Profit',
+                  designer: 'Designer',
+                  manufacturer: 'Manufacturer',
+                  page: 'Page',
+                  supplier: 'Supplier'
+                };
+
+                return (
+                  <Link
+                    key={entity.brandId}
+                    href={`/${entity.businessType === 'store' ? 'stores' : entity.businessType === 'supplier' ? 'suppliers' : 'brands'}/${entity.brandSlug || entity.brandId}`}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:border-[#00132d] transition-colors flex items-start gap-4"
+                  >
+                    {/* Entity Logo */}
+                    <div className="flex-shrink-0">
+                      {entity.brandLogo ? (
+                        <img
+                          src={getImageUrl(entity.brandLogo)}
+                          alt={entity.brandName}
+                          className="w-14 h-14 rounded-lg object-cover border border-gray-100"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-[#00132d] to-[#1e3a5f] flex items-center justify-center">
+                          <span className="text-[#fff7d7] text-xl font-bold">
+                            {entity.brandName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Entity Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-gray-900 truncate">{entity.brandName}</h4>
+                        <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                          {businessTypeLabels[entity.businessType] || entity.businessType}
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {entity.followersCount.toLocaleString()} follower{entity.followersCount !== 1 ? 's' : ''}
+                      </p>
+
+                      {/* Roles - only show title if no roles are selected */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {displayRoles.length > 0 ? (
+                          displayRoles.map((role, idx) => (
+                            <span
+                              key={idx}
+                              className={`px-2 py-0.5 text-xs rounded-full font-medium ${role === 'Owner'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-blue-100 text-blue-800'
+                                }`}
+                            >
+                              {role}
+                            </span>
+                          ))
+                        ) : entity.title ? (
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700 font-medium">
+                            {entity.title}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="border-b border-gray-200">
             <nav className="flex space-x-8 px-6">
               {[
-                { id: 'overview', name: 'Overview' },
                 { id: 'wardrobe', name: 'Wardrobe' },
                 { id: 'outfits', name: 'Outfits' },
                 { id: 'activity', name: 'Activity' }
@@ -1215,74 +1715,6 @@ export default function ProfilePage() {
 
           {/* Tab Content */}
           <div className="p-6">
-            {activeTab === 'overview' && (
-              <div>
-                {userProfile.preferences && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Style Preferences</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Favorite Styles</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {userProfile.preferences.style.map((style) => (
-                            <span key={style} className="px-3 py-1 bg-[#fff7d7] text-[#00132d] rounded-full text-sm">
-                              {style}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Preferred Brands</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {userProfile.preferences.brands.map((brand) => (
-                            <span key={brand} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                              {brand}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Favorite Colors</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {userProfile.preferences.colors.map((color) => (
-                            <span key={color} className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm">
-                              {color}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Price Range</h4>
-                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                          ${userProfile.preferences.priceRange.min} - ${userProfile.preferences.priceRange.max}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="text-center py-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Your Fashion Journey</h3>
-                  <p className="text-gray-600 mb-6">
-                    Continue building your digital wardrobe and connect with the fashion community.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-[#fff7d7] p-4 rounded-lg">
-                      <h4 className="font-semibold text-[#00132d] mb-2">Add Items</h4>
-                      <p className="text-sm text-gray-600">You have {userProfile.stats.wardrobeItems} items cataloged</p>
-                    </div>
-                    <div className="bg-[#fff7d7] p-4 rounded-lg">
-                      <h4 className="font-semibold text-[#00132d] mb-2">Create Outfits</h4>
-                      <p className="text-sm text-gray-600">Mix and match your items</p>
-                    </div>
-                    <div className="bg-[#fff7d7] p-4 rounded-lg">
-                      <h4 className="font-semibold text-[#00132d] mb-2">Share Style</h4>
-                      <p className="text-sm text-gray-600">{userProfile.stats.followers} followers</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {activeTab === 'wardrobe' && (
               <div>
@@ -1292,16 +1724,52 @@ export default function ProfilePage() {
                     View All →
                   </a>
                 </div>
-                <div className="text-center py-8">
-                  <p className="text-gray-600">Wardrobe items will be displayed here.</p>
-                  <Button onClick={() => window.location.href = '/wardrobe'} className="mt-4">
-                    Go to Wardrobe
-                  </Button>
-                </div>
+                {wardrobeLoading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00132d] mx-auto"></div>
+                    <p className="text-gray-500 mt-3">Loading items...</p>
+                  </div>
+                ) : wardrobeItems.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">No wardrobe items yet.</p>
+                    <Button onClick={() => window.location.href = '/wardrobe/add'} className="mt-4">
+                      Add Your First Item
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {wardrobeItems.slice(0, 6).map((item) => (
+                      <a
+                        key={item.id}
+                        href={`/wardrobe/${item.id}`}
+                        className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                      >
+                        <div className="aspect-square bg-gray-100 relative">
+                          {item.images?.[0] || item.imageUrl ? (
+                            <img
+                              src={getImageUrl(item.images?.[0]?.url || item.images?.[0] || item.imageUrl)}
+                              alt={item.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              <span className="text-4xl">👕</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <p className="font-medium text-gray-900 text-sm truncate">{typeof item.brand === 'string' ? item.brand : item.brand?.brand || 'Unknown Brand'}</p>
+                          <p className="text-gray-600 text-xs truncate">{item.name}</p>
+                          {item.size && <p className="text-gray-400 text-xs">Size: {item.size}</p>}
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {activeTab !== 'overview' && activeTab !== 'wardrobe' && (
+            {activeTab !== 'wardrobe' && (
               <div className="text-center py-12">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h3>
                 <p className="text-gray-600">This section is currently being developed.</p>
@@ -1313,10 +1781,15 @@ export default function ProfilePage() {
 
       {showCropper && (
         <ImageCropper
+          key={cropperImageSrc}
           imageSrc={cropperImageSrc}
+          aspectRatio={croppingMode === 'profile' ? 1 : 4} // 4:1 for banner
+          cropShape={croppingMode === 'profile' ? 'round' : 'rect'}
           onCancel={() => {
             setShowCropper(false);
             setCropperImageSrc('');
+            setPhotoQueue([]);
+            setBannerQueue([]);
           }}
           onCropComplete={handleCropSave}
         />

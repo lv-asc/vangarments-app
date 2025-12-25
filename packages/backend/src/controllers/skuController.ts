@@ -18,20 +18,56 @@ export class SKUController {
             const { brandId } = req.params;
             const { name, code, collection, line, category, description, materials, images, metadata } = req.body;
 
-            // Verify brand ownership
-            const brand = await BrandAccountModel.findById(brandId);
+            let targetBrandId = brandId;
+            let brand = await BrandAccountModel.findById(brandId);
+            const isAdmin = req.user.roles && req.user.roles.includes('admin');
+
+            // Logic to handle Global/VUFS Brands (Admin Only)
+            // If Brand Account not found by ID, but user is admin, check if it's a VUFS Brand
+            console.log('[SKUController] createSKU - brandId:', brandId, 'isAdmin:', isAdmin, 'brand found:', !!brand);
+            if (!brand && isAdmin) {
+                // Check if ID exists in vufs_brands
+                console.log('[SKUController] Checking vufs_brands for ID:', brandId);
+                const vufsRes = await db.query('SELECT name FROM vufs_brands WHERE id = $1', [brandId]);
+                console.log('[SKUController] vufs_brands result:', vufsRes.rows);
+
+                if (vufsRes.rows.length > 0) {
+                    const vufsBrandName = vufsRes.rows[0].name;
+
+                    // Try to find existing Brand Account by Name
+                    brand = await BrandAccountModel.findBySlugOrId(vufsBrandName);
+
+                    if (brand) {
+                        targetBrandId = brand.id;
+                    } else {
+                        // Create new Brand Account for this VUFS Brand
+                        brand = await BrandAccountModel.create({
+                            userId: req.user.userId,
+                            brandInfo: {
+                                name: vufsBrandName,
+                                businessType: 'brand',
+                                description: `Official ${vufsBrandName} brand account`
+                            },
+                            partnershipTier: 'basic'
+                        });
+                        targetBrandId = brand.id;
+                    }
+                }
+            }
+
             if (!brand) {
                 res.status(404).json({ error: 'Brand not found' });
                 return;
             }
 
-            if (brand.userId !== req.user.userId) {
+            // Check permissions
+            if (!isAdmin && brand.userId !== req.user.userId) {
                 res.status(403).json({ error: 'You do not have permission to manage this brand' });
                 return;
             }
 
             const sku = await SKUItemModel.create({
-                brandId,
+                brandId: targetBrandId,
                 name,
                 code,
                 collection,
@@ -235,9 +271,10 @@ export class SKUController {
                 return;
             }
 
-            // Verify brand ownership
+            // Verify brand ownership or admin
+            const isAdmin = req.user.roles && req.user.roles.includes('admin');
             const brand = await BrandAccountModel.findById(currentSku.brandId);
-            if (brand?.userId !== req.user.userId) {
+            if (!isAdmin && brand?.userId !== req.user.userId) {
                 res.status(403).json({ error: 'You do not have permission to delete this SKU' });
                 return;
             }
@@ -333,6 +370,99 @@ export class SKUController {
 
         } catch (error) {
             console.error('Search SKUs error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    /**
+     * Get deleted SKUs (trash) - Admin only
+     */
+    static async getDeletedSKUs(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            if (!req.user?.roles?.includes('admin')) {
+                res.status(403).json({ error: 'Admin access required' });
+                return;
+            }
+
+            const { search, brandId, page = 1, limit = 50 } = req.query;
+            const offset = (Number(page) - 1) * Number(limit);
+
+            const result = await SKUItemModel.findDeleted(
+                { brandId: brandId as string, search: search as string },
+                Number(limit),
+                offset
+            );
+
+            res.json({
+                skus: result.skus,
+                total: result.total,
+                page: Number(page),
+                totalPages: Math.ceil(result.total / Number(limit))
+            });
+        } catch (error) {
+            console.error('Get deleted SKUs error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    /**
+     * Restore a deleted SKU - Admin only
+     */
+    static async restoreSKU(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            if (!req.user?.roles?.includes('admin')) {
+                res.status(403).json({ error: 'Admin access required' });
+                return;
+            }
+
+            const { id } = req.params;
+            const sku = await SKUItemModel.findByIdIncludeDeleted(id);
+
+            if (!sku) {
+                res.status(404).json({ error: 'SKU not found' });
+                return;
+            }
+
+            if (!sku.deletedAt) {
+                res.status(400).json({ error: 'SKU is not deleted' });
+                return;
+            }
+
+            await SKUItemModel.restore(id);
+            res.json({ message: 'SKU restored successfully' });
+        } catch (error) {
+            console.error('Restore SKU error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    /**
+     * Permanently delete a SKU - Admin only
+     */
+    static async permanentDeleteSKU(req: AuthenticatedRequest, res: Response): Promise<void> {
+        try {
+            if (!req.user?.roles?.includes('admin')) {
+                res.status(403).json({ error: 'Admin access required' });
+                return;
+            }
+
+            const { id } = req.params;
+            const sku = await SKUItemModel.findByIdIncludeDeleted(id);
+
+            if (!sku) {
+                res.status(404).json({ error: 'SKU not found' });
+                return;
+            }
+
+            if (!sku.deletedAt) {
+                res.status(400).json({ error: 'SKU must be in trash before permanent deletion' });
+                return;
+            }
+
+            await SKUItemModel.permanentDelete(id);
+            res.json({ message: 'SKU permanently deleted' });
+        } catch (error) {
+            console.error('Permanent delete SKU error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }

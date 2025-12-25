@@ -10,6 +10,9 @@ export interface IPage {
     instagramUrl?: string;
     twitterUrl?: string;
     facebookUrl?: string;
+    foundedBy?: string;
+    foundedDate?: string;
+    foundedDatePrecision?: 'year' | 'month' | 'day';
     isVerified: boolean;
     isActive: boolean;
     createdAt: string;
@@ -25,6 +28,9 @@ export interface ICreatePageData {
     instagramUrl?: string;
     twitterUrl?: string;
     facebookUrl?: string;
+    foundedBy?: string;
+    foundedDate?: string;
+    foundedDatePrecision?: 'year' | 'month' | 'day';
     isVerified?: boolean;
     isActive?: boolean;
 }

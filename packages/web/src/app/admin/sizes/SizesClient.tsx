@@ -306,7 +306,7 @@ export default function AdminSizesPage() {
     const [sizeForm, setSizeForm] = useState({
         name: '',
         conversions: [] as SizeConversion[],
-        selectedCategoryIds: [] as number[]
+        selectedCategoryIds: [] as string[]
     });
 
     // Standard Modal State
@@ -370,7 +370,7 @@ export default function AdminSizesPage() {
             setSizeForm({
                 name: size.name,
                 conversions: size.conversions || [],
-                selectedCategoryIds: size.validCategoryIds || []
+                selectedCategoryIds: (size.validCategoryIds || []).map(id => String(id))
             });
         } else {
             setEditingSize(null);
@@ -384,7 +384,7 @@ export default function AdminSizesPage() {
             const payload: any = {
                 name: sizeForm.name,
                 conversions: sizeForm.conversions.filter(c => c.standard && c.value),
-                validCategoryIds: sizeForm.selectedCategoryIds
+                validCategoryIds: sizeForm.selectedCategoryIds.map(id => Number(id)).filter(id => !isNaN(id))
             };
 
             if (editingSize) {
@@ -543,8 +543,8 @@ export default function AdminSizesPage() {
         setSizeForm(prev => ({ ...prev, conversions: prev.conversions.filter((_, i) => i !== index) }));
     };
 
-    const toggleCategorySelection = (catIdStr: string) => {
-        const catId = parseInt(catIdStr);
+    const toggleCategorySelection = (catId: string) => {
+        if (!catId) return;
         setSizeForm(prev => ({
             ...prev,
             selectedCategoryIds: prev.selectedCategoryIds.includes(catId)
@@ -746,11 +746,12 @@ export default function AdminSizesPage() {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Valid Categories</label>
                                 <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border p-2 rounded">
                                     {categories.map(cat => (
-                                        <label key={cat.id} className="flex items-center space-x-2 text-sm">
+                                        <label key={cat.id} className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-gray-50 p-1 rounded">
                                             <input
                                                 type="checkbox"
-                                                checked={sizeForm.selectedCategoryIds.includes(parseInt(cat.id))}
+                                                checked={sizeForm.selectedCategoryIds.includes(cat.id)}
                                                 onChange={() => toggleCategorySelection(cat.id)}
+                                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                                             />
                                             <span>{cat.name}</span>
                                         </label>

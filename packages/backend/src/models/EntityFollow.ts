@@ -114,27 +114,43 @@ export class EntityFollowModel {
         followerId: string,
         entityType?: EntityType,
         limit = 50,
-        offset = 0
-    ): Promise<{ entities: EntityFollow[]; total: number }> {
+        offset = 0,
+        search?: string
+    ): Promise<{ entities: any[]; total: number }> {
         let query = `
-            SELECT *, COUNT(*) OVER() as total
-            FROM entity_follows
-            WHERE follower_id = $1
+            SELECT ef.*, 
+                   ba.brand_info->>'name' as entity_name,
+                   ba.brand_info->>'logo' as entity_logo,
+                   ba.brand_info->>'slug' as entity_slug,
+                   COUNT(*) OVER() as total
+            FROM entity_follows ef
+            LEFT JOIN brand_accounts ba ON ef.entity_id = ba.id
+            WHERE ef.follower_id = $1
         `;
         const params: any[] = [followerId];
 
         if (entityType) {
-            query += ` AND entity_type = $2`;
+            query += ` AND ef.entity_type = $2`;
             params.push(entityType);
         }
 
-        query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        if (search) {
+            query += ` AND (ba.brand_info->>'name') ILIKE $${params.length + 1}`;
+            params.push(`%${search}%`);
+        }
+
+        query += ` ORDER BY ef.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
         params.push(limit, offset);
 
         const result = await db.query(query, params);
 
         return {
-            entities: result.rows.map(row => this.mapRowToEntityFollow(row)),
+            entities: result.rows.map(row => ({
+                ...this.mapRowToEntityFollow(row),
+                entityName: row.entity_name,
+                entityLogo: row.entity_logo,
+                entitySlug: row.entity_slug,
+            })),
             total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
         };
     }
@@ -149,6 +165,19 @@ export class EntityFollowModel {
             WHERE entity_type = $1 AND entity_id = $2
         `;
         const result = await db.query(query, [entityType, entityId]);
+        return result.rows[0].count;
+    }
+
+    /**
+     * Get count of entities a user is following
+     */
+    static async getFollowingCount(followerId: string): Promise<number> {
+        const query = `
+            SELECT COUNT(*)::int as count 
+            FROM entity_follows 
+            WHERE follower_id = $1
+        `;
+        const result = await db.query(query, [followerId]);
         return result.rows[0].count;
     }
 

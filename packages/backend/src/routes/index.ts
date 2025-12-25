@@ -37,6 +37,9 @@ import pageRoutes from './pageRoutes';
 import storeRoutes from './stores';
 import supplierRoutes from './suppliers';
 import messagesRoutes from './messages';
+import designFileRoutes from './designFileRoutes';
+import moodboardRoutes from './moodboardRoutes';
+import mockupRoutes from './mockupRoutes';
 
 const router = Router();
 
@@ -77,6 +80,9 @@ router.use('/pages', pageRoutes);
 router.use('/stores', storeRoutes);
 router.use('/suppliers', supplierRoutes);
 router.use('/messages', messagesRoutes); // Direct messaging routes
+router.use('/design-files', designFileRoutes); // Phase 1: Creative & Design
+router.use('/moodboards', moodboardRoutes); // Phase 1: Moodboard system
+router.use('/mockups', mockupRoutes); // Phase 1: Mockup templates
 
 // Health check for API
 router.get('/health', (req, res) => {

@@ -45,11 +45,13 @@ router.put('/reorder', AuthUtils.authenticateToken, AuthUtils.requireRole(['admi
 router.put('/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), async (req, res) => {
     try {
         const { name, sortOrder, conversions, validCategoryIds } = req.body;
+        console.log('[Sizes Route] Updating size:', req.params.id, { name, sortOrder, conversions, validCategoryIds });
         const size = await SizeModel.update(req.params.id, name, sortOrder, conversions, validCategoryIds);
         if (!size) return res.status(404).json({ error: 'Size not found' });
         res.json(size);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to update size' });
+    } catch (error: any) {
+        console.error('[Sizes Route] Update error:', error.message, error.stack);
+        res.status(500).json({ error: 'Failed to update size', details: error.message });
     }
 });
 

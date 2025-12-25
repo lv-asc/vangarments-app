@@ -115,6 +115,29 @@ export class BrandCollectionModel {
         return result.rows.map(row => this.mapRowToCollection(row));
     }
 
+    /**
+     * Find collections by VUFS brand ID
+     * Looks up brand_accounts that are linked to the given VUFS brand and returns their collections
+     */
+    static async findByVufsBrandId(vufsBrandId: string, publishedOnly = false): Promise<BrandCollection[]> {
+        let query = `
+      SELECT bc.*, 
+             (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
+      FROM brand_collections bc
+      JOIN brand_accounts ba ON bc.brand_id = ba.id
+      WHERE ba.vufs_brand_id = $1
+    `;
+
+        if (publishedOnly) {
+            query += ' AND bc.is_published = true';
+        }
+
+        query += ' ORDER BY bc.year DESC NULLS LAST, bc.created_at DESC';
+
+        const result = await db.query(query, [vufsBrandId]);
+        return result.rows.map(row => this.mapRowToCollection(row));
+    }
+
     static async update(id: string, updates: UpdateCollectionData): Promise<BrandCollection | null> {
         const setClauses: string[] = [];
         const values: any[] = [];

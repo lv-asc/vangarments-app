@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { PlusIcon, TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { pageApi, IPage } from '@/lib/pageApi';
+import FoundationDateInput from '@/components/ui/FoundationDateInput';
 
 export default function AdminPagesPage() {
     const [items, setItems] = useState<IPage[]>([]);
@@ -21,6 +22,9 @@ export default function AdminPagesPage() {
         instagramUrl: '',
         twitterUrl: '',
         facebookUrl: '',
+        foundedBy: '',
+        foundedDate: '',
+        foundedDatePrecision: 'year' as 'year' | 'month' | 'day',
         isVerified: false,
         isActive: true
     });
@@ -80,6 +84,9 @@ export default function AdminPagesPage() {
                 instagramUrl: item.instagramUrl || '',
                 twitterUrl: item.twitterUrl || '',
                 facebookUrl: item.facebookUrl || '',
+                foundedBy: item.foundedBy || '',
+                foundedDate: item.foundedDate || '',
+                foundedDatePrecision: item.foundedDatePrecision || 'year',
                 isVerified: item.isVerified,
                 isActive: item.isActive
             });
@@ -94,6 +101,9 @@ export default function AdminPagesPage() {
                 instagramUrl: '',
                 twitterUrl: '',
                 facebookUrl: '',
+                foundedBy: '',
+                foundedDate: '',
+                foundedDatePrecision: 'year',
                 isVerified: false,
                 isActive: true
             });
@@ -113,6 +123,9 @@ export default function AdminPagesPage() {
             instagramUrl: '',
             twitterUrl: '',
             facebookUrl: '',
+            foundedBy: '',
+            foundedDate: '',
+            foundedDatePrecision: 'year',
             isVerified: false,
             isActive: true
         });
@@ -299,6 +312,27 @@ export default function AdminPagesPage() {
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                         placeholder="https://..."
                                     />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Founded by</label>
+                                        <input
+                                            type="text"
+                                            value={formData.foundedBy}
+                                            onChange={e => setFormData({ ...formData, foundedBy: e.target.value })}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            placeholder="e.g., John Smith"
+                                        />
+                                    </div>
+                                    <div>
+                                        <FoundationDateInput
+                                            value={formData.foundedDate}
+                                            precision={formData.foundedDatePrecision}
+                                            onChange={(date, precision) => setFormData({ ...formData, foundedDate: date, foundedDatePrecision: precision })}
+                                            label="Date of Foundation"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="border-t border-gray-200 pt-4 mt-4">

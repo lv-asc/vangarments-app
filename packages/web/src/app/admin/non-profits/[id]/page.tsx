@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { ArrowLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
+import CountrySelector from '@/components/ui/CountrySelector';
 import { CheckIcon } from '@heroicons/react/20/solid';
 import { formatPhone } from '@/lib/masks';
 
@@ -58,6 +59,13 @@ export default function AdminEditNonProfitPage() {
             loadBrand();
         }
     }, [user, authLoading, router, brandId]);
+
+    // Update document title when brand is loaded
+    useEffect(() => {
+        if (brand?.brandInfo?.name) {
+            document.title = `Admin - Non-Profit @${brand.brandInfo.name}`;
+        }
+    }, [brand]);
 
     const loadBrand = async () => {
         try {
@@ -403,22 +411,11 @@ export default function AdminEditNonProfitPage() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Country</label>
-                                <div className="mt-1 relative">
-                                    <select
-                                        name="country"
-                                        value={formData.country}
-                                        onChange={handleChange}
-                                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-                                    >
-                                        <option value="">Select a country</option>
-                                        {COUNTRIES.map((c) => (
-                                            <option key={c.code} value={c.name}>
-                                                {c.flag} {c.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <CountrySelector
+                                    value={formData.country}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, country: val }))}
+                                    label="Country"
+                                />
                             </div>
 
                             <div>

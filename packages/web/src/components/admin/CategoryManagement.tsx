@@ -152,6 +152,8 @@ export default function CategoryManagement() {
     const [deleting, setDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+    const [descendantsToDelete, setDescendantsToDelete] = useState<{ id: string; name: string; type_slug: string; depth: number }[]>([]);
+    const [loadingDescendants, setLoadingDescendants] = useState(false);
 
     // Apparel Paths specific state
     const [selectedSub1ForFilter, setSelectedSub1ForFilter] = useState<string>('');
@@ -260,9 +262,19 @@ export default function CategoryManagement() {
         setFormData({ name: '', parentId: '' });
     };
 
-    const handleDeleteClick = (id: string) => {
+    const handleDeleteClick = async (id: string) => {
         setItemToDelete(id);
+        setLoadingDescendants(true);
         setShowDeleteConfirm(true);
+        try {
+            const descendants = await apiClient.getVUFSAttributeValueDescendants(id);
+            setDescendantsToDelete(descendants || []);
+        } catch (error) {
+            console.error('Failed to fetch descendants', error);
+            setDescendantsToDelete([]);
+        } finally {
+            setLoadingDescendants(false);
+        }
     };
 
     const handleConfirmDelete = async () => {
@@ -280,6 +292,7 @@ export default function CategoryManagement() {
             setDeleting(false);
             setShowDeleteConfirm(false);
             setItemToDelete(null);
+            setDescendantsToDelete([]);
         }
     };
 
@@ -339,7 +352,17 @@ export default function CategoryManagement() {
     const handleMoveToLevel = async (itemId: string, newLevel: string) => {
         toast.loading('Moving item...', { id: 'move-item' });
         try {
-            await apiClient.changeVUFSAttributeHierarchy(itemId, newLevel, null);
+            // Find item to get current parent
+            const allItems = [...subcategory1Values, ...subcategory2Values, ...subcategory3Values, ...apparelValues];
+            const item = allItems.find(i => i.id === itemId);
+            let newParentId = null;
+
+            if (item && newLevel === 'apparel') {
+                // If moving to apparel, preserve current parent (it's likely valid as Sub1, Sub2, or Sub3)
+                newParentId = item.parentId;
+            }
+
+            await apiClient.changeVUFSAttributeHierarchy(itemId, newLevel, newParentId);
             toast.success('Item moved successfully', { id: 'move-item' });
             await fetchData();
         } catch (error: any) {
@@ -715,27 +738,46 @@ export default function CategoryManagement() {
             {activeTab === 'apparel-paths' && hasApparel && (
                 <div className="space-y-6">
                     <div className="bg-white shadow rounded-lg p-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4">Apparel Paths</h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900">Apparel Paths</h2>
+                            <Button onClick={() => {
+                                handleCreateNew();
+                                const parentId = selectedSub3ForFilter || selectedSub2ForFilter || selectedSub1ForFilter || '';
+                                setFormData({ name: '', parentId });
+                            }}>
+                                <PlusIcon className="h-5 w-5 mr-2" />
+                                Add Apparel
+                            </Button>
+                        </div>
                         <p className="text-sm text-gray-500 mb-6">
-                            Navigate through the hierarchy: <strong>Subcategory 1</strong> → <strong>Subcategory 2</strong> → <strong>Subcategory 3</strong> → <strong>Apparel</strong>
+                            Navigate through the hierarchy. Apparel items can be added at any level (Subcategory 1, 2, or 3).
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {/* Column 1: Subcategory 1 */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-3 border-b">
+                            <div className="border rounded-lg overflow-hidden flex flex-col h-[450px]">
+                                <div className="bg-gray-50 px-4 py-3 border-b flex-shrink-0">
                                     <h3 className="text-sm font-semibold text-gray-700">Subcategory 1</h3>
                                 </div>
-                                <div className="max-h-[400px] overflow-y-auto">
+                                <div className="overflow-y-auto flex-1 bg-white">
                                     {subcategory1Values.map(item => (
                                         <div
                                             key={item.id}
-                                            onClick={() => { setSelectedSub1ForFilter(item.id); setSelectedSub2ForFilter(''); setSelectedSub3ForFilter(''); }}
+                                            onClick={() => {
+                                                setSelectedSub1ForFilter(item.id);
+                                                setSelectedSub2ForFilter('');
+                                                setSelectedSub3ForFilter('');
+                                                if (mode === 'create') {
+                                                    setFormData(prev => ({ ...prev, parentId: item.id }));
+                                                }
+                                            }}
                                             className={`cursor-pointer px-4 py-3 border-b border-gray-100 hover:bg-gray-50 flex items-center gap-2 ${selectedSub1ForFilter === item.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
                                         >
                                             <FolderIcon className="h-5 w-5 text-gray-400" />
                                             <span className="text-sm text-gray-700">{item.name}</span>
-                                            <span className="ml-auto text-xs text-gray-400">{getSub2ForSub1(item.id).length}</span>
+                                            <span className="ml-auto text-xs text-gray-400">
+                                                {getSub2ForSub1(item.id).length + apparelValues.filter(a => a.parentId === item.id).length}
+                                            </span>
                                         </div>
                                     ))}
                                     {subcategory1Values.length === 0 && (
@@ -745,28 +787,36 @@ export default function CategoryManagement() {
                             </div>
 
                             {/* Column 2: Subcategory 2 */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-3 border-b">
+                            <div className="border rounded-lg overflow-hidden flex flex-col h-[450px]">
+                                <div className="bg-gray-50 px-4 py-3 border-b flex-shrink-0">
                                     <h3 className="text-sm font-semibold text-gray-700">
                                         Subcategory 2
                                         {selectedSub1ForFilter && (
-                                            <span className="ml-2 text-xs text-blue-600">
+                                            <span className="ml-2 text-xs text-blue-600 block truncate">
                                                 in {getParentName(selectedSub1ForFilter, subcategory1Values)}
                                             </span>
                                         )}
                                     </h3>
                                 </div>
-                                <div className="max-h-[400px] overflow-y-auto">
+                                <div className="overflow-y-auto flex-1 bg-white">
                                     {selectedSub1ForFilter ? (
                                         getSub2ForSub1(selectedSub1ForFilter).map(item => (
                                             <div
                                                 key={item.id}
-                                                onClick={() => { setSelectedSub2ForFilter(item.id); setSelectedSub3ForFilter(''); }}
+                                                onClick={() => {
+                                                    setSelectedSub2ForFilter(item.id);
+                                                    setSelectedSub3ForFilter('');
+                                                    if (mode === 'create') {
+                                                        setFormData(prev => ({ ...prev, parentId: item.id }));
+                                                    }
+                                                }}
                                                 className={`cursor-pointer px-4 py-3 border-b border-gray-100 hover:bg-gray-50 flex items-center gap-2 ${selectedSub2ForFilter === item.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
                                             >
                                                 <FolderIcon className="h-5 w-5 text-gray-400" />
                                                 <span className="text-sm text-gray-700">{item.name}</span>
-                                                <span className="ml-auto text-xs text-gray-400">{getSub3ForSub2(item.id).length}</span>
+                                                <span className="ml-auto text-xs text-gray-400">
+                                                    {getSub3ForSub2(item.id).length + apparelValues.filter(a => a.parentId === item.id).length}
+                                                </span>
                                             </div>
                                         ))
                                     ) : (
@@ -778,28 +828,35 @@ export default function CategoryManagement() {
                             </div>
 
                             {/* Column 3: Subcategory 3 */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-3 border-b">
+                            <div className="border rounded-lg overflow-hidden flex flex-col h-[450px]">
+                                <div className="bg-gray-50 px-4 py-3 border-b flex-shrink-0">
                                     <h3 className="text-sm font-semibold text-gray-700">
                                         Subcategory 3
                                         {selectedSub2ForFilter && (
-                                            <span className="ml-2 text-xs text-blue-600">
+                                            <span className="ml-2 text-xs text-blue-600 block truncate">
                                                 in {getParentName(selectedSub2ForFilter, subcategory2Values)}
                                             </span>
                                         )}
                                     </h3>
                                 </div>
-                                <div className="max-h-[400px] overflow-y-auto">
+                                <div className="overflow-y-auto flex-1 bg-white">
                                     {selectedSub2ForFilter ? (
                                         getSub3ForSub2(selectedSub2ForFilter).map(item => (
                                             <div
                                                 key={item.id}
-                                                onClick={() => setSelectedSub3ForFilter(item.id)}
+                                                onClick={() => {
+                                                    setSelectedSub3ForFilter(item.id);
+                                                    if (mode === 'create') {
+                                                        setFormData(prev => ({ ...prev, parentId: item.id }));
+                                                    }
+                                                }}
                                                 className={`cursor-pointer px-4 py-3 border-b border-gray-100 hover:bg-gray-50 flex items-center gap-2 ${selectedSub3ForFilter === item.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
                                             >
                                                 <FolderIcon className="h-5 w-5 text-gray-400" />
                                                 <span className="text-sm text-gray-700">{item.name}</span>
-                                                <span className="ml-auto text-xs text-gray-400">{getApparelForSub3(item.id).length}</span>
+                                                <span className="ml-auto text-xs text-gray-400">
+                                                    {apparelValues.filter(a => a.parentId === item.id).length}
+                                                </span>
                                             </div>
                                         ))
                                     ) : (
@@ -811,34 +868,112 @@ export default function CategoryManagement() {
                             </div>
 
                             {/* Column 4: Apparel */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <div className="bg-gray-50 px-4 py-3 border-b">
+                            <div className="border rounded-lg overflow-hidden flex flex-col h-[450px]">
+                                <div className="bg-gray-50 px-4 py-3 border-b flex-shrink-0 flex justify-between items-center">
                                     <h3 className="text-sm font-semibold text-gray-700">
                                         Apparel
-                                        {selectedSub3ForFilter && (
-                                            <span className="ml-2 text-xs text-blue-600">
-                                                in {getParentName(selectedSub3ForFilter, subcategory3Values)}
+                                        {(selectedSub3ForFilter || selectedSub2ForFilter || selectedSub1ForFilter) && (
+                                            <span className="ml-2 text-xs text-blue-600 block truncate">
+                                                in {
+                                                    selectedSub3ForFilter ? getParentName(selectedSub3ForFilter, subcategory3Values) :
+                                                        selectedSub2ForFilter ? getParentName(selectedSub2ForFilter, subcategory2Values) :
+                                                            getParentName(selectedSub1ForFilter, subcategory1Values)
+                                                }
                                             </span>
                                         )}
                                     </h3>
                                 </div>
-                                <div className="max-h-[400px] overflow-y-auto">
-                                    {selectedSub3ForFilter ? (
-                                        getApparelForSub3(selectedSub3ForFilter).map(item => (
-                                            <div
-                                                key={item.id}
-                                                className="px-4 py-3 border-b border-gray-100 hover:bg-gray-50 flex items-center gap-2"
-                                            >
-                                                <FolderIcon className="h-5 w-5 text-gray-400" />
-                                                <span className="text-sm text-gray-700">{item.name}</span>
-                                            </div>
-                                        ))
+                                <div className="overflow-y-auto flex-1 bg-white">
+                                    {(selectedSub1ForFilter || selectedSub2ForFilter || selectedSub3ForFilter) ? (
+                                        (() => {
+                                            const currentParentId = selectedSub3ForFilter || selectedSub2ForFilter || selectedSub1ForFilter;
+                                            const apparelItems = apparelValues.filter(v => v.parentId === currentParentId);
+                                            const filteredBySearch = apparelItems.filter(v => v.name.toLowerCase().includes(search.toLowerCase()));
+
+                                            if (filteredBySearch.length === 0) {
+                                                if (apparelItems.length === 0) {
+                                                    return <div className="p-4 text-center text-gray-400 italic text-sm">No apparel items directly in this category.</div>
+                                                }
+                                                return <div className="p-4 text-center text-gray-400 italic text-sm">No matches for search.</div>
+                                            }
+
+                                            return filteredBySearch.map(item => (
+                                                <div key={item.id} className="relative flex items-center border-b border-gray-100 hover:bg-gray-50">
+                                                    <div className="flex-1">
+                                                        <SortableItem
+                                                            item={item}
+                                                            onEdit={handleSelectValue}
+                                                            onDelete={handleDeleteClick}
+                                                            showHandle={false}
+                                                            onMoveToLevel={handleMoveToLevel}
+                                                            availableLevels={['subcategory-1', 'subcategory-2', 'subcategory-3'].map(slug => ({
+                                                                slug,
+                                                                name: slug.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())
+                                                            }))}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ));
+                                        })()
                                     ) : (
                                         <div className="p-4 text-center text-gray-400 italic text-sm">
-                                            Select a Subcategory 3 to view
+                                            Select a category to view apparel
                                         </div>
                                     )}
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Edit/Create Area for Apparel */}
+                    <div className="bg-white shadow rounded-lg p-6 border-t-4 border-t-blue-500">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">
+                            {mode === 'create' ? (
+                                <span>Add New Apparel Item <span className="text-sm font-normal text-gray-500">(select parent in grid above)</span></span>
+                            ) : (
+                                'Edit Apparel Item'
+                            )}
+                        </h3>
+                        <div className="flex flex-col md:flex-row gap-4 items-end">
+                            <div className="flex-1 w-full">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                                <input
+                                    type="text"
+                                    className="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+                                    placeholder="e.g., Beanie, Belt"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="flex-1 w-full">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Parent Category</label>
+                                <div className="p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
+                                    {formData.parentId ? (
+                                        (() => {
+                                            const p1 = subcategory1Values.find(i => i.id === formData.parentId);
+                                            const p2 = subcategory2Values.find(i => i.id === formData.parentId);
+                                            const p3 = subcategory3Values.find(i => i.id === formData.parentId);
+                                            const parent = p1 || p2 || p3;
+                                            return parent ? (
+                                                <span className="flex items-center gap-2">
+                                                    <FolderIcon className="h-4 w-4 text-blue-500" />
+                                                    {parent.name}
+                                                    <span className="text-xs text-gray-400 border border-gray-200 rounded px-1">
+                                                        {p1 ? 'Sub 1' : p2 ? 'Sub 2' : 'Sub 3'}
+                                                    </span>
+                                                </span>
+                                            ) : 'Unknown Selection';
+                                        })()
+                                    ) : (
+                                        <span className="text-gray-400 italic">No parent selected (Select from grid)</span>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="ghost" onClick={handleCreateNew}>Cancel / New</Button>
+                                <Button onClick={handleSave} disabled={saving || !formData.parentId}>
+                                    {saving ? 'Saving...' : (mode === 'create' ? 'Create' : 'Save')}
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -847,13 +982,38 @@ export default function CategoryManagement() {
 
             <ConfirmationModal
                 isOpen={showDeleteConfirm}
-                onClose={() => { setShowDeleteConfirm(false); setItemToDelete(null); }}
+                onClose={() => { setShowDeleteConfirm(false); setItemToDelete(null); setDescendantsToDelete([]); }}
                 onConfirm={handleConfirmDelete}
                 title="Delete Item"
-                message="Are you sure you want to delete this item? This cannot be undone."
+                message={
+                    <div className="space-y-3">
+                        <p>Are you sure you want to delete this item? This cannot be undone.</p>
+                        {loadingDescendants ? (
+                            <p className="text-sm text-gray-500 italic">Loading affected items...</p>
+                        ) : descendantsToDelete.length > 0 ? (
+                            <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                                <p className="text-sm font-medium text-amber-800 mb-2">
+                                    ⚠️ The following {descendantsToDelete.length} child item(s) will also be deleted:
+                                </p>
+                                <ul className="text-sm text-amber-700 max-h-40 overflow-y-auto space-y-1">
+                                    {descendantsToDelete.map((d) => (
+                                        <li key={d.id} className="flex items-center gap-2">
+                                            <span className="text-xs text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded">
+                                                {d.type_slug.replace('subcategory-', 'Sub ').replace('apparel', 'Apparel')}
+                                            </span>
+                                            {d.name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-green-600">✓ This item has no child items.</p>
+                        )}
+                    </div>
+                }
                 variant="danger"
                 isLoading={deleting}
-                confirmText="Delete"
+                confirmText={descendantsToDelete.length > 0 ? `Delete ${descendantsToDelete.length + 1} items` : "Delete"}
             />
         </div>
     );

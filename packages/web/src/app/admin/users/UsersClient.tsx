@@ -118,10 +118,8 @@ export default function AdminUsersPage() {
             const fetchedSuppliers: Supplier[] = Array.isArray(suppliersResponse) ? suppliersResponse : suppliersResponse.suppliers || [];
             const fetchedTeamMemberships = teamMembershipsResponse?.memberships || [];
 
-            // Map brand accounts to users (respecting businessType)
-            const brandAccountsByUserId: Record<string, LinkedEntity[]> = {};
-            // Map team memberships from the dedicated API
-            const teamMembersByUserId: Record<string, LinkedEntity[]> = {};
+            // Map brand accounts to users (respecting businessType) - track owner relationships
+            const ownedBrandsByUserId: Record<string, { brandId: string; name: string; type: string; logo?: string }[]> = {};
 
             fetchedBrands.forEach((b: any) => {
                 const userId = b.userId;
@@ -129,19 +127,21 @@ export default function AdminUsersPage() {
                 const brandName = b.brandInfo?.name || 'Unnamed';
                 const businessType = b.brandInfo?.businessType || 'brand';
 
-                // Map as owner
+                // Track ownership for later merging with team memberships
                 if (userId) {
-                    if (!brandAccountsByUserId[userId]) brandAccountsByUserId[userId] = [];
-                    brandAccountsByUserId[userId].push({
-                        id: b.id,
+                    if (!ownedBrandsByUserId[userId]) ownedBrandsByUserId[userId] = [];
+                    ownedBrandsByUserId[userId].push({
+                        brandId: b.id,
                         name: brandName,
-                        type: businessType as LinkedEntity['type'],
+                        type: businessType,
                         logo
                     });
                 }
             });
 
-            // Map team memberships from the dedicated API endpoint
+            // Map team memberships and merge with ownership info
+            const teamMembersByUserId: Record<string, LinkedEntity[]> = {};
+
             fetchedTeamMemberships.forEach((m: any) => {
                 const userId = m.userId;
                 if (!userId) return;
@@ -149,7 +149,13 @@ export default function AdminUsersPage() {
                 if (!teamMembersByUserId[userId]) teamMembersByUserId[userId] = [];
                 // Avoid duplicates
                 if (!teamMembersByUserId[userId].some(e => e.id === m.brandId)) {
-                    const roleStr = Array.isArray(m.roles) ? m.roles.join(', ') : '';
+                    // Check if this user is also the owner of this brand
+                    const isOwner = ownedBrandsByUserId[userId]?.some(ob => ob.brandId === m.brandId);
+                    const roles = Array.isArray(m.roles) ? [...m.roles] : [];
+                    if (isOwner && !roles.includes('Owner')) {
+                        roles.unshift('Owner'); // Add Owner at the beginning
+                    }
+                    const roleStr = roles.join(', ');
                     teamMembersByUserId[userId].push({
                         id: m.brandId,
                         name: `${m.brandName}${roleStr ? ` (${roleStr})` : ''}`,
@@ -157,6 +163,22 @@ export default function AdminUsersPage() {
                         logo: m.brandLogo
                     });
                 }
+            });
+
+            // Add owned brands that don't have team memberships (rare case)
+            Object.entries(ownedBrandsByUserId).forEach(([userId, ownedBrands]) => {
+                if (!teamMembersByUserId[userId]) teamMembersByUserId[userId] = [];
+                ownedBrands.forEach(ob => {
+                    // Only add if not already in team memberships
+                    if (!teamMembersByUserId[userId].some(e => e.id === ob.brandId)) {
+                        teamMembersByUserId[userId].push({
+                            id: ob.brandId,
+                            name: `${ob.name} (Owner)`,
+                            type: ob.type as LinkedEntity['type'],
+                            logo: ob.logo
+                        });
+                    }
+                });
             });
 
             // Map stores to users
@@ -190,9 +212,7 @@ export default function AdminUsersPage() {
                 // Combine all linked entities
                 const linkedEntities: LinkedEntity[] = [];
 
-                // Add brand accounts (they already have correct type from businessType)
-                (brandAccountsByUserId[u.id] || []).forEach(entity => linkedEntities.push(entity));
-                // Add brands where user is a team member (not owner)
+                // Add brand/entity relationships (includes both owned and team member roles, merged)
                 (teamMembersByUserId[u.id] || []).forEach(entity => linkedEntities.push(entity));
                 // Add stores from stores table (rarely used, most stores are in brand_accounts)
                 (storesByUserId[u.id] || []).forEach(s => linkedEntities.push({ ...s, type: 'store' }));

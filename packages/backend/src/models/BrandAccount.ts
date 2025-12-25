@@ -30,6 +30,8 @@ export interface BrandInfo {
 export interface BrandProfileData {
   bio?: string;
   foundedDate?: string; // ISO date string
+  foundedDatePrecision?: 'year' | 'month' | 'day'; // Display precision for foundedDate
+  foundedBy?: string; // Founder name(s)
   instagram?: string; // Username or full URL
   tiktok?: string;
   youtube?: string;
@@ -373,6 +375,7 @@ export class BrandAccountModel {
     team: any[];
     lookbooks: any[];
     collections: any[];
+    followerCount: number;
   } | null> {
     const brand = await this.findBySlugOrId(brandId);
     if (!brand) return null;
@@ -381,14 +384,20 @@ export class BrandAccountModel {
     const { BrandTeamModel } = await import('./BrandTeam');
     const { BrandLookbookModel } = await import('./BrandLookbook');
     const { BrandCollectionModel } = await import('./BrandCollection');
+    const { EntityFollowModel } = await import('./EntityFollow');
 
-    const [team, lookbooks, collections] = await Promise.all([
+    // Determine entity type based on business type
+    const businessType = brand.brandInfo.businessType || 'brand';
+    const entityType = businessType === 'store' ? 'store' : 'brand';
+
+    const [team, lookbooks, collections, followerCount] = await Promise.all([
       BrandTeamModel.getTeamMembers(brand.id, true), // Public only - use resolved ID
       BrandLookbookModel.findByBrand(brand.id, true), // Published only - use resolved ID
-      BrandCollectionModel.findByBrand(brand.id, true) // Published only - use resolved ID
+      BrandCollectionModel.findByBrand(brand.id, true), // Published only - use resolved ID
+      EntityFollowModel.getFollowerCount(entityType, brand.id)
     ]);
 
-    return { brand, team, lookbooks, collections };
+    return { brand, team, lookbooks, collections, followerCount };
   }
 
   static async getAnalytics(brandId: string): Promise<{

@@ -12,6 +12,7 @@ import { Combobox, Transition } from '@headlessui/react';
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
+import CountrySelector from '@/components/ui/CountrySelector';
 
 export default function AdminNewStorePage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -256,22 +257,10 @@ export default function AdminNewStorePage() {
 
                         {/* Country Field */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Country of Origin</label>
-                            <div className="mt-1 relative">
-                                <select
-                                    name="country"
-                                    value={formData.country}
-                                    onChange={handleChange}
-                                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-                                >
-                                    <option value="">Select a country</option>
-                                    {COUNTRIES.map((c) => (
-                                        <option key={c.code} value={c.name}>
-                                            {c.flag} {c.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            <CountrySelector
+                                value={formData.country}
+                                onChange={(val) => setFormData(prev => ({ ...prev, country: val }))}
+                            />
                         </div>
 
                         <div>

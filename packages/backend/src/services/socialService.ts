@@ -1,5 +1,6 @@
 import { SocialPostModel, CreateSocialPostData } from '../models/SocialPost';
 import { UserFollowModel, CreateUserFollowData } from '../models/UserFollow';
+import { EntityFollowModel } from '../models/EntityFollow';
 import { PostCommentModel, CreatePostCommentData } from '../models/PostComment';
 import { PostLikeModel, CreatePostLikeData } from '../models/PostLike';
 import { VUFSItemModel } from '../models/VUFSItem';
@@ -156,9 +157,9 @@ export class SocialService {
   /**
    * Get user's followers
    */
-  async getFollowers(userId: string, page = 1, limit = 20): Promise<{ users: UserProfile[]; hasMore: boolean }> {
+  async getFollowers(userId: string, page = 1, limit = 20, search?: string): Promise<{ users: UserProfile[]; hasMore: boolean }> {
     const offset = (page - 1) * limit;
-    const { users, total } = await UserFollowModel.getFollowers(userId, limit + 1, offset);
+    const { users, total } = await UserFollowModel.getFollowers(userId, limit + 1, offset, search);
 
     const hasMore = users.length > limit;
     if (hasMore) {
@@ -171,9 +172,9 @@ export class SocialService {
   /**
    * Get users that a user is following
    */
-  async getFollowing(userId: string, page = 1, limit = 20): Promise<{ users: UserProfile[]; hasMore: boolean }> {
+  async getFollowing(userId: string, page = 1, limit = 20, search?: string): Promise<{ users: UserProfile[]; hasMore: boolean }> {
     const offset = (page - 1) * limit;
-    const { users, total } = await UserFollowModel.getFollowing(userId, limit + 1, offset);
+    const { users, total } = await UserFollowModel.getFollowing(userId, limit + 1, offset, search);
 
     const hasMore = users.length > limit;
     if (hasMore) {
@@ -303,18 +304,25 @@ export class SocialService {
     postsCount: number;
     followersCount: number;
     followingCount: number;
+    followingUsersCount: number;
+    followingEntitiesCount: number;
     friendsCount: number;
+    pendingFollowRequestsCount: number;
   }> {
-    const [{ total: postsCount }, followCounts] = await Promise.all([
+    const [{ total: postsCount }, followCounts, entityFollowingCount] = await Promise.all([
       SocialPostModel.findMany({ userId }, 1, 0), // Get total count
       UserFollowModel.getFollowCounts(userId),
+      EntityFollowModel.getFollowingCount(userId),
     ]);
 
     return {
       postsCount,
       followersCount: followCounts.followersCount,
-      followingCount: followCounts.followingCount,
+      followingCount: followCounts.followingCount + entityFollowingCount,
+      followingUsersCount: followCounts.followingCount,
+      followingEntitiesCount: entityFollowingCount,
       friendsCount: followCounts.friendsCount,
+      pendingFollowRequestsCount: followCounts.pendingCount,
     };
   }
 }

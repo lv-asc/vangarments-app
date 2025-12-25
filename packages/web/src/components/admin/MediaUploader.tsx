@@ -51,23 +51,38 @@ export default function MediaUploader({
 
         try {
             setUploading(true);
-            const file = e.target.files[0];
+            const files = Array.from(e.target.files);
+            const newMediaItems: MediaItem[] = [];
 
-            // Validate type
-            if (type === 'image' && !file.type.startsWith('image/')) {
-                toast.error('Please upload an image file');
-                return;
+            for (const file of files) {
+                // Validate type
+                if (type === 'image' && !file.type.startsWith('image/')) {
+                    toast.error(`File ${file.name} is not a valid image`);
+                    continue;
+                }
+                if (type === 'video' && !file.type.startsWith('video/')) {
+                    toast.error(`File ${file.name} is not a valid video`);
+                    continue;
+                }
+
+                try {
+                    const { url } = await api.uploadFile(file);
+                    newMediaItems.push({
+                        url,
+                        isPrimary: media.length === 0 && newMediaItems.length === 0, // Primary if list was empty
+                        type
+                    });
+                } catch (err) {
+                    console.error(`Failed to upload ${file.name}`, err);
+                    toast.error(`Failed to upload ${file.name}`);
+                }
             }
-            if (type === 'video' && !file.type.startsWith('video/')) {
-                toast.error('Please upload a video file');
-                return;
+
+            if (newMediaItems.length > 0) {
+                onChange([...media, ...newMediaItems]);
+                toast.success(`${newMediaItems.length} ${type === 'image' ? 'Images' : 'Videos'} uploaded`);
             }
 
-            const { url } = await api.uploadFile(file);
-
-            // Add to media list
-            onChange([...media, { url, isPrimary: media.length === 0, type }]); // Make first item primary by default
-            toast.success(`${type === 'image' ? 'Image' : 'Video'} uploaded`);
         } catch (error) {
             console.error(`Failed to upload ${type}`, error);
             toast.error(`Failed to upload ${type}`);
@@ -117,6 +132,7 @@ export default function MediaUploader({
                     <input
                         ref={fileInputRef}
                         type="file"
+                        multiple // Allow multiple files
                         accept={type === 'image' ? "image/*" : "video/*"}
                         onChange={handleUpload}
                         disabled={uploading}

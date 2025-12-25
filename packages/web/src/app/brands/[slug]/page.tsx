@@ -21,6 +21,13 @@ export default function BrandProfilePage() {
         }
     }, [slug]);
 
+    // Update document title when profile is loaded
+    useEffect(() => {
+        if (profile) {
+            document.title = `Brand @${profile.brand.brandInfo.name}`;
+        }
+    }, [profile]);
+
     const loadProfile = async () => {
         try {
             setLoading(true);

@@ -41,7 +41,16 @@ export class BrandLineController {
     static async getBrandLines(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { brandId } = req.params;
-            const lines = await BrandLineModel.findByBrandId(brandId);
+
+            // First try direct lookup by brand_accounts.id
+            let lines = await BrandLineModel.findByBrandId(brandId);
+
+            // If no lines found, try looking up by vufs_brand_id
+            // This supports the case where frontend sends a vufs_brands.id
+            if (lines.length === 0) {
+                lines = await BrandLineModel.findByVufsBrandId(brandId);
+            }
+
             res.json({ lines });
         } catch (error: any) {
             console.error('Get brand lines error:', error);

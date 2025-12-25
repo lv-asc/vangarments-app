@@ -18,6 +18,8 @@ import LookbookManagement from '@/components/admin/LookbookManagement';
 import TeamManagement from '@/components/admin/TeamManagement';
 import LogoUploader, { LogoItem } from '@/components/admin/LogoUploader';
 import BannerUploader, { BannerItem } from '@/components/admin/BannerUploader';
+import FoundationDateInput from '@/components/ui/FoundationDateInput';
+import CountrySelector from '@/components/ui/CountrySelector';
 import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api';
 import { getImageUrl } from '@/lib/utils'; // Import getImageUrl
@@ -45,7 +47,10 @@ export default function AdminEditBrandPage() {
         contactEmail: '',
         contactPhone: '',
         country: '',
-        tags: [] as string[]
+        tags: [] as string[],
+        foundedBy: '',
+        foundedDate: '',
+        foundedDatePrecision: 'year' as 'year' | 'month' | 'day'
     });
 
     useEffect(() => {
@@ -58,6 +63,13 @@ export default function AdminEditBrandPage() {
             loadBrand();
         }
     }, [user, authLoading, router, brandId]);
+
+    // Update document title when brand is loaded
+    useEffect(() => {
+        if (brand?.brandInfo?.name) {
+            document.title = `Admin - Brand @${brand.brandInfo.name}`;
+        }
+    }, [brand]);
 
     const loadBrand = async () => {
         try {
@@ -79,7 +91,10 @@ export default function AdminEditBrandPage() {
                 contactEmail: loadedBrand.brandInfo.contactInfo?.email || '',
                 contactPhone: loadedBrand.brandInfo.contactInfo?.phone || '',
                 country: loadedBrand.brandInfo.country || '',
-                tags: loadedBrand.brandInfo.tags || []
+                tags: loadedBrand.brandInfo.tags || [],
+                foundedBy: loadedBrand.profileData?.foundedBy || '',
+                foundedDate: loadedBrand.profileData?.foundedDate || '',
+                foundedDatePrecision: loadedBrand.profileData?.foundedDatePrecision || 'year'
             });
 
             // Initialize Banners
@@ -210,10 +225,13 @@ export default function AdminEditBrandPage() {
                 }
             });
 
-            // 2. Update Profile Data (Additional Logos)
+            // 2. Update Profile Data (Additional Logos + Foundation Info)
             await brandApi.updateProfileData(targetBrandId, {
                 additionalLogos: additionalLogos,
-                logoMetadata: logoMetadata
+                logoMetadata: logoMetadata,
+                foundedBy: formData.foundedBy || undefined,
+                foundedDate: formData.foundedDate || undefined,
+                foundedDatePrecision: formData.foundedDate ? formData.foundedDatePrecision : undefined
             });
 
             toast.success('Brand updated successfully');
@@ -463,22 +481,33 @@ export default function AdminEditBrandPage() {
 
                             {/* Country Field */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Country of Origin</label>
-                                <div className="mt-1 relative">
-                                    <select
-                                        name="country"
-                                        value={formData.country}
-                                        onChange={handleChange}
-                                        className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-                                    >
-                                        <option value="">Select a country</option>
-                                        {COUNTRIES.map((c) => (
-                                            <option key={c.code} value={c.name}>
-                                                {c.flag} {c.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <CountrySelector
+                                    value={formData.country}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, country: val }))}
+                                />
+                            </div>
+
+                            {/* Founded By */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Founded by</label>
+                                <input
+                                    type="text"
+                                    name="foundedBy"
+                                    value={formData.foundedBy}
+                                    onChange={handleChange}
+                                    placeholder="e.g., John Smith, Jane Doe"
+                                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2"
+                                />
+                            </div>
+
+                            {/* Date of Foundation */}
+                            <div>
+                                <FoundationDateInput
+                                    value={formData.foundedDate}
+                                    precision={formData.foundedDatePrecision}
+                                    onChange={(date, precision) => setFormData(prev => ({ ...prev, foundedDate: date, foundedDatePrecision: precision }))}
+                                    label="Date of Foundation"
+                                />
                             </div>
 
                             <div>

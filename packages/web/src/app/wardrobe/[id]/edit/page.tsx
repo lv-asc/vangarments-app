@@ -24,13 +24,13 @@ const conditionBackendToFrontend: Record<string, string> = {
 };
 
 interface EditWardrobeItemPageProps {
-    params: Promise<{
-        id: string;
-    }>;
+    params: { id: string } | Promise<{ id: string }>;
 }
 
 export default function EditWardrobeItemPage({ params }: EditWardrobeItemPageProps) {
-    const { id } = use(params);
+    // Handle both Promise and regular object params for Next.js compatibility
+    const resolvedParams = params instanceof Promise ? use(params) : params;
+    const { id } = resolvedParams;
     const router = useRouter();
     const { isAuthenticated } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -55,11 +55,13 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
         brands: any[];
         colors: any[];
         materials: any[];
+        sizes: any[];
     }>({
         categories: [],
         brands: [],
         colors: [],
-        materials: []
+        materials: [],
+        sizes: []
     });
 
     const [submitError, setSubmitError] = useState<string | null>(null);
@@ -68,18 +70,20 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
     useEffect(() => {
         const loadOptions = async () => {
             try {
-                const [categories, brands, colors, materials] = await Promise.all([
+                const [categories, brands, colors, materials, sizes] = await Promise.all([
                     apiClient.getVUFSCategories(),
                     apiClient.getVUFSBrands(),
                     apiClient.getVUFSColors(),
-                    apiClient.getVUFSMaterials()
+                    apiClient.getVUFSMaterials(),
+                    apiClient.getVUFSSizes()
                 ]);
 
                 setVufsOptions({
                     categories: categories as any[],
                     brands: brands as any[],
                     colors: colors as any[],
-                    materials: materials as any[]
+                    materials: materials as any[],
+                    sizes: sizes as any[]
                 });
             } catch (error) {
                 console.error('Failed to load VUFS options', error);
@@ -292,13 +296,8 @@ export default function EditWardrobeItemPage({ params }: EditWardrobeItemPagePro
                                     <SearchableCombobox
                                         value={formData.size}
                                         onChange={(val: string | null) => setFormData({ ...formData, size: val || '' })}
-                                        options={[]} // Assuming no size list available in vufsOptions.sizes for this page yet, or should load it? 
-                                        // Actually vufsOptions defaults has sizes but interface above doesn't show it.
-                                        // Checking line 51: categories, brands, colors, materials. No sizes.
-                                        // I should add sizes to vufsOptions state or just use freeSolo with empty options if not fetched.
-                                        // Existing code had <input list="sizes"><datalist id="sizes"/> but datalist was empty (comments say "Populate sizes if available").
-                                        // So I'll just leave options empty and enable freeSolo.
-                                        placeholder="Size"
+                                        options={vufsOptions.sizes.map(s => ({ id: s.id, name: s.name }))}
+                                        placeholder="Select size..."
                                         freeSolo
                                     />
                                 </div>

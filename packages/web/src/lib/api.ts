@@ -248,10 +248,12 @@ class ApiClient {
 
       if (!response.ok) {
         const errorData = typeof data === 'object' && data.error ? data.error : data;
+        const errorMessage = typeof errorData === 'string' ? errorData : (errorData?.message || `HTTP ${response.status}: ${response.statusText}`);
+
         const apiError = new ApiErrorClass(
-          errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-          errorData.code || 'HTTP_ERROR',
-          errorData.details,
+          errorMessage,
+          typeof errorData === 'object' ? errorData.code || 'HTTP_ERROR' : 'HTTP_ERROR',
+          typeof errorData === 'object' ? errorData.details : undefined,
           response.status
         );
 
@@ -447,18 +449,56 @@ class ApiClient {
     return response as any;
   }
 
+  async getMyMemberships(): Promise<{
+    memberships: Array<{
+      brandId: string;
+      brandName: string;
+      brandSlug?: string;
+      brandLogo?: string;
+      businessType: string;
+      roles: string[];
+      title?: string;
+      isOwner: boolean;
+      followersCount: number;
+    }>;
+  }> {
+    const response = await this.request<any>('/users/my-memberships');
+    return response as any;
+  }
+
   async getFollowRelationship(userId: string): Promise<{ isFollowing: boolean, status?: 'pending' | 'accepted' }> {
     const response = await this.request<any>(`/social/users/${userId}/follow-status`);
     return response.data;
   }
 
-  async getFollowers(userId: string, page = 1, limit = 20): Promise<{ users: any[]; hasMore: boolean }> {
-    const response = await this.request<any>(`/social/users/${userId}/followers?page=${page}&limit=${limit}`);
+  async getFollowers(userId: string, page = 1, limit = 20, q?: string): Promise<{ users: any[]; hasMore: boolean }> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    if (q) params.append('q', q);
+    const response = await this.request<any>(`/social/users/${userId}/followers?${params.toString()}`);
     return response.data;
   }
 
-  async getFollowing(userId: string, page = 1, limit = 20): Promise<{ users: any[]; hasMore: boolean }> {
-    const response = await this.request<any>(`/social/users/${userId}/following?page=${page}&limit=${limit}`);
+  async getFollowing(userId: string, page = 1, limit = 20, q?: string): Promise<{ users: any[]; hasMore: boolean }> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    if (q) params.append('q', q);
+    const response = await this.request<any>(`/social/users/${userId}/following?${params.toString()}`);
+    return response.data;
+  }
+
+  async getFollowingEntities(userId: string, entityType?: string, page = 1, limit = 50, q?: string): Promise<{ entities: any[]; total: number; hasMore: boolean }> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    if (entityType) params.append('entityType', entityType);
+    if (q) params.append('q', q);
+    const response = await this.request<any>(`/social/users/${userId}/following-entities?${params.toString()}`);
     return response.data;
   }
 
@@ -567,6 +607,57 @@ class ApiClient {
     }
 
     return data.data || data;
+  }
+
+  async uploadBanner(file: File): Promise<{ bannerUrl: string }> {
+    const formData = new FormData();
+    formData.append('banner', file);
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const url = `${this.baseURL}/users/banner`;
+    console.log('[API] uploadBanner calling:', url);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    console.log('[API] uploadBanner response status:', response.status);
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('[API] uploadBanner failed data:', data);
+      const errorData = data.error || data;
+      throw new ApiErrorClass(
+        errorData.message || 'Banner upload failed',
+        errorData.code || 'UPLOAD_ERROR',
+        errorData.details,
+        response.status
+      );
+    }
+
+    return data.data || data;
+  }
+
+  async updateProfileImages(profileImages: string[]): Promise<{ profileImages: string[]; avatarUrl: string }> {
+    const response = await this.request<any>('/users/profile-images', {
+      method: 'PUT',
+      body: JSON.stringify({ profileImages }),
+    });
+    return response.data || response;
+  }
+
+  async updateBannerImages(bannerImages: string[]): Promise<{ bannerImages: string[]; bannerUrl: string }> {
+    const response = await this.request<any>('/users/banner-images', {
+      method: 'PUT',
+      body: JSON.stringify({ bannerImages }),
+    });
+    return response.data || response;
   }
 
   async uploadFile(file: File): Promise<{ url: string }> {
@@ -887,6 +978,17 @@ class ApiClient {
   async deleteVUFSFit(id: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'DELETE' }); }
   async updateVUFSFit(id: string, name: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
 
+  // --- GENDERS ---
+  async getVUFSGenders() {
+    const response = await this.request<any>('/vufs-management/genders');
+    return (response as any).genders || response.data || response;
+  }
+  async addVUFSGender(name: string) {
+    return this.request('/vufs-management/genders', { method: 'POST', body: JSON.stringify({ name }) });
+  }
+  async deleteVUFSGender(id: string) { return this.request(`/vufs-management/genders/${id}`, { method: 'DELETE' }); }
+  async updateVUFSGender(id: string, name: string) { return this.request(`/vufs-management/genders/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+
 
   // --- EXTENDED COLORS (Admin Page) ---
   async getAllColors() { const res = await this.request<any[]>('/colors'); return res as any as any[]; }
@@ -981,6 +1083,10 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify({ targetLevel, newParentId })
     });
+  }
+  async getVUFSAttributeValueDescendants(id: string) {
+    const response = await this.request<any>(`/vufs-management/attributes/values/${id}/descendants`);
+    return (response as any).descendants || [];
   }
 
   // --- MATRIX VIEW ---
@@ -1179,6 +1285,7 @@ class ApiClient {
 
   // --- SKU MANAGEMENT ---
   async createSKU(brandId: string, skuData: any) {
+    console.log('[ApiClient] createSKU calling URL:', `/skus/brands/${brandId}/skus`, 'with data:', skuData);
     const response = await this.request<any>(`/skus/brands/${brandId}/skus`, {
       method: 'POST',
       body: JSON.stringify(skuData)
@@ -1215,6 +1322,31 @@ class ApiClient {
 
   async deleteSKU(id: string) {
     const response = await this.request<any>(`/skus/skus/${id}`, {
+      method: 'DELETE'
+    });
+    return (response as any).data || response;
+  }
+
+  async getDeletedSKUs(params?: { search?: string; brandId?: string; page?: number; limit?: number }) {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.brandId) searchParams.append('brandId', params.brandId);
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+
+    const response = await this.request<any>(`/skus/trash?${searchParams.toString()}`);
+    return (response as any).data || response;
+  }
+
+  async restoreSKU(id: string) {
+    const response = await this.request<any>(`/skus/skus/${id}/restore`, {
+      method: 'POST'
+    });
+    return (response as any).data || response;
+  }
+
+  async permanentDeleteSKU(id: string) {
+    const response = await this.request<any>(`/skus/skus/${id}/permanent`, {
       method: 'DELETE'
     });
     return (response as any).data || response;
@@ -1634,6 +1766,58 @@ class ApiClient {
     }
 
     return data.data || data;
+  }
+
+  // ==================== PRIVACY SETTINGS ====================
+
+  async updatePrivacySettings(settings: {
+    isPrivate?: boolean;
+    wardrobe?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+    activity?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+    outfits?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+    marketplace?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+    height?: boolean;
+    weight?: boolean;
+    birthDate?: boolean;
+    gender?: boolean;
+    telephone?: boolean;
+  }) {
+    return this.request<{ success: boolean; privacySettings: any }>('/users/privacy', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
+
+  // ==================== FOLLOW REQUESTS ====================
+
+  async getFollowRequests(page = 1, limit = 20) {
+    return this.request<{ success: boolean; requests: any[]; pagination: any }>(
+      `/users/follow-requests?page=${page}&limit=${limit}`
+    );
+  }
+
+  async getFollowRequestCount() {
+    return this.request<{ success: boolean; count: number }>('/users/follow-requests/count');
+  }
+
+  async acceptFollowRequest(requesterId: string) {
+    return this.request<{ success: boolean; message: string }>(
+      `/users/follow-requests/${requesterId}/accept`,
+      { method: 'POST' }
+    );
+  }
+
+  async declineFollowRequest(requesterId: string) {
+    return this.request<{ success: boolean; message: string }>(
+      `/users/follow-requests/${requesterId}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  async getFollowStatus(userId: string) {
+    return this.request<{ success: boolean; status: 'none' | 'pending' | 'accepted' }>(
+      `/users/follow-status/${userId}`
+    );
   }
 }
 

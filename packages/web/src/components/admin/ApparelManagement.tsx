@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { SmartCombobox } from '@/components/ui/SmartCombobox';
 import { MagnifyingGlassIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -32,6 +33,8 @@ export default function ApparelManagement() {
     const [categoryAttributes, setCategoryAttributes] = useState<any[]>([]);
     const [sizes, setSizes] = useState<any[]>([]);
     const [fits, setFits] = useState<any[]>([]);
+    const [subcategory1Values, setSubcategory1Values] = useState<any[]>([]);
+    const [subcategory2Values, setSubcategory2Values] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -73,16 +76,20 @@ export default function ApparelManagement() {
         setLoading(true);
         try {
             await ensureAttributeTypes();
-            const [cats, matrix, sizeRes, fitRes] = await Promise.all([
+            const [cats, matrix, sizeRes, fitRes, sub1Res, sub2Res] = await Promise.all([
                 apiClient.getVUFSCategories(),
                 apiClient.getAllCategoryAttributes(),
                 apiClient.getVUFSSizes(),
-                apiClient.getVUFSFits()
+                apiClient.getVUFSFits(),
+                apiClient.getVUFSAttributeValues('subcategory-1'),
+                apiClient.getVUFSAttributeValues('subcategory-2')
             ]);
             setCategories(cats || []);
             setCategoryAttributes(matrix || []);
             setSizes(sizeRes || []);
             setFits(fitRes || []);
+            setSubcategory1Values(Array.isArray(sub1Res) ? sub1Res : []);
+            setSubcategory2Values(Array.isArray(sub2Res) ? sub2Res : []);
         } catch (error) {
             console.error('Failed to init', error);
             toast.error('Failed to load data');
@@ -235,20 +242,20 @@ export default function ApparelManagement() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">Subcategory 1</label>
-                                        <input
-                                            type="text"
-                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                        <SmartCombobox
                                             value={formData['subcategory_1'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'subcategory_1': e.target.value })}
+                                            onChange={(val) => setFormData({ ...formData, 'subcategory_1': val })}
+                                            options={subcategory1Values.map((v: any) => ({ id: v.id, name: v.name }))}
+                                            placeholder="Select or type subcategory..."
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">Subcategory 2</label>
-                                        <input
-                                            type="text"
-                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                        <SmartCombobox
                                             value={formData['subcategory_2'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'subcategory_2': e.target.value })}
+                                            onChange={(val) => setFormData({ ...formData, 'subcategory_2': val })}
+                                            options={subcategory2Values.map((v: any) => ({ id: v.id, name: v.name }))}
+                                            placeholder="Select or type subcategory..."
                                         />
                                     </div>
                                 </div>

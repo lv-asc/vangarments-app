@@ -9,6 +9,8 @@ import {
     BrandCollection,
     BrandProfileData
 } from '@/lib/brandApi';
+import { useAuth } from '@/contexts/AuthContext';
+import { FollowEntityButton } from '@/components/social/FollowEntityButton';
 
 // Helper to resolve image URLs
 const getImageUrl = (url: string | undefined | null) => {
@@ -30,10 +32,11 @@ interface OrgProfileProps {
 }
 
 export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfileProps) {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items'>('overview');
     const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
-    const { brand, team, lookbooks, collections } = profile;
+    const { brand, team, lookbooks, collections, followerCount } = profile;
     const brandInfo = brand.brandInfo;
     const profileData = brand.profileData || {} as BrandProfileData;
     const businessType = brandInfo.businessType || 'brand';
@@ -132,7 +135,7 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
 
                                 {/* Details */}
                                 <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
+                                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                                         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{brandInfo.name}</h1>
                                         {brand.verificationStatus === 'verified' && (
                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -145,6 +148,27 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                             }`}>
                                             {displayTypeLabel}
                                         </span>
+                                        {user ? (
+                                            <>
+                                                {team.some(member => member.userId === user.id) && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                                        Team Member
+                                                    </span>
+                                                )}
+                                                <FollowEntityButton
+                                                    entityType={businessType === 'store' ? 'store' : 'brand'}
+                                                    entityId={brand.id}
+                                                    size="sm"
+                                                />
+                                            </>
+                                        ) : (
+                                            <a
+                                                href="/login"
+                                                className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+                                            >
+                                                Follow
+                                            </a>
+                                        )}
                                     </div>
 
                                     {/* Bio */}
@@ -164,6 +188,12 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                             <span className="flex items-center gap-1">
                                                 <span>📅</span>
                                                 <span>Founded {new Date(profileData.foundedDate).getFullYear()}</span>
+                                            </span>
+                                        )}
+                                        {profileData.foundedBy && (
+                                            <span className="flex items-center gap-1">
+                                                <span>👤</span>
+                                                <span>by {profileData.foundedBy}</span>
                                             </span>
                                         )}
                                     </div>
@@ -214,6 +244,10 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
 
                                 {/* Stats */}
                                 <div className="flex md:flex-col gap-6 md:gap-2 text-center md:text-right">
+                                    <div>
+                                        <div className="text-2xl font-bold text-gray-900">{followerCount || 0}</div>
+                                        <div className="text-sm text-gray-500">Followers</div>
+                                    </div>
                                     <div>
                                         <div className="text-2xl font-bold text-gray-900">{brand.analytics.totalCatalogItems}</div>
                                         <div className="text-sm text-gray-500">Items</div>

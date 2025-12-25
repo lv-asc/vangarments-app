@@ -10,7 +10,7 @@ export interface Size {
     name: string;
     sortOrder?: number;
     conversions: SizeConversion[]; // Hydrated
-    validCategoryIds: number[]; // e.g. T-Shirts(1), Tops(2)
+    validCategoryIds: number[]; // Integer IDs from vufs_categories
     isActive: boolean;
     createdAt: Date;
 }
@@ -123,6 +123,7 @@ export class SizeModel {
     ): Promise<Size | null> {
         return db.transaction(async (client) => {
             // Update base fields
+            console.log('[SizeModel.update] Input:', { id, name, sortOrder, conversions, validCategoryIds });
             if (name !== undefined || sortOrder !== undefined) {
                 const updates: string[] = [];
                 const values: any[] = [];
@@ -137,7 +138,10 @@ export class SizeModel {
                 }
                 if (updates.length > 0) {
                     values.push(id);
-                    await client.query(`UPDATE vufs_sizes SET ${updates.join(', ')} WHERE id = $${pIdx}`, values);
+                    const query = `UPDATE vufs_sizes SET ${updates.join(', ')} WHERE id = $${pIdx}`;
+                    console.log('[SizeModel.update] Running query:', query, 'with values:', values);
+                    const result = await client.query(query, values);
+                    console.log('[SizeModel.update] Rows updated:', result.rowCount);
                 }
             }
 

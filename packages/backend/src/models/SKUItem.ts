@@ -188,6 +188,70 @@ export class SKUItemModel {
         return (result.rowCount || 0) > 0;
     }
 
+    static async restore(id: string): Promise<boolean> {
+        const query = 'UPDATE sku_items SET deleted_at = NULL WHERE id = $1';
+        const result = await db.query(query, [id]);
+        return (result.rowCount || 0) > 0;
+    }
+
+    static async permanentDelete(id: string): Promise<boolean> {
+        const query = 'DELETE FROM sku_items WHERE id = $1';
+        const result = await db.query(query, [id]);
+        return (result.rowCount || 0) > 0;
+    }
+
+    static async findDeleted(filters?: { brandId?: string; search?: string }, limit = 50, offset = 0): Promise<{ skus: SKUItem[]; total: number }> {
+        let query = `
+            SELECT si.*, 
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'logo' as brand_logo,
+                   bl.name as line_name, 
+                   bl.logo as line_logo,
+                   COUNT(*) OVER() as total
+            FROM sku_items si
+            JOIN brand_accounts ba ON si.brand_id = ba.id
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            WHERE si.deleted_at IS NOT NULL
+        `;
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        if (filters?.brandId) {
+            query += ` AND si.brand_id = $${paramIndex++}`;
+            values.push(filters.brandId);
+        }
+
+        if (filters?.search) {
+            query += ` AND (si.name ILIKE $${paramIndex} OR si.code ILIKE $${paramIndex})`;
+            values.push(`%${filters.search}%`);
+            paramIndex++;
+        }
+
+        query += ` ORDER BY si.deleted_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+        values.push(limit, offset);
+
+        const result = await db.query(query, values);
+        const total = result.rows.length > 0 ? parseInt(result.rows[0].total) : 0;
+
+        const skus = result.rows.map(row => ({
+            ...this.mapRowToSKUItem(row),
+            brand: { name: row.brand_name, logo: row.brand_logo }
+        }));
+
+        return { skus, total };
+    }
+
+    static async findByIdIncludeDeleted(id: string): Promise<SKUItem | null> {
+        const query = `
+            SELECT si.*, bl.name as line_name, bl.logo as line_logo
+            FROM sku_items si
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            WHERE si.id = $1
+        `;
+        const result = await db.query(query, [id]);
+        return result.rows.length > 0 ? this.mapRowToSKUItem(result.rows[0]) : null;
+    }
+
     private static mapRowToSKUItem(row: any): SKUItem {
         const item: SKUItem = {
             id: row.id,

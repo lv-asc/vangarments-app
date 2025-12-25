@@ -16,7 +16,8 @@ import {
   SparklesIcon,
   ChatBubbleLeftRightIcon,
   ShieldCheckIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  SwatchIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -25,16 +26,16 @@ import { Navigation } from './Navigation';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTranslation } from '@/utils/translations';
-import { useRecentPages } from '@/components/providers/RecentPagesProvider';
+// import { useRecentPages } from '@/components/providers/RecentPagesProvider'; // Removed unused import
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isRecentPagesOpen, setIsRecentPagesOpen] = useState(false);
+  /* const [isUserMenuOpen, setIsUserMenuOpen] = useState(false); */ // Removed unused state
+  /* const [isRecentPagesOpen, setIsRecentPagesOpen] = useState(false); */ // Removed unused state
   const { user, isAuthenticated, logout } = useAuth();
   const { navigate, currentPath, isNavigating } = useNavigation();
   const { t } = useTranslation();
-  const { recentPages } = useRecentPages();
+  /* const { recentPages } = useRecentPages(); */ // Removed unused hook
 
   // Debug info for development
   if (process.env.NODE_ENV === 'development') {
@@ -57,6 +58,7 @@ export function Header() {
     { name: 'Social', href: '/social', icon: UserGroupIcon },
     { name: t('wardrobe'), href: '/wardrobe', icon: TagIcon },
     { name: 'Outfits', href: '/outfits', icon: SparklesIcon },
+    { name: 'Design Studio', href: '/design-studio', icon: SwatchIcon },
     { name: t('marketplace'), href: '/marketplace', icon: ShoppingBagIcon },
     { name: 'DMs', href: '/messages', icon: ChatBubbleLeftRightIcon },
   ];
@@ -65,10 +67,10 @@ export function Header() {
     navigation.push({ name: 'Admin', href: '/admin', icon: ShieldCheckIcon });
   }
 
-  const handleLogout = async () => {
+  /* const handleLogout = async () => {
     await logout();
     setIsUserMenuOpen(false);
-  };
+  }; */ // Moved to Profile Page
 
   const handleNavigation = async (href: string, event: React.MouseEvent) => {
     event.preventDefault();
@@ -126,187 +128,23 @@ export function Header() {
 
           {/* Desktop User Menu or Auth Buttons */}
           <div className="ml-10 hidden lg:flex items-center space-x-4">
-            {/* Recent Pages Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setIsRecentPagesOpen(!isRecentPagesOpen)}
-                className="flex items-center p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
-                title="Recent Pages"
-              >
-                <ClockIcon className="h-5 w-5" />
-              </button>
+            {/* Recent Pages Dropdown Removed */}
 
-              <AnimatePresence>
-                {isRecentPagesOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute right-0 mt-2 w-64 bg-card rounded-md shadow-lg py-1 z-50 border border-border"
-                  >
-                    <div className="px-3 py-2 border-b border-border">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase">Recent Pages</span>
-                    </div>
-                    {recentPages.length > 0 ? (
-                      recentPages.slice(0, 5).map((page, idx) => (
-                        <Link
-                          key={idx}
-                          href={page.path}
-                          onClick={(e) => {
-                            handleNavigation(page.path, e);
-                            setIsRecentPagesOpen(false);
-                          }}
-                          className={`block px-4 py-2 text-sm hover:bg-muted truncate ${currentPath === page.path ? 'text-primary font-medium' : 'text-foreground'}`}
-                        >
-                          {page.title}
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-sm text-muted-foreground">
-                        No recent pages
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <LanguageSelector />
+            {/* LanguageSelector Removed */}
 
             {isAuthenticated && user ? (
               <div className="relative">
                 <div className="flex items-center">
                   <Link
-                    href="/profile"
-                    onClick={(e) => handleNavigation('/profile', e)}
-                    className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors mr-1"
+                    href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
+                    onClick={(e) => handleNavigation(`/u/${user.username || user.email?.split('@')[0] || 'user'}`, e)}
+                    className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors"
                   >
                     <UserAvatar user={user} size="sm" />
                     <span className="font-medium">{user.name}</span>
                     <span className="text-sm text-muted-foreground">@{user.username || user.email?.split('@')[0] || 'user'}</span>
                   </Link>
-                  <button
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    className="p-1 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-primary"
-                  >
-                    <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
-                  </button>
                 </div>
-
-                {/* User Dropdown Menu */}
-                <AnimatePresence>
-                  {isUserMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 mt-2 w-48 bg-card rounded-md shadow-lg py-1 z-50 border border-border"
-                    >
-                      <Link
-                        href="/profile"
-                        onClick={(e) => {
-                          handleNavigation('/profile', e);
-                          setIsUserMenuOpen(false);
-                        }}
-                        className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                      >
-                        {t('myProfile')}
-                      </Link>
-
-                      {/* Linked Entities */}
-                      {user.linkedEntities?.hasBrand && (
-                        <Link
-                          href="/admin?tab=brands"
-                          onClick={(e) => {
-                            handleNavigation('/admin?tab=brands', e);
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                        >
-                          My Brands
-                        </Link>
-                      )}
-                      {user.linkedEntities?.hasStore && (
-                        <Link
-                          href="/admin/stores"
-                          onClick={(e) => {
-                            handleNavigation('/admin/stores', e);
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                        >
-                          My Stores
-                        </Link>
-                      )}
-                      {user.linkedEntities?.hasPage && (
-                        <Link
-                          href="/admin/pages"
-                          onClick={(e) => {
-                            handleNavigation('/admin/pages', e);
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                        >
-                          My Pages
-                        </Link>
-                      )}
-                      {user.linkedEntities?.hasSupplier && (
-                        <Link
-                          href="/admin/suppliers"
-                          onClick={(e) => {
-                            handleNavigation('/admin/suppliers', e);
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                        >
-                          My Suppliers
-                        </Link>
-                      )}
-                      {user.linkedEntities?.hasPost && (
-                        <Link
-                          href="/profile?tab=posts"
-                          onClick={(e) => {
-                            handleNavigation('/profile?tab=posts', e);
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                        >
-                          My Posts
-                        </Link>
-                      )}
-
-                      {user.roles && user.roles.includes('admin') && (
-                        <Link
-                          href="/admin"
-                          onClick={(e) => {
-                            handleNavigation('/admin', e);
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                        >
-                          Admin Panel
-                        </Link>
-                      )}
-                      <Link
-                        href="/wardrobe"
-                        onClick={(e) => {
-                          handleNavigation('/wardrobe', e);
-                          setIsUserMenuOpen(false);
-                        }}
-                        className="block px-4 py-2 text-sm text-foreground hover:bg-muted"
-                      >
-                        {t('myWardrobe')}
-                      </Link>
-                      <div className="border-t border-border"></div>
-                      <button
-                        onClick={handleLogout}
-                        className="block w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted"
-                      >
-                        {t('logout')}
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             ) : (
               <div className="space-x-4">
@@ -384,9 +222,9 @@ export function Header() {
                         </div>
                       </div>
                       <Link
-                        href="/profile"
+                        href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
                         onClick={(e) => {
-                          handleNavigation('/profile', e);
+                          handleNavigation(`/u/${user.username || user.email?.split('@')[0] || 'user'}`, e);
                           setIsMenuOpen(false);
                         }}
                         className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
@@ -445,9 +283,9 @@ export function Header() {
                       )}
                       {user.linkedEntities?.hasPost && (
                         <Link
-                          href="/profile?tab=posts"
+                          href={`/u/${user.username || user.email?.split('@')[0] || 'user'}?tab=posts`}
                           onClick={(e) => {
-                            handleNavigation('/profile?tab=posts', e);
+                            handleNavigation(`/u/${user.username || user.email?.split('@')[0] || 'user'}?tab=posts`, e);
                             setIsMenuOpen(false);
                           }}
                           className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"

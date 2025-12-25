@@ -6,11 +6,19 @@ import { XMarkIcon } from '@heroicons/react/24/outline'
 
 interface ImageCropperProps {
     imageSrc: string
+    aspectRatio?: number
+    cropShape?: 'round' | 'rect'
     onCancel: () => void
     onCropComplete: (croppedBlob: Blob) => void
 }
 
-export default function ImageCropper({ imageSrc, onCancel, onCropComplete }: ImageCropperProps) {
+export default function ImageCropper({
+    imageSrc,
+    aspectRatio = 1,
+    cropShape = 'round',
+    onCancel,
+    onCropComplete
+}: ImageCropperProps) {
     const [crop, setCrop] = useState({ x: 0, y: 0 })
     const [zoom, setZoom] = useState(1)
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
@@ -64,12 +72,12 @@ export default function ImageCropper({ imageSrc, onCancel, onCropComplete }: Ima
                         image={imageSrc}
                         crop={crop}
                         zoom={zoom}
-                        aspect={1}
+                        aspect={aspectRatio}
                         onCropChange={onCropChange}
                         onCropComplete={onCropCompleteHandler}
                         onZoomChange={onZoomChange}
                         showGrid={true}
-                        cropShape="round"
+                        cropShape={cropShape}
                     />
                 </div>
 

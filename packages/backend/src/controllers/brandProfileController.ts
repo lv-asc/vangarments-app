@@ -35,11 +35,13 @@ export class BrandProfileController {
     async updateProfileData(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { brandId } = req.params;
-            const { bio, foundedDate, instagram, tiktok, youtube, additionalLogos } = req.body;
+            const { bio, foundedDate, foundedDatePrecision, foundedBy, instagram, tiktok, youtube, additionalLogos } = req.body;
 
             const profileData: Partial<BrandProfileData> = {};
             if (bio !== undefined) profileData.bio = bio;
             if (foundedDate !== undefined) profileData.foundedDate = foundedDate;
+            if (foundedDatePrecision !== undefined) profileData.foundedDatePrecision = foundedDatePrecision;
+            if (foundedBy !== undefined) profileData.foundedBy = foundedBy;
             if (instagram !== undefined) profileData.instagram = instagram;
             if (tiktok !== undefined) profileData.tiktok = tiktok;
             if (youtube !== undefined) profileData.youtube = youtube;
@@ -328,7 +330,15 @@ export class BrandProfileController {
             const { brandId } = req.params;
             const publishedOnly = req.query.publishedOnly !== 'false';
 
-            const collections = await BrandCollectionModel.findByBrand(brandId, publishedOnly);
+            // First try direct lookup by brand_accounts.id
+            let collections = await BrandCollectionModel.findByBrand(brandId, publishedOnly);
+
+            // If no collections found, try looking up by vufs_brand_id
+            // This supports the case where frontend sends a vufs_brands.id
+            if (collections.length === 0) {
+                collections = await BrandCollectionModel.findByVufsBrandId(brandId, publishedOnly);
+            }
+
             res.json({ success: true, data: { collections } });
         } catch (error: any) {
             res.status(500).json({

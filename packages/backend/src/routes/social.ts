@@ -74,8 +74,8 @@ const paginationValidation = [
     .withMessage('Page must be a positive integer'),
   query('limit')
     .optional()
-    .isInt({ min: 1, max: 100 })
-    .withMessage('Limit must be between 1 and 100'),
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Limit must be between 1 and 1000'),
 ];
 
 const feedValidation = [
@@ -162,7 +162,10 @@ router.delete(
 router.get(
   '/users/:userId/followers',
   userIdValidation,
-  paginationValidation,
+  [
+    ...paginationValidation,
+    query('q').optional().isString(),
+  ],
   validateRequest,
   socialController.getFollowers.bind(socialController)
 );
@@ -170,7 +173,10 @@ router.get(
 router.get(
   '/users/:userId/following',
   userIdValidation,
-  paginationValidation,
+  [
+    ...paginationValidation,
+    query('q').optional().isString(),
+  ],
   validateRequest,
   socialController.getFollowing.bind(socialController)
 );

@@ -32,6 +32,8 @@ interface BrandAccount {
   profileData?: {
     bio?: string;
     foundedDate?: string;
+    foundedDatePrecision?: 'year' | 'month' | 'day';
+    foundedBy?: string;
     instagram?: string;
     tiktok?: string;
     youtube?: string;
@@ -747,6 +749,8 @@ export type BrandRole = 'CEO' | 'CFO' | 'Founder' | 'CD' | 'Marketing' | 'Seller
 export interface BrandProfileData {
   bio?: string;
   foundedDate?: string;
+  foundedDatePrecision?: 'year' | 'month' | 'day';
+  foundedBy?: string;
   instagram?: string;
   tiktok?: string;
   youtube?: string;
@@ -825,6 +829,7 @@ export interface BrandFullProfile {
   team: BrandTeamMember[];
   lookbooks: BrandLookbook[];
   collections: BrandCollection[];
+  followerCount: number;
 }
 
 export type { BrandAccount, CatalogItem };

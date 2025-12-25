@@ -13,6 +13,9 @@ export interface Page {
     instagramUrl?: string;
     twitterUrl?: string;
     facebookUrl?: string;
+    foundedBy?: string;
+    foundedDate?: string;
+    foundedDatePrecision?: 'year' | 'month' | 'day';
     isVerified: boolean;
     isActive: boolean;
     createdAt: Date;
@@ -62,6 +65,9 @@ export class PageModel {
         instagramUrl?: string;
         twitterUrl?: string;
         facebookUrl?: string;
+        foundedBy?: string;
+        foundedDate?: string;
+        foundedDatePrecision?: 'year' | 'month' | 'day';
         isVerified?: boolean;
         isActive?: boolean;
     }): Promise<Page> {
@@ -75,9 +81,10 @@ export class PageModel {
           name, slug, description, user_id, 
           logo_url, banner_url, website_url, 
           instagram_url, twitter_url, facebook_url, 
+          founded_by, founded_date, founded_date_precision,
           is_verified, is_active
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `;
         const result = await db.query(query, [
@@ -91,6 +98,9 @@ export class PageModel {
             data.instagramUrl || null,
             data.twitterUrl || null,
             data.facebookUrl || null,
+            data.foundedBy || null,
+            data.foundedDate || null,
+            data.foundedDatePrecision || null,
             data.isVerified ?? false,
             data.isActive ?? true
         ]);
@@ -108,6 +118,9 @@ export class PageModel {
         instagramUrl?: string;
         twitterUrl?: string;
         facebookUrl?: string;
+        foundedBy?: string;
+        foundedDate?: string;
+        foundedDatePrecision?: 'year' | 'month' | 'day';
         isVerified?: boolean;
         isActive?: boolean;
     }): Promise<Page | null> {
@@ -125,6 +138,9 @@ export class PageModel {
         if (data.instagramUrl !== undefined) { setClause.push(`instagram_url = $${paramIndex++}`); values.push(data.instagramUrl); }
         if (data.twitterUrl !== undefined) { setClause.push(`twitter_url = $${paramIndex++}`); values.push(data.twitterUrl); }
         if (data.facebookUrl !== undefined) { setClause.push(`facebook_url = $${paramIndex++}`); values.push(data.facebookUrl); }
+        if (data.foundedBy !== undefined) { setClause.push(`founded_by = $${paramIndex++}`); values.push(data.foundedBy); }
+        if (data.foundedDate !== undefined) { setClause.push(`founded_date = $${paramIndex++}`); values.push(data.foundedDate); }
+        if (data.foundedDatePrecision !== undefined) { setClause.push(`founded_date_precision = $${paramIndex++}`); values.push(data.foundedDatePrecision); }
         if (data.isVerified !== undefined) { setClause.push(`is_verified = $${paramIndex++}`); values.push(data.isVerified); }
         if (data.isActive !== undefined) { setClause.push(`is_active = $${paramIndex++}`); values.push(data.isActive); }
 
@@ -163,6 +179,9 @@ export class PageModel {
             instagramUrl: row.instagram_url,
             twitterUrl: row.twitter_url,
             facebookUrl: row.facebook_url,
+            foundedBy: row.founded_by,
+            foundedDate: row.founded_date,
+            foundedDatePrecision: row.founded_date_precision,
             isVerified: row.is_verified,
             isActive: row.is_active,
             createdAt: row.created_at,

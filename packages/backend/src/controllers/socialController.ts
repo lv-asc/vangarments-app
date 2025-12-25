@@ -166,6 +166,15 @@ export class SocialController {
       const { userId: followingId } = req.params;
       const followerId = req.user!.id;
 
+      if (followerId === followingId) {
+        return res.status(400).json({
+          error: {
+            code: 'SELF_FOLLOW_NOT_ALLOWED',
+            message: 'You cannot follow yourself',
+          },
+        });
+      }
+
       const follow = await socialService.followUser(followerId, followingId);
 
       res.status(201).json({
@@ -222,12 +231,13 @@ export class SocialController {
   async getFollowers(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      const { page = 1, limit = 20 } = req.query;
+      const { page = 1, limit = 20, q = '' } = req.query;
 
       const result = await socialService.getFollowers(
         userId,
         parseInt(page as string),
-        parseInt(limit as string)
+        parseInt(limit as string),
+        q as string
       );
 
       res.json({
@@ -257,12 +267,13 @@ export class SocialController {
   async getFollowing(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      const { page = 1, limit = 20 } = req.query;
+      const { page = 1, limit = 20, q = '' } = req.query;
 
       const result = await socialService.getFollowing(
         userId,
         parseInt(page as string),
-        parseInt(limit as string)
+        parseInt(limit as string),
+        q as string
       );
 
       if (result.users.length > 0) {
@@ -503,6 +514,16 @@ export class SocialController {
       const { entityType, entityId } = req.params;
       const followerId = req.user!.id;
 
+      // Prevent users from following themselves as entities
+      if (followerId === entityId) {
+        return res.status(400).json({
+          error: {
+            code: 'SELF_FOLLOW_NOT_ALLOWED',
+            message: 'You cannot follow yourself',
+          },
+        });
+      }
+
       const follow = await EntityFollowModel.follow({
         followerId,
         entityType: entityType as EntityType,
@@ -636,7 +657,7 @@ export class SocialController {
   async getUserFollowingEntities(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      const { entityType, page = 1, limit = 50 } = req.query;
+      const { entityType, page = 1, limit = 50, q = '' } = req.query;
 
       const pageNum = parseInt(page as string);
       const limitNum = parseInt(limit as string);
@@ -646,7 +667,8 @@ export class SocialController {
         userId,
         entityType as EntityType | undefined,
         limitNum,
-        offset
+        offset,
+        q as string
       );
 
       res.json({

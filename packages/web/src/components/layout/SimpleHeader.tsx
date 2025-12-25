@@ -12,16 +12,23 @@ import {
   ShoppingBagIcon,
   UserIcon
 } from '@heroicons/react/24/outline';
+import { useAuth } from '@/contexts/AuthWrapper';
 
 export function SimpleHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+
+  // Dynamic profile URL - uses /u/username if authenticated, /login if not
+  const profileHref = isAuthenticated && user?.username
+    ? `/u/${user.username}`
+    : '/login';
 
   const navigation = [
     { name: 'Discover', href: '/discover', icon: MagnifyingGlassIcon },
     { name: 'Wardrobe', href: '/wardrobe', icon: HomeIcon },
     { name: 'Looks', href: '/outfits', icon: EyeIcon },
     { name: 'Marketplace', href: '/marketplace', icon: ShoppingBagIcon },
-    { name: 'Profile', href: '/profile', icon: UserIcon },
+    { name: 'Profile', href: profileHref, icon: UserIcon },
   ];
 
   return (

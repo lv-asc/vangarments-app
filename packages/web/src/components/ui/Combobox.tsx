@@ -5,7 +5,7 @@ import { Fragment, useState } from 'react'
 interface ComboboxProps {
     value: string | null
     onChange: (value: string | null) => void
-    options: Array<{ id?: string | number; name: string; value?: string }>
+    options: Array<{ id?: string | number; name: string; value?: string; hex?: string }>
     label?: string
     placeholder?: string
     className?: string
@@ -56,11 +56,15 @@ export default function SearchableCombobox({
                             displayValue={(val: string | null) => val || ''}
                             onChange={(event) => {
                                 setQuery(event.target.value)
+                                if (event.target.value === '' && !freeSolo) {
+                                    onChange(null)
+                                }
                                 if (freeSolo) {
                                     onChange(event.target.value)
                                 }
                             }}
                             placeholder={placeholder}
+                            autoComplete="off"
                         />
                         <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                             <ChevronUpDownIcon
@@ -107,12 +111,20 @@ export default function SearchableCombobox({
                                     >
                                         {({ selected, active }) => (
                                             <>
-                                                <span
-                                                    className={`block truncate ${selected ? 'font-medium' : 'font-normal'
-                                                        }`}
-                                                >
-                                                    {option.name}
-                                                </span>
+                                                <div className="flex items-center">
+                                                    {option.hex && (
+                                                        <span
+                                                            className="flex-shrink-0 inline-block h-4 w-4 rounded-full border border-gray-200 mr-2"
+                                                            style={{ backgroundColor: option.hex }}
+                                                        ></span>
+                                                    )}
+                                                    <span
+                                                        className={`block truncate ${selected ? 'font-medium' : 'font-normal'
+                                                            }`}
+                                                    >
+                                                        {option.name}
+                                                    </span>
+                                                </div>
                                                 {selected ? (
                                                     <span
                                                         className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-blue-600'

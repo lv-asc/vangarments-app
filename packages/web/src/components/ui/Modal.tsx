@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
 
@@ -23,6 +24,13 @@ export function Modal({
   showCloseButton = true,
   closeOnOverlayClick = true,
 }: ModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -44,7 +52,7 @@ export function Modal({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const sizes = {
     sm: 'max-w-md',
@@ -54,7 +62,7 @@ export function Modal({
     full: 'max-w-full mx-4',
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Overlay */}
       <div
@@ -91,7 +99,8 @@ export function Modal({
         {/* Content */}
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -87,8 +87,8 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
             return;
         }
 
-        if (roles.length === 0) {
-            toast.error('Please select at least one role');
+        if (roles.length === 0 && !title.trim()) {
+            toast.error('Please select at least one role or provide a job title');
             return;
         }
 
@@ -111,8 +111,8 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
     const handleUpdateMember = async () => {
         if (!selectedMember) return;
 
-        if (roles.length === 0) {
-            toast.error('Please select at least one role');
+        if (roles.length === 0 && !title.trim()) {
+            toast.error('Please select at least one role or provide a job title');
             return;
         }
 
@@ -326,16 +326,18 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Job Title (Optional)</label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 border"
-                            placeholder="e.g. Senior Designer"
-                        />
-                    </div>
+                    {roles.length === 0 && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Job Title (Required when no role selected)</label>
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 border"
+                                placeholder="e.g. Senior Designer"
+                            />
+                        </div>
+                    )}
 
                     <div className="flex items-center">
                         <input
@@ -389,15 +391,17 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Job Title (Optional)</label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 border"
-                        />
-                    </div>
+                    {roles.length === 0 && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Job Title (Required when no role selected)</label>
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 border"
+                            />
+                        </div>
+                    )}
 
                     <div className="flex items-center">
                         <input

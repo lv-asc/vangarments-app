@@ -35,6 +35,13 @@ export default function StaticPage() {
         if (slug) loadPage();
     }, [slug]);
 
+    // Update document title when page is loaded
+    useEffect(() => {
+        if (page) {
+            document.title = `Page @${page.name}`;
+        }
+    }, [page]);
+
     const loadPage = async () => {
         try {
             setLoading(true);
