@@ -1,11 +1,11 @@
 
 import { Metadata } from 'next';
-import AdminVUFSPage from './VUFSClient';
+import AdminStylesPage from './StylesClient';
 
 export const metadata: Metadata = {
-    title: 'VUFS Attributes',
+    title: 'Styles',
 };
 
 export default function Page() {
-    return <AdminVUFSPage />;
+    return <AdminStylesPage />;
 }

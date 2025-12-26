@@ -43,7 +43,7 @@ export function resetImageCache(): void {
  * This avoids CORS issues by serving images from the same origin
  */
 export function getImageUrl(path: string | undefined | null): string {
-  if (!path) return '';
+  if (!path || typeof path !== 'string') return '';
 
   // If it's an absolute URL pointing to our backend, convert to proxy
   if (path.includes('localhost:3001') || (process.env.NEXT_PUBLIC_API_URL && path.includes(process.env.NEXT_PUBLIC_API_URL))) {

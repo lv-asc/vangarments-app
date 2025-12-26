@@ -56,20 +56,7 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
   // Filter routes that user can access
   const accessibleRoutes = availableRoutes.filter(route => canNavigateTo(route.path));
 
-  const handleNavigation = async (path: string, event: React.MouseEvent) => {
-    event.preventDefault();
-    console.log('🔧 Navigation: Handling click', { path, currentPath });
 
-    if (path === currentPath) {
-      console.log('🔧 Navigation: Already on current path');
-      return;
-    }
-
-    const success = await navigate(path);
-    if (!success) {
-      console.error('❌ Navigation: Failed to navigate', { path });
-    }
-  };
 
   const getIconForRoute = (routeName: string) => {
     const iconKey = routeName.toLowerCase().replace(/[^a-z]/g, '');
@@ -98,7 +85,6 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
             <Link
               key={route.path}
               href={route.path}
-              onClick={(e) => handleNavigation(route.path, e)}
               className={`flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 ${isActive
                 ? 'bg-primary text-primary-foreground shadow-md'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -129,7 +115,6 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
             <Link
               key={route.path}
               href={route.path}
-              onClick={(e) => handleNavigation(route.path, e)}
               className={`flex flex-col items-center space-y-1 p-3 rounded-lg transition-all duration-200 ${isActive
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:bg-muted'
@@ -159,7 +144,6 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
           >
             <Link
               href={route.path}
-              onClick={(e) => handleNavigation(route.path, e)}
               className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-all duration-200 ${isActive
                 ? 'text-primary bg-primary/10'
                 : 'text-muted-foreground hover:text-primary hover:bg-muted'

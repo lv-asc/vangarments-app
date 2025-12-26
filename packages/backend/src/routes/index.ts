@@ -31,6 +31,8 @@ import brandRoutes from './brand';
 
 import skuRoutes from './sku';
 import colorRoutes from './colors';
+import mediaLabelRoutes from './media-labels';
+import conditionRoutes from './conditions';
 import sizeRoutes from './sizes';
 import journalismRoutes from './journalismRoutes';
 import pageRoutes from './pageRoutes';
@@ -74,6 +76,8 @@ router.use('/storage', storageRoutes);
 router.use('/vufs-management', vufsManagementRoutes);
 router.use('/configuration', configurationRoutes);
 router.use('/colors', colorRoutes); // New Color routes
+router.use('/media-labels', mediaLabelRoutes); // Media labels for SKU images/videos
+router.use('/conditions', conditionRoutes); // Wardrobe item conditions
 router.use('/sizes', sizeRoutes); // New Size routes
 router.use('/journalism', journalismRoutes); // New Journalism routes
 router.use('/pages', pageRoutes);

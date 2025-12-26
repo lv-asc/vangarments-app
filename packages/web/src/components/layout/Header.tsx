@@ -72,19 +72,7 @@ export function Header() {
     setIsUserMenuOpen(false);
   }; */ // Moved to Profile Page
 
-  const handleNavigation = async (href: string, event: React.MouseEvent) => {
-    event.preventDefault();
-    console.log('🔧 Header: Navigation clicked', { href, currentPath });
-
-    if (href === currentPath) {
-      console.log('🔧 Header: Already on current path');
-      return;
-    }
-
-    const success = await navigate(href);
-    if (!success) {
-      console.error('❌ Header: Navigation failed', { href });
-    }
+  const closeMenu = () => {
     setIsMenuOpen(false);
   };
 
@@ -110,7 +98,6 @@ export function Header() {
                 <Link
                   key={link.name}
                   href={link.href}
-                  onClick={(e) => handleNavigation(link.href, e)}
                   className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors ${isActive
                     ? 'text-primary bg-primary/10'
                     : link.special
@@ -137,7 +124,6 @@ export function Header() {
                 <div className="flex items-center">
                   <Link
                     href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
-                    onClick={(e) => handleNavigation(`/u/${user.username || user.email?.split('@')[0] || 'user'}`, e)}
                     className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors"
                   >
                     <UserAvatar user={user} size="sm" />
@@ -150,14 +136,12 @@ export function Header() {
               <div className="space-x-4">
                 <Link
                   href="/login"
-                  onClick={(e) => handleNavigation('/login', e)}
                   className="inline-block bg-muted py-2 px-4 border border-border rounded-md text-base font-medium text-foreground hover:bg-muted/80 transition-colors"
                 >
                   {t('login')}
                 </Link>
                 <Link
                   href="/register"
-                  onClick={(e) => handleNavigation('/register', e)}
                   className="inline-block bg-primary py-2 px-4 border border-transparent rounded-md text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   {t('register')}
@@ -199,7 +183,7 @@ export function Header() {
                     <Link
                       key={link.name}
                       href={link.href}
-                      onClick={(e) => handleNavigation(link.href, e)}
+                      onClick={closeMenu}
                       className={`flex items-center space-x-3 pl-3 pr-4 py-2 text-base font-medium transition-colors ${isActive
                         ? 'text-[#00132d] bg-[#00132d]/10'
                         : 'text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5'
@@ -223,10 +207,7 @@ export function Header() {
                       </div>
                       <Link
                         href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
-                        onClick={(e) => {
-                          handleNavigation(`/u/${user.username || user.email?.split('@')[0] || 'user'}`, e);
-                          setIsMenuOpen(false);
-                        }}
+                        onClick={closeMenu}
                         className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                       >
                         {t('myProfile')}
@@ -236,10 +217,7 @@ export function Header() {
                       {user.linkedEntities?.hasBrand && (
                         <Link
                           href="/admin?tab=brands"
-                          onClick={(e) => {
-                            handleNavigation('/admin?tab=brands', e);
-                            setIsMenuOpen(false);
-                          }}
+                          onClick={closeMenu}
                           className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                         >
                           My Brands
@@ -248,10 +226,7 @@ export function Header() {
                       {user.linkedEntities?.hasStore && (
                         <Link
                           href="/admin/stores"
-                          onClick={(e) => {
-                            handleNavigation('/admin/stores', e);
-                            setIsMenuOpen(false);
-                          }}
+                          onClick={closeMenu}
                           className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                         >
                           My Stores
@@ -260,10 +235,7 @@ export function Header() {
                       {user.linkedEntities?.hasPage && (
                         <Link
                           href="/admin/pages"
-                          onClick={(e) => {
-                            handleNavigation('/admin/pages', e);
-                            setIsMenuOpen(false);
-                          }}
+                          onClick={closeMenu}
                           className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                         >
                           My Pages
@@ -272,10 +244,7 @@ export function Header() {
                       {user.linkedEntities?.hasSupplier && (
                         <Link
                           href="/admin/suppliers"
-                          onClick={(e) => {
-                            handleNavigation('/admin/suppliers', e);
-                            setIsMenuOpen(false);
-                          }}
+                          onClick={closeMenu}
                           className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                         >
                           My Suppliers
@@ -284,19 +253,16 @@ export function Header() {
                       {user.linkedEntities?.hasPost && (
                         <Link
                           href={`/u/${user.username || user.email?.split('@')[0] || 'user'}?tab=posts`}
-                          onClick={(e) => {
-                            handleNavigation(`/u/${user.username || user.email?.split('@')[0] || 'user'}?tab=posts`, e);
-                            setIsMenuOpen(false);
-                          }}
+                          onClick={closeMenu}
                           className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                         >
                           My Posts
                         </Link>
                       )}
                       <button
-                        onClick={() => {
-                          handleLogout();
-                          setIsMenuOpen(false);
+                        onClick={async () => {
+                          await logout();
+                          closeMenu();
                         }}
                         className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                       >
@@ -307,20 +273,14 @@ export function Header() {
                     <div className="space-y-1">
                       <Link
                         href="/login"
-                        onClick={(e) => {
-                          handleNavigation('/login', e);
-                          setIsMenuOpen(false);
-                        }}
+                        onClick={closeMenu}
                         className="block pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                       >
                         {t('login')}
                       </Link>
                       <Link
                         href="/register"
-                        onClick={(e) => {
-                          handleNavigation('/register', e);
-                          setIsMenuOpen(false);
-                        }}
+                        onClick={closeMenu}
                         className="block pl-3 pr-4 py-2 text-base font-medium bg-[#00132d] text-[#fff7d7] rounded-md mx-3 hover:bg-[#00132d]/90 transition-colors"
                       >
                         {t('register')}

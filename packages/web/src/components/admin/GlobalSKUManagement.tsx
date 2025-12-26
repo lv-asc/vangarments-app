@@ -34,6 +34,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [colors, setColors] = useState<any[]>([]);
     const [sizes, setSizes] = useState<any[]>([]);
     const [genders, setGenders] = useState<any[]>([]);
+    const [mediaLabels, setMediaLabels] = useState<any[]>([]);
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -86,6 +87,16 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         images: [] as any[],
         videos: [] as any[],
 
+        // Name configuration options
+        nameConfig: {
+            includeStyle: false,
+            includePattern: false,
+            includeMaterial: false,
+            includeFit: false,
+            brandLineDisplay: 'brand-only' as 'brand-only' | 'brand-and-line' | 'line-only',
+            showCollection: false
+        },
+
         // Auto-generated fields for display
         generatedName: '',
         generatedCode: 'SYSTEM_GENERATED'
@@ -117,6 +128,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
         const brandName = vufsBrands.find(b => b.id === formData.brandId)?.name || '';
         const lineName = lines.find(l => l.id === formData.lineId)?.name || '';
+        const collectionName = formData.collection || '';
         const modelName = formData.modelName;
 
         const apparelName = apparels.find(c => c.id === formData.apparelId)?.name || '';
@@ -124,33 +136,44 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         const patternName = patterns.find(p => p.id === formData.patternId)?.name || '';
         const materialName = materials.find(m => m.id === formData.materialId)?.name || '';
         const fitName = fits.find(f => f.id === formData.fitId)?.name || '';
-        // Gender usually not in name unless specified, but user didn't explicitly ask for Gender in name parts in Step 677.
-        // User said: "Line... Model Name... Style... Pattern... Material... Fit... Apparel (Color) [Size]"
-        // Wait, user listed attributes: "Brand; Line; Collection; Model Name; Apparel; Style; Pattern; Material; Fit; Gender; Size(s); Color(s)"
-        // And SKU Name: "Line ... Model ... Style ... Pattern ... Material ... Fit ... Apparel (Color) [Size]"
-        // Gender is MISSING from auto-generated name format in user request.
-        // I will exclude it from name to follow instructions exactly.
 
-        const prefix = lineName || brandName;
+        // Determine prefix based on brandLineDisplay configuration
+        let prefix = '';
+        switch (formData.nameConfig.brandLineDisplay) {
+            case 'brand-only':
+                prefix = brandName;
+                break;
+            case 'line-only':
+                prefix = lineName || brandName; // Fallback to brand if no line
+                break;
+            case 'brand-and-line':
+            default:
+                prefix = lineName ? `${brandName} ${lineName}`.trim() : brandName;
+                break;
+        }
 
-        // Construct base name
-        const parts = [
-            prefix,
-            modelName,
-            styleName,
-            patternName,
-            materialName,
-            fitName,
-            apparelName
-        ].filter(Boolean); // Remove empty strings
+        // Construct base name parts based on nameConfig
+        const parts = [prefix];
 
-        setFormData(prev => ({ ...prev, generatedName: parts.join(' ') }));
+        if (formData.nameConfig.showCollection && collectionName) {
+            parts.push(collectionName);
+        }
+
+        if (modelName) parts.push(modelName);
+        if (formData.nameConfig.includeStyle && styleName) parts.push(styleName);
+        if (formData.nameConfig.includePattern && patternName) parts.push(patternName);
+        if (formData.nameConfig.includeMaterial && materialName) parts.push(materialName);
+        if (formData.nameConfig.includeFit && fitName) parts.push(fitName);
+        if (apparelName) parts.push(apparelName);
+
+        setFormData(prev => ({ ...prev, generatedName: parts.filter(Boolean).join(' ') }));
 
     }, [
-        formData.brandId, formData.lineId, formData.modelName,
+        formData.brandId, formData.lineId, formData.collection, formData.modelName,
         formData.styleId, formData.patternId, formData.materialId,
         formData.fitId, formData.apparelId,
-        vufsBrands, lines, categories, patterns, materials, fits
+        formData.nameConfig,
+        vufsBrands, lines, apparels, styles, patterns, materials, fits
     ]);
 
 
@@ -180,7 +203,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 materialsRes,
                 fitsRes,
                 colorsRes,
-                sizesRes
+                sizesRes,
+                mediaLabelsRes
             ] = await Promise.all([
                 apiClient.getVUFSBrands(),
                 apiClient.getVUFSAttributeValues('apparel'),
@@ -189,8 +213,22 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 apiClient.getVUFSMaterials(),
                 apiClient.getVUFSFits(),
                 apiClient.getVUFSColors(),
-                apiClient.getVUFSSizes()
+                apiClient.getVUFSSizes(),
+                apiClient.getAllMediaLabels() // Add this
             ]);
+
+            console.log('[GlobalSKUManagement] VUFS data fetched:', {
+                brands: brandsRes?.length || 0,
+                apparels: apparelsRes?.length || 0,
+                styles: stylesRes?.length || 0,
+                patterns: patternsRes?.length || 0,
+                materials: materialsRes?.length || 0,
+                fits: fitsRes?.length || 0,
+                colors: colorsRes?.length || 0,
+                sizes: sizesRes?.length || 0,
+                mediaLabels: mediaLabelsRes?.length || 0,
+                sizesRaw: sizesRes
+            });
 
             setVufsBrands(brandsRes || []);
             setApparels(apparelsRes || []);
@@ -200,6 +238,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             setFits(fitsRes || []);
             setColors(colorsRes || []);
             setSizes(sizesRes || []);
+            setMediaLabels(mediaLabelsRes || []);
             setGenders(Array.isArray(gendersData) ? gendersData : []);
 
         } catch (error) {
@@ -274,10 +313,19 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     }, [styles, formData.apparelId]);
 
 
-    const openModal = (sku?: any) => {
+    const openModal = async (sku?: any) => {
         if (sku) {
             setEditingSku(sku);
             const metadata = sku.metadata || {};
+
+            // Fetch lines and collections for the brand immediately
+            if (sku.brandId) {
+                await Promise.all([
+                    fetchLines(sku.brandId),
+                    fetchCollections(sku.brandId)
+                ]);
+            }
+
             setFormData({
                 brandId: sku.brandId,
                 lineId: sku.lineId || '',
@@ -294,6 +342,14 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 description: sku.description || '',
                 images: sku.images || [],
                 videos: sku.videos || [],
+                nameConfig: metadata.nameConfig || {
+                    includeStyle: false,
+                    includePattern: false,
+                    includeMaterial: false,
+                    includeFit: false,
+                    brandLineDisplay: 'brand-only',
+                    showCollection: false
+                },
                 generatedName: sku.name,
                 generatedCode: sku.code
             });
@@ -315,6 +371,14 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 description: '',
                 images: [],
                 videos: [],
+                nameConfig: {
+                    includeStyle: false,
+                    includePattern: false,
+                    includeMaterial: false,
+                    includeFit: false,
+                    brandLineDisplay: 'brand-only',
+                    showCollection: false
+                },
                 generatedName: '',
                 generatedCode: 'To be generated'
             });
@@ -336,53 +400,62 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         });
     };
 
+    // Helper function to build SKU payload - unified for both create and edit
+    const buildSKUPayload = (colorId: string | null, sizeId: string | null, isEdit: boolean = false) => {
+        const colorName = colorId ? colors.find(c => c.id === colorId)?.name : '';
+        const sizeName = sizeId ? sizes.find(s => s.id === sizeId)?.name : '';
+
+        const nameParts = [formData.generatedName];
+        // For edit mode, check if color/size already in name to avoid duplication
+        if (isEdit) {
+            if (colorName && !formData.generatedName.includes(`(${colorName})`)) nameParts.push('(' + colorName + ')');
+            if (sizeName && !formData.generatedName.includes(`[${sizeName}]`)) nameParts.push('[' + sizeName + ']');
+        } else {
+            if (colorName) nameParts.push('(' + colorName + ')');
+            if (sizeName) nameParts.push('[' + sizeName + ']');
+        }
+
+        const finalName = nameParts.join(' ');
+
+        return {
+            name: finalName,
+            brandId: formData.brandId,
+            lineId: formData.lineId || null,
+            collection: formData.collection || null,
+            description: formData.description,
+            images: formData.images,
+            videos: formData.videos,
+            materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
+            category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
+            metadata: {
+                modelName: formData.modelName,
+                genderId: formData.genderId,
+                apparelId: formData.apparelId,
+                styleId: formData.styleId,
+                patternId: formData.patternId,
+                materialId: formData.materialId,
+                fitId: formData.fitId,
+                sizeId: sizeId,
+                colorId: colorId,
+                genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
+                apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
+                styleName: styles.find(c => c.id === formData.styleId)?.name,
+                patternName: patterns.find(p => p.id === formData.patternId)?.name,
+                fitName: fits.find(f => f.id === formData.fitId)?.name,
+                nameConfig: formData.nameConfig
+            }
+        };
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setModalLoading(true);
         try {
             if (editingSku) {
                 // Update specific SKU
-                const colorId = formData.selectedColors[0];
-                const sizeId = formData.selectedSizes[0];
-
-                const colorName = colorId ? colors.find(c => c.id === colorId)?.name : '';
-                const sizeName = sizeId ? sizes.find(s => s.id === sizeId)?.name : '';
-
-                const nameParts = [formData.generatedName];
-                // Note: If we are editing, we usually don't want to re-append color/size if they are already in generatedName
-                // But the preview shows generatedName WITHOUT color/size, and we append them.
-                if (colorName && !formData.generatedName.includes(`(${colorName})`)) nameParts.push('(' + colorName + ')');
-                if (sizeName && !formData.generatedName.includes(`[${sizeName}]`)) nameParts.push('[' + sizeName + ']');
-
-                const finalName = nameParts.join(' ');
-
-                const payload = {
-                    name: finalName,
-                    brandId: formData.brandId,
-                    lineId: formData.lineId || null,
-                    collection: formData.collection || null,
-                    description: formData.description,
-                    images: formData.images,
-                    videos: formData.videos,
-                    materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
-                    category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
-                    metadata: {
-                        modelName: formData.modelName,
-                        genderId: formData.genderId,
-                        apparelId: formData.apparelId,
-                        styleId: formData.styleId,
-                        patternId: formData.patternId,
-                        materialId: formData.materialId,
-                        fitId: formData.fitId,
-                        sizeId: sizeId,
-                        colorId: colorId,
-                        genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
-                        apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
-                        styleName: styles.find(c => c.id === formData.styleId)?.name,
-                        patternName: patterns.find(p => p.id === formData.patternId)?.name,
-                        fitName: fits.find(f => f.id === formData.fitId)?.name
-                    }
-                };
+                const colorId = formData.selectedColors[0] || null;
+                const sizeId = formData.selectedSizes[0] || null;
+                const payload = buildSKUPayload(colorId, sizeId, true);
 
                 await apiClient.updateSKU(editingSku.id, payload);
                 toast.success('SKU updated successfully');
@@ -395,42 +468,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
                 for (const colorId of colorsToCreate) {
                     for (const sizeId of sizesToCreate) {
-                        const colorName = colorId ? colors.find(c => c.id === colorId)?.name : '';
-                        const sizeName = sizeId ? sizes.find(s => s.id === sizeId)?.name : '';
-
-                        const nameParts = [formData.generatedName];
-                        if (colorName) nameParts.push('(' + colorName + ')');
-                        if (sizeName) nameParts.push('[' + sizeName + ']');
-
-                        const finalName = nameParts.join(' ');
-
                         const payload = {
-                            name: finalName,
+                            ...buildSKUPayload(colorId, sizeId, false),
                             code: 'TEMP-' + Date.now() + '-' + createdCount,
-                            brandId: formData.brandId,
-                            lineId: formData.lineId || undefined,
-                            collection: formData.collection || undefined,
-                            description: formData.description,
-                            images: formData.images,
-                            videos: formData.videos,
-                            materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
-                            category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
-                            metadata: {
-                                modelName: formData.modelName,
-                                genderId: formData.genderId,
-                                apparelId: formData.apparelId,
-                                styleId: formData.styleId,
-                                patternId: formData.patternId,
-                                materialId: formData.materialId,
-                                fitId: formData.fitId,
-                                sizeId: sizeId,
-                                colorId: colorId,
-                                genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
-                                apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
-                                styleName: styles.find(c => c.id === formData.styleId)?.name,
-                                patternName: patterns.find(p => p.id === formData.patternId)?.name,
-                                fitName: fits.find(f => f.id === formData.fitId)?.name
-                            }
                         };
 
                         await apiClient.createSKU(formData.brandId, payload);
@@ -606,9 +646,16 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                 <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
                                     <div className="flex items-center gap-4">
                                         {/* Image Thumbnail */}
-                                        <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                        <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
                                             {sku.images?.[0]?.url ? (
-                                                <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                                <>
+                                                    <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                                    {sku.images[0].labelId && (
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white px-1 py-0.5 truncate text-center leading-tight">
+                                                            {mediaLabels.find(l => l.id === sku.images[0].labelId)?.name || 'Label'}
+                                                        </div>
+                                                    )}
+                                                </>
                                             ) : (
                                                 <div className="h-full w-full flex items-center justify-center text-gray-400">
                                                     <MagnifyingGlassIcon className="h-6 w-6" />
@@ -732,11 +779,15 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                 value={vufsBrands.find(b => b.id === formData.brandId)?.name || ''}
                                                 onChange={(name) => {
                                                     const brand = vufsBrands.find(b => b.name === name);
-                                                    setFormData({ ...formData, brandId: brand?.id || '', lineId: '', collection: '' });
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        brandId: brand?.id || '',
+                                                        lineId: '',
+                                                        collection: ''
+                                                    }));
                                                 }}
                                                 options={vufsBrands}
                                                 placeholder="Select Brand..."
-                                                disabled={!!editingSku}
                                             />
                                         </div>
 
@@ -871,6 +922,141 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             options={genders}
                                             placeholder="Select Gender..."
                                         />
+                                    </div>
+
+                                    {/* SKU Name Configuration Section */}
+                                    <div className="col-span-2 border-t pt-6 mt-4">
+                                        <h4 className="text-sm font-semibold text-gray-900 mb-4">SKU Name Configuration</h4>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {/* Include Fields Checkboxes */}
+                                            <div className="space-y-3">
+                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Include in Name:</label>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeStyle"
+                                                        checked={formData.nameConfig.includeStyle}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, includeStyle: e.target.checked }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                    />
+                                                    <label htmlFor="includeStyle" className="ml-2 text-sm text-gray-700">Style</label>
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includePattern"
+                                                        checked={formData.nameConfig.includePattern}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, includePattern: e.target.checked }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                    />
+                                                    <label htmlFor="includePattern" className="ml-2 text-sm text-gray-700">Pattern</label>
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeMaterial"
+                                                        checked={formData.nameConfig.includeMaterial}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, includeMaterial: e.target.checked }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                    />
+                                                    <label htmlFor="includeMaterial" className="ml-2 text-sm text-gray-700">Material</label>
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeFit"
+                                                        checked={formData.nameConfig.includeFit}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, includeFit: e.target.checked }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                    />
+                                                    <label htmlFor="includeFit" className="ml-2 text-sm text-gray-700">Fit</label>
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="showCollection"
+                                                        checked={formData.nameConfig.showCollection}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, showCollection: e.target.checked }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                    />
+                                                    <label htmlFor="showCollection" className="ml-2 text-sm text-gray-700">Collection</label>
+                                                </div>
+                                            </div>
+
+                                            {/* Brand/Line Display Options */}
+                                            <div className="space-y-3">
+                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Brand/Line Display:</label>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="radio"
+                                                        id="brandOnly"
+                                                        name="brandLineDisplay"
+                                                        value="brand-only"
+                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-only'}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                    />
+                                                    <label htmlFor="brandOnly" className="ml-2 text-sm text-gray-700">Brand Only</label>
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="radio"
+                                                        id="brandAndLine"
+                                                        name="brandLineDisplay"
+                                                        value="brand-and-line"
+                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-and-line'}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                    />
+                                                    <label htmlFor="brandAndLine" className="ml-2 text-sm text-gray-700">Brand + Line</label>
+                                                </div>
+
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="radio"
+                                                        id="lineOnly"
+                                                        name="brandLineDisplay"
+                                                        value="line-only"
+                                                        checked={formData.nameConfig.brandLineDisplay === 'line-only'}
+                                                        onChange={(e) => setFormData(prev => ({
+                                                            ...prev,
+                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                        }))}
+                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                    />
+                                                    <label htmlFor="lineOnly" className="ml-2 text-sm text-gray-700">Line Only</label>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* Size(s) - Multi-Select */}

@@ -1009,6 +1009,36 @@ class ApiClient {
   }
   async deleteColorGroup(id: string) { return this.request(`/colors/groups/${id}`, { method: 'DELETE' }); }
 
+  // --- MEDIA LABELS (Admin Page) ---
+  async getAllMediaLabels() { const res = await this.request<any[]>('/media-labels'); return res as any as any[]; }
+  async createMediaLabel(data: { name: string; groupIds?: string[] }) {
+    return this.request('/media-labels', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async updateMediaLabel(id: string, data: { name?: string; groupIds?: string[] }) {
+    return this.request(`/media-labels/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+  async deleteMediaLabel(id: string) { return this.request(`/media-labels/${id}`, { method: 'DELETE' }); }
+
+  async getMediaLabelGroups() { const res = await this.request<any[]>('/media-labels/groups/all'); return res as any as any[]; }
+  async createMediaLabelGroup(name: string, representativeColor?: string) {
+    return this.request('/media-labels/groups', { method: 'POST', body: JSON.stringify({ name, representativeColor }) });
+  }
+  async updateMediaLabelGroup(id: string, name: string, representativeColor?: string, labelIds?: string[]) {
+    return this.request(`/media-labels/groups/${id}`, { method: 'PUT', body: JSON.stringify({ name, representativeColor, labelIds }) });
+  }
+  async deleteMediaLabelGroup(id: string) { return this.request(`/media-labels/groups/${id}`, { method: 'DELETE' }); }
+
+  // --- CONDITIONS (Admin Page) ---
+  async getAllConditions() { const res = await this.request<any[]>('/conditions'); return res as any as any[]; }
+  async createCondition(data: { name: string; rating: number; group: 'new' | 'used' }) {
+    return this.request('/conditions', { method: 'POST', body: JSON.stringify(data) });
+  }
+  async updateCondition(id: string, data: { name?: string; rating?: number; group?: 'new' | 'used' }) {
+    return this.request(`/conditions/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+  async deleteCondition(id: string) { return this.request(`/conditions/${id}`, { method: 'DELETE' }); }
+
+
   // --- EXTENDED SIZES (Admin Page) ---
   async getAllSizes() { const res = await this.request<any[]>('/sizes'); return res as any as any[]; }
   async createSize(data: { name: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[] }) {

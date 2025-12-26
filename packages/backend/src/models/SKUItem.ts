@@ -16,10 +16,12 @@ export interface SKUItem {
     images: Array<{
         url: string;
         isPrimary: boolean;
+        labelId?: string;
     }>;
     videos?: Array<{
         url: string;
         title?: string;
+        labelId?: string;
     }>;
     metadata?: Record<string, any>;
     createdAt: Date;
@@ -40,10 +42,12 @@ export interface CreateSKUItemData {
     images?: Array<{
         url: string;
         isPrimary: boolean;
+        labelId?: string;
     }>;
     videos?: Array<{
         url: string;
         title?: string;
+        labelId?: string;
     }>;
     metadata?: Record<string, any>;
 }
@@ -60,10 +64,12 @@ export interface UpdateSKUItemData {
     images?: Array<{
         url: string;
         isPrimary: boolean;
+        labelId?: string;
     }>;
     videos?: Array<{
         url: string;
         title?: string;
+        labelId?: string;
     }>;
     metadata?: Record<string, any>;
 }

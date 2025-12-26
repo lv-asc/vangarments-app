@@ -102,7 +102,6 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
     stores: { id: 'stores', title: 'Stores', description: 'Manage Store Accounts and locations.', href: '/admin/stores', iconName: 'ShoppingBagIcon', gradient: 'from-purple-500 to-indigo-600' },
     suppliers: { id: 'suppliers', title: 'Suppliers', description: 'Manage Suppliers and their details.', href: '/admin/suppliers', iconName: 'TruckIcon', gradient: 'from-emerald-500 to-teal-600' },
     non_profits: { id: 'non_profits', title: 'Non Profits', description: 'Manage Non-Profit Organizations.', href: '/admin/non-profits', iconName: 'HeartIcon', gradient: 'from-rose-500 to-red-600' },
-    vufs: { id: 'vufs', title: 'VUFS Master Data', description: 'Universal Fashion Standard attributes.', href: '/admin/vufs', iconName: 'GlobeAltIcon', gradient: 'from-teal-500 to-emerald-600' },
     categories: { id: 'categories', title: 'Categories', description: 'Manage hierarchical Categories structure.', href: '/admin/categories', iconName: 'FolderIcon', gradient: 'from-orange-400 to-pink-500' },
     apparel: { id: 'apparel', title: 'Apparel', description: 'Manage Apparel Categories and Attributes.', href: '/admin/apparel', iconName: 'TagIcon', gradient: 'from-pink-500 to-rose-500' },
     skus: { id: 'skus', title: 'SKU Management', description: 'Manage Global SKUs, Images, and Videos.', href: '/admin/skus', iconName: 'BriefcaseIcon', gradient: 'from-cyan-500 to-blue-500' },
@@ -110,11 +109,14 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
     sizes: { id: 'sizes', title: 'Sizes', description: 'Manage Sizes, Conversions and Validity.', href: '/admin/sizes', iconName: 'FunnelIcon', gradient: 'from-amber-500 to-orange-600' },
     materials: { id: 'materials', title: 'Materials', description: 'Manage fabric and material types.', href: '/admin/materials', iconName: 'BeakerIcon', gradient: 'from-lime-500 to-green-600' },
     patterns: { id: 'patterns', title: 'Patterns', description: 'Manage pattern and print types.', href: '/admin/patterns', iconName: 'RectangleGroupIcon', gradient: 'from-indigo-500 to-violet-600' },
+    styles: { id: 'styles', title: 'Styles', description: 'Manage apparel style types and categories.', href: '/admin/styles', iconName: 'SwatchIcon', gradient: 'from-purple-500 to-fuchsia-600' },
     fits: { id: 'fits', title: 'Fits', description: 'Manage fit types and silhouettes.', href: '/admin/fits', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-sky-500 to-blue-600' },
     occasions: { id: 'occasions', title: 'Occasions', description: 'Manage occasion and event types.', href: '/admin/occasions', iconName: 'CalendarIcon', gradient: 'from-red-500 to-rose-600' },
     seasons: { id: 'seasons', title: 'Seasons', description: 'Manage seasonal collections.', href: '/admin/seasons', iconName: 'SunIcon', gradient: 'from-yellow-500 to-amber-600' },
     genders: { id: 'genders', title: 'Genders', description: 'Manage Gender options.', href: '/admin/genders', iconName: 'UserGroupIcon', gradient: 'from-pink-400 to-purple-400' },
+    conditions: { id: 'conditions', title: 'Conditions', description: 'Manage item condition types and grades.', href: '/admin/conditions', iconName: 'BeakerIcon', gradient: 'from-teal-500 to-cyan-600' },
     measurements: { id: 'measurements', title: 'Measurements', description: 'Manage body measurement fields.', href: '/admin/measurements', iconName: 'FunnelIcon', gradient: 'from-stone-500 to-gray-600' },
+    media_labels: { id: 'media_labels', title: 'Media Labels', description: 'Manage media labels for SKU images and videos.', href: '/admin/media-labels', iconName: 'TagIcon', gradient: 'from-violet-500 to-fuchsia-600' },
     users: { id: 'users', title: 'User Management', description: 'Manage Users, Roles, and Permissions.', href: '/admin/users', iconName: 'UsersIcon', gradient: 'from-blue-600 to-indigo-600' },
     pages: { id: 'pages', title: 'Pages', description: 'Manage publication pages (Vogue, etc.)', href: '/admin/pages', iconName: 'BookOpenIcon', gradient: 'from-violet-500 to-purple-500' },
     journalism: { id: 'journalism', title: 'Journalism', description: 'Manage News, Columns, and Articles.', href: '/admin/journalism', iconName: 'NewspaperIcon', gradient: 'from-slate-600 to-gray-700' },
@@ -554,7 +556,7 @@ export default function AdminPage() {
     // Items Order State
     const [sectionsOrder, setSectionsOrder] = useState<{ [key: string]: string[] }>({
         'Commerce & Partners': ['brands', 'stores', 'suppliers', 'non_profits'],
-        'Product Catalog': ['vufs', 'categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'fits', 'occasions', 'seasons', 'measurements'],
+        'Product Catalog': ['categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
         'Content & Platform': ['users', 'pages', 'journalism', 'config']
     });
 
@@ -579,7 +581,7 @@ export default function AdminPage() {
         const savedOrder = localStorage.getItem('admin_sections_order');
         let currentOrder = {
             'Commerce & Partners': ['brands', 'stores', 'suppliers', 'non_profits'],
-            'Product Catalog': ['vufs', 'categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'fits', 'occasions', 'seasons', 'measurements'],
+            'Product Catalog': ['categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
             'Content & Platform': ['users', 'pages', 'journalism', 'config']
         };
 
@@ -589,8 +591,31 @@ export default function AdminPage() {
             } catch (e) { console.error(e); }
         }
 
-        // Ensure 'genders' is present (Fix for missing Genders card)
+        // Migration: Remove 'vufs' and add 'media_labels' to saved order
         const allIds = Object.values(currentOrder).flat();
+        let needsMigration = false;
+
+        if (allIds.includes('vufs')) {
+            // Remove vufs from all sections
+            Object.keys(currentOrder).forEach(sectionKey => {
+                currentOrder[sectionKey] = currentOrder[sectionKey].filter(id => id !== 'vufs');
+            });
+            needsMigration = true;
+        }
+
+        if (!allIds.includes('media_labels')) {
+            // Add media_labels to Product Catalog section
+            if (currentOrder['Product Catalog']) {
+                currentOrder['Product Catalog'].push('media_labels');
+            } else {
+                // Fallback if 'Product Catalog' was renamed
+                const firstKey = Object.keys(currentOrder)[0];
+                if (firstKey) currentOrder[firstKey].push('media_labels');
+            }
+            needsMigration = true;
+        }
+
+        // Ensure 'genders' is present (Fix for missing Genders card)
         if (!allIds.includes('genders')) {
             if (currentOrder['Product Catalog']) {
                 currentOrder['Product Catalog'].push('genders');
@@ -599,7 +624,45 @@ export default function AdminPage() {
                 const firstKey = Object.keys(currentOrder)[0];
                 if (firstKey) currentOrder[firstKey].push('genders');
             }
-            // Save the fix
+            needsMigration = true;
+        }
+
+        // Ensure 'styles' is present
+        if (!allIds.includes('styles')) {
+            if (currentOrder['Product Catalog']) {
+                // Add after patterns
+                const patternsIndex = currentOrder['Product Catalog'].indexOf('patterns');
+                if (patternsIndex !== -1) {
+                    currentOrder['Product Catalog'].splice(patternsIndex + 1, 0, 'styles');
+                } else {
+                    currentOrder['Product Catalog'].push('styles');
+                }
+            } else {
+                const firstKey = Object.keys(currentOrder)[0];
+                if (firstKey) currentOrder[firstKey].push('styles');
+            }
+            needsMigration = true;
+        }
+
+        // Ensure 'conditions' is present
+        if (!allIds.includes('conditions')) {
+            if (currentOrder['Product Catalog']) {
+                // Add after genders
+                const gendersIndex = currentOrder['Product Catalog'].indexOf('genders');
+                if (gendersIndex !== -1) {
+                    currentOrder['Product Catalog'].splice(gendersIndex + 1, 0, 'conditions');
+                } else {
+                    currentOrder['Product Catalog'].push('conditions');
+                }
+            } else {
+                const firstKey = Object.keys(currentOrder)[0];
+                if (firstKey) currentOrder[firstKey].push('conditions');
+            }
+            needsMigration = true;
+        }
+
+        // Save migrated order
+        if (needsMigration) {
             localStorage.setItem('admin_sections_order', JSON.stringify(currentOrder));
         }
 
@@ -612,8 +675,14 @@ export default function AdminPage() {
         const savedItems = localStorage.getItem('admin_items_metadata');
         if (savedItems) {
             try {
-                // Merge saved items with items in case new default items were added to code
-                setItems(prev => ({ ...prev, ...JSON.parse(savedItems) }));
+                let parsedItems = JSON.parse(savedItems);
+                // Migration: Remove vufs item and ensure media_labels is not overridden
+                if (parsedItems.vufs) {
+                    delete parsedItems.vufs;
+                    localStorage.setItem('admin_items_metadata', JSON.stringify(parsedItems));
+                }
+                // Merge saved items with default items, giving precedence to defaults for media_labels
+                setItems(prev => ({ ...prev, ...parsedItems, media_labels: prev.media_labels }));
             } catch (e) { console.error(e); }
         }
     }, [defaultSections]); // Added defaultSections dependency (though it's constant)

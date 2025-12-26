@@ -140,6 +140,7 @@ export default function ProfilePage() {
   // Cropper state
   const [showCropper, setShowCropper] = useState(false);
   const [cropperImageSrc, setCropperImageSrc] = useState<string>('');
+  const [originalImageCache, setOriginalImageCache] = useState<Record<string, string>>({});
   const [photoQueue, setPhotoQueue] = useState<File[]>([]);
   const [bannerQueue, setBannerQueue] = useState<File[]>([]);
   const [croppingMode, setCroppingMode] = useState<'profile' | 'banner'>('profile');
@@ -567,6 +568,14 @@ export default function ProfilePage() {
       // Handle queue if any
       if (editingImageUrl) {
         // We were editing a single existing image
+        // Cache the original image for this session
+        if (uploadedUrl) {
+          setOriginalImageCache(prev => ({
+            ...prev,
+            [uploadedUrl]: cropperImageSrc
+          }));
+        }
+
         setShowCropper(false);
         setCropperImageSrc('');
         setEditingImageUrl(null);
@@ -597,6 +606,16 @@ export default function ProfilePage() {
             toast.info(`Banner added. ${nextQueue.length} more to crop...`);
             return; // Exit and wait for next crop
           }
+        }
+
+        // Cache the original image for this session
+        // This allows the user to re-edit the image with the full original source
+        // even after it has been cropped and saved
+        if (uploadedUrl) {
+          setOriginalImageCache(prev => ({
+            ...prev,
+            [uploadedUrl]: cropperImageSrc
+          }));
         }
 
         setShowCropper(false);
@@ -663,7 +682,8 @@ export default function ProfilePage() {
   const handleEditExistingPhoto = (url: string) => {
     setCroppingMode('profile');
     setEditingImageUrl(url);
-    setCropperImageSrc(getImageUrl(url));
+    // Use cached original if available, otherwise fall back to the current URL
+    setCropperImageSrc(originalImageCache[url] || getImageUrl(url));
     setShowCropper(true);
     setPhotoQueue([]);
   };
@@ -671,7 +691,8 @@ export default function ProfilePage() {
   const handleEditExistingBanner = (bannerUrl: string) => {
     setCroppingMode('banner');
     setEditingImageUrl(bannerUrl);
-    setCropperImageSrc(getImageUrl(bannerUrl));
+    // Use cached original if available, otherwise fall back to the current URL
+    setCropperImageSrc(originalImageCache[bannerUrl] || getImageUrl(bannerUrl));
     setShowCropper(true);
     setBannerQueue([]);
   };
@@ -862,7 +883,7 @@ export default function ProfilePage() {
               {/* Edit Existing Button */}
               {userProfile.profileImage && (
                 <button
-                  onClick={handleEditExistingPhoto}
+                  onClick={() => handleEditExistingPhoto(userProfile.profileImage || '')}
                   className="absolute bottom-0 left-0 bg-white text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors shadow-lg border border-gray-200"
                   title="Adjust photo"
                 >
