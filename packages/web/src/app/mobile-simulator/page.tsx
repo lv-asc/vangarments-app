@@ -325,22 +325,34 @@ export default function MobileSimulator() {
           </div>
         )}
 
-        {activeTab === 'discover' && (
+        {activeTab === 'search' && (
           <div className="tab-content">
-            <div className="content-header">
-              <h2>Discover</h2>
-              <p>Explore fashion trends</p>
+            <div className="status-bar">
+              <span>9:41</span>
+              <div className="icons">
+                <span className="icon">Wi-Fi</span>
+                <span className="icon">Battery</span>
+              </div>
+            </div>
+            <h2>Search</h2>
+            <div className="search-bar">
+              <span className="icon">🔍</span>
+              <input type="text" placeholder="Search..." />
             </div>
             <div className="discover-content">
-              <div className="trend-card">
-                <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&h=300&fit=crop" alt="Trend" />
-                <h3>Summer Vibes</h3>
-                <p>234 likes</p>
+              <div className="card">
+                <div className="card-image" style={{ background: 'linear-gradient(45deg, #FF6B6B, #4ECDC4)' }}></div>
+                <div className="card-info">
+                  <h3>Summer Vibes</h3>
+                  <p>Trending now</p>
+                </div>
               </div>
-              <div className="trend-card">
-                <img src="https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400&h=300&fit=crop" alt="Trend" />
-                <h3>Minimalist Chic</h3>
-                <p>189 likes</p>
+              <div className="card">
+                <div className="card-image" style={{ background: 'linear-gradient(45deg, #A8E6CF, #DCEDC1)' }}></div>
+                <div className="card-info">
+                  <h3>Eco Friendly</h3>
+                  <p>Sustainable fashion</p>
+                </div>
               </div>
             </div>
           </div>
@@ -542,13 +554,13 @@ export default function MobileSimulator() {
           <HomeIcon className="w-6 h-6" />
           <span>Wardrobe</span>
         </button>
-        <button
-          onClick={() => setActiveTab('discover')}
-          className={`nav-item ${activeTab === 'discover' ? 'active' : ''}`}
+        <div
+          onClick={() => setActiveTab('search')}
+          className={`nav-item ${activeTab === 'search' ? 'active' : ''}`}
         >
-          <MagnifyingGlassIcon className="w-6 h-6" />
-          <span>Discover</span>
-        </button>
+          <span className="icon">🔍</span>
+          <span>Search</span>
+        </div>
         <button
           onClick={() => setActiveTab('camera')}
           className={`nav-item ${activeTab === 'camera' ? 'active' : ''}`}

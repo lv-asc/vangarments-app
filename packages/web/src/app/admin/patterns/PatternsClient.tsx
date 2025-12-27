@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 interface Pattern {
     id: string;
     name: string;
+    skuRef?: string;
     isActive: boolean;
 }
 
@@ -18,6 +19,7 @@ export default function AdminPatternsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPattern, setEditingPattern] = useState<Pattern | null>(null);
     const [name, setName] = useState('');
+    const [skuRef, setSkuRef] = useState('');
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
         isOpen: false,
         id: null
@@ -44,9 +46,11 @@ export default function AdminPatternsPage() {
         if (pattern) {
             setEditingPattern(pattern);
             setName(pattern.name);
+            setSkuRef(pattern.skuRef || '');
         } else {
             setEditingPattern(null);
             setName('');
+            setSkuRef('');
         }
         setIsModalOpen(true);
     };
@@ -58,10 +62,10 @@ export default function AdminPatternsPage() {
         }
         try {
             if (editingPattern) {
-                await apiClient.updateVUFSPattern(editingPattern.id, name);
+                await apiClient.updateVUFSPattern(editingPattern.id, name, skuRef);
                 toast.success('Pattern updated');
             } else {
-                await apiClient.addVUFSPattern(name);
+                await apiClient.addVUFSPattern(name, skuRef);
                 toast.success('Pattern added');
             }
             setIsModalOpen(false);
@@ -158,33 +162,37 @@ export default function AdminPatternsPage() {
                                 placeholder="e.g. Stripes, Floral, Geometric"
                             />
                         </div>
-                        <div className="mt-5 flex justify-end gap-3">
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-                            >
-                                Save
-                            </button>
+                        <div className="mt-4">
+                            <label className="block text-sm font-medium text-gray-700">SKU Ref (2 chars)</label>
+                            <input
+                                type="text"
+                                value={skuRef}
+                                onChange={(e) => setSkuRef(e.target.value)}
+                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2 uppercase"
+                                placeholder="e.g. ST"
+                                maxLength={4}
+                            />
                         </div>
-                    </div>
+                        Save
+                    </button>
                 </div>
+                    </div>
+                </div >
+            )
+}
+                    </div >
+                </div >
             )}
 
-            <ConfirmationModal
-                isOpen={deleteModalState.isOpen}
-                onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
-                onConfirm={handleConfirmDelete}
-                title="Delete Pattern"
-                message="Are you sure you want to delete this pattern?"
-                variant="danger"
-                confirmText="Delete"
-            />
-        </div>
+<ConfirmationModal
+    isOpen={deleteModalState.isOpen}
+    onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
+    onConfirm={handleConfirmDelete}
+    title="Delete Pattern"
+    message="Are you sure you want to delete this pattern?"
+    variant="danger"
+    confirmText="Delete"
+/>
+        </div >
     );
 }

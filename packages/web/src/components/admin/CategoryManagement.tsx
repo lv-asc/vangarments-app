@@ -39,6 +39,7 @@ interface AttributeValue {
     type_slug: string;
     sortOrder: number;
     parentId: string | null;
+    skuRef?: string;
 }
 
 // Sortable Item Component with Move To dropdown
@@ -147,7 +148,7 @@ export default function CategoryManagement() {
     // Edit/Create State
     const [mode, setMode] = useState<'create' | 'edit'>('create');
     const [selectedValue, setSelectedValue] = useState<AttributeValue | null>(null);
-    const [formData, setFormData] = useState({ name: '', parentId: '' });
+    const [formData, setFormData] = useState({ name: '', parentId: '', skuRef: '' });
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -253,13 +254,13 @@ export default function CategoryManagement() {
     const handleSelectValue = (item: AttributeValue) => {
         setMode('edit');
         setSelectedValue(item);
-        setFormData({ name: item.name, parentId: item.parentId || '' });
+        setFormData({ name: item.name, parentId: item.parentId || '', skuRef: item.skuRef || '' });
     };
 
     const handleCreateNew = () => {
         setMode('create');
         setSelectedValue(null);
-        setFormData({ name: '', parentId: '' });
+        setFormData({ name: '', parentId: '', skuRef: '' });
     };
 
     const handleDeleteClick = async (id: string) => {
@@ -306,12 +307,13 @@ export default function CategoryManagement() {
         try {
             if (mode === 'create') {
                 const typeSlug = activeTab === 'apparel-paths' ? 'apparel' : activeTab;
-                await apiClient.addVUFSAttributeValue(typeSlug, formData.name, formData.parentId || undefined);
+                await apiClient.addVUFSAttributeValue(typeSlug, formData.name, formData.parentId || undefined, formData.skuRef);
                 toast.success('Created successfully');
             } else if (selectedValue) {
                 await apiClient.updateVUFSAttributeValue(selectedValue.id, {
                     name: formData.name,
-                    parentId: formData.parentId || null
+                    parentId: formData.parentId || null,
+                    skuRef: formData.skuRef
                 });
                 toast.success('Saved successfully');
             }
@@ -511,6 +513,17 @@ export default function CategoryManagement() {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">SKU Ref (2 chars)</label>
+                                <input
+                                    type="text"
+                                    className="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm uppercase"
+                                    placeholder="e.g. TP"
+                                    maxLength={4}
+                                    value={formData.skuRef || ''}
+                                    onChange={(e) => setFormData({ ...formData, skuRef: e.target.value })}
+                                />
+                            </div>
                             <div className="flex justify-end gap-2 pt-4 border-t">
                                 <Button variant="ghost" onClick={handleCreateNew}>Cancel</Button>
                                 <Button onClick={handleSave} disabled={saving}>
@@ -602,6 +615,17 @@ export default function CategoryManagement() {
                                     placeholder="e.g., T-Shirts, Jeans, Hats"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">SKU Ref (2 chars)</label>
+                                <input
+                                    type="text"
+                                    className="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm uppercase"
+                                    placeholder="e.g. TS"
+                                    maxLength={4}
+                                    value={formData.skuRef || ''}
+                                    onChange={(e) => setFormData({ ...formData, skuRef: e.target.value })}
                                 />
                             </div>
                             <div>
@@ -708,6 +732,17 @@ export default function CategoryManagement() {
                                     placeholder="e.g., Long Sleeve, Short Sleeve"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">SKU Ref (2 chars)</label>
+                                <input
+                                    type="text"
+                                    className="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm uppercase"
+                                    placeholder="e.g. LS"
+                                    maxLength={4}
+                                    value={formData.skuRef || ''}
+                                    onChange={(e) => setFormData({ ...formData, skuRef: e.target.value })}
                                 />
                             </div>
                             <div>
@@ -943,6 +978,17 @@ export default function CategoryManagement() {
                                     placeholder="e.g., Beanie, Belt"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            </div>
+                            <div className="flex-1 w-full">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">SKU Ref (2 chars)</label>
+                                <input
+                                    type="text"
+                                    className="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm uppercase"
+                                    placeholder="e.g. JP"
+                                    maxLength={4}
+                                    value={formData.skuRef || ''}
+                                    onChange={(e) => setFormData({ ...formData, skuRef: e.target.value })}
                                 />
                             </div>
                             <div className="flex-1 w-full">

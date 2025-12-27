@@ -35,6 +35,26 @@ import { BRAZILIAN_STATES } from '../../constants/address';
 import ImageCropper from '@/components/ui/ImageCropper';
 import { SortableImageGrid } from '@/components/profile/SortableImageGrid';
 import { AVAILABLE_ROLES } from '@/constants/roles';
+import { MeasurementsSection } from '@/components/profile/MeasurementsSection';
+import { MeasurementManager } from '@/components/profile/MeasurementManager';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Bars3Icon } from '@heroicons/react/24/outline';
 
 interface UserProfile {
   id: string;
@@ -79,10 +99,63 @@ interface UserProfile {
 }
 
 const SOCIAL_PLATFORMS = [
-  'Instagram', 'YouTube', 'Snapchat', 'Pinterest', 'TikTok',
+  'Website', 'X (Twitter)', 'Discord', 'Instagram', 'YouTube', 'Snapchat', 'Pinterest', 'TikTok',
   'Facebook', 'Spotify', 'Apple Music', 'YouTube Music'
 ];
 
+// Sortable Social Link Item Component
+interface SortableSocialLinkItemProps {
+  platform: string;
+  url: string;
+  onChange: (url: string) => void;
+  isDragging?: boolean;
+}
+
+function SortableSocialLinkItem({ platform, url, onChange, isDragging }: SortableSocialLinkItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: platform });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center space-x-2 group"
+    >
+      {/* Drag Handle */}
+      <button
+        type="button"
+        className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+        {...attributes}
+        {...listeners}
+      >
+        <Bars3Icon className="h-5 w-5" />
+      </button>
+
+      <div className="w-28 flex items-center space-x-2">
+        <SocialIcon platform={platform} size="sm" className="text-gray-400" />
+        <span className="text-sm text-gray-600">{platform}</span>
+      </div>
+      <input
+        type="text"
+        value={url}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 text-sm border-gray-200 rounded-md focus:border-[#00132d] focus:ring-[#00132d]"
+        placeholder={`Your ${platform} URL or handle`}
+      />
+    </div>
+  );
+}
 
 
 export default function ProfilePage() {
@@ -145,6 +218,7 @@ export default function ProfilePage() {
   const [bannerQueue, setBannerQueue] = useState<File[]>([]);
   const [croppingMode, setCroppingMode] = useState<'profile' | 'banner'>('profile');
   const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null);
+  const [showMeasurementManager, setShowMeasurementManager] = useState(false);
 
   // Refs for scrolling
   const profilePicturesRef = useRef<HTMLDivElement>(null);
@@ -166,6 +240,31 @@ export default function ProfilePage() {
     followersCount: number;
   }
   const [linkedEntities, setLinkedEntities] = useState<LinkedEntity[]>([]);
+
+  // Drag and drop sensors for social links
+  const socialLinksSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle social links drag end
+  const handleSocialLinksDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = editForm.socialLinks.findIndex(link => link.platform === active.id);
+      const newIndex = editForm.socialLinks.findIndex(link => link.platform === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedLinks = arrayMove(editForm.socialLinks, oldIndex, newIndex);
+        setEditForm({ ...editForm, socialLinks: reorderedLinks });
+      }
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -1372,38 +1471,63 @@ export default function ProfilePage() {
 
                   <div className="space-y-3 mt-4">
                     <h4 className="font-medium text-gray-700">Social Links</h4>
-                    <div className="grid grid-cols-1 gap-3">
-                      {SOCIAL_PLATFORMS.map((platform) => {
-                        const existingLink = editForm.socialLinks.find(l => l.platform === platform);
-                        return (
-                          <div key={platform} className="flex items-center space-x-2">
-                            <div className="w-28 flex items-center space-x-2">
-                              <SocialIcon platform={platform} size="sm" className="text-gray-400" />
-                              <span className="text-sm text-gray-600">{platform}</span>
-                            </div>
-                            <input
-                              type="text"
-                              value={existingLink ? existingLink.url : ''}
-                              onChange={(e) => {
+                    <p className="text-xs text-gray-500 italic">Drag to reorder • Links with content will appear on your profile</p>
+                    <DndContext
+                      sensors={socialLinksSensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleSocialLinksDragEnd}
+                    >
+                      <SortableContext
+                        items={editForm.socialLinks.map(link => link.platform)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="grid grid-cols-1 gap-3">
+                          {editForm.socialLinks.map((link) => (
+                            <SortableSocialLinkItem
+                              key={link.platform}
+                              platform={link.platform}
+                              url={link.url}
+                              onChange={(newUrl) => {
                                 const newLinks = [...editForm.socialLinks];
-                                const idx = newLinks.findIndex(l => l.platform === platform);
+                                const idx = newLinks.findIndex(l => l.platform === link.platform);
                                 if (idx >= 0) {
-                                  if (e.target.value) {
-                                    newLinks[idx].url = e.target.value;
+                                  if (newUrl) {
+                                    newLinks[idx].url = newUrl;
                                   } else {
                                     newLinks.splice(idx, 1);
                                   }
-                                } else if (e.target.value) {
-                                  newLinks.push({ platform, url: e.target.value });
+                                  setEditForm({ ...editForm, socialLinks: newLinks });
                                 }
-                                setEditForm({ ...editForm, socialLinks: newLinks });
                               }}
-                              className="flex-1 text-sm border-gray-200 rounded-md focus:border-[#00132d] focus:ring-[#00132d]"
-                              placeholder={`Your ${platform} URL or handle`}
                             />
-                          </div>
-                        );
-                      })}
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+
+                    {/* Add new social links */}
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-xs text-gray-500 mb-2">Add more platforms:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {SOCIAL_PLATFORMS.filter(
+                          platform => !editForm.socialLinks.find(l => l.platform === platform)
+                        ).map((platform) => (
+                          <button
+                            key={platform}
+                            type="button"
+                            onClick={() => {
+                              setEditForm({
+                                ...editForm,
+                                socialLinks: [...editForm.socialLinks, { platform, url: '' }]
+                              });
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                          >
+                            <SocialIcon platform={platform} size="xs" />
+                            {platform}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -1627,6 +1751,15 @@ export default function ProfilePage() {
           )}
         </div>
 
+        {/* Measurements & Sizes Section */}
+        <div className="mb-6">
+          <MeasurementsSection
+            measurements={userProfile.measurements}
+            onEdit={() => setShowMeasurementManager(true)}
+            isEditing={isEditing}
+          />
+        </div>
+
         {/* Linked Entities Section */}
         {linkedEntities.length > 0 && (
           <div className="mb-6">
@@ -1815,6 +1948,19 @@ export default function ProfilePage() {
           onCropComplete={handleCropSave}
         />
       )}
+
+      {/* Measurement Manager Modal */}
+      <MeasurementManager
+        isOpen={showMeasurementManager}
+        onClose={() => setShowMeasurementManager(false)}
+        initialMeasurements={userProfile?.measurements}
+        onSave={async (measurements) => {
+          await apiClient.updateProfile({ measurements });
+          await loadProfile();
+          setShowMeasurementManager(false);
+        }}
+      />
+
       <toast.ToastComponent />
     </div >
   );

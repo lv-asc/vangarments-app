@@ -6,6 +6,7 @@ import { brandApi } from '@/lib/brandApi';
 import { journalismApi, IJournalismData } from '@/lib/journalismApi';
 import { apiClient } from '@/lib/api';
 import { WardrobeAPI, WardrobeItem } from '@/lib/wardrobeApi';
+import { skuApi } from '@/lib/skuApi';
 import { pageApi, IPage } from '@/lib/pageApi';
 import { socialApi } from '@/lib/socialApi';
 import {
@@ -134,9 +135,21 @@ export default function DiscoverPage() {
       } else promises.push(Promise.resolve([]));
 
       // Items (Wardrobe)
+      // Items (Wardrobe + Global SKUs)
       if (fetchItems) {
-        promises.push(WardrobeAPI.getItems({ search: query, limit: 5 })
+        const wardrobePromise = WardrobeAPI.getItems({ search: query, limit: 5 })
           .then(res => res.items || [])
+          .catch(() => []);
+
+        const skuPromise = skuApi.searchSKUs(query)
+          .then(res => res.skus || [])
+          .catch(() => []);
+
+        promises.push(Promise.all([wardrobePromise, skuPromise])
+          .then(([wardrobeItems, skuItems]) => {
+            // Return combined items
+            return [...skuItems, ...wardrobeItems];
+          })
           .catch(() => [])
         );
       } else promises.push(Promise.resolve([]));
@@ -276,25 +289,34 @@ export default function DiscoverPage() {
     </div>
   );
 
-  const ItemCard = ({ item }: { item: WardrobeItem }) => (
-    <Link href={`/wardrobe/${item.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-3">
-        <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-          {item.images?.[0]?.imageUrl ? (
-            <img src={getImageUrl(item.images[0].imageUrl)} alt="Item" className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center text-gray-400">
-              <ShoppingBagIcon className="h-6 w-6" />
-            </div>
-          )}
+  const ItemCard = ({ item }: { item: any }) => {
+    const brandName = item.brand?.name || item.brand?.brand || 'Unknown Brand';
+    const categoryName = item.category?.page || (typeof item.category === 'string' ? item.category : 'Item');
+    const imageUrl = item.images?.[0]?.url || item.images?.[0]?.imageUrl;
+
+    // If it has 'ownerId', it's a wardrobe item
+    const href = item.ownerId ? `/wardrobe/${item.id}` : `/catalog/${item.id}`;
+
+    return (
+      <Link href={href} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-3">
+          <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+            {imageUrl ? (
+              <img src={getImageUrl(imageUrl)} alt="Item" className="h-full w-full object-cover" />
+            ) : (
+              <div className="h-full w-full flex items-center justify-center text-gray-400">
+                <ShoppingBagIcon className="h-6 w-6" />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900 truncate">{brandName}</p>
+            <p className="text-xs text-gray-500 truncate">{categoryName}</p>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900 truncate">{item.brand?.brand || 'Unknown Brand'}</p>
-          <p className="text-xs text-gray-500 truncate">{item.category?.page || 'Item'}</p>
-        </div>
-      </div>
-    </Link>
-  );
+      </Link>
+    );
+  };
 
   const PostCard = ({ post }: { post: any }) => (
     <Link href={`/social/post/${post.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">

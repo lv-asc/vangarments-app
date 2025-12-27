@@ -651,12 +651,12 @@ export class VUFSManagementController {
 
   static async addMaterial(req: Request, res: Response): Promise<void> {
     try {
-      const { name, category } = req.body;
+      const { name, category, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const material = await VUFSManagementService.addMaterial(name, category);
+      const material = await VUFSManagementService.addMaterial(name, category, skuRef);
       res.status(201).json({ message: 'Material created successfully', material });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -670,12 +670,12 @@ export class VUFSManagementController {
   static async updateMaterial(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const material = await VUFSManagementService.updateMaterial(id, name);
+      const material = await VUFSManagementService.updateMaterial(id, name, skuRef);
       res.json({ message: 'Material updated successfully', material });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -705,12 +705,12 @@ export class VUFSManagementController {
 
   static async addPattern(req: Request, res: Response): Promise<void> {
     try {
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const pattern = await VUFSManagementService.addPattern(name);
+      const pattern = await VUFSManagementService.addPattern(name, skuRef);
       res.status(201).json({ message: 'Pattern created successfully', pattern });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -724,12 +724,12 @@ export class VUFSManagementController {
   static async updatePattern(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const pattern = await VUFSManagementService.updatePattern(id, name);
+      const pattern = await VUFSManagementService.updatePattern(id, name, skuRef);
       res.json({ message: 'Pattern updated successfully', pattern });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -759,12 +759,12 @@ export class VUFSManagementController {
 
   static async addFit(req: Request, res: Response): Promise<void> {
     try {
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const fit = await VUFSManagementService.addFit(name);
+      const fit = await VUFSManagementService.addFit(name, skuRef);
       res.status(201).json({ message: 'Fit created successfully', fit });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -778,12 +778,12 @@ export class VUFSManagementController {
   static async updateFit(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name } = req.body;
+      const { name, categoryIds, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const fit = await VUFSManagementService.updateFit(id, name);
+      const fit = await VUFSManagementService.updateFit(id, name, skuRef, categoryIds);
       res.json({ message: 'Fit updated successfully', fit });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -813,12 +813,12 @@ export class VUFSManagementController {
 
   static async addGender(req: Request, res: Response): Promise<void> {
     try {
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const gender = await VUFSManagementService.addGender(name);
+      const gender = await VUFSManagementService.addGender(name, skuRef);
       res.status(201).json({ message: 'Gender created successfully', gender });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -832,12 +832,12 @@ export class VUFSManagementController {
   static async updateGender(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const gender = await VUFSManagementService.updateGender(id, name);
+      const gender = await VUFSManagementService.updateGender(id, name, skuRef);
       res.json({ message: 'Gender updated successfully', gender });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -867,12 +867,12 @@ export class VUFSManagementController {
 
   static async addSize(req: Request, res: Response): Promise<void> {
     try {
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const size = await VUFSManagementService.addSize(name);
+      const size = await VUFSManagementService.addSize(name, skuRef);
       res.status(201).json({ message: 'Size created successfully', size });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -886,12 +886,12 @@ export class VUFSManagementController {
   static async updateSize(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name } = req.body;
+      const { name, skuRef } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const size = await VUFSManagementService.updateSize(id, name);
+      const size = await VUFSManagementService.updateSize(id, name, skuRef);
       res.json({ message: 'Size updated successfully', size });
     } catch (error: any) {
       if (error.message.includes('already exists')) {

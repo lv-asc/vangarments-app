@@ -16,7 +16,7 @@ export class SKUController {
             }
 
             const { brandId } = req.params;
-            const { name, code, collection, line, category, description, materials, images, metadata } = req.body;
+            const { name, code, collection, line, category, description, materials, images, metadata, retailPriceBrl, retailPriceUsd, retailPriceEur } = req.body;
 
             let targetBrandId = brandId;
             let brand = await BrandAccountModel.findById(brandId);
@@ -76,7 +76,10 @@ export class SKUController {
                 description,
                 materials,
                 images,
-                metadata
+                metadata,
+                retailPriceBrl,
+                retailPriceUsd,
+                retailPriceEur
             });
 
             res.status(201).json({ message: 'SKU created successfully', sku });
@@ -121,7 +124,10 @@ export class SKUController {
                     ba.brand_info->>'name' as brand_name,
                     ba.brand_info->>'logo' as brand_logo,
                     bl.name as line_name, 
-                    bl.logo as line_logo
+                    bl.logo as line_logo,
+                    si.retail_price_brl,
+                    si.retail_price_usd,
+                    si.retail_price_eur
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
                 LEFT JOIN brand_lines bl ON si.line_id = bl.id
@@ -178,6 +184,9 @@ export class SKUController {
                         name: row.brand_name,
                         logo: row.brand_logo
                     },
+                    retailPriceBrl: row.retail_price_brl,
+                    retailPriceUsd: row.retail_price_usd,
+                    retailPriceEur: row.retail_price_eur,
                     createdAt: row.created_at
                 };
 
@@ -307,7 +316,10 @@ export class SKUController {
                     ba.brand_info->>'name' as brand_name,
                     ba.brand_info->>'logo' as brand_logo,
                     bl.name as line_name, 
-                    bl.logo as line_logo
+                    bl.logo as line_logo,
+                    si.retail_price_brl,
+                    si.retail_price_usd,
+                    si.retail_price_eur
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
                 LEFT JOIN brand_lines bl ON si.line_id = bl.id
@@ -352,7 +364,10 @@ export class SKUController {
                     brand: {
                         name: row.brand_name,
                         logo: row.brand_logo
-                    }
+                    },
+                    retailPriceBrl: row.retail_price_brl,
+                    retailPriceUsd: row.retail_price_usd,
+                    retailPriceEur: row.retail_price_eur
                 };
 
                 if (row.line_name || row.line_logo || row.line_id) {

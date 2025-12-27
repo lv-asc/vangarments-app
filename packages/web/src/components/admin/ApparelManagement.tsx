@@ -15,16 +15,17 @@ interface AttributeType {
 }
 
 const REQUIRED_ATTRIBUTES: AttributeType[] = [
-    { slug: 'subcategory_1', name: 'Subcategory 1' },
-    { slug: 'subcategory_2', name: 'Subcategory 2' },
-    { slug: 'google_shopping_category', name: 'Google Shopping Category' },
-    { slug: 'google_shopping_code', name: 'Google Shopping Code' },
-    { slug: 'height_cm', name: 'Height (cm)' },
-    { slug: 'length_cm', name: 'Length (cm)' },
-    { slug: 'width_cm', name: 'Width (cm)' },
-    { slug: 'weight_kg', name: 'Weight (kg)' },
-    { slug: 'possible_sizes', name: 'Possible Sizes' },
-    { slug: 'possible_fits', name: 'Possible Fits' }
+    { slug: 'subcategory-1', name: 'Subcategory 1' },
+    { slug: 'subcategory-2', name: 'Subcategory 2' },
+    { slug: 'subcategory-3', name: 'Subcategory 3' },
+    { slug: 'google-shopping-category', name: 'Google Shopping Category' },
+    { slug: 'google-shopping-code', name: 'Google Shopping Code' },
+    { slug: 'height-cm', name: 'Height (cm)' },
+    { slug: 'length-cm', name: 'Length (cm)' },
+    { slug: 'width-cm', name: 'Width (cm)' },
+    { slug: 'weight-kg', name: 'Weight (kg)' },
+    { slug: 'possible-sizes', name: 'Possible Sizes' },
+    { slug: 'possible-fits', name: 'Possible Fits' }
 ];
 
 export default function ApparelManagement() {
@@ -40,6 +41,7 @@ export default function ApparelManagement() {
     const [deleting, setDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [search, setSearch] = useState('');
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     // Form State
     const [formData, setFormData] = useState<Record<string, any>>({});
@@ -57,7 +59,7 @@ export default function ApparelManagement() {
                 const found = attrs.find((a: any) => a.attribute_slug === attr.slug);
                 let val = found?.value || '';
                 // Handle JSON fields (arrays)
-                if (attr.slug === 'possible_sizes' || attr.slug === 'possible_fits') {
+                if (attr.slug === 'possible-sizes' || attr.slug === 'possible-fits') {
                     try {
                         val = val ? JSON.parse(val) : [];
                     } catch (e) {
@@ -72,29 +74,82 @@ export default function ApparelManagement() {
         }
     }, [selectedCategory, categoryAttributes]);
 
+    // Handle clicking outside of dropdowns to close them
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest('.relative')) {
+                setOpenDropdown(null);
+            }
+        };
+
+        if (openDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [openDropdown]);
+
     const init = async () => {
         setLoading(true);
         try {
             await ensureAttributeTypes();
-            const [cats, matrix, sizeRes, fitRes, sub1Res, sub2Res] = await Promise.all([
+            const [cats, matrix, sizeRes, fitRes] = await Promise.all([
                 apiClient.getVUFSCategories(),
                 apiClient.getAllCategoryAttributes(),
                 apiClient.getVUFSSizes(),
-                apiClient.getVUFSFits(),
-                apiClient.getVUFSAttributeValues('subcategory-1'),
-                apiClient.getVUFSAttributeValues('subcategory-2')
+                apiClient.getVUFSFits()
             ]);
             setCategories(cats || []);
             setCategoryAttributes(matrix || []);
             setSizes(sizeRes || []);
             setFits(fitRes || []);
-            setSubcategory1Values(Array.isArray(sub1Res) ? sub1Res : []);
-            setSubcategory2Values(Array.isArray(sub2Res) ? sub2Res : []);
         } catch (error) {
             console.error('Failed to init', error);
             toast.error('Failed to load data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleSuggestion = () => {
+        if (!selectedCategory) return;
+        const name = selectedCategory.name.toLowerCase();
+
+        // Basic mapping for Google Shopping Categories
+        // Full list at: https://www.google.com/base/taxonomy-with-ids.en-US.txt
+        const mapping: Record<string, { category: string, code: string }> = {
+            'dresses': { category: 'Apparel & Accessories > Clothing > Dresses', code: '2271' },
+            't-shirts': { category: 'Apparel & Accessories > Clothing > Shirts & Tops', code: '212' },
+            'pants': { category: 'Apparel & Accessories > Clothing > Pants', code: '204' },
+            'shorts': { category: 'Apparel & Accessories > Clothing > Shorts', code: '207' },
+            'skirts': { category: 'Apparel & Accessories > Clothing > Skirts', code: '208' },
+            'outerwear': { category: 'Apparel & Accessories > Clothing > Outerwear', code: '203' },
+            'jackets': { category: 'Apparel & Accessories > Clothing > Outerwear > Coats & Jackets', code: '203' },
+            'jeans': { category: 'Apparel & Accessories > Clothing > Pants > Jeans', code: '204' },
+            'headwear': { category: 'Apparel & Accessories > Clothing Accessories > Headwear', code: '173' },
+            'shoes': { category: 'Apparel & Accessories > Shoes', code: '187' }
+        };
+
+        const found = Object.entries(mapping).find(([key]) => name.includes(key));
+        if (found) {
+            setFormData(prev => ({
+                ...prev,
+                'google-shopping-category': found[1].category,
+                'google-shopping-code': found[1].code
+            }));
+            toast.success(`Suggested Google Shopping info for ${found[0]}`);
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                'google-shopping-category': 'Apparel & Accessories > Clothing',
+                'google-shopping-code': '1604'
+            }));
+            toast.success('Used default Apparel & Accessories category');
         }
     };
 
@@ -208,7 +263,6 @@ export default function ApparelManagement() {
                             <span className={`text-sm ${selectedCategory?.id === cat.id ? 'font-medium text-blue-700' : 'text-gray-700'}`}>
                                 {cat.name}
                             </span>
-                            {cat.parentId && <span className="text-xs text-gray-400">Child</span>}
                         </button>
                     ))}
                 </div>
@@ -239,23 +293,32 @@ export default function ApparelManagement() {
                             {/* Classification */}
                             <div className="md:col-span-2 space-y-4">
                                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Classification</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">Subcategory 1</label>
                                         <SmartCombobox
-                                            value={formData['subcategory_1'] || ''}
-                                            onChange={(val) => setFormData({ ...formData, 'subcategory_1': val })}
-                                            options={subcategory1Values.map((v: any) => ({ id: v.id, name: v.name }))}
-                                            placeholder="Select or type subcategory..."
+                                            value={formData['subcategory-1'] || ''}
+                                            onChange={(val) => setFormData({ ...formData, 'subcategory-1': val })}
+                                            options={categories.map((v: any) => ({ id: v.id, name: v.name }))}
+                                            placeholder="Select or type..."
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">Subcategory 2</label>
                                         <SmartCombobox
-                                            value={formData['subcategory_2'] || ''}
-                                            onChange={(val) => setFormData({ ...formData, 'subcategory_2': val })}
-                                            options={subcategory2Values.map((v: any) => ({ id: v.id, name: v.name }))}
-                                            placeholder="Select or type subcategory..."
+                                            value={formData['subcategory-2'] || ''}
+                                            onChange={(val) => setFormData({ ...formData, 'subcategory-2': val })}
+                                            options={categories.map((v: any) => ({ id: v.id, name: v.name }))}
+                                            placeholder="Select or type..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Subcategory 3</label>
+                                        <SmartCombobox
+                                            value={formData['subcategory-3'] || ''}
+                                            onChange={(val) => setFormData({ ...formData, 'subcategory-3': val })}
+                                            options={categories.map((v: any) => ({ id: v.id, name: v.name }))}
+                                            placeholder="Select or type..."
                                         />
                                     </div>
                                 </div>
@@ -263,15 +326,23 @@ export default function ApparelManagement() {
 
                             {/* Google Shopping */}
                             <div className="md:col-span-2 space-y-4">
-                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Google Shopping</h3>
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Google Shopping</h3>
+                                    <button
+                                        onClick={handleGoogleSuggestion}
+                                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                    >
+                                        Suggest Info
+                                    </button>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">Google Shopping Category</label>
                                         <input
                                             type="text"
                                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData['google_shopping_category'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'google_shopping_category': e.target.value })}
+                                            value={formData['google-shopping-category'] || ''}
+                                            onChange={(e) => setFormData({ ...formData, 'google-shopping-category': e.target.value })}
                                         />
                                     </div>
                                     <div>
@@ -279,8 +350,8 @@ export default function ApparelManagement() {
                                         <input
                                             type="text"
                                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData['google_shopping_code'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'google_shopping_code': e.target.value })}
+                                            value={formData['google-shopping-code'] || ''}
+                                            onChange={(e) => setFormData({ ...formData, 'google-shopping-code': e.target.value })}
                                         />
                                     </div>
                                 </div>
@@ -296,8 +367,8 @@ export default function ApparelManagement() {
                                             type="number"
                                             step="0.1"
                                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData['height_cm'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'height_cm': e.target.value })}
+                                            value={formData['height-cm'] || ''}
+                                            onChange={(e) => setFormData({ ...formData, 'height-cm': e.target.value })}
                                         />
                                     </div>
                                     <div>
@@ -306,8 +377,8 @@ export default function ApparelManagement() {
                                             type="number"
                                             step="0.1"
                                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData['length_cm'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'length_cm': e.target.value })}
+                                            value={formData['length-cm'] || ''}
+                                            onChange={(e) => setFormData({ ...formData, 'length-cm': e.target.value })}
                                         />
                                     </div>
                                     <div>
@@ -316,8 +387,8 @@ export default function ApparelManagement() {
                                             type="number"
                                             step="0.1"
                                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData['width_cm'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'width_cm': e.target.value })}
+                                            value={formData['width-cm'] || ''}
+                                            onChange={(e) => setFormData({ ...formData, 'width-cm': e.target.value })}
                                         />
                                     </div>
                                     <div>
@@ -326,8 +397,8 @@ export default function ApparelManagement() {
                                             type="number"
                                             step="0.01"
                                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData['weight_kg'] || ''}
-                                            onChange={(e) => setFormData({ ...formData, 'weight_kg': e.target.value })}
+                                            value={formData['weight-kg'] || ''}
+                                            onChange={(e) => setFormData({ ...formData, 'weight-kg': e.target.value })}
                                         />
                                     </div>
                                 </div>
@@ -338,40 +409,135 @@ export default function ApparelManagement() {
                                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Configuration</h3>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Possible Sizes</label>
-                                    <div className="flex flex-wrap gap-2 border rounded-md p-4 bg-gray-50 max-h-40 overflow-y-auto">
-                                        {sizes.map(size => (
-                                            <button
-                                                key={size.id}
-                                                type="button"
-                                                onClick={() => handleMultiSelect('possible_sizes', size.id)}
-                                                className={`px-3 py-1 rounded-full text-xs font-medium border ${(formData['possible_sizes'] || []).includes(size.id)
-                                                    ? 'bg-blue-600 text-white border-blue-600'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-                                                    }`}
-                                            >
-                                                {size.name}
+                                    <div className="relative">
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {(formData['possible-sizes'] || []).map((id: string) => {
+                                                const size = sizes.find(s => s.id === id);
+                                                return (
+                                                    <span key={id} className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs">
+                                                        {size?.name || id}
+                                                        <button onClick={() => handleMultiSelect('possible-sizes', id)} className="ml-1 hover:text-blue-900 font-bold">&times;</button>
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Search and Select Sizes..."
+                                            className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 text-sm"
+                                            onFocus={() => setOpenDropdown('possible-sizes')}
+                                            onChange={(e) => {
+                                                const term = e.target.value.toLowerCase();
+                                                const list = e.currentTarget.nextElementSibling?.nextElementSibling;
+                                                if (list) {
+                                                    const labels = list.querySelectorAll('label');
+                                                    labels.forEach(l => {
+                                                        const txt = l.textContent?.toLowerCase() || '';
+                                                        (l as HTMLElement).style.display = txt.includes(term) ? 'flex' : 'none';
+                                                    });
+                                                }
+                                            }}
+                                        />
+                                        {openDropdown === 'possible-sizes' && (
+                                            <button onClick={() => setOpenDropdown(null)} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
                                             </button>
-                                        ))}
+                                        )}
+                                        <div
+                                            className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                            style={{ display: openDropdown === 'possible-sizes' ? 'block' : 'none' }}
+                                        >
+                                            <div className="dropdown-list">
+                                                {sizes.map(size => (
+                                                    <label key={size.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-b-0">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={(formData['possible-sizes'] || []).includes(size.id)}
+                                                            onChange={(e) => { e.stopPropagation(); handleMultiSelect('possible-sizes', size.id); }}
+                                                            className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                                                        />
+                                                        <span className="ml-3 text-sm text-gray-700">{size.name}</span>
+                                                        {(formData['possible-sizes'] || []).includes(size.id) && (
+                                                            <svg className="ml-auto h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                <button type="button" onClick={() => setOpenDropdown(null)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded">Done</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Possible Fits */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Possible Fits</label>
-                                    <div className="flex flex-wrap gap-2 border rounded-md p-4 bg-gray-50 max-h-40 overflow-y-auto">
-                                        {fits.map(fit => (
-                                            <button
-                                                key={fit.id}
-                                                type="button"
-                                                onClick={() => handleMultiSelect('possible_fits', fit.id)}
-                                                className={`px-3 py-1 rounded-full text-xs font-medium border ${(formData['possible_fits'] || []).includes(fit.id)
-                                                    ? 'bg-purple-600 text-white border-purple-600'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-                                                    }`}
-                                            >
-                                                {fit.name}
+                                    <div className="relative">
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {(formData['possible-fits'] || []).map((id: string) => {
+                                                const fit = fits.find(f => f.id === id);
+                                                return (
+                                                    <span key={id} className="inline-flex items-center px-2 py-1 rounded bg-purple-100 text-purple-700 text-xs">
+                                                        {fit?.name || id}
+                                                        <button onClick={() => handleMultiSelect('possible-fits', id)} className="ml-1 hover:text-purple-900 font-bold">&times;</button>
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Search and Select Fits..."
+                                            className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 text-sm"
+                                            onFocus={() => setOpenDropdown('possible-fits')}
+                                            onChange={(e) => {
+                                                const term = e.target.value.toLowerCase();
+                                                const list = e.currentTarget.nextElementSibling?.nextElementSibling;
+                                                if (list) {
+                                                    const labels = list.querySelectorAll('label');
+                                                    labels.forEach(l => {
+                                                        const txt = l.textContent?.toLowerCase() || '';
+                                                        (l as HTMLElement).style.display = txt.includes(term) ? 'flex' : 'none';
+                                                    });
+                                                }
+                                            }}
+                                        />
+                                        {openDropdown === 'possible-fits' && (
+                                            <button onClick={() => setOpenDropdown(null)} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
                                             </button>
-                                        ))}
+                                        )}
+                                        <div
+                                            className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                            style={{ display: openDropdown === 'possible-fits' ? 'block' : 'none' }}
+                                        >
+                                            <div className="dropdown-list">
+                                                {fits.map(fit => (
+                                                    <label key={fit.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-b-0">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={(formData['possible-fits'] || []).includes(fit.id)}
+                                                            onChange={(e) => { e.stopPropagation(); handleMultiSelect('possible-fits', fit.id); }}
+                                                            className="h-4 w-4 text-purple-600 rounded border-gray-300"
+                                                        />
+                                                        <span className="ml-3 text-sm text-gray-700">{fit.name}</span>
+                                                        {(formData['possible-fits'] || []).includes(fit.id) && (
+                                                            <svg className="ml-auto h-4 w-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                <button type="button" onClick={() => setOpenDropdown(null)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded">Done</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

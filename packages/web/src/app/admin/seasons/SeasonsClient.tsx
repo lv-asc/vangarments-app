@@ -58,7 +58,7 @@ export default function AdminSeasonsPage() {
         }
         try {
             if (editingSeason) {
-                await apiClient.updateVUFSAttributeValue(editingSeason.id, name);
+                await apiClient.updateVUFSAttributeValue(editingSeason.id, { name });
                 toast.success('Season updated');
             } else {
                 await apiClient.addVUFSAttributeValue('season', name);

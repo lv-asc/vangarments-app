@@ -58,7 +58,7 @@ export default function AdminStylesPage() {
         }
         try {
             if (editingStyle) {
-                await apiClient.updateVUFSAttributeValue('style', editingStyle.id, name);
+                await apiClient.updateVUFSAttributeValue(editingStyle.id, { name });
                 toast.success('Style updated');
             } else {
                 await apiClient.addVUFSAttributeValue('style', name);
@@ -79,7 +79,7 @@ export default function AdminStylesPage() {
     const handleConfirmDelete = async () => {
         if (!deleteModalState.id) return;
         try {
-            await apiClient.deleteVUFSAttributeValue('style', deleteModalState.id);
+            await apiClient.deleteVUFSAttributeValue(deleteModalState.id);
             toast.success('Style deleted');
             fetchData();
         } catch (error) {

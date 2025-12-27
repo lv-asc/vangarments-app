@@ -33,7 +33,8 @@ export default function AdminNewBrandPage() {
         businessType: 'brand',
         partnershipTier: 'basic',
         country: '',
-        tags: [] as string[]
+        tags: [] as string[],
+        skuRef: ''
     });
 
     useEffect(() => {
@@ -117,6 +118,7 @@ export default function AdminNewBrandPage() {
                     website: formData.website,
                     country: formData.country,
                     tags: formData.tags,
+                    skuRef: (formData as any).skuRef,
                     contactInfo: {
                         email: formData.contactEmail,
                         phone: formData.contactPhone
@@ -230,6 +232,19 @@ export default function AdminNewBrandPage() {
                                 onChange={handleChange}
                                 required
                                 className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">SKU Ref (2-4 chars)</label>
+                            <input
+                                type="text"
+                                name="skuRef"
+                                maxLength={4}
+                                value={(formData as any).skuRef || ''}
+                                onChange={handleChange}
+                                placeholder="e.g. NK"
+                                className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2 uppercase"
                             />
                         </div>
 

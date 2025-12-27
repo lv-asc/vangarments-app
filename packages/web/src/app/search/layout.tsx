@@ -1,9 +1,8 @@
-
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'Discover',
-    description: 'Explore fashion content and trends',
+    title: 'Search',
+    description: 'Search for fashion items, brands, and more',
 };
 
 export default function DiscoverLayout({

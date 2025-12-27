@@ -58,8 +58,9 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
 
 
 
-  const getIconForRoute = (routeName: string) => {
-    const iconKey = routeName.toLowerCase().replace(/[^a-z]/g, '');
+  const getIconForRoute = (route: any) => {
+    if (route.icon) return route.icon;
+    const iconKey = route.name.toLowerCase().replace(/[^a-z]/g, '');
     const IconComponent = iconMap[iconKey] || HomeIcon;
     return IconComponent;
   };
@@ -78,7 +79,7 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
 
         {/* Navigation links */}
         {accessibleRoutes.map((route) => {
-          const IconComponent = getIconForRoute(route.name);
+          const IconComponent = getIconForRoute(route);
           const isActive = isCurrentPath(route.path);
 
           return (
@@ -108,7 +109,7 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
     return (
       <nav className={`grid grid-cols-2 gap-2 ${className}`}>
         {accessibleRoutes.slice(0, 8).map((route) => {
-          const IconComponent = getIconForRoute(route.name);
+          const IconComponent = getIconForRoute(route);
           const isActive = isCurrentPath(route.path);
 
           return (
@@ -133,7 +134,7 @@ export function Navigation({ variant = 'header', className = '' }: NavigationPro
   return (
     <nav className={`flex items-center space-x-6 ${className}`}>
       {accessibleRoutes.map((route) => {
-        const IconComponent = getIconForRoute(route.name);
+        const IconComponent = getIconForRoute(route);
         const isActive = isCurrentPath(route.path);
 
         return (

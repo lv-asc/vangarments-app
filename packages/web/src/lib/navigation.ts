@@ -1,11 +1,12 @@
 'use client';
 
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 export interface NavigationRoute {
   path: string;
   name: string;
-  icon?: string;
+  icon?: string | React.ComponentType<any>;
   requiresAuth?: boolean;
   adminOnly?: boolean;
   description?: string;
@@ -18,10 +19,11 @@ export const APP_ROUTES: NavigationRoute[] = [
     description: 'Landing page and app overview'
   },
   {
-    path: '/discover',
-    name: 'Discover',
+    path: '/search',
+    name: 'Search',
+    icon: MagnifyingGlassIcon,
     requiresAuth: true,
-    description: 'Discover fashion trends and content'
+    description: 'Search fashion trends and content'
   },
   {
     path: '/wardrobe',
@@ -72,6 +74,13 @@ export const APP_ROUTES: NavigationRoute[] = [
     requiresAuth: true,
     adminOnly: true,
     description: 'Manage system configuration and VUFS standards'
+  },
+  {
+    path: '/admin/sku-codes',
+    name: 'SKU Codes',
+    requiresAuth: true,
+    adminOnly: true,
+    description: 'Generate and manage SKU codes'
   },
   {
     path: '/login',

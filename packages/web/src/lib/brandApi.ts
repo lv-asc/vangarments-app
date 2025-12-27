@@ -28,6 +28,7 @@ interface BrandAccount {
     country?: string;
     tags?: string[];
     businessType?: 'brand' | 'store' | 'designer' | 'manufacturer' | 'non_profit';
+    skuRef?: string;
   };
   profileData?: {
     bio?: string;
@@ -69,6 +70,7 @@ interface CreateBrandAccountData {
     };
     country?: string;
     tags?: string[];
+    skuRef?: string;
   };
   businessType?: 'brand' | 'store' | 'designer' | 'manufacturer' | 'non_profit';
   partnershipTier?: 'basic' | 'premium' | 'enterprise';
@@ -211,7 +213,8 @@ class BrandApi {
       businessType: data.businessType || 'brand',
       partnershipTier: data.partnershipTier || 'basic',
       country: data.brandInfo.country,
-      tags: data.brandInfo.tags
+      tags: data.brandInfo.tags,
+      skuRef: data.brandInfo.skuRef
     };
 
     const response = await fetch(`${API_BASE_URL}/api/brands`, {

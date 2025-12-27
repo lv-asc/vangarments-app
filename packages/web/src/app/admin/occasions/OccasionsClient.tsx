@@ -58,7 +58,7 @@ export default function AdminOccasionsPage() {
         }
         try {
             if (editingOccasion) {
-                await apiClient.updateVUFSAttributeValue(editingOccasion.id, name);
+                await apiClient.updateVUFSAttributeValue(editingOccasion.id, { name });
                 toast.success('Occasion updated');
             } else {
                 await apiClient.addVUFSAttributeValue('occasion', name);

@@ -180,7 +180,7 @@ export interface UserProfile {
 }
 
 export interface SocialLink {
-  platform: 'instagram' | 'tiktok' | 'youtube' | 'twitter' | 'website';
+  platform: 'instagram' | 'tiktok' | 'youtube' | 'twitter' | 'website' | 'discord';
   url: string;
   username?: string;
 }

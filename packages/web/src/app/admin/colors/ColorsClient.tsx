@@ -22,6 +22,7 @@ interface Color {
     hexCode?: string;
     groupIds?: string[];
     groups?: ColorGroup[];
+    skuRef?: string;
     isActive: boolean;
 }
 
@@ -80,6 +81,7 @@ export default function AdminColorsPage() {
     const [name, setName] = useState('');
     const [hexCode, setHexCode] = useState('#000000');
     const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+    const [skuRef, setSkuRef] = useState('');
 
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; type: 'color' | 'group' | null; id: string | null }>({
         isOpen: false,
@@ -118,11 +120,13 @@ export default function AdminColorsPage() {
             setName(color.name);
             setHexCode(color.hexCode || '#000000');
             setSelectedGroupIds(color.groupIds || []);
+            setSkuRef(color.skuRef || '');
         } else {
             setEditingColor(null);
             setName('');
             setHexCode('#000000');
             setSelectedGroupIds([]);
+            setSkuRef('');
         }
         setIsModalOpen(true);
     };
@@ -133,13 +137,15 @@ export default function AdminColorsPage() {
                 await apiClient.updateColor(editingColor.id, {
                     name,
                     hexCode,
-                    groupIds: selectedGroupIds
+                    groupIds: selectedGroupIds,
+                    skuRef
                 });
             } else {
                 await apiClient.createColor({
                     name,
                     hexCode,
-                    groupIds: selectedGroupIds
+                    groupIds: selectedGroupIds,
+                    skuRef
                 });
             }
             setIsModalOpen(false);
@@ -347,6 +353,24 @@ export default function AdminColorsPage() {
                                             </div>
                                         </div>
                                     </div>
+                                    <div className="mt-4">
+                                        <label htmlFor="skuRef" className="block text-sm font-medium text-gray-700">
+                                            SKU Reference (2-4 chars)
+                                        </label>
+                                        <div className="mt-1">
+                                            <input
+                                                type="text"
+                                                name="skuRef"
+                                                id="skuRef"
+                                                maxLength={4}
+                                                className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md uppercase p-2 border"
+                                                placeholder="e.g. WH"
+                                                value={skuRef}
+                                                onChange={(e) => setSkuRef(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
                                     <div className="mt-4 flex-shrink-0 sm:mt-0 sm:ml-5 flex gap-2">
                                         <button
                                             onClick={() => handleOpenModal(color)}

@@ -39,12 +39,48 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
+export interface RingSizes {
+  thumb?: string;
+  indexFinger?: string;
+  middleFinger?: string;
+  ringFinger?: string;
+  pinky?: string;
+}
+
+export interface SizeRange {
+  min?: string;
+  max?: string;
+}
+
+export interface CategorySizes {
+  shoes?: SizeRange;
+  tops?: string[];      // Array to allow multiple size selections
+  bottoms?: string[];   // Array to allow multiple size selections
+  dresses?: string[];   // Array to allow multiple size selections
+  waist?: SizeRange;
+  rings?: RingSizes;
+}
+
 export interface UserMeasurements {
-  height: number;
-  weight: number;
-  sizes: {
-    [standard: string]: SizeChart; // BR, US, EU, UK
+  // Body measurements (height in cm, weight in kg)
+  height?: number;
+  weight?: number;
+  chest?: number;      // cm
+  waist?: number;      // cm (body measurement, not clothing size)
+  hips?: number;       // cm
+  inseam?: number;     // cm
+  shoulders?: number;  // cm
+  armLength?: number;  // cm
+
+  // Size preferences by standard (BR, US, EU, UK)
+  sizes?: {
+    [standard: string]: CategorySizes;
   };
+
+  // User's preferred display standard
+  preferredStandard?: 'BR' | 'US' | 'EU' | 'UK';
+
+  updatedAt?: string;
 }
 
 export interface VUFSItem {

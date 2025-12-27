@@ -34,6 +34,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [colors, setColors] = useState<any[]>([]);
     const [sizes, setSizes] = useState<any[]>([]);
     const [genders, setGenders] = useState<any[]>([]);
+    const [conditions, setConditions] = useState<any[]>([]);
     const [mediaLabels, setMediaLabels] = useState<any[]>([]);
 
     // Modal State
@@ -63,6 +64,13 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         isLoading: false
     });
 
+    // Variant selection for editing
+    const [selectedVariants, setSelectedVariants] = useState<string[]>([]);
+    const [relatedVariants, setRelatedVariants] = useState<any[]>([]);
+
+    // Dropdown state for sizes/colors
+    const [openDropdown, setOpenDropdown] = useState<'sizes' | 'colors' | null>(null);
+
     // Form Data
     const [formData, setFormData] = useState({
         brandId: '',
@@ -83,6 +91,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         selectedSizes: [] as string[], // Array of Size IDs
         selectedColors: [] as string[], // Array of Color IDs
 
+        officialSkuOrInstance: '',
+        isGeneric: false,
+        conditionId: '',
+
         description: '',
         images: [] as any[],
         videos: [] as any[],
@@ -99,7 +111,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
         // Auto-generated fields for display
         generatedName: '',
-        generatedCode: 'SYSTEM_GENERATED'
+        generatedCode: '',
+        retailPriceBrl: '' as string | number,
+        retailPriceUsd: '' as string | number,
+        retailPriceEur: '' as string | number
     });
 
     useEffect(() => {
@@ -110,6 +125,89 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     useEffect(() => {
         fetchSkus();
     }, [page, search, selectedBrand]);
+
+    // Handle clicking outside of dropdowns to close them
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            // If the click is not on a dropdown related element, close any open dropdown
+            if (!target.closest('.relative')) {
+                setOpenDropdown(null);
+            }
+        };
+
+        if (openDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [openDropdown]);
+
+    // Helper to slugify strings for SKU codes
+    const slugify = (text: string) => text.toString().toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
+
+    // Function to generate individual SKU code for variants
+    const generateSKUCode = (overrides: { colorId?: string | null; sizeId?: string | null } = {}) => {
+        const brand = vufsBrands.find(b => b.id === formData.brandId);
+        const line = lines.find(l => l.id === formData.lineId);
+        const collectionName = formData.collection || '';
+        const modelName = formData.modelName;
+
+        const apparel = apparels.find(c => c.id === formData.apparelId);
+        const style = styles.find(c => c.id === formData.styleId);
+        const pattern = patterns.find(p => p.id === formData.patternId);
+        const material = materials.find(m => m.id === formData.materialId);
+        const fit = fits.find(f => f.id === formData.fitId);
+        const gender = genders.find(g => g.id === formData.genderId);
+        const condition = conditions.find(c => c.id === formData.conditionId);
+
+        // Variant attributes
+        const colorId = overrides.colorId !== undefined ? overrides.colorId : (formData.selectedColors[0] || null);
+        const sizeId = overrides.sizeId !== undefined ? overrides.sizeId : (formData.selectedSizes[0] || null);
+        const color = colors.find(c => c.id === colorId);
+        const size = sizes.find(s => s.id === sizeId);
+
+        const getSluggifiedOrRef = (item: any, fallback: string | undefined) => {
+            if (!item && !fallback) return null;
+            if (item && item.skuRef) return item.skuRef;
+            if (item && item.name) return slugify(item.name);
+            if (fallback) return slugify(fallback);
+            return null;
+        };
+
+        const codeParts = [
+            formData.officialSkuOrInstance,
+            getSluggifiedOrRef(brand, undefined),
+            getSluggifiedOrRef(line, undefined),
+            slugify(collectionName),
+            slugify(modelName),
+            getSluggifiedOrRef(style, undefined),
+            getSluggifiedOrRef(pattern, undefined),
+            getSluggifiedOrRef(material, undefined),
+            getSluggifiedOrRef(fit, undefined),
+            getSluggifiedOrRef(gender, undefined),
+            getSluggifiedOrRef(apparel, undefined),
+            getSluggifiedOrRef(color, undefined),
+            getSluggifiedOrRef(size, undefined)
+        ];
+
+        if (formData.isGeneric && condition?.name) {
+            codeParts.push(slugify(condition.name));
+        }
+
+        return codeParts
+            .filter(Boolean)
+            .join('-');
+    };
 
     // Cleanup lines/collections when brand changes
     useEffect(() => {
@@ -122,58 +220,58 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         }
     }, [formData.brandId]);
 
-    // Auto-generate Name logic
+    // Auto-generate Name & Code logic
     useEffect(() => {
         if (!showModal) return;
 
-        const brandName = vufsBrands.find(b => b.id === formData.brandId)?.name || '';
-        const lineName = lines.find(l => l.id === formData.lineId)?.name || '';
+        const brand = vufsBrands.find(b => b.id === formData.brandId);
+        const line = lines.find(l => l.id === formData.lineId);
         const collectionName = formData.collection || '';
         const modelName = formData.modelName;
 
-        const apparelName = apparels.find(c => c.id === formData.apparelId)?.name || '';
-        const styleName = styles.find(c => c.id === formData.styleId)?.name || '';
-        const patternName = patterns.find(p => p.id === formData.patternId)?.name || '';
-        const materialName = materials.find(m => m.id === formData.materialId)?.name || '';
-        const fitName = fits.find(f => f.id === formData.fitId)?.name || '';
+        const apparel = apparels.find(c => c.id === formData.apparelId);
+        const style = styles.find(c => c.id === formData.styleId);
+        const pattern = patterns.find(p => p.id === formData.patternId);
+        const material = materials.find(m => m.id === formData.materialId);
+        const fit = fits.find(f => f.id === formData.fitId);
 
-        // Determine prefix based on brandLineDisplay configuration
+        // Name Generation
         let prefix = '';
         switch (formData.nameConfig.brandLineDisplay) {
             case 'brand-only':
-                prefix = brandName;
+                prefix = brand?.name || '';
                 break;
             case 'line-only':
-                prefix = lineName || brandName; // Fallback to brand if no line
+                prefix = line?.name || brand?.name || '';
                 break;
             case 'brand-and-line':
             default:
-                prefix = lineName ? `${brandName} ${lineName}`.trim() : brandName;
+                prefix = line?.name ? `${brand?.name || ''} ${line.name}`.trim() : (brand?.name || '');
                 break;
         }
 
-        // Construct base name parts based on nameConfig
-        const parts = [prefix];
+        const nameParts = [prefix];
+        if (formData.nameConfig.showCollection && collectionName) nameParts.push(collectionName);
+        if (modelName) nameParts.push(modelName);
+        if (formData.nameConfig.includeStyle && style?.name) nameParts.push(style.name);
+        if (formData.nameConfig.includePattern && pattern?.name) nameParts.push(pattern.name);
+        if (formData.nameConfig.includeMaterial && material?.name) nameParts.push(material.name);
+        if (formData.nameConfig.includeFit && fit?.name) nameParts.push(fit.name);
+        if (apparel?.name) nameParts.push(apparel.name);
 
-        if (formData.nameConfig.showCollection && collectionName) {
-            parts.push(collectionName);
-        }
+        const generatedName = nameParts.filter(Boolean).join(' ');
+        const generatedCode = generateSKUCode();
 
-        if (modelName) parts.push(modelName);
-        if (formData.nameConfig.includeStyle && styleName) parts.push(styleName);
-        if (formData.nameConfig.includePattern && patternName) parts.push(patternName);
-        if (formData.nameConfig.includeMaterial && materialName) parts.push(materialName);
-        if (formData.nameConfig.includeFit && fitName) parts.push(fitName);
-        if (apparelName) parts.push(apparelName);
-
-        setFormData(prev => ({ ...prev, generatedName: parts.filter(Boolean).join(' ') }));
+        setFormData(prev => ({ ...prev, generatedName, generatedCode }));
 
     }, [
         formData.brandId, formData.lineId, formData.collection, formData.modelName,
         formData.styleId, formData.patternId, formData.materialId,
-        formData.fitId, formData.apparelId,
+        formData.fitId, formData.apparelId, formData.genderId, formData.conditionId,
+        formData.officialSkuOrInstance, formData.isGeneric,
         formData.nameConfig,
-        vufsBrands, lines, apparels, styles, patterns, materials, fits
+        formData.selectedColors, formData.selectedSizes,
+        vufsBrands, lines, apparels, styles, patterns, materials, fits, genders, conditions
     ]);
 
 
@@ -204,6 +302,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 fitsRes,
                 colorsRes,
                 sizesRes,
+                conditionsRes,
                 mediaLabelsRes
             ] = await Promise.all([
                 apiClient.getVUFSBrands(),
@@ -214,7 +313,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 apiClient.getVUFSFits(),
                 apiClient.getVUFSColors(),
                 apiClient.getVUFSSizes(),
-                apiClient.getAllMediaLabels() // Add this
+                apiClient.getAllConditions(),
+                apiClient.getAllMediaLabels()
             ]);
 
             console.log('[GlobalSKUManagement] VUFS data fetched:', {
@@ -226,6 +326,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 fits: fitsRes?.length || 0,
                 colors: colorsRes?.length || 0,
                 sizes: sizesRes?.length || 0,
+                conditions: conditionsRes?.length || 0,
                 mediaLabels: mediaLabelsRes?.length || 0,
                 sizesRaw: sizesRes
             });
@@ -238,6 +339,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             setFits(fitsRes || []);
             setColors(colorsRes || []);
             setSizes(sizesRes || []);
+            setConditions(conditionsRes || []);
             setMediaLabels(mediaLabelsRes || []);
             setGenders(Array.isArray(gendersData) ? gendersData : []);
 
@@ -313,6 +415,33 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     }, [styles, formData.apparelId]);
 
 
+
+    const fetchRelatedVariants = async (sku: any) => {
+        try {
+            // Extract base name by removing color (in parentheses) and size (in brackets)
+            const baseName = sku.name.replace(/\s*\([^)]*\)\s*\[[^\]]*\]/g, '').trim();
+
+            // Search for SKUs with similar base name
+            const result = await apiClient.searchSKUs({
+                term: baseName,
+                brandId: sku.brandId
+            });
+
+            // Filter to only include variants (same base name but different size/color)
+            const variants = result.skus.filter((v: any) => {
+                if (v.id === sku.id) return false; // Exclude current SKU
+                const vBaseName = v.name.replace(/\s*\([^)]*\)\s*\[[^\]]*\]/g, '').trim();
+                return vBaseName === baseName;
+            });
+
+            setRelatedVariants(variants);
+            setSelectedVariants([]); // Reset selection
+        } catch (error) {
+            console.error('Failed to fetch related variants:', error);
+            setRelatedVariants([]);
+        }
+    };
+
     const openModal = async (sku?: any) => {
         if (sku) {
             setEditingSku(sku);
@@ -322,7 +451,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             if (sku.brandId) {
                 await Promise.all([
                     fetchLines(sku.brandId),
-                    fetchCollections(sku.brandId)
+                    fetchCollections(sku.brandId),
+                    fetchRelatedVariants(sku) // Fetch related variants
                 ]);
             }
 
@@ -351,10 +481,15 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                     showCollection: false
                 },
                 generatedName: sku.name,
-                generatedCode: sku.code
+                generatedCode: sku.code,
+                retailPriceBrl: sku.retailPriceBrl || '',
+                retailPriceUsd: sku.retailPriceUsd || '',
+                retailPriceEur: sku.retailPriceEur || ''
             });
         } else {
             setEditingSku(null);
+            setRelatedVariants([]);
+            setSelectedVariants([]);
             setFormData({
                 brandId: '',
                 lineId: '',
@@ -380,7 +515,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                     showCollection: false
                 },
                 generatedName: '',
-                generatedCode: 'To be generated'
+                generatedCode: 'To be generated',
+                retailPriceBrl: '',
+                retailPriceUsd: '',
+                retailPriceEur: ''
             });
             setLines([]);
             setCollections([]);
@@ -402,23 +540,35 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
     // Helper function to build SKU payload - unified for both create and edit
     const buildSKUPayload = (colorId: string | null, sizeId: string | null, isEdit: boolean = false) => {
-        const colorName = colorId ? colors.find(c => c.id === colorId)?.name : '';
-        const sizeName = sizeId ? sizes.find(s => s.id === sizeId)?.name : '';
+        const color = colors.find(c => c.id === colorId);
+        const size = sizes.find(s => s.id === sizeId);
+        const colorName = color?.name || '';
+        const sizeName = size?.name || '';
 
-        const nameParts = [formData.generatedName];
+        // Clean up the base name to ensure it doesn't already contain color/size info
+        // This is crucial for multi-creation
+        let baseName = formData.generatedName;
+        if (!isEdit) {
+            // Remove any existing (color) or [size] patterns if they somehow got in
+            baseName = baseName.replace(/\s*\([^)]*\)\s*\[[^\]]*\]/g, '').trim();
+        }
+
+        const nameParts = [baseName];
         // For edit mode, check if color/size already in name to avoid duplication
         if (isEdit) {
-            if (colorName && !formData.generatedName.includes(`(${colorName})`)) nameParts.push('(' + colorName + ')');
-            if (sizeName && !formData.generatedName.includes(`[${sizeName}]`)) nameParts.push('[' + sizeName + ']');
+            if (colorName && !baseName.includes(`(${colorName})`)) nameParts.push('(' + colorName + ')');
+            if (sizeName && !baseName.includes(`[${sizeName}]`)) nameParts.push('[' + sizeName + ']');
         } else {
             if (colorName) nameParts.push('(' + colorName + ')');
             if (sizeName) nameParts.push('[' + sizeName + ']');
         }
 
         const finalName = nameParts.join(' ');
+        const finalCode = generateSKUCode({ colorId, sizeId });
 
         return {
             name: finalName,
+            code: finalCode,
             brandId: formData.brandId,
             lineId: formData.lineId || null,
             collection: formData.collection || null,
@@ -428,6 +578,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
             category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
             metadata: {
+                officialSkuOrInstance: formData.officialSkuOrInstance,
+                isGeneric: formData.isGeneric,
+                conditionId: formData.conditionId,
                 modelName: formData.modelName,
                 genderId: formData.genderId,
                 apparelId: formData.apparelId,
@@ -442,14 +595,17 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 styleName: styles.find(c => c.id === formData.styleId)?.name,
                 patternName: patterns.find(p => p.id === formData.patternId)?.name,
                 fitName: fits.find(f => f.id === formData.fitId)?.name,
+                sizeName: sizeName, // Add explicit names
+                colorName: colorName,
                 nameConfig: formData.nameConfig
-            }
+            },
+            retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
+            retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
+            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null
         };
     };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setModalLoading(true);
         try {
             if (editingSku) {
                 // Update specific SKU
@@ -457,27 +613,49 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 const sizeId = formData.selectedSizes[0] || null;
                 const payload = buildSKUPayload(colorId, sizeId, true);
 
+                // Update main SKU
                 await apiClient.updateSKU(editingSku.id, payload);
-                toast.success('SKU updated successfully');
+
+                // Update selected variants if any
+                if (selectedVariants.length > 0) {
+                    for (const variantId of selectedVariants) {
+                        try {
+                            await apiClient.updateSKU(variantId, payload);
+                        } catch (error) {
+                            console.error(`Failed to update variant ${variantId}:`, error);
+                        }
+                    }
+                    toast.success(`Updated ${1 + selectedVariants.length} SKU(s) successfully`);
+                } else {
+                    toast.success('SKU updated successfully');
+                }
             } else {
-                // Bulk Create Logic
+                // Bulk Create Logic with improved error handling
                 const sizesToCreate = formData.selectedSizes.length > 0 ? formData.selectedSizes : [null];
                 const colorsToCreate = formData.selectedColors.length > 0 ? formData.selectedColors : [null];
 
                 let createdCount = 0;
+                let failedCount = 0;
+                const totalToCreate = sizesToCreate.length * colorsToCreate.length;
 
                 for (const colorId of colorsToCreate) {
                     for (const sizeId of sizesToCreate) {
-                        const payload = {
-                            ...buildSKUPayload(colorId, sizeId, false),
-                            code: 'TEMP-' + Date.now() + '-' + createdCount,
-                        };
-
-                        await apiClient.createSKU(formData.brandId, payload);
-                        createdCount++;
+                        try {
+                            const payload = buildSKUPayload(colorId, sizeId, false);
+                            await apiClient.createSKU(formData.brandId, payload);
+                            createdCount++;
+                        } catch (error) {
+                            console.error(`Failed to create SKU for Color: ${colorId}, Size: ${sizeId}`, error);
+                            failedCount++;
+                        }
                     }
                 }
-                toast.success(`${createdCount} SKUs created`);
+
+                if (createdCount > 0) {
+                    toast.success(`${createdCount} SKU(s) created${failedCount > 0 ? ` (${failedCount} failed)` : ''}`);
+                } else {
+                    toast.error('Failed to create SKUs');
+                }
             }
 
             setShowModal(false);
@@ -675,6 +853,11 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                         Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
                                                     </span>
                                                 )}
+                                                {sku.retailPriceBrl && (
+                                                    <span>
+                                                        Retail: <span className="font-medium text-gray-900">R$ {sku.retailPriceBrl}</span>
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -768,6 +951,17 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                 </h3>
 
                                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                    {/* Official SKU or Instance */}
+                                    <div className="col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 font-semibold uppercase tracking-wider text-xs">Official SKU or Instance</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Enter Official SKU or unique instance ID..."
+                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                            value={formData.officialSkuOrInstance}
+                                            onChange={e => setFormData({ ...formData, officialSkuOrInstance: e.target.value })}
+                                        />
+                                    </div>
 
 
                                     {/* 1. Brand / Line / Collection Row */}
@@ -915,13 +1109,92 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             value={genders.find(g => g.id === formData.genderId)?.name || ''}
                                             onChange={(name) => {
                                                 const item = genders.find(g => g.name === name);
-                                                // If static gender list, id might be same as name.
-                                                // genders structure: {id: 'Men', name: 'Men'}
                                                 setFormData({ ...formData, genderId: item?.id || '' });
                                             }}
                                             options={genders}
                                             placeholder="Select Gender..."
                                         />
+                                    </div>
+                                    <div className="col-span-2 border-t pt-6 mt-4">
+                                        <h4 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider text-xs">Retail Price</h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (BRL R$)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    placeholder="0.00"
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                    value={formData.retailPriceBrl}
+                                                    onChange={e => {
+                                                        const brl = e.target.value;
+                                                        const usd = brl ? (Number(brl) / 5.80).toFixed(2) : '';
+                                                        const eur = brl ? (Number(brl) / 6.10).toFixed(2) : '';
+                                                        setFormData({ ...formData, retailPriceBrl: brl, retailPriceUsd: usd, retailPriceEur: eur });
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (USD $)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    placeholder="0.00"
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                    value={formData.retailPriceUsd}
+                                                    onChange={e => setFormData({ ...formData, retailPriceUsd: e.target.value })}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (EUR €)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    placeholder="0.00"
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                    value={formData.retailPriceEur}
+                                                    onChange={e => setFormData({ ...formData, retailPriceEur: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Generic Wardrobe Item & Condition */}
+                                    <div className="col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-gray-900">Generic Wardrobe Item</h4>
+                                                <p className="text-xs text-gray-500">Toggle this for items that are generic and require condition tracking.</p>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <input
+                                                    type="checkbox"
+                                                    id="isGeneric"
+                                                    checked={formData.isGeneric}
+                                                    onChange={(e) => setFormData(prev => ({
+                                                        ...prev,
+                                                        isGeneric: e.target.checked,
+                                                        conditionId: e.target.checked ? prev.conditionId : ''
+                                                    }))}
+                                                    className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {formData.isGeneric && (
+                                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                                <SearchableCombobox
+                                                    label="Condition"
+                                                    value={conditions.find(c => c.id === formData.conditionId)?.name || ''}
+                                                    onChange={(name) => {
+                                                        const item = conditions.find(c => c.name === name);
+                                                        setFormData({ ...formData, conditionId: item?.id || '' });
+                                                    }}
+                                                    options={conditions}
+                                                    placeholder="Select Condition..."
+                                                />
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* SKU Name Configuration Section */}
@@ -1062,86 +1335,228 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                     {/* Size(s) - Multi-Select */}
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
-                                        <div className="mb-2">
-                                            <SearchableCombobox
+                                        <div className="relative">
+                                            {/* Search Input */}
+                                            <input
+                                                type="text"
                                                 placeholder="Search and Select Sizes..."
-                                                value={null}
-                                                onChange={(name) => {
-                                                    if (!name) return;
-                                                    const size = sizes.find(s => s.name === name);
-                                                    if (size && !formData.selectedSizes.includes(size.id)) {
-                                                        handleMultiSelect('sizes', size.id);
+                                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                onFocus={() => setOpenDropdown('sizes')}
+                                                onChange={(e) => {
+                                                    const searchTerm = e.target.value.toLowerCase();
+                                                    const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
+                                                    if (dropdown) dropdown.style.display = 'block'; // Ensure open on search
+                                                    setOpenDropdown('sizes');
+
+                                                    const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
+                                                    if (list) {
+                                                        const labels = list.querySelectorAll('label');
+                                                        labels.forEach(label => {
+                                                            const text = label.textContent?.toLowerCase() || '';
+                                                            (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                                                        });
                                                     }
                                                 }}
-                                                options={sizes.filter(s => !formData.selectedSizes.includes(s.id))}
                                             />
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {formData.selectedSizes.map(sizeId => {
-                                                const size = sizes.find(s => s.id === sizeId);
-                                                return (
-                                                    <span
-                                                        key={sizeId}
-                                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                            {openDropdown === 'sizes' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenDropdown(null)}
+                                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                            {/* Dropdown List */}
+                                            <div
+                                                className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                style={{ display: openDropdown === 'sizes' ? 'block' : 'none' }}
+                                            >
+                                                <div className="dropdown-list">
+                                                    {sizes.map(size => {
+                                                        const isSelected = formData.selectedSizes.includes(size.id);
+                                                        return (
+                                                            <label
+                                                                key={size.id}
+                                                                className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleMultiSelect('sizes', size.id);
+                                                                    }}
+                                                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                />
+                                                                <span className="ml-3 text-sm text-gray-900">{size.name}</span>
+                                                                {isSelected && (
+                                                                    <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                )}
+                                                            </label>
+                                                        );
+                                                    })}
+                                                    {sizes.length === 0 && (
+                                                        <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                                            No sizes available
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenDropdown(null)}
+                                                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
                                                     >
-                                                        {size?.name || sizeId}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleMultiSelect('sizes', sizeId)}
-                                                            className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
-                                                        >
-                                                            &times;
-                                                        </button>
-                                                    </span>
-                                                );
-                                            })}
+                                                        Done
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
+                                        {formData.selectedSizes.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {formData.selectedSizes.map(sizeId => {
+                                                    const size = sizes.find(s => s.id === sizeId);
+                                                    return (
+                                                        <span
+                                                            key={sizeId}
+                                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                                        >
+                                                            {size?.name || sizeId}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleMultiSelect('sizes', sizeId)}
+                                                                className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
+                                                            >
+                                                                &times;
+                                                            </button>
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Color(s) - Multi-Select */}
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
-                                        <div className="mb-2">
-                                            <SearchableCombobox
+                                        <div className="relative">
+                                            {/* Search Input */}
+                                            <input
+                                                type="text"
                                                 placeholder="Search and Select Colors..."
-                                                value={null}
-                                                onChange={(name) => {
-                                                    if (!name) return;
-                                                    const color = colors.find(c => c.name === name);
-                                                    if (color && !formData.selectedColors.includes(color.id)) {
-                                                        handleMultiSelect('colors', color.id);
+                                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                onFocus={() => setOpenDropdown('colors')}
+                                                onChange={(e) => {
+                                                    const searchTerm = e.target.value.toLowerCase();
+                                                    const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
+                                                    if (dropdown) dropdown.style.display = 'block';
+                                                    setOpenDropdown('colors');
+
+                                                    const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
+                                                    if (list) {
+                                                        const labels = list.querySelectorAll('label');
+                                                        labels.forEach(label => {
+                                                            const text = label.textContent?.toLowerCase() || '';
+                                                            (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                                                        });
                                                     }
                                                 }}
-                                                options={colors.filter(c => !formData.selectedColors.includes(c.id)).map(c => ({
-                                                    id: c.id,
-                                                    name: c.name,
-                                                    hex: c.hex // Pass hex code
-                                                }))}
                                             />
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {formData.selectedColors.map(colorId => {
-                                                const color = colors.find(c => c.id === colorId);
-                                                return (
-                                                    <span
-                                                        key={colorId}
-                                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 border border-gray-200"
+                                            {openDropdown === 'colors' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenDropdown(null)}
+                                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                            {/* Dropdown List */}
+                                            <div
+                                                className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                style={{ display: openDropdown === 'colors' ? 'block' : 'none' }}
+                                            >
+                                                <div className="dropdown-list">
+                                                    {colors.map(color => {
+                                                        const isSelected = formData.selectedColors.includes(color.id);
+                                                        return (
+                                                            <label
+                                                                key={color.id}
+                                                                className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleMultiSelect('colors', color.id);
+                                                                    }}
+                                                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                />
+                                                                {color.hex && (
+                                                                    <span
+                                                                        className="ml-3 w-4 h-4 rounded-full border border-gray-300"
+                                                                        style={{ backgroundColor: color.hex }}
+                                                                    />
+                                                                )}
+                                                                <span className="ml-2 text-sm text-gray-900">{color.name}</span>
+                                                                {isSelected && (
+                                                                    <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                )}
+                                                            </label>
+                                                        );
+                                                    })}
+                                                    {colors.length === 0 && (
+                                                        <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                                            No colors available
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenDropdown(null)}
+                                                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
                                                     >
-                                                        {color?.hex && (
-                                                            <span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: color.hex }}></span>
-                                                        )}
-                                                        {color?.name || colorId}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleMultiSelect('colors', colorId)}
-                                                            className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
-                                                        >
-                                                            &times;
-                                                        </button>
-                                                    </span>
-                                                );
-                                            })}
+                                                        Done
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
+                                        {formData.selectedColors.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {formData.selectedColors.map(colorId => {
+                                                    const color = colors.find(c => c.id === colorId);
+                                                    return (
+                                                        <span
+                                                            key={colorId}
+                                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 border border-gray-200"
+                                                        >
+                                                            {color?.hex && (
+                                                                <span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: color.hex }}></span>
+                                                            )}
+                                                            {color?.name || colorId}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleMultiSelect('colors', colorId)}
+                                                                className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
+                                                            >
+                                                                &times;
+                                                            </button>
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Auto-Generated Preview */}
@@ -1149,7 +1564,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                         <h4 className="text-sm font-medium text-gray-900">SKU Output Preview</h4>
                                         <div className="mt-2 text-sm text-gray-600">
                                             <p><span className="font-semibold">Format:</span> {formData.generatedName || '(Start selecting attributes)'} (Color) [Size]</p>
-                                            <p className="mt-1"><span className="font-semibold">Code:</span> System Generated</p>
+                                            <p className="mt-1"><span className="font-semibold">Code:</span> <code className="bg-gray-200 px-1 rounded text-blue-700">{formData.generatedCode || '(Start selecting attributes)'}</code></p>
                                             <p className="mt-1 text-xs text-gray-500">
                                                 Based on selection, this will create <strong>{Math.max(1, formData.selectedColors.length) * Math.max(1, formData.selectedSizes.length)}</strong> distinct SKUs.
                                             </p>
@@ -1165,6 +1580,55 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         />
                                     </div>
+
+                                    {/* Variant Selector - Only show when editing and variants exist */}
+                                    {editingSku && relatedVariants.length > 0 && (
+                                        <div className="col-span-2 border-t border-b border-gray-200 py-4 bg-blue-50 rounded-lg p-4">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-900">
+                                                        Apply changes to related variants
+                                                    </label>
+                                                    <p className="text-xs text-gray-600 mt-1">
+                                                        Select which size/color variants should receive the same updates
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (selectedVariants.length === relatedVariants.length) {
+                                                            setSelectedVariants([]);
+                                                        } else {
+                                                            setSelectedVariants(relatedVariants.map(v => v.id));
+                                                        }
+                                                    }}
+                                                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                >
+                                                    {selectedVariants.length === relatedVariants.length ? 'Deselect All' : 'Select All'}
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                {relatedVariants.map(variant => (
+                                                    <label key={variant.id} className="flex items-center p-2 hover:bg-blue-100 rounded cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedVariants.includes(variant.id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedVariants([...selectedVariants, variant.id]);
+                                                                } else {
+                                                                    setSelectedVariants(selectedVariants.filter(id => id !== variant.id));
+                                                                }
+                                                            }}
+                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                        />
+                                                        <span className="ml-3 text-sm text-gray-900">{variant.name}</span>
+                                                        <span className="ml-auto text-xs text-gray-500">{variant.code}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Media Uploaders */}
                                     <div className="col-span-2 space-y-6 border-t pt-6 mt-2">

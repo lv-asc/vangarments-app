@@ -950,44 +950,44 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/materials');
     return (response as any).materials || response.data || response;
   }
-  async addVUFSMaterial(name: string, category: string = 'natural') {
-    return this.request('/vufs-management/materials', { method: 'POST', body: JSON.stringify({ name, category }) });
+  async addVUFSMaterial(name: string, category: string = 'natural', skuRef?: string) {
+    return this.request('/vufs-management/materials', { method: 'POST', body: JSON.stringify({ name, category, skuRef }) });
   }
   async deleteVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'DELETE' }); }
-  async updateVUFSMaterial(id: string, name: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+  async updateVUFSMaterial(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
 
   // --- PATTERNS ---
   async getVUFSPatterns() {
     const response = await this.request<any>('/vufs-management/patterns');
     return (response as any).patterns || response.data || response;
   }
-  async addVUFSPattern(name: string) {
-    return this.request('/vufs-management/patterns', { method: 'POST', body: JSON.stringify({ name }) });
+  async addVUFSPattern(name: string, skuRef?: string) {
+    return this.request('/vufs-management/patterns', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
   }
   async deleteVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'DELETE' }); }
-  async updateVUFSPattern(id: string, name: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+  async updateVUFSPattern(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
 
   // --- FITS ---
   async getVUFSFits() {
     const response = await this.request<any>('/vufs-management/fits');
     return (response as any).fits || response.data || response;
   }
-  async addVUFSFit(name: string) {
-    return this.request('/vufs-management/fits', { method: 'POST', body: JSON.stringify({ name }) });
+  async addVUFSFit(name: string, skuRef?: string) {
+    return this.request('/vufs-management/fits', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
   }
   async deleteVUFSFit(id: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'DELETE' }); }
-  async updateVUFSFit(id: string, name: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+  async updateVUFSFit(id: string, name: string, categoryIds?: string[], skuRef?: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'PATCH', body: JSON.stringify({ name, categoryIds, skuRef }) }); }
 
   // --- GENDERS ---
   async getVUFSGenders() {
     const response = await this.request<any>('/vufs-management/genders');
     return (response as any).genders || response.data || response;
   }
-  async addVUFSGender(name: string) {
-    return this.request('/vufs-management/genders', { method: 'POST', body: JSON.stringify({ name }) });
+  async addVUFSGender(name: string, skuRef?: string) {
+    return this.request('/vufs-management/genders', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
   }
   async deleteVUFSGender(id: string) { return this.request(`/vufs-management/genders/${id}`, { method: 'DELETE' }); }
-  async updateVUFSGender(id: string, name: string) { return this.request(`/vufs-management/genders/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+  async updateVUFSGender(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/genders/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
 
 
   // --- EXTENDED COLORS (Admin Page) ---
@@ -1041,10 +1041,10 @@ class ApiClient {
 
   // --- EXTENDED SIZES (Admin Page) ---
   async getAllSizes() { const res = await this.request<any[]>('/sizes'); return res as any as any[]; }
-  async createSize(data: { name: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[] }) {
+  async createSize(data: { name: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[]; skuRef?: string }) {
     return this.request('/sizes', { method: 'POST', body: JSON.stringify(data) });
   }
-  async updateSize(id: string, data: { name?: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[] }) {
+  async updateSize(id: string, data: { name?: string; sortOrder?: number; conversions?: any[]; validCategoryIds?: number[]; skuRef?: string }) {
     return this.request(`/sizes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
   async reorderSizes(orders: { id: string; sortOrder: number }[]) {
@@ -1098,10 +1098,10 @@ class ApiClient {
     const response = await this.request<any>(`/vufs-management/attributes/${typeSlug}/values`);
     return (response as any).values || response.data || response;
   }
-  async addVUFSAttributeValue(typeSlug: string, name: string, parentId?: string) {
-    return this.request(`/vufs-management/attributes/${typeSlug}/values`, { method: 'POST', body: JSON.stringify({ name, parentId }) });
+  async addVUFSAttributeValue(typeSlug: string, name: string, parentId?: string, skuRef?: string) {
+    return this.request(`/vufs-management/attributes/${typeSlug}/values`, { method: 'POST', body: JSON.stringify({ name, parentId, skuRef }) });
   }
-  async updateVUFSAttributeValue(id: string, updates: { name?: string; parentId?: string | null }) {
+  async updateVUFSAttributeValue(id: string, updates: { name?: string; parentId?: string | null; skuRef?: string }) {
     return this.request(`/vufs-management/attributes/values/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
   }
   async deleteVUFSAttributeValue(id: string) { return this.request(`/vufs-management/attributes/values/${id}`, { method: 'DELETE' }); }

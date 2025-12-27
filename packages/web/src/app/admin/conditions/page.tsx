@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import ConditionsClient from './ConditionsClient';
 
 export const metadata: Metadata = {
-    title: 'Admin - Conditions',
+    title: 'Conditions',
 };
 
 export default function ConditionsPage() {

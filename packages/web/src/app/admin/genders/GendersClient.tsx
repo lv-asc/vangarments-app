@@ -8,6 +8,7 @@ import { TrashIcon, PencilSquareIcon, PlusIcon, UserGroupIcon } from '@heroicons
 interface Gender {
     id: string;
     name: string;
+    skuRef?: string;
     isActive: boolean;
 }
 
@@ -19,6 +20,7 @@ export default function AdminGendersPage() {
     // Edit State
     const [editingGender, setEditingGender] = useState<Gender | null>(null);
     const [name, setName] = useState('');
+    const [skuRef, setSkuRef] = useState('');
 
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
         isOpen: false,
@@ -45,9 +47,11 @@ export default function AdminGendersPage() {
         if (gender) {
             setEditingGender(gender);
             setName(gender.name);
+            setSkuRef(gender.skuRef || '');
         } else {
             setEditingGender(null);
             setName('');
+            setSkuRef('');
         }
         setIsModalOpen(true);
     };
@@ -56,9 +60,9 @@ export default function AdminGendersPage() {
         if (!name.trim()) return;
         try {
             if (editingGender) {
-                await apiClient.updateVUFSGender(editingGender.id, name);
+                await apiClient.updateVUFSGender(editingGender.id, name, skuRef);
             } else {
-                await apiClient.addVUFSGender(name);
+                await apiClient.addVUFSGender(name, skuRef);
             }
             setIsModalOpen(false);
             fetchData();
@@ -157,6 +161,17 @@ export default function AdminGendersPage() {
                                 placeholder="e.g. Men"
                                 className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
                                 autoFocus
+                            />
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">SKU Ref (2 chars)</label>
+                            <input
+                                type="text"
+                                value={skuRef}
+                                onChange={(e) => setSkuRef(e.target.value)}
+                                placeholder="e.g. ME"
+                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2 uppercase"
+                                maxLength={4}
                             />
                         </div>
                         <div className="flex justify-end gap-3">

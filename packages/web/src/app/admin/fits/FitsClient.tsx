@@ -10,6 +10,8 @@ interface Fit {
     id: string;
     name: string;
     isActive: boolean;
+    associatedCategories?: string[];
+    skuRef?: string;
 }
 
 export default function AdminFitsPage() {
@@ -18,6 +20,9 @@ export default function AdminFitsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingFit, setEditingFit] = useState<Fit | null>(null);
     const [name, setName] = useState('');
+    const [skuRef, setSkuRef] = useState('');
+    const [apparelCategories, setApparelCategories] = useState<any[]>([]);
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
         isOpen: false,
         id: null
@@ -30,11 +35,15 @@ export default function AdminFitsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const data = await apiClient.getVUFSFits();
-            setFits(Array.isArray(data) ? data : (data?.fits || []));
+            const [fitsData, apparelData] = await Promise.all([
+                apiClient.getVUFSFits(),
+                apiClient.getVUFSAttributeValues('apparel')
+            ]);
+            setFits(Array.isArray(fitsData) ? fitsData : (fitsData?.fits || []));
+            setApparelCategories(apparelData || []);
         } catch (error) {
-            console.error('Failed to fetch fits', error);
-            toast.error('Failed to load fits');
+            console.error('Failed to fetch data', error);
+            toast.error('Failed to load data');
         } finally {
             setLoading(false);
         }
@@ -44,9 +53,13 @@ export default function AdminFitsPage() {
         if (fit) {
             setEditingFit(fit);
             setName(fit.name);
+            setSkuRef(fit.skuRef || '');
+            setSelectedCategoryIds(fit.associatedCategories || []);
         } else {
             setEditingFit(null);
             setName('');
+            setSkuRef('');
+            setSelectedCategoryIds([]);
         }
         setIsModalOpen(true);
     };
@@ -58,10 +71,10 @@ export default function AdminFitsPage() {
         }
         try {
             if (editingFit) {
-                await apiClient.updateVUFSFit(editingFit.id, name);
+                await apiClient.updateVUFSFit(editingFit.id, name, selectedCategoryIds, skuRef);
                 toast.success('Fit updated');
             } else {
-                await apiClient.addVUFSFit(name);
+                await apiClient.addVUFSFit(name, skuRef);
                 toast.success('Fit added');
             }
             setIsModalOpen(false);
@@ -148,15 +161,54 @@ export default function AdminFitsPage() {
                         <h3 className="text-lg font-medium text-gray-900 mb-4">
                             {editingFit ? 'Edit Fit' : 'Add Fit'}
                         </h3>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Name</label>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2"
-                                placeholder="e.g. Slim, Regular, Loose"
-                            />
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Name</label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2"
+                                    placeholder="e.g. Slim, Regular, Loose"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">SKU Ref (2 chars)</label>
+                                <input
+                                    type="text"
+                                    value={skuRef}
+                                    onChange={(e) => setSkuRef(e.target.value)}
+                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2 uppercase"
+                                    placeholder="e.g. SL"
+                                    maxLength={4}
+                                />
+                            </div>
+
+                            {editingFit && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Applicable Apparel</label>
+                                    <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-2 space-y-2">
+                                        {apparelCategories.map(cat => (
+                                            <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedCategoryIds.includes(cat.id)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedCategoryIds([...selectedCategoryIds, cat.id]);
+                                                        } else {
+                                                            setSelectedCategoryIds(selectedCategoryIds.filter(id => id !== cat.id));
+                                                        }
+                                                    }}
+                                                    className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                                                />
+                                                <span className="text-sm text-gray-700">{cat.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-500">Select which apparel categories this fit applies to.</p>
+                                </div>
+                            )}
                         </div>
                         <div className="mt-5 flex justify-end gap-3">
                             <button

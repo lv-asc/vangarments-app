@@ -267,6 +267,7 @@ interface Size {
     sortOrder: number;
     conversions: SizeConversion[];
     validCategoryIds: number[];
+    skuRef?: string;
     isActive: boolean;
 }
 
@@ -306,7 +307,8 @@ export default function AdminSizesPage() {
     const [sizeForm, setSizeForm] = useState({
         name: '',
         conversions: [] as SizeConversion[],
-        selectedCategoryIds: [] as string[]
+        selectedCategoryIds: [] as string[],
+        skuRef: ''
     });
 
     // Standard Modal State
@@ -370,11 +372,12 @@ export default function AdminSizesPage() {
             setSizeForm({
                 name: size.name,
                 conversions: size.conversions || [],
-                selectedCategoryIds: (size.validCategoryIds || []).map(id => String(id))
+                selectedCategoryIds: (size.validCategoryIds || []).map(id => String(id)),
+                skuRef: size.skuRef || ''
             });
         } else {
             setEditingSize(null);
-            setSizeForm({ name: '', conversions: [], selectedCategoryIds: [] });
+            setSizeForm({ name: '', conversions: [], selectedCategoryIds: [], skuRef: '' });
         }
         setIsSizeModalOpen(true);
     };
@@ -384,7 +387,8 @@ export default function AdminSizesPage() {
             const payload: any = {
                 name: sizeForm.name,
                 conversions: sizeForm.conversions.filter(c => c.standard && c.value),
-                validCategoryIds: sizeForm.selectedCategoryIds.map(id => Number(id)).filter(id => !isNaN(id))
+                validCategoryIds: sizeForm.selectedCategoryIds.map(id => Number(id)).filter(id => !isNaN(id)),
+                skuRef: sizeForm.skuRef
             };
 
             if (editingSize) {
@@ -713,6 +717,17 @@ export default function AdminSizesPage() {
                                         value={sizeForm.name}
                                         onChange={(e) => setSizeForm({ ...sizeForm, name: e.target.value })}
                                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">SKU Ref (2 chars)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. XL"
+                                        maxLength={4}
+                                        value={sizeForm.skuRef || ''}
+                                        onChange={(e) => setSizeForm({ ...sizeForm, skuRef: e.target.value })}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2 uppercase"
                                     />
                                 </div>
                             </div>

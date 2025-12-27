@@ -65,7 +65,7 @@ export default function AdminMeasurementsPage() {
         }
         try {
             if (editingMeasurement) {
-                await apiClient.updateVUFSAttributeValue(editingMeasurement.id, name);
+                await apiClient.updateVUFSAttributeValue(editingMeasurement.id, { name });
                 toast.success('Measurement updated');
             } else {
                 await apiClient.addVUFSAttributeValue('measurement', name);

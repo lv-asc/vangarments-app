@@ -10,7 +10,7 @@ export interface Size {
     name: string;
     sortOrder?: number;
     conversions: SizeConversion[]; // Hydrated
-    validCategoryIds: number[]; // Integer IDs from vufs_categories
+    validCategoryIds: string[]; // Category IDs (UUIDs or legacy integers)
     isActive: boolean;
     createdAt: Date;
 }
@@ -84,7 +84,7 @@ export class SizeModel {
         };
     }
 
-    static async create(name: string, sortOrder?: number, conversions: SizeConversion[] = [], validCategoryIds: number[] = []): Promise<Size> {
+    static async create(name: string, sortOrder?: number, conversions: SizeConversion[] = [], validCategoryIds: string[] = []): Promise<Size> {
         return db.transaction(async (client) => {
             const insertQuery = `
         INSERT INTO vufs_sizes (name, sort_order) VALUES ($1, $2) RETURNING *
@@ -105,7 +105,7 @@ export class SizeModel {
                 const uniqueCatIds = [...new Set(validCategoryIds)];
                 const catQuery = `
           INSERT INTO vufs_category_sizes (category_id, size_id)
-          SELECT unnest($2::int[]), $1
+          SELECT unnest($2::text[]), $1
         `;
                 await client.query(catQuery, [size.id, uniqueCatIds]);
             }
@@ -119,7 +119,7 @@ export class SizeModel {
         name?: string,
         sortOrder?: number,
         conversions?: SizeConversion[],
-        validCategoryIds?: number[]
+        validCategoryIds?: string[]
     ): Promise<Size | null> {
         return db.transaction(async (client) => {
             // Update base fields
@@ -165,7 +165,7 @@ export class SizeModel {
                     const uniqueCatIds = [...new Set(validCategoryIds)];
                     const catQuery = `
                INSERT INTO vufs_category_sizes (category_id, size_id)
-               SELECT unnest($2::int[]), $1
+               SELECT unnest($2::text[]), $1
              `;
                     await client.query(catQuery, [id, uniqueCatIds]);
                 }

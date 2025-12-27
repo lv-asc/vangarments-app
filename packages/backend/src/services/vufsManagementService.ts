@@ -8,6 +8,7 @@ export interface VUFSCategoryOption {
   parentId?: string;
   description?: string;
   isActive: boolean;
+  skuRef?: string;
 }
 
 
@@ -18,6 +19,7 @@ export interface VUFSBrandOption {
   parentId?: string;
   description?: string;
   isActive: boolean;
+  skuRef?: string;
 }
 
 export interface VUFSColorOption {
@@ -26,6 +28,7 @@ export interface VUFSColorOption {
   hex: string;
   undertones: string[];
   isActive: boolean;
+  skuRef?: string;
 }
 
 export interface VUFSMaterialOption {
@@ -34,6 +37,7 @@ export interface VUFSMaterialOption {
   category: 'natural' | 'synthetic' | 'blend';
   properties: string[];
   isActive: boolean;
+  skuRef?: string;
 }
 
 export interface VUFSCareInstructionOption {
@@ -71,7 +75,8 @@ export class VUFSManagementService {
   static async addCategory(
     name: string,
     level: 'page' | 'blue' | 'white' | 'gray',
-    parentId?: string
+    parentId?: string,
+    skuRef?: string
   ): Promise<VUFSCategoryOption> {
     const parentIdVal = parentId ? parseInt(parentId) : null;
 
@@ -88,12 +93,12 @@ export class VUFSManagementService {
     const levelInt = levelMap[level] || 1;
 
     const query = `
-      INSERT INTO vufs_categories (name, level, parent_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO vufs_categories (name, level, parent_id, sku_ref)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
 
-    const result = await db.query(query, [name, levelInt, parentIdVal]);
+    const result = await db.query(query, [name, levelInt, parentIdVal, skuRef || null]);
     const row = result.rows[0];
 
     return {
@@ -101,7 +106,8 @@ export class VUFSManagementService {
       name: row.name,
       level: level,
       parentId: row.parent_id?.toString(),
-      isActive: true
+      isActive: true,
+      skuRef: row.sku_ref
     };
   }
 
@@ -122,7 +128,7 @@ export class VUFSManagementService {
     );
   }
 
-  static async updateCategory(id: string, name?: string, parentId?: string | null): Promise<VUFSCategoryOption> {
+  static async updateCategory(id: string, name?: string, parentId?: string | null, skuRef?: string): Promise<VUFSCategoryOption> {
     let query = 'UPDATE vufs_categories SET updated_at = CURRENT_TIMESTAMP';
     const params: any[] = [id];
     let paramCount = 1;
@@ -139,6 +145,12 @@ export class VUFSManagementService {
       params.push(parentId ? parseInt(parentId) : null);
     }
 
+    if (skuRef !== undefined) {
+      paramCount++;
+      query += `, sku_ref = $${paramCount}`;
+      params.push(skuRef || null);
+    }
+
     query += ` WHERE id = $1 RETURNING *`;
 
     const result = await db.query(query, params);
@@ -150,7 +162,8 @@ export class VUFSManagementService {
       name: row.name,
       level: row.level === 1 ? 'subcategory1' : row.level === 2 ? 'subcategory2' : row.level === 3 ? 'apparel' : 'gray',
       parentId: row.parent_id?.toString(),
-      isActive: row.is_active
+      isActive: row.is_active,
+      skuRef: row.sku_ref
     };
   }
 
@@ -180,12 +193,39 @@ export class VUFSManagementService {
   }
 
   /**
+   * Helper to parse attribute values that could be JSON arrays or comma-separated strings
+   */
+  private static parseAttributeValue(value: string): string[] {
+    if (!value) return [];
+    const trimmed = value.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.map(v => String(v));
+      } catch (e) {
+        // Fallback to comma split if JSON parse fails
+      }
+    }
+    return trimmed.split(',').map(v => v.trim()).filter(Boolean);
+  }
+
+  /**
    * Generic Update Item
    */
-  private static async updateItem(table: string, id: string, name: string): Promise<any> {
-    const query = `UPDATE ${table} SET name = $2 WHERE id = $1 RETURNING *`;
+  private static async updateItem(table: string, id: string, name: string, extraUpdates: Record<string, any> = {}): Promise<any> {
+    const setParts = ['name = $2'];
+    const values = [id, name];
+    let paramCount = 2;
+
+    for (const [key, value] of Object.entries(extraUpdates)) {
+      paramCount++;
+      setParts.push(`${key} = $${paramCount}`);
+      values.push(value);
+    }
+
+    const query = `UPDATE ${table} SET ${setParts.join(', ')} WHERE id = $1 RETURNING *`;
     try {
-      const result = await db.query(query, [id, name]);
+      const result = await db.query(query, values);
       if (result.rowCount === 0) throw new Error('Item not found');
       return { ...result.rows[0], isActive: true };
     } catch (error: any) {
@@ -264,7 +304,7 @@ export class VUFSManagementService {
   static async getCategories(includeDeleted: boolean = false): Promise<VUFSCategoryOption[]> {
     // Read from vufs_attribute_values where type_slug = 'apparel' (unified source)
     const query = `
-      SELECT id, name, type_slug, parent_id, sort_order 
+      SELECT id, name, type_slug, parent_id, sort_order, sku_ref 
       FROM vufs_attribute_values 
       WHERE type_slug = 'apparel' 
       ORDER BY sort_order ASC, name ASC
@@ -276,6 +316,7 @@ export class VUFSManagementService {
       name: row.name,
       level: 'apparel' as const,
       parentId: row.parent_id?.toString(),
+      skuRef: row.sku_ref,
       isActive: true,
       isDeleted: false,
       deletedAt: null
@@ -353,15 +394,15 @@ export class VUFSManagementService {
     }));
   }
 
-  static async addBrand(name: string, type: string = 'brand', parentId?: string): Promise<VUFSBrandOption> {
-    return this.addItem('vufs_brands', name, { type, parent_id: parentId });
+  static async addBrand(name: string, type: string = 'brand', parentId?: string, skuRef?: string): Promise<VUFSBrandOption> {
+    return this.addItem('vufs_brands', name, { type, parent_id: parentId, sku_ref: skuRef });
   }
 
   static async deleteBrand(id: string): Promise<void> {
     await this.deleteItem('vufs_brands', id);
   }
-  static async updateBrand(id: string, name: string): Promise<any> {
-    return this.updateItem('vufs_brands', id, name);
+  static async updateBrand(id: string, name: string, skuRef?: string): Promise<any> {
+    return this.updateItem('vufs_brands', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
 
   /**
@@ -375,19 +416,20 @@ export class VUFSManagementService {
       name: row.name,
       hex: row.hex_code || '#000000',
       undertones: [], // Placeholder
+      skuRef: row.sku_ref,
       isActive: row.is_active
     }));
   }
 
-  static async addColor(name: string, hex: string = '#000000'): Promise<VUFSColorOption> {
-    return this.addItem('vufs_colors', name, { hex_code: hex });
+  static async addColor(name: string, hex: string = '#000000', skuRef?: string): Promise<VUFSColorOption> {
+    return this.addItem('vufs_colors', name, { hex_code: hex, sku_ref: skuRef });
   }
 
   static async deleteColor(id: string): Promise<void> {
     await this.deleteItem('vufs_colors', id);
   }
-  static async updateColor(id: string, name: string): Promise<any> {
-    return this.updateItem('vufs_colors', id, name);
+  static async updateColor(id: string, name: string, skuRef?: string): Promise<any> {
+    return this.updateItem('vufs_colors', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
 
   /**
@@ -405,15 +447,15 @@ export class VUFSManagementService {
     }));
   }
 
-  static async addMaterial(name: string, category: string = 'natural'): Promise<VUFSMaterialOption> {
-    return this.addItem('vufs_materials', name, { category });
+  static async addMaterial(name: string, category: string = 'natural', skuRef?: string): Promise<VUFSMaterialOption> {
+    return this.addItem('vufs_materials', name, { category, sku_ref: skuRef });
   }
 
   static async deleteMaterial(id: string): Promise<void> {
     await this.deleteItem('vufs_materials', id);
   }
-  static async updateMaterial(id: string, name: string): Promise<any> {
-    return this.updateItem('vufs_materials', id, name);
+  static async updateMaterial(id: string, name: string, skuRef?: string): Promise<any> {
+    return this.updateItem('vufs_materials', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
 
 
@@ -736,65 +778,148 @@ export class VUFSManagementService {
     return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
   }
 
-  static async addPattern(name: string): Promise<any> {
-    return this.addItem('vufs_patterns', name);
+  static async addPattern(name: string, skuRef?: string): Promise<any> {
+    return this.addItem('vufs_patterns', name, { sku_ref: skuRef });
   }
 
   static async deletePattern(id: string): Promise<void> {
     await this.deleteItem('vufs_patterns', id);
   }
-  static async updatePattern(id: string, name: string): Promise<any> {
-    return this.updateItem('vufs_patterns', id, name);
+  static async updatePattern(id: string, name: string, skuRef?: string): Promise<any> {
+    return this.updateItem('vufs_patterns', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
 
   /**
-   * Get Fits from vufs_attribute_values (unified data source)
+   * Get Fits from vufs_fits table
    */
   static async getFits(): Promise<any[]> {
     const query = `
-      SELECT id, name, sort_order 
-      FROM vufs_attribute_values 
-      WHERE type_slug = 'fit' 
-      ORDER BY sort_order ASC, name ASC
+      SELECT f.*, 
+        (SELECT array_agg(category_id) 
+         FROM vufs_category_attributes 
+         WHERE attribute_slug = 'possible-fits' 
+         AND (
+           CASE 
+             WHEN value LIKE '[%' THEN value::jsonb ? f.id::text
+             ELSE (',' || value || ',') LIKE '%,' || f.id::text || ',%'
+           END
+         )) as associated_categories
+      FROM vufs_fits f 
+      WHERE is_active = true 
+      ORDER BY name
     `;
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: true }));
+    return result.rows.map((row: any) => ({
+      ...row,
+      isActive: row.is_active,
+      skuRef: row.sku_ref,
+      associatedCategories: row.associated_categories || []
+    }));
   }
 
-  static async addFit(name: string): Promise<any> {
-    return this.addItem('vufs_fits', name);
+  static async addFit(name: string, skuRef?: string): Promise<any> {
+    return this.addItem('vufs_fits', name, { sku_ref: skuRef });
   }
 
   static async deleteFit(id: string): Promise<void> {
     await this.deleteItem('vufs_fits', id);
   }
-  static async updateFit(id: string, name: string): Promise<any> {
-    return this.updateItem('vufs_fits', id, name);
+  static async getApparelForFit(fitId: string): Promise<string[]> {
+    const query = `
+      SELECT category_id 
+      FROM vufs_category_attributes 
+      WHERE attribute_slug = 'possible-fits' 
+      AND (
+        CASE 
+          WHEN value LIKE '[%' THEN value::jsonb ? $1
+          ELSE (',' || value || ',') LIKE '%,' || $1 || ',%'
+        END
+      )
+    `;
+    const result = await db.query(query, [fitId]);
+    return result.rows.map(row => row.category_id);
+  }
+
+  static async updateFit(id: string, name: string, skuRef?: string, categoryIds?: string[]): Promise<any> {
+    const updatedFit = await this.updateItem('vufs_fits', id, name, skuRef ? { sku_ref: skuRef } : {});
+    const fit = { ...updatedFit, isActive: updatedFit.is_active };
+
+    if (categoryIds !== undefined) {
+      // 1. Get current categories for this fit
+      const currentCategories = await this.getApparelForFit(id);
+
+      // 2. Identify categories to add and remove
+      const toAdd = categoryIds.filter(cid => !currentCategories.includes(cid));
+      const toRemove = currentCategories.filter(cid => !categoryIds.includes(cid));
+
+      // 3. Process removals
+      for (const cid of toRemove) {
+        const attrRes = await db.query(
+          "SELECT value FROM vufs_category_attributes WHERE category_id = $1 AND attribute_slug = 'possible-fits'",
+          [cid]
+        );
+        if (attrRes.rows.length > 0) {
+          const currentValues = this.parseAttributeValue(attrRes.rows[0].value).filter(v => v !== id);
+          if (currentValues.length === 0) {
+            await db.query(
+              "DELETE FROM vufs_category_attributes WHERE category_id = $1 AND attribute_slug = 'possible-fits'",
+              [cid]
+            );
+          } else {
+            // Save in JSON format to match ApparelManagement behavior
+            await db.query(
+              "UPDATE vufs_category_attributes SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE category_id = $2 AND attribute_slug = 'possible-fits'",
+              [JSON.stringify(currentValues), cid]
+            );
+          }
+        }
+      }
+
+      // 4. Process additions
+      for (const cid of toAdd) {
+        const attrRes = await db.query(
+          "SELECT value FROM vufs_category_attributes WHERE category_id = $1 AND attribute_slug = 'possible-fits'",
+          [cid]
+        );
+        if (attrRes.rows.length > 0) {
+          const currentValues = this.parseAttributeValue(attrRes.rows[0].value);
+          if (!currentValues.includes(id)) {
+            currentValues.push(id);
+            await db.query(
+              "UPDATE vufs_category_attributes SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE category_id = $2 AND attribute_slug = 'possible-fits'",
+              [JSON.stringify(currentValues), cid]
+            );
+          }
+        } else {
+          await db.query(
+            "INSERT INTO vufs_category_attributes (category_id, attribute_slug, value) VALUES ($1, 'possible-fits', $2)",
+            [cid, JSON.stringify([id])]
+          );
+        }
+      }
+    }
+
+    return fit;
   }
 
   /**
-   * Get Sizes from vufs_attribute_values (unified data source)
+   * Get Sizes from vufs_sizes table
    */
   static async getSizes(): Promise<any[]> {
-    const query = `
-      SELECT id, name, sort_order 
-      FROM vufs_attribute_values 
-      WHERE type_slug = 'possible-sizes' 
-      ORDER BY sort_order ASC, name ASC
-    `;
+    const query = 'SELECT * FROM vufs_sizes WHERE is_active = true ORDER BY sort_order ASC, name ASC';
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: true }));
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
   }
 
-  static async addSize(name: string): Promise<any> {
-    return this.addItem('vufs_sizes', name);
+  static async addSize(name: string, skuRef?: string): Promise<any> {
+    return this.addItem('vufs_sizes', name, { sku_ref: skuRef });
   }
 
   static async deleteSize(id: string): Promise<void> {
     await this.deleteItem('vufs_sizes', id);
   }
-  static async updateSize(id: string, name: string): Promise<any> {
-    return this.updateItem('vufs_sizes', id, name);
+  static async updateSize(id: string, name: string, skuRef?: string): Promise<any> {
+    return this.updateItem('vufs_sizes', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
 
   // --- GENDER MANAGEMENT ---
@@ -808,16 +933,16 @@ export class VUFSManagementService {
     return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
   }
 
-  static async addGender(name: string): Promise<any> {
-    return this.addItem('vufs_genders', name);
+  static async addGender(name: string, skuRef?: string): Promise<any> {
+    return this.addItem('vufs_genders', name, { sku_ref: skuRef });
   }
 
   static async deleteGender(id: string): Promise<void> {
     await this.deleteItem('vufs_genders', id);
   }
 
-  static async updateGender(id: string, name: string): Promise<any> {
-    return this.updateItem('vufs_genders', id, name);
+  static async updateGender(id: string, name: string, skuRef?: string): Promise<any> {
+    return this.updateItem('vufs_genders', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
 
   // --- STANDARDS MANAGEMENT ---
@@ -898,11 +1023,12 @@ export class VUFSManagementService {
       ...row,
       isActive: row.is_active,
       sortOrder: row.sort_order || 0,
-      parentId: row.parent_id || null
+      parentId: row.parent_id || null,
+      skuRef: row.sku_ref
     }));
   }
 
-  static async addAttributeValue(typeSlug: string, name: string, parentId?: string): Promise<any> {
+  static async addAttributeValue(typeSlug: string, name: string, parentId?: string, extraData?: { skuRef?: string }): Promise<any> {
     // Get max sort_order for this type
     const maxOrderRes = await db.query(
       'SELECT COALESCE(MAX(sort_order), 0) as max_order FROM vufs_attribute_values WHERE type_slug = $1',
@@ -912,11 +1038,12 @@ export class VUFSManagementService {
 
     const query = `
       INSERT INTO vufs_attribute_values (type_slug, name, sort_order, parent_id)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO vufs_attribute_values (type_slug, name, sort_order, parent_id, sku_ref)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
     try {
-      const result = await db.query(query, [typeSlug, name, nextOrder, parentId || null]);
+      const result = await db.query(query, [typeSlug, name, nextOrder, parentId || null, extraData?.skuRef || null]);
       return { ...result.rows[0], isActive: true, sortOrder: nextOrder, parentId: parentId || null };
     } catch (error: any) {
       if (error.code === '23505') {
@@ -1017,7 +1144,7 @@ export class VUFSManagementService {
     }));
   }
 
-  static async updateAttributeValue(id: string, updates: { name?: string; parentId?: string | null }): Promise<any> {
+  static async updateAttributeValue(id: string, updates: { name?: string; parentId?: string | null, skuRef?: string }): Promise<any> {
     const fields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
@@ -1029,6 +1156,10 @@ export class VUFSManagementService {
     if (updates.parentId !== undefined) {
       fields.push(`parent_id = $${++paramIndex}`);
       values.push(updates.parentId);
+    }
+    if (updates.skuRef !== undefined) {
+      fields.push(`sku_ref = $${++paramIndex}`);
+      values.push(updates.skuRef || null);
     }
 
     if (fields.length === 0) {
@@ -1047,7 +1178,7 @@ export class VUFSManagementService {
       if (result.rowCount === 0) {
         throw new Error('Attribute value not found');
       }
-      return { ...result.rows[0], isActive: true, sortOrder: result.rows[0].sort_order, parentId: result.rows[0].parent_id };
+      return { ...result.rows[0], isActive: true, sortOrder: result.rows[0].sort_order, parentId: result.rows[0].parent_id, skuRef: result.rows[0].sku_ref };
     } catch (error: any) {
       if (error.code === '23505') {
         throw new Error(`Value "${updates.name}" already exists for this attribute.`);

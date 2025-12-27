@@ -876,6 +876,7 @@ export default function ConversationPage() {
                 <MentionSuggestions
                     query={mentionQuery}
                     onSelect={handleMentionSelect}
+                    onClose={() => setShowMentions(false)}
                 />
             )}
 

@@ -10,6 +10,7 @@ interface Material {
     id: string;
     name: string;
     category?: string;
+    skuRef?: string;
     isActive: boolean;
 }
 
@@ -19,6 +20,7 @@ export default function AdminMaterialsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
     const [name, setName] = useState('');
+    const [skuRef, setSkuRef] = useState('');
     const [category, setCategory] = useState<'natural' | 'synthetic' | 'blend'>('natural');
     const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
         isOpen: false,
@@ -46,10 +48,12 @@ export default function AdminMaterialsPage() {
         if (material) {
             setEditingMaterial(material);
             setName(material.name);
+            setSkuRef(material.skuRef || '');
             setCategory((material.category as any) || 'natural');
         } else {
             setEditingMaterial(null);
             setName('');
+            setSkuRef('');
             setCategory('natural');
         }
         setIsModalOpen(true);
@@ -62,10 +66,10 @@ export default function AdminMaterialsPage() {
         }
         try {
             if (editingMaterial) {
-                await apiClient.updateVUFSMaterial(editingMaterial.id, name);
+                await apiClient.updateVUFSMaterial(editingMaterial.id, name, skuRef);
                 toast.success('Material updated');
             } else {
-                await apiClient.addVUFSMaterial(name, category);
+                await apiClient.addVUFSMaterial(name, category, skuRef);
                 toast.success('Material added');
             }
             setIsModalOpen(false);
@@ -168,6 +172,17 @@ export default function AdminMaterialsPage() {
                                     onChange={(e) => setName(e.target.value)}
                                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2"
                                     placeholder="e.g. Cotton, Silk, Polyester"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">SKU Ref (2 chars)</label>
+                                <input
+                                    type="text"
+                                    value={skuRef}
+                                    onChange={(e) => setSkuRef(e.target.value)}
+                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2 uppercase"
+                                    placeholder="e.g. CT"
+                                    maxLength={4}
                                 />
                             </div>
                             {!editingMaterial && (

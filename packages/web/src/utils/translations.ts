@@ -39,7 +39,7 @@ export const translations = {
   },
   en: {
     // Navigation
-    discover: 'Discover',
+    discover: 'Search',
     wardrobe: 'Wardrobe',
     looks: 'Looks',
     marketplace: 'Marketplace',
