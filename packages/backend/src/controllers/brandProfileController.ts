@@ -47,6 +47,7 @@ export class BrandProfileController {
             if (youtube !== undefined) profileData.youtube = youtube;
             if (additionalLogos !== undefined) profileData.additionalLogos = additionalLogos;
             if (req.body.logoMetadata !== undefined) profileData.logoMetadata = req.body.logoMetadata;
+            if (req.body.socialLinks !== undefined) profileData.socialLinks = req.body.socialLinks;
 
             const updated = await BrandAccountModel.updateProfileData(brandId, profileData);
 
@@ -352,9 +353,19 @@ export class BrandProfileController {
      */
     async getCollection(req: Request, res: Response): Promise<void> {
         try {
-            const { collectionId } = req.params;
+            const { brandId, collectionId } = req.params;
 
-            const collection = await BrandCollectionModel.findById(collectionId);
+            // First resolve the brand to get the actual UUID
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({
+                    error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' }
+                });
+                return;
+            }
+
+            // Now find the collection by slug or UUID within the brand
+            const collection = await BrandCollectionModel.findBySlugOrId(collectionId, brand.id);
             if (!collection) {
                 res.status(404).json({
                     error: { code: 'COLLECTION_NOT_FOUND', message: 'Collection not found' }
@@ -362,8 +373,12 @@ export class BrandProfileController {
                 return;
             }
 
-            const items = await BrandCollectionModel.getItems(collectionId);
-            res.json({ success: true, data: { collection, items } });
+            const items = await BrandCollectionModel.getItems(collection.id);
+
+            // Also fetch the lookbook associated with this collection
+            const lookbooks = await BrandLookbookModel.findByCollection(collection.id);
+
+            res.json({ success: true, data: { collection, items, lookbooks } });
         } catch (error: any) {
             res.status(500).json({
                 error: { code: 'GET_COLLECTION_FAILED', message: error.message }

@@ -131,6 +131,24 @@ export default function UserDirectMessagePage() {
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
+        if (!conversation) return;
+
+        const getConversationTitle = (): string => {
+            if (conversation.name) return `Chat @${conversation.name}`;
+            if (conversation.conversationType === 'direct' && conversation.otherParticipant) {
+                return `DMs @${conversation.otherParticipant.username}`;
+            }
+            if (conversation.conversationType === 'entity' && conversation.entity) {
+                const name = conversation.entity.brandInfo?.name || conversation.entity.name || 'Entity';
+                return `Chat @${name}`;
+            }
+            return 'Chat';
+        };
+
+        document.title = getConversationTitle();
+    }, [conversation]);
+
+    useEffect(() => {
         initConversation();
         loadCurrentUser();
 

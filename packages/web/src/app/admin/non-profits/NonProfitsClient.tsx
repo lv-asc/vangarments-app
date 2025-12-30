@@ -9,6 +9,7 @@ import { getImageUrl } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatPhone } from '@/lib/masks';
 import { toast } from 'react-hot-toast';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 export default function AdminNonProfitsPage() {
     const { user } = useAuth();
@@ -159,10 +160,13 @@ export default function AdminNonProfitsPage() {
                                     {npo.brandInfo.description || 'No description'}
                                 </p>
                                 <div className="mt-4 flex justify-between items-center">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${npo.verificationStatus === 'verified' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                        {npo.verificationStatus}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${npo.verificationStatus === 'verified' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                            {npo.verificationStatus}
+                                        </span>
+                                        {npo.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                                    </div>
                                     <Link
                                         href={`/admin/non-profits/${npo.id}`}
                                         className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"

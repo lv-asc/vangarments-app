@@ -16,7 +16,7 @@ export class SKUController {
             }
 
             const { brandId } = req.params;
-            const { name, code, collection, line, category, description, materials, images, metadata, retailPriceBrl, retailPriceUsd, retailPriceEur } = req.body;
+            const { name, code, collection, line, category, description, materials, images, metadata, retailPriceBrl, retailPriceUsd, retailPriceEur, parentSkuId } = req.body;
 
             let targetBrandId = brandId;
             let brand = await BrandAccountModel.findById(brandId);
@@ -79,7 +79,8 @@ export class SKUController {
                 metadata,
                 retailPriceBrl,
                 retailPriceUsd,
-                retailPriceEur
+                retailPriceEur,
+                parentSkuId
             });
 
             res.status(201).json({ message: 'SKU created successfully', sku });
@@ -115,8 +116,9 @@ export class SKUController {
      */
     static async getAllSKUs(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
-            const { page = 1, limit = 50, search, brandId } = req.query;
+            const { page = 1, limit = 50, search, brandId, parentsOnly = 'true' } = req.query;
             const offset = (Number(page) - 1) * Number(limit);
+            const filterParents = parentsOnly === 'true';
 
             let query = `
                 SELECT 
@@ -136,6 +138,11 @@ export class SKUController {
 
             const values: any[] = [];
             let paramIndex = 1;
+
+            // Filter to only parent SKUs (no parent_sku_id)
+            if (filterParents) {
+                query += ` AND si.parent_sku_id IS NULL`;
+            }
 
             if (brandId) {
                 query += ` AND si.brand_id = $${paramIndex++}`;
@@ -158,17 +165,50 @@ export class SKUController {
 
             const result = await db.query(query, values);
 
-            // Get total count for pagination
-            // Note: This is an estimated count if search is active (simplified)
-            // Ideally we'd run a separate count query
-            const countQuery = `SELECT COUNT(*) as total FROM sku_items WHERE deleted_at IS NULL`;
+            // Get total count for pagination (only parent SKUs if filtering)
+            let countQuery = `SELECT COUNT(*) as total FROM sku_items WHERE deleted_at IS NULL`;
+            if (filterParents) {
+                countQuery += ` AND parent_sku_id IS NULL`;
+            }
             const countResult = await db.query(countQuery);
             const total = parseInt(countResult.rows[0].total);
+
+            // Get variants for each parent SKU
+            const parentIds = result.rows.map(row => row.id);
+            let variantsMap: Record<string, any[]> = {};
+
+            if (filterParents && parentIds.length > 0) {
+                const variantsQuery = `
+                    SELECT id, parent_sku_id, name, code, metadata, retail_price_brl, retail_price_usd, retail_price_eur
+                    FROM sku_items 
+                    WHERE parent_sku_id = ANY($1) AND deleted_at IS NULL
+                    ORDER BY name ASC
+                `;
+                const variantsResult = await db.query(variantsQuery, [parentIds]);
+
+                variantsResult.rows.forEach(variant => {
+                    const parentId = variant.parent_sku_id;
+                    if (!variantsMap[parentId]) {
+                        variantsMap[parentId] = [];
+                    }
+                    const meta = typeof variant.metadata === 'string' ? JSON.parse(variant.metadata) : variant.metadata || {};
+                    variantsMap[parentId].push({
+                        id: variant.id,
+                        name: variant.name,
+                        code: variant.code,
+                        size: meta.size || variant.name,
+                        retailPriceBrl: variant.retail_price_brl,
+                        retailPriceUsd: variant.retail_price_usd,
+                        retailPriceEur: variant.retail_price_eur
+                    });
+                });
+            }
 
             const skus = result.rows.map(row => {
                 const item: any = {
                     id: row.id,
                     brandId: row.brand_id,
+                    parentSkuId: row.parent_sku_id,
                     name: row.name,
                     code: row.code,
                     collection: row.collection,
@@ -187,7 +227,8 @@ export class SKUController {
                     retailPriceBrl: row.retail_price_brl,
                     retailPriceUsd: row.retail_price_usd,
                     retailPriceEur: row.retail_price_eur,
-                    createdAt: row.created_at
+                    createdAt: row.created_at,
+                    variants: variantsMap[row.id] || []
                 };
 
                 if (row.line_name || row.line_logo || row.line_id) {
@@ -247,9 +288,10 @@ export class SKUController {
                 return;
             }
 
-            // Verify brand ownership
+            // Verify brand ownership or admin
+            const isAdmin = req.user.roles && req.user.roles.includes('admin');
             const brand = await BrandAccountModel.findById(currentSku.brandId);
-            if (brand?.userId !== req.user.userId) {
+            if (!isAdmin && brand?.userId !== req.user.userId) {
                 res.status(403).json({ error: 'You do not have permission to update this SKU' });
                 return;
             }

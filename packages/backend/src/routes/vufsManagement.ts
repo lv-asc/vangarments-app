@@ -51,30 +51,63 @@ router.post('/materials', AuthUtils.authenticateToken, AuthUtils.requireRole(['a
 router.patch('/materials/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateMaterial);
 router.delete('/materials/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteMaterial);
 router.get('/materials/search', VUFSManagementController.searchMaterials);
+// Materials trash routes
+router.get('/materials/trash', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.getDeletedMaterials);
+router.post('/materials/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restoreMaterial);
+router.delete('/materials/:id/permanent', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.permanentlyDeleteMaterial);
+// Composition Category routes
+router.get('/composition-categories', VUFSManagementController.getCompositionCategories);
+router.post('/composition-categories', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addCompositionCategory);
+router.patch('/composition-categories/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateCompositionCategory);
+router.delete('/composition-categories/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteCompositionCategory);
+router.post('/composition-categories/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restoreCompositionCategory);
+
+// Composition routes
+router.get('/compositions', VUFSManagementController.getCompositions);
+router.post('/compositions', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addComposition);
+router.patch('/compositions/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateComposition);
+router.delete('/compositions/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteComposition);
+router.post('/compositions/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restoreComposition);
 
 // Pattern routes
 router.get('/patterns', VUFSManagementController.getPatterns);
 router.post('/patterns', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addPattern);
 router.patch('/patterns/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updatePattern);
 router.delete('/patterns/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deletePattern);
+// Pattern trash routes
+router.get('/patterns/trash', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.getDeletedPatterns);
+router.post('/patterns/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restorePattern);
+router.delete('/patterns/:id/permanent', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.permanentlyDeletePattern);
 
 // Fit routes
 router.get('/fits', VUFSManagementController.getFits);
 router.post('/fits', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addFit);
 router.patch('/fits/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateFit);
 router.delete('/fits/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteFit);
+// Fits trash routes
+router.get('/fits/trash', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.getDeletedFits);
+router.post('/fits/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restoreFit);
+router.delete('/fits/:id/permanent', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.permanentlyDeleteFit);
 
 // Gender routes
 router.get('/genders', VUFSManagementController.getGenders);
 router.post('/genders', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addGender);
 router.patch('/genders/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateGender);
 router.delete('/genders/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteGender);
+// Genders trash routes
+router.get('/genders/trash', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.getDeletedGenders);
+router.post('/genders/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restoreGender);
+router.delete('/genders/:id/permanent', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.permanentlyDeleteGender);
 
 // Size routes
 router.get('/sizes', VUFSManagementController.getSizes);
 router.post('/sizes', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addSize);
 router.patch('/sizes/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateSize);
 router.delete('/sizes/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deleteSize);
+// Sizes trash routes
+router.get('/sizes/trash', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.getDeletedSizes);
+router.post('/sizes/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restoreSize);
+router.delete('/sizes/:id/permanent', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.permanentlyDeleteSize);
 
 // Standards routes
 router.get('/standards', VUFSManagementController.getStandards);

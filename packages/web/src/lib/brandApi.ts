@@ -743,6 +743,24 @@ class BrandApi {
     const result = await response.json();
     return result.data.items;
   }
+
+  // ============ VERIFICATION ============
+
+  async verifyBrand(brandId: string, status: 'verified' | 'rejected', reason?: string): Promise<BrandAccount> {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ verificationStatus: status })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || `Failed to ${status} brand`);
+    }
+
+    const result = await response.json();
+    return result.data?.brand || result;
+  }
 }
 
 // ============ TYPE EXPORTS ============
@@ -759,6 +777,7 @@ export interface BrandProfileData {
   youtube?: string;
   additionalLogos?: string[];
   logoMetadata?: Array<{ url: string; name: string }>;
+  socialLinks?: Array<{ platform: string; url: string }>;
 }
 
 export interface BrandTeamMember {

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -41,6 +41,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [showModal, setShowModal] = useState(false);
     const [editingSku, setEditingSku] = useState<any>(null);
     const [modalLoading, setModalLoading] = useState(false);
+    const [editMode, setEditMode] = useState<'parent' | 'variant' | 'new'>('new');
+    const [editingParentVariants, setEditingParentVariants] = useState<any[]>([]); // Variants to update when editing parent
 
     // Trash State
     const [showTrash, setShowTrash] = useState(false);
@@ -67,6 +69,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     // Variant selection for editing
     const [selectedVariants, setSelectedVariants] = useState<string[]>([]);
     const [relatedVariants, setRelatedVariants] = useState<any[]>([]);
+
+    // Expanded variant groups in list view
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
     // Dropdown state for sizes/colors
     const [openDropdown, setOpenDropdown] = useState<'sizes' | 'colors' | null>(null);
@@ -185,7 +190,6 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         };
 
         const codeParts = [
-            formData.officialSkuOrInstance,
             getSluggifiedOrRef(brand, undefined),
             getSluggifiedOrRef(line, undefined),
             slugify(collectionName),
@@ -199,10 +203,6 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             getSluggifiedOrRef(color, undefined),
             getSluggifiedOrRef(size, undefined)
         ];
-
-        if (formData.isGeneric && condition?.name) {
-            codeParts.push(slugify(condition.name));
-        }
 
         return codeParts
             .filter(Boolean)
@@ -267,8 +267,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     }, [
         formData.brandId, formData.lineId, formData.collection, formData.modelName,
         formData.styleId, formData.patternId, formData.materialId,
-        formData.fitId, formData.apparelId, formData.genderId, formData.conditionId,
-        formData.officialSkuOrInstance, formData.isGeneric,
+        formData.fitId, formData.apparelId, formData.genderId,
         formData.nameConfig,
         formData.selectedColors, formData.selectedSizes,
         vufsBrands, lines, apparels, styles, patterns, materials, fits, genders, conditions
@@ -368,14 +367,17 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         }
     };
 
-    const fetchLines = async (brandId: string) => {
+    const fetchLines = async (brandId: string): Promise<any[]> => {
         try {
             console.log('[GlobalSKUManagement] Fetching lines for brand:', brandId);
             const res = await apiClient.getBrandLines(brandId);
             console.log('[GlobalSKUManagement] Lines fetched:', res.lines);
-            setLines(res.lines || []);
+            const fetchedLines = res.lines || [];
+            setLines(fetchedLines);
+            return fetchedLines;
         } catch (error) {
             console.error('Failed to fetch lines', error);
+            return [];
         }
     };
 
@@ -414,6 +416,102 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         return styles.filter(s => s.parentId === formData.apparelId);
     }, [styles, formData.apparelId]);
 
+    // Compute grouped SKUs: parent SKUs with their variants nested
+    const groupedSkus = useMemo(() => {
+        // Helper to extract base name (without color in parentheses and size in brackets)
+        const getBaseName = (name: string) => {
+            return name.replace(/\s*\([^)]*\)\s*\[[^\]]*\]/g, '').trim();
+        };
+
+        // First, group by explicit parent_sku_id
+        const variantsByParent: Record<string, any[]> = {};
+        const parentSkusById = skus.filter(sku => !sku.parentSkuId);
+
+        skus.forEach(sku => {
+            if (sku.parentSkuId) {
+                if (!variantsByParent[sku.parentSkuId]) {
+                    variantsByParent[sku.parentSkuId] = [];
+                }
+                variantsByParent[sku.parentSkuId].push(sku);
+            }
+        });
+
+        // For SKUs without parent_sku_id, group by base name similarity
+        const baseNameGroups: Record<string, any[]> = {};
+        const processedIds = new Set<string>();
+
+        // Mark all variants (those with parent_sku_id) as processed
+        skus.forEach(sku => {
+            if (sku.parentSkuId) {
+                processedIds.add(sku.id);
+            }
+        });
+
+        // Group remaining SKUs by base name
+        parentSkusById.forEach(sku => {
+            if (processedIds.has(sku.id)) return;
+
+            const baseName = getBaseName(sku.name);
+            if (!baseNameGroups[baseName]) {
+                baseNameGroups[baseName] = [];
+            }
+            baseNameGroups[baseName].push(sku);
+        });
+
+        // Convert name groups into parent/variant structure
+        const result: any[] = [];
+
+        // First add SKUs that have explicit parent relationships
+        parentSkusById.forEach(parent => {
+            if (variantsByParent[parent.id]) {
+                result.push({
+                    ...parent,
+                    variants: variantsByParent[parent.id] || []
+                });
+                processedIds.add(parent.id);
+            }
+        });
+
+        // Then add name-based groups - create VIRTUAL parent with base name
+        Object.entries(baseNameGroups).forEach(([baseName, groupSkus]) => {
+            if (groupSkus.some(s => processedIds.has(s.id))) return; // Skip if already processed
+
+            if (groupSkus.length === 1) {
+                // Single SKU, no variants - show as is
+                result.push({ ...groupSkus[0], variants: [] });
+            } else {
+                // Multiple SKUs with same base name - create a virtual parent with base name
+                // ALL SKUs become variants (including what was previously the first)
+                const firstSku = groupSkus[0];
+                result.push({
+                    id: `virtual-${firstSku.id}`, // Virtual ID for the parent row
+                    name: baseName, // Display base name without size/color
+                    code: firstSku.code.replace(/-[a-z]+-[a-z]+$/, ''), // Simplified code
+                    brand: firstSku.brand,
+                    brandId: firstSku.brandId,
+                    retailPriceBrl: firstSku.retailPriceBrl,
+                    images: firstSku.images,
+                    isVirtualParent: true, // Flag to identify virtual parents
+                    variants: groupSkus // ALL SKUs are variants
+                });
+            }
+        });
+
+        return result;
+    }, [skus]);
+
+    // Toggle expansion of a SKU group
+    const toggleGroupExpansion = (skuId: string) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(skuId)) {
+                next.delete(skuId);
+            } else {
+                next.add(skuId);
+            }
+            return next;
+        });
+    };
 
 
     const fetchRelatedVariants = async (sku: any) => {
@@ -445,20 +543,54 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const openModal = async (sku?: any) => {
         if (sku) {
             setEditingSku(sku);
+            setEditMode('variant'); // Editing a variant SKU
+            setEditingParentVariants([]);
             const metadata = sku.metadata || {};
 
-            // Fetch lines and collections for the brand immediately
-            if (sku.brandId) {
-                await Promise.all([
-                    fetchLines(sku.brandId),
-                    fetchCollections(sku.brandId),
+            // Resolve brandId - SKUs use brand_accounts.id, but dropdown shows vufs_brands
+            // We need to find the VUFS brand by name to get the correct ID for the dropdown
+            const brandName = sku.brand?.name || '';
+            const matchingVufsBrand = vufsBrands.find(b => b.name === brandName);
+            const resolvedBrandId = matchingVufsBrand?.id || sku.brandId || sku.brand?.id || '';
+
+            console.log('[openModal] Brand resolution:', {
+                skuBrandName: brandName,
+                matchingVufsBrand,
+                resolvedBrandId,
+                vufsBrandsCount: vufsBrands.length
+            });
+
+            // Fetch lines and collections for the brand first
+            let fetchedLines: any[] = [];
+            if (resolvedBrandId) {
+                [fetchedLines] = await Promise.all([
+                    fetchLines(resolvedBrandId),
+                    fetchCollections(resolvedBrandId),
                     fetchRelatedVariants(sku) // Fetch related variants
-                ]);
+                ]) as [any[], void, void];
             }
 
+            // Resolve lineId - try multiple approaches
+            const lineName = sku.lineInfo?.name || sku.line || '';
+            let resolvedLineId = sku.lineId || sku.lineInfo?.id || '';
+
+            // If we have a line name but no ID, try to find it in the fetched lines
+            if (!resolvedLineId && lineName && fetchedLines.length > 0) {
+                const matchingLine = fetchedLines.find(l => l.name === lineName);
+                if (matchingLine) {
+                    resolvedLineId = matchingLine.id;
+                }
+            }
+
+            console.log('[openModal] Line resolution:', {
+                skuLineName: lineName,
+                resolvedLineId,
+                linesCount: fetchedLines.length
+            });
+
             setFormData({
-                brandId: sku.brandId,
-                lineId: sku.lineId || '',
+                brandId: resolvedBrandId,
+                lineId: resolvedLineId,
                 collection: sku.collection || '',
                 modelName: metadata.modelName || sku.name,
                 genderId: metadata.genderId || '',
@@ -488,6 +620,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             });
         } else {
             setEditingSku(null);
+            setEditMode('new'); // Creating new SKU
+            setEditingParentVariants([]);
             setRelatedVariants([]);
             setSelectedVariants([]);
             setFormData({
@@ -526,6 +660,78 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         setShowModal(true);
     };
 
+    // Open modal for editing a PARENT SKU (virtual parent with variants)
+    const openParentModal = async (parentSku: any) => {
+        if (!parentSku.variants || parentSku.variants.length === 0) return;
+
+        // Use the first variant as the base for form data (except size/color)
+        const firstVariant = parentSku.variants[0];
+        const metadata = firstVariant.metadata || {};
+
+        setEditingSku(parentSku); // Store the parent object
+        setEditMode('parent'); // Parent editing mode
+        setEditingParentVariants(parentSku.variants); // Store all variants for batch update
+        setRelatedVariants([]);
+        setSelectedVariants([]);
+
+        // Resolve brandId - using first variant's data
+        const brandName = firstVariant.brand?.name || '';
+        const matchingVufsBrand = vufsBrands.find(b => b.name === brandName);
+        const resolvedBrandId = matchingVufsBrand?.id || firstVariant.brandId || firstVariant.brand?.id || '';
+
+        // Fetch lines and collections for the brand
+        let fetchedLines: any[] = [];
+        if (resolvedBrandId) {
+            [fetchedLines] = await Promise.all([
+                fetchLines(resolvedBrandId),
+                fetchCollections(resolvedBrandId)
+            ]) as [any[], void];
+        }
+
+        // Resolve lineId
+        const lineName = firstVariant.lineInfo?.name || firstVariant.line || '';
+        let resolvedLineId = firstVariant.lineId || firstVariant.lineInfo?.id || '';
+        if (!resolvedLineId && lineName && fetchedLines.length > 0) {
+            const matchingLine = fetchedLines.find(l => l.name === lineName);
+            if (matchingLine) {
+                resolvedLineId = matchingLine.id;
+            }
+        }
+
+        // Set form data from first variant (without size/color which are variant-specific)
+        setFormData({
+            brandId: resolvedBrandId,
+            lineId: resolvedLineId,
+            collection: firstVariant.collection || '',
+            modelName: metadata.modelName || parentSku.name, // Use parent's base name
+            genderId: metadata.genderId || '',
+            apparelId: metadata.apparelId || '',
+            styleId: metadata.styleId || '',
+            patternId: metadata.patternId || '',
+            materialId: metadata.materialId || '',
+            fitId: metadata.fitId || '',
+            selectedSizes: [], // Don't show sizes for parent editing
+            selectedColors: [], // Don't show colors for parent editing
+            description: firstVariant.description || '',
+            images: [], // Don't edit images from parent
+            videos: [],
+            nameConfig: metadata.nameConfig || {
+                includeStyle: false,
+                includePattern: false,
+                includeMaterial: false,
+                includeFit: false,
+                brandLineDisplay: 'brand-only',
+                showCollection: false
+            },
+            generatedName: parentSku.name,
+            generatedCode: parentSku.code,
+            retailPriceBrl: firstVariant.retailPriceBrl || '',
+            retailPriceUsd: firstVariant.retailPriceUsd || '',
+            retailPriceEur: firstVariant.retailPriceEur || ''
+        });
+
+        setShowModal(true);
+    };
     const handleMultiSelect = (type: 'sizes' | 'colors', id: string) => {
         setFormData(prev => {
             const list = type === 'sizes' ? prev.selectedSizes : prev.selectedColors;
@@ -607,8 +813,63 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (editingSku) {
-                // Update specific SKU
+            if (editMode === 'parent' && editingParentVariants.length > 0) {
+                // PARENT EDIT MODE: Update all variant SKUs with parent-level changes
+                // This updates fields that are common across variants (not size/color/images)
+                let updatedCount = 0;
+                let failedCount = 0;
+
+                for (const variant of editingParentVariants) {
+                    try {
+                        // Keep variant's own size/color/images but update everything else
+                        const variantMetadata = variant.metadata || {};
+                        const parentPayload = {
+                            name: variant.name, // Keep variant's name (with size/color)
+                            code: variant.code, // Keep variant's code
+                            brandId: formData.brandId,
+                            lineId: formData.lineId || null,
+                            collection: formData.collection || null,
+                            description: formData.description, // Update description
+                            images: variant.images, // Keep variant's images
+                            videos: variant.videos, // Keep variant's videos
+                            materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
+                            category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
+                            metadata: {
+                                ...variantMetadata, // Keep variant-specific metadata (size/color IDs)
+                                modelName: formData.modelName,
+                                genderId: formData.genderId,
+                                apparelId: formData.apparelId,
+                                styleId: formData.styleId,
+                                patternId: formData.patternId,
+                                materialId: formData.materialId,
+                                fitId: formData.fitId,
+                                genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
+                                apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
+                                styleName: styles.find(c => c.id === formData.styleId)?.name,
+                                patternName: patterns.find(p => p.id === formData.patternId)?.name,
+                                fitName: fits.find(f => f.id === formData.fitId)?.name,
+                                nameConfig: formData.nameConfig
+                            },
+                            retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
+                            retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
+                            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null
+                        };
+
+                        await apiClient.updateSKU(variant.id, parentPayload);
+                        updatedCount++;
+                    } catch (error) {
+                        console.error(`Failed to update variant ${variant.id}:`, error);
+                        failedCount++;
+                    }
+                }
+
+                if (failedCount > 0) {
+                    toast.error(`Updated ${updatedCount} SKU(s), ${failedCount} failed`);
+                } else {
+                    toast.success(`Updated ${updatedCount} variant SKU(s) successfully`);
+                }
+            } else if (editingSku) {
+                // VARIANT EDIT MODE: Update specific SKU
                 const colorId = formData.selectedColors[0] || null;
                 const sizeId = formData.selectedSizes[0] || null;
                 const payload = buildSKUPayload(colorId, sizeId, true);
@@ -630,26 +891,81 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                     toast.success('SKU updated successfully');
                 }
             } else {
-                // Bulk Create Logic with improved error handling
-                const sizesToCreate = formData.selectedSizes.length > 0 ? formData.selectedSizes : [null];
-                const colorsToCreate = formData.selectedColors.length > 0 ? formData.selectedColors : [null];
+                // Bulk Create Logic with parent/variant grouping
+                // Parent SKU is created without size/color; variants have size/color
+                const sizesToCreate = formData.selectedSizes.length > 0 ? formData.selectedSizes : [];
+                const colorsToCreate = formData.selectedColors.length > 0 ? formData.selectedColors : [];
 
                 let createdCount = 0;
                 let failedCount = 0;
-                const totalToCreate = sizesToCreate.length * colorsToCreate.length;
+                let parentSkuId: string | null = null;
 
-                for (const colorId of colorsToCreate) {
-                    for (const sizeId of sizesToCreate) {
-                        try {
-                            const payload = buildSKUPayload(colorId, sizeId, false);
-                            await apiClient.createSKU(formData.brandId, payload);
-                            createdCount++;
-                        } catch (error) {
-                            console.error(`Failed to create SKU for Color: ${colorId}, Size: ${sizeId}`, error);
-                            failedCount++;
+                // Calculate total: 1 parent + (sizes * colors) variants
+                const hasVariants = sizesToCreate.length > 0 || colorsToCreate.length > 0;
+                const totalVariants = Math.max(sizesToCreate.length, 1) * Math.max(colorsToCreate.length, 1);
+                const totalToCreate = hasVariants ? 1 + totalVariants : 1;
+
+                console.log('[SKU Bulk Create] Starting bulk creation:', {
+                    sizesToCreate,
+                    colorsToCreate,
+                    totalToCreate,
+                    hasVariants,
+                    brandId: formData.brandId
+                });
+
+                // Step 1: Create parent SKU (without size/color)
+                try {
+                    const parentPayload = buildSKUPayload(null, null, false);
+                    console.log('[SKU Bulk Create] Creating parent SKU:', {
+                        payloadName: parentPayload.name,
+                        payloadCode: parentPayload.code
+                    });
+
+                    const parentResult = await apiClient.createSKU(formData.brandId, parentPayload);
+                    createdCount++;
+
+                    if (parentResult?.sku?.id) {
+                        parentSkuId = parentResult.sku.id;
+                        console.log('[SKU Bulk Create] Parent SKU created with ID:', parentSkuId);
+                    }
+                } catch (error) {
+                    console.error('[SKU Bulk Create] Failed to create parent SKU:', error);
+                    failedCount++;
+                }
+
+                // Step 2: Create variant SKUs (with size/color) linked to parent
+                if (parentSkuId && hasVariants) {
+                    const effectiveSizes = sizesToCreate.length > 0 ? sizesToCreate : [null];
+                    const effectiveColors = colorsToCreate.length > 0 ? colorsToCreate : [null];
+
+                    for (const colorId of effectiveColors) {
+                        for (const sizeId of effectiveSizes) {
+                            // Skip creating a variant with no size and no color (that's the parent)
+                            if (!sizeId && !colorId) continue;
+
+                            try {
+                                const variantPayload = buildSKUPayload(colorId, sizeId, false);
+                                variantPayload.parentSkuId = parentSkuId;
+
+                                console.log('[SKU Bulk Create] Creating variant SKU:', {
+                                    colorId,
+                                    sizeId,
+                                    payloadName: variantPayload.name,
+                                    payloadCode: variantPayload.code
+                                });
+
+                                await apiClient.createSKU(formData.brandId, variantPayload);
+                                createdCount++;
+                                console.log('[SKU Bulk Create] Successfully created variant SKU #', createdCount);
+                            } catch (error) {
+                                console.error(`[SKU Bulk Create] Failed to create variant for Color: ${colorId}, Size: ${sizeId}`, error);
+                                failedCount++;
+                            }
                         }
                     }
                 }
+
+                console.log('[SKU Bulk Create] Bulk creation complete:', { createdCount, failedCount, totalToCreate, parentSkuId });
 
                 if (createdCount > 0) {
                     toast.success(`${createdCount} SKU(s) created${failedCount > 0 ? ` (${failedCount} failed)` : ''}`);
@@ -819,60 +1135,138 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             {!showTrash && (
                 <div className="bg-white shadow overflow-hidden sm:rounded-md">
                     <ul className="divide-y divide-gray-200">
-                        {skus.map(sku => (
-                            <li key={sku.id} className="block hover:bg-gray-50">
-                                <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        {/* Image Thumbnail */}
-                                        <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
-                                            {sku.images?.[0]?.url ? (
-                                                <>
-                                                    <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
-                                                    {sku.images[0].labelId && (
-                                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white px-1 py-0.5 truncate text-center leading-tight">
-                                                            {mediaLabels.find(l => l.id === sku.images[0].labelId)?.name || 'Label'}
-                                                        </div>
-                                                    )}
-                                                </>
+                        {groupedSkus.map(sku => (
+                            <React.Fragment key={sku.id}>
+                                {/* Parent SKU Row */}
+                                <li className="block hover:bg-gray-50">
+                                    <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            {/* Expand/Collapse Button (only if has variants) */}
+                                            {sku.variants && sku.variants.length > 0 ? (
+                                                <button
+                                                    onClick={() => toggleGroupExpansion(sku.id)}
+                                                    className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
+                                                >
+                                                    <svg
+                                                        className={`h-5 w-5 transition-transform ${expandedGroups.has(sku.id) ? 'rotate-90' : ''}`}
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </button>
                                             ) : (
-                                                <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                    <MagnifyingGlassIcon className="h-6 w-6" />
+                                                <div className="w-7" /> /* Spacer */
+                                            )}
+                                            {/* Image Thumbnail */}
+                                            <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
+                                                {sku.images?.[0]?.url ? (
+                                                    <>
+                                                        <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                                        {sku.images[0].labelId && (
+                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white px-1 py-0.5 truncate text-center leading-tight">
+                                                                {mediaLabels.find(l => l.id === sku.images[0].labelId)?.name || 'Label'}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                        <MagnifyingGlassIcon className="h-6 w-6" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-medium text-blue-600 truncate">{sku.name}</p>
+                                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                        {sku.code}
+                                                    </span>
+                                                    {sku.variants && sku.variants.length > 0 && (
+                                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                            +{sku.variants.length} variant{sku.variants.length > 1 ? 's' : ''}
+                                                        </span>
+                                                    )}
                                                 </div>
+                                                <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                                                    {sku.brand?.name && (
+                                                        <span className="mr-4">
+                                                            Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
+                                                        </span>
+                                                    )}
+                                                    {sku.retailPriceBrl && (
+                                                        <span>
+                                                            Retail: <span className="font-medium text-gray-900">R$ {sku.retailPriceBrl}</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {/* Show edit button for virtual parents */}
+                                            {sku.isVirtualParent && (
+                                                <button
+                                                    onClick={() => openParentModal(sku)}
+                                                    className="p-2 text-blue-500 hover:text-blue-700"
+                                                    title="Edit parent (updates all variants)"
+                                                >
+                                                    <PencilIcon className="h-5 w-5" />
+                                                </button>
+                                            )}
+                                            {/* Show edit/delete for real SKUs, not virtual parents */}
+                                            {!sku.isVirtualParent && (
+                                                <>
+                                                    <button onClick={() => openModal(sku)} className="p-2 text-gray-400 hover:text-blue-500">
+                                                        <PencilIcon className="h-5 w-5" />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(sku.id)} className="p-2 text-gray-400 hover:text-red-500">
+                                                        <TrashIcon className="h-5 w-5" />
+                                                    </button>
+                                                </>
                                             )}
                                         </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-blue-600 truncate">{sku.name}</p>
-                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                    {sku.code}
-                                                </span>
-                                            </div>
-                                            <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                                                {sku.brand?.name && (
-                                                    <span className="mr-4">
-                                                        Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
-                                                    </span>
-                                                )}
-                                                {sku.retailPriceBrl && (
-                                                    <span>
-                                                        Retail: <span className="font-medium text-gray-900">R$ {sku.retailPriceBrl}</span>
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={() => openModal(sku)} className="p-2 text-gray-400 hover:text-blue-500">
-                                            <PencilIcon className="h-5 w-5" />
-                                        </button>
-                                        <button onClick={() => handleDelete(sku.id)} className="p-2 text-gray-400 hover:text-red-500">
-                                            <TrashIcon className="h-5 w-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </li>
+                                </li>
+                                {/* Variant Rows (when expanded) */}
+                                {sku.variants && sku.variants.length > 0 && expandedGroups.has(sku.id) && (
+                                    sku.variants.map((variant: any) => (
+                                        <li key={variant.id} className="block hover:bg-blue-50/50 bg-gray-50 border-l-4 border-blue-200">
+                                            <div className="px-4 py-3 sm:px-6 flex items-center justify-between pl-16">
+                                                <div className="flex items-center gap-4">
+                                                    {/* Variant Image Thumbnail */}
+                                                    <div className="h-10 w-10 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                                        {variant.images?.[0]?.url ? (
+                                                            <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                                <MagnifyingGlassIcon className="h-4 w-4" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm text-gray-700 truncate">{variant.name}</p>
+                                                            <span className="px-1.5 inline-flex text-xs leading-5 font-medium rounded bg-gray-100 text-gray-600">
+                                                                {variant.code}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => openModal(variant)} className="p-1.5 text-gray-400 hover:text-blue-500">
+                                                        <PencilIcon className="h-4 w-4" />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(variant.id)} className="p-1.5 text-gray-400 hover:text-red-500">
+                                                        <TrashIcon className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))
+                                )}
+                            </React.Fragment>
                         ))}
-                        {skus.length === 0 && !loading && (
+                        {groupedSkus.length === 0 && !loading && (
                             <li className="px-4 py-8 text-center text-gray-500">
                                 No SKUs found.
                             </li>
@@ -947,629 +1341,622 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                         <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
                             <form onSubmit={handleSubmit} className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                                 <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
-                                    {editingSku ? 'Edit SKU' : 'Create New SKU(s)'}
+                                    {editMode === 'parent'
+                                        ? `Edit Parent SKU (${editingParentVariants.length} variants)`
+                                        : editMode === 'variant'
+                                            ? 'Edit Variant SKU'
+                                            : 'Create New SKU(s)'}
                                 </h3>
 
+                                {/* Mode indicator for parent edit */}
+                                {editMode === 'parent' && (
+                                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                        <p className="text-sm text-blue-800">
+                                            <strong>Parent Edit Mode:</strong> Changes will be applied to all {editingParentVariants.length} variant(s).
+                                            Size, Color, Images and Videos are variant-specific and won't be changed.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Mode indicator for variant edit */}
+                                {editMode === 'variant' && (
+                                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                        <p className="text-sm text-amber-800">
+                                            <strong>Variant Edit Mode:</strong> Only Size, Color, Description, Images and Videos can be edited.
+                                            To change other fields, edit the parent SKU.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                    {/* Official SKU or Instance */}
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 font-semibold uppercase tracking-wider text-xs">Official SKU or Instance</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Enter Official SKU or unique instance ID..."
-                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData.officialSkuOrInstance}
-                                            onChange={e => setFormData({ ...formData, officialSkuOrInstance: e.target.value })}
-                                        />
-                                    </div>
 
 
-                                    {/* 1. Brand / Line / Collection Row */}
-                                    <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                        {/* Brand */}
-                                        <div>
-                                            <SearchableCombobox
-                                                label="Brand"
-                                                value={vufsBrands.find(b => b.id === formData.brandId)?.name || ''}
-                                                onChange={(name) => {
-                                                    const brand = vufsBrands.find(b => b.name === name);
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        brandId: brand?.id || '',
-                                                        lineId: '',
-                                                        collection: ''
-                                                    }));
-                                                }}
-                                                options={vufsBrands}
-                                                placeholder="Select Brand..."
-                                            />
-                                        </div>
 
-                                        {/* Line */}
-                                        <div>
-                                            <SearchableCombobox
-                                                label="Line"
-                                                value={lines.find(l => l.id === formData.lineId)?.name || ''}
-                                                onChange={(name) => {
-                                                    const line = lines.find(l => l.name === name);
-                                                    setFormData({ ...formData, lineId: line?.id || '' });
-                                                }}
-                                                options={lines}
-                                                placeholder="Select Line (Optional)"
-                                                disabled={!formData.brandId}
-                                            />
-                                        </div>
-
-                                        {/* Collection */}
-                                        <div>
-                                            <SearchableCombobox
-                                                label="Collection"
-                                                value={formData.collection}
-                                                onChange={(name) => setFormData({ ...formData, collection: name || '' })}
-                                                options={collections} // Assumes collections have {name: ...}
-                                                placeholder="Select Collection (Optional)"
-                                                disabled={!formData.brandId}
-                                                freeSolo={true} // Allow new collection names? Maybe not if restricted. But API allows string.
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* 2. Model Name */}
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700">Model Name</label>
-                                        <input
-                                            type="text"
-                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData.modelName}
-                                            onChange={e => setFormData({ ...formData, modelName: e.target.value })}
-                                        />
-                                    </div>
-
-                                    {/* 3. Apparel, Style, Pattern, Material, Fit, Gender */}
-
-                                    <div>
-                                        <SearchableCombobox
-                                            label="Apparel"
-                                            value={apparels.find(c => c.id === formData.apparelId)?.name || ''}
-                                            onChange={(name) => {
-                                                const cat = apparels.find(c => c.name === name);
-                                                setFormData({ ...formData, apparelId: cat?.id || '', styleId: '' });
-                                            }}
-                                            options={apparelOptions}
-                                            placeholder="Select Apparel..."
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <SearchableCombobox
-                                            label="Style"
-                                            value={styles.find(c => c.id === formData.styleId)?.name || ''}
-                                            onChange={(name) => {
-                                                const cat = styles.find(c => c.name === name);
-                                                if (cat) {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        styleId: cat.id,
-                                                        // Automatically set parent apparel if the found style has one and it matches
-                                                        // or if we want to enforce reverse-selection (selecting style selects the parent apparel)
-                                                        apparelId: cat.parentId || prev.apparelId || ''
-                                                    }));
-                                                } else {
-                                                    setFormData(prev => ({ ...prev, styleId: '' }));
-                                                }
-                                            }}
-                                            options={styleOptions}
-                                            placeholder="Select Style..."
-                                            disabled={!formData.apparelId && styleOptions.length === 0}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <SearchableCombobox
-                                            label="Pattern"
-                                            value={patterns.find(p => p.id === formData.patternId)?.name || ''}
-                                            onChange={(name) => {
-                                                const item = patterns.find(p => p.name === name);
-                                                setFormData({ ...formData, patternId: item?.id || '' });
-                                            }}
-                                            options={patterns}
-                                            placeholder="Select Pattern..."
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <SearchableCombobox
-                                            label="Material"
-                                            value={materials.find(m => m.id === formData.materialId)?.name || ''}
-                                            onChange={(name) => {
-                                                const item = materials.find(m => m.name === name);
-                                                setFormData({ ...formData, materialId: item?.id || '' });
-                                            }}
-                                            options={materials}
-                                            placeholder="Select Material..."
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <SearchableCombobox
-                                            label="Fit"
-                                            value={fits.find(f => f.id === formData.fitId)?.name || ''}
-                                            onChange={(name) => {
-                                                const item = fits.find(f => f.name === name);
-                                                setFormData({ ...formData, fitId: item?.id || '' });
-                                            }}
-                                            options={fits}
-                                            placeholder="Select Fit..."
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <SearchableCombobox
-                                            label="Gender"
-                                            value={genders.find(g => g.id === formData.genderId)?.name || ''}
-                                            onChange={(name) => {
-                                                const item = genders.find(g => g.name === name);
-                                                setFormData({ ...formData, genderId: item?.id || '' });
-                                            }}
-                                            options={genders}
-                                            placeholder="Select Gender..."
-                                        />
-                                    </div>
-                                    <div className="col-span-2 border-t pt-6 mt-4">
-                                        <h4 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider text-xs">Retail Price</h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {/* 1. Brand / Line / Collection Row - Hidden in variant mode */}
+                                    {editMode !== 'variant' && (
+                                        <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            {/* Brand */}
                                             <div>
-                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (BRL R$)</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder="0.00"
-                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                    value={formData.retailPriceBrl}
-                                                    onChange={e => {
-                                                        const brl = e.target.value;
-                                                        const usd = brl ? (Number(brl) / 5.80).toFixed(2) : '';
-                                                        const eur = brl ? (Number(brl) / 6.10).toFixed(2) : '';
-                                                        setFormData({ ...formData, retailPriceBrl: brl, retailPriceUsd: usd, retailPriceEur: eur });
-                                                    }}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (USD $)</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder="0.00"
-                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                    value={formData.retailPriceUsd}
-                                                    onChange={e => setFormData({ ...formData, retailPriceUsd: e.target.value })}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (EUR €)</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder="0.00"
-                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                    value={formData.retailPriceEur}
-                                                    onChange={e => setFormData({ ...formData, retailPriceEur: e.target.value })}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Generic Wardrobe Item & Condition */}
-                                    <div className="col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div>
-                                                <h4 className="text-sm font-semibold text-gray-900">Generic Wardrobe Item</h4>
-                                                <p className="text-xs text-gray-500">Toggle this for items that are generic and require condition tracking.</p>
-                                            </div>
-                                            <div className="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    id="isGeneric"
-                                                    checked={formData.isGeneric}
-                                                    onChange={(e) => setFormData(prev => ({
-                                                        ...prev,
-                                                        isGeneric: e.target.checked,
-                                                        conditionId: e.target.checked ? prev.conditionId : ''
-                                                    }))}
-                                                    className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {formData.isGeneric && (
-                                            <div className="mt-4 pt-4 border-t border-gray-200">
                                                 <SearchableCombobox
-                                                    label="Condition"
-                                                    value={conditions.find(c => c.id === formData.conditionId)?.name || ''}
+                                                    label="Brand"
+                                                    value={vufsBrands.find(b => b.id === formData.brandId)?.name || ''}
                                                     onChange={(name) => {
-                                                        const item = conditions.find(c => c.name === name);
-                                                        setFormData({ ...formData, conditionId: item?.id || '' });
+                                                        const brand = vufsBrands.find(b => b.name === name);
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            brandId: brand?.id || '',
+                                                            lineId: '',
+                                                            collection: ''
+                                                        }));
                                                     }}
-                                                    options={conditions}
-                                                    placeholder="Select Condition..."
+                                                    options={vufsBrands}
+                                                    placeholder="Select Brand..."
                                                 />
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* SKU Name Configuration Section */}
-                                    <div className="col-span-2 border-t pt-6 mt-4">
-                                        <h4 className="text-sm font-semibold text-gray-900 mb-4">SKU Name Configuration</h4>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            {/* Include Fields Checkboxes */}
-                                            <div className="space-y-3">
-                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Include in Name:</label>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="includeStyle"
-                                                        checked={formData.nameConfig.includeStyle}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, includeStyle: e.target.checked }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                    />
-                                                    <label htmlFor="includeStyle" className="ml-2 text-sm text-gray-700">Style</label>
-                                                </div>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="includePattern"
-                                                        checked={formData.nameConfig.includePattern}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, includePattern: e.target.checked }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                    />
-                                                    <label htmlFor="includePattern" className="ml-2 text-sm text-gray-700">Pattern</label>
-                                                </div>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="includeMaterial"
-                                                        checked={formData.nameConfig.includeMaterial}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, includeMaterial: e.target.checked }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                    />
-                                                    <label htmlFor="includeMaterial" className="ml-2 text-sm text-gray-700">Material</label>
-                                                </div>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="includeFit"
-                                                        checked={formData.nameConfig.includeFit}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, includeFit: e.target.checked }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                    />
-                                                    <label htmlFor="includeFit" className="ml-2 text-sm text-gray-700">Fit</label>
-                                                </div>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        id="showCollection"
-                                                        checked={formData.nameConfig.showCollection}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, showCollection: e.target.checked }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                    />
-                                                    <label htmlFor="showCollection" className="ml-2 text-sm text-gray-700">Collection</label>
-                                                </div>
+                                            {/* Line */}
+                                            <div>
+                                                <SearchableCombobox
+                                                    label="Line"
+                                                    value={lines.find(l => l.id === formData.lineId)?.name || ''}
+                                                    onChange={(name) => {
+                                                        const line = lines.find(l => l.name === name);
+                                                        setFormData({ ...formData, lineId: line?.id || '' });
+                                                    }}
+                                                    options={lines}
+                                                    placeholder="Select Line (Optional)"
+                                                    disabled={!formData.brandId}
+                                                />
                                             </div>
 
-                                            {/* Brand/Line Display Options */}
-                                            <div className="space-y-3">
-                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Brand/Line Display:</label>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="radio"
-                                                        id="brandOnly"
-                                                        name="brandLineDisplay"
-                                                        value="brand-only"
-                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-only'}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                                    />
-                                                    <label htmlFor="brandOnly" className="ml-2 text-sm text-gray-700">Brand Only</label>
-                                                </div>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="radio"
-                                                        id="brandAndLine"
-                                                        name="brandLineDisplay"
-                                                        value="brand-and-line"
-                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-and-line'}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                                    />
-                                                    <label htmlFor="brandAndLine" className="ml-2 text-sm text-gray-700">Brand + Line</label>
-                                                </div>
-
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="radio"
-                                                        id="lineOnly"
-                                                        name="brandLineDisplay"
-                                                        value="line-only"
-                                                        checked={formData.nameConfig.brandLineDisplay === 'line-only'}
-                                                        onChange={(e) => setFormData(prev => ({
-                                                            ...prev,
-                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
-                                                        }))}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                                    />
-                                                    <label htmlFor="lineOnly" className="ml-2 text-sm text-gray-700">Line Only</label>
-                                                </div>
+                                            {/* Collection */}
+                                            <div>
+                                                <SearchableCombobox
+                                                    label="Collection"
+                                                    value={formData.collection}
+                                                    onChange={(name) => setFormData({ ...formData, collection: name || '' })}
+                                                    options={collections} // Assumes collections have {name: ...}
+                                                    placeholder="Select Collection (Optional)"
+                                                    disabled={!formData.brandId}
+                                                    freeSolo={true} // Allow new collection names? Maybe not if restricted. But API allows string.
+                                                />
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
 
-                                    {/* Size(s) - Multi-Select */}
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
-                                        <div className="relative">
-                                            {/* Search Input */}
-                                            <input
-                                                type="text"
-                                                placeholder="Search and Select Sizes..."
-                                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                onFocus={() => setOpenDropdown('sizes')}
-                                                onChange={(e) => {
-                                                    const searchTerm = e.target.value.toLowerCase();
-                                                    const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
-                                                    if (dropdown) dropdown.style.display = 'block'; // Ensure open on search
-                                                    setOpenDropdown('sizes');
+                                    {/* 2. Model Name & VUFS Attributes - Hidden in variant mode */}
+                                    {editMode !== 'variant' && (
+                                        <React.Fragment>
+                                            <div className="col-span-2">
+                                                <label className="block text-sm font-medium text-gray-700">Model Name</label>
+                                                <input
+                                                    type="text"
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                    value={formData.modelName}
+                                                    onChange={e => setFormData({ ...formData, modelName: e.target.value })}
+                                                />
+                                            </div>
 
-                                                    const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
-                                                    if (list) {
-                                                        const labels = list.querySelectorAll('label');
-                                                        labels.forEach(label => {
-                                                            const text = label.textContent?.toLowerCase() || '';
-                                                            (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
-                                                        });
-                                                    }
-                                                }}
-                                            />
-                                            {openDropdown === 'sizes' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setOpenDropdown(null)}
-                                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                                                >
-                                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                            )}
-                                            {/* Dropdown List */}
-                                            <div
-                                                className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
-                                                style={{ display: openDropdown === 'sizes' ? 'block' : 'none' }}
-                                            >
-                                                <div className="dropdown-list">
-                                                    {sizes.map(size => {
-                                                        const isSelected = formData.selectedSizes.includes(size.id);
-                                                        return (
-                                                            <label
-                                                                key={size.id}
-                                                                className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isSelected}
-                                                                    onChange={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleMultiSelect('sizes', size.id);
-                                                                    }}
-                                                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                />
-                                                                <span className="ml-3 text-sm text-gray-900">{size.name}</span>
-                                                                {isSelected && (
-                                                                    <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                )}
-                                                            </label>
-                                                        );
-                                                    })}
-                                                    {sizes.length === 0 && (
-                                                        <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                                                            No sizes available
+                                            {/* 3. Apparel, Style, Pattern, Material, Fit, Gender - Hidden in variant mode */}
+                                            <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Apparel"
+                                                        value={apparels.find(c => c.id === formData.apparelId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const cat = apparels.find(c => c.name === name);
+                                                            setFormData({ ...formData, apparelId: cat?.id || '', styleId: '' });
+                                                        }}
+                                                        options={apparelOptions}
+                                                        placeholder="Select Apparel..."
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Style"
+                                                        value={styles.find(c => c.id === formData.styleId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const cat = styles.find(c => c.name === name);
+                                                            if (cat) {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    styleId: cat.id,
+                                                                    // Automatically set parent apparel if the found style has one and it matches
+                                                                    // or if we want to enforce reverse-selection (selecting style selects the parent apparel)
+                                                                    apparelId: cat.parentId || prev.apparelId || ''
+                                                                }));
+                                                            } else {
+                                                                setFormData(prev => ({ ...prev, styleId: '' }));
+                                                            }
+                                                        }}
+                                                        options={styleOptions}
+                                                        placeholder="Select Style..."
+                                                        disabled={!formData.apparelId && styleOptions.length === 0}
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Pattern"
+                                                        value={patterns.find(p => p.id === formData.patternId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const item = patterns.find(p => p.name === name);
+                                                            setFormData({ ...formData, patternId: item?.id || '' });
+                                                        }}
+                                                        options={patterns}
+                                                        placeholder="Select Pattern..."
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Material"
+                                                        value={materials.find(m => m.id === formData.materialId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const item = materials.find(m => m.name === name);
+                                                            setFormData({ ...formData, materialId: item?.id || '' });
+                                                        }}
+                                                        options={materials}
+                                                        placeholder="Select Material..."
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Fit"
+                                                        value={fits.find(f => f.id === formData.fitId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const item = fits.find(f => f.name === name);
+                                                            setFormData({ ...formData, fitId: item?.id || '' });
+                                                        }}
+                                                        options={fits}
+                                                        placeholder="Select Fit..."
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Gender"
+                                                        value={genders.find(g => g.id === formData.genderId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const item = genders.find(g => g.name === name);
+                                                            setFormData({ ...formData, genderId: item?.id || '' });
+                                                        }}
+                                                        options={genders}
+                                                        placeholder="Select Gender..."
+                                                    />
+                                                </div>
+                                                <div className="col-span-2 border-t pt-6 mt-4">
+                                                    <h4 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider text-xs">Retail Price</h4>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Price (BRL R$)</label>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                placeholder="0.00"
+                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                value={formData.retailPriceBrl}
+                                                                onChange={e => {
+                                                                    const brl = e.target.value;
+                                                                    const usd = brl ? (Number(brl) / 5.80).toFixed(2) : '';
+                                                                    const eur = brl ? (Number(brl) / 6.10).toFixed(2) : '';
+                                                                    setFormData({ ...formData, retailPriceBrl: brl, retailPriceUsd: usd, retailPriceEur: eur });
+                                                                }}
+                                                            />
                                                         </div>
-                                                    )}
-                                                </div>
-                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setOpenDropdown(null)}
-                                                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
-                                                    >
-                                                        Done
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {formData.selectedSizes.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {formData.selectedSizes.map(sizeId => {
-                                                    const size = sizes.find(s => s.id === sizeId);
-                                                    return (
-                                                        <span
-                                                            key={sizeId}
-                                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
-                                                        >
-                                                            {size?.name || sizeId}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleMultiSelect('sizes', sizeId)}
-                                                                className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
-                                                            >
-                                                                &times;
-                                                            </button>
-                                                        </span>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Price (USD $)</label>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                placeholder="0.00"
+                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                value={formData.retailPriceUsd}
+                                                                onChange={e => setFormData({ ...formData, retailPriceUsd: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Price (EUR €)</label>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                placeholder="0.00"
+                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                value={formData.retailPriceEur}
+                                                                onChange={e => setFormData({ ...formData, retailPriceEur: e.target.value })}
+                                                            />
+                                                        </div>
+                                                    </div>
 
-                                    {/* Color(s) - Multi-Select */}
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
-                                        <div className="relative">
-                                            {/* Search Input */}
-                                            <input
-                                                type="text"
-                                                placeholder="Search and Select Colors..."
-                                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                onFocus={() => setOpenDropdown('colors')}
-                                                onChange={(e) => {
-                                                    const searchTerm = e.target.value.toLowerCase();
-                                                    const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
-                                                    if (dropdown) dropdown.style.display = 'block';
-                                                    setOpenDropdown('colors');
 
-                                                    const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
-                                                    if (list) {
-                                                        const labels = list.querySelectorAll('label');
-                                                        labels.forEach(label => {
-                                                            const text = label.textContent?.toLowerCase() || '';
-                                                            (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
-                                                        });
-                                                    }
-                                                }}
-                                            />
-                                            {openDropdown === 'colors' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setOpenDropdown(null)}
-                                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                                                >
-                                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                            )}
-                                            {/* Dropdown List */}
-                                            <div
-                                                className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
-                                                style={{ display: openDropdown === 'colors' ? 'block' : 'none' }}
-                                            >
-                                                <div className="dropdown-list">
-                                                    {colors.map(color => {
-                                                        const isSelected = formData.selectedColors.includes(color.id);
-                                                        return (
-                                                            <label
-                                                                key={color.id}
-                                                                className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isSelected}
-                                                                    onChange={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleMultiSelect('colors', color.id);
-                                                                    }}
-                                                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                />
-                                                                {color.hex && (
-                                                                    <span
-                                                                        className="ml-3 w-4 h-4 rounded-full border border-gray-300"
-                                                                        style={{ backgroundColor: color.hex }}
+
+
+
+                                                    {/* SKU Name Configuration Section */}
+                                                    <div className="col-span-2 border-t pt-6 mt-4">
+                                                        <h4 className="text-sm font-semibold text-gray-900 mb-4">SKU Name Configuration</h4>
+
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                            {/* Include Fields Checkboxes */}
+                                                            <div className="space-y-3">
+                                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Include in Name:</label>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id="includeStyle"
+                                                                        checked={formData.nameConfig.includeStyle}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, includeStyle: e.target.checked }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                                                     />
-                                                                )}
-                                                                <span className="ml-2 text-sm text-gray-900">{color.name}</span>
-                                                                {isSelected && (
-                                                                    <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                )}
-                                                            </label>
-                                                        );
-                                                    })}
-                                                    {colors.length === 0 && (
-                                                        <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                                                            No colors available
+                                                                    <label htmlFor="includeStyle" className="ml-2 text-sm text-gray-700">Style</label>
+                                                                </div>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id="includePattern"
+                                                                        checked={formData.nameConfig.includePattern}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, includePattern: e.target.checked }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                    />
+                                                                    <label htmlFor="includePattern" className="ml-2 text-sm text-gray-700">Pattern</label>
+                                                                </div>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id="includeMaterial"
+                                                                        checked={formData.nameConfig.includeMaterial}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, includeMaterial: e.target.checked }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                    />
+                                                                    <label htmlFor="includeMaterial" className="ml-2 text-sm text-gray-700">Material</label>
+                                                                </div>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id="includeFit"
+                                                                        checked={formData.nameConfig.includeFit}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, includeFit: e.target.checked }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                    />
+                                                                    <label htmlFor="includeFit" className="ml-2 text-sm text-gray-700">Fit</label>
+                                                                </div>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id="showCollection"
+                                                                        checked={formData.nameConfig.showCollection}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, showCollection: e.target.checked }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                    />
+                                                                    <label htmlFor="showCollection" className="ml-2 text-sm text-gray-700">Collection</label>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Brand/Line Display Options */}
+                                                            <div className="space-y-3">
+                                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Brand/Line Display:</label>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="radio"
+                                                                        id="brandOnly"
+                                                                        name="brandLineDisplay"
+                                                                        value="brand-only"
+                                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-only'}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                    />
+                                                                    <label htmlFor="brandOnly" className="ml-2 text-sm text-gray-700">Brand Only</label>
+                                                                </div>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="radio"
+                                                                        id="brandAndLine"
+                                                                        name="brandLineDisplay"
+                                                                        value="brand-and-line"
+                                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-and-line'}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                    />
+                                                                    <label htmlFor="brandAndLine" className="ml-2 text-sm text-gray-700">Brand + Line</label>
+                                                                </div>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="radio"
+                                                                        id="lineOnly"
+                                                                        name="brandLineDisplay"
+                                                                        value="line-only"
+                                                                        checked={formData.nameConfig.brandLineDisplay === 'line-only'}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                    />
+                                                                    <label htmlFor="lineOnly" className="ml-2 text-sm text-gray-700">Line Only</label>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    )}
+                                                    </div>
                                                 </div>
-                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                            </div>
+                                        </React.Fragment>
+                                    )}
+
+                                    {/* Size(s) - Multi-Select - Hidden in parent mode */}
+                                    {editMode !== 'parent' && (
+                                        <div className="col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
+                                            <div className="relative">
+                                                {/* Search Input */}
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search and Select Sizes..."
+                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    onFocus={() => setOpenDropdown('sizes')}
+                                                    onChange={(e) => {
+                                                        const searchTerm = e.target.value.toLowerCase();
+                                                        const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
+                                                        if (dropdown) dropdown.style.display = 'block'; // Ensure open on search
+                                                        setOpenDropdown('sizes');
+
+                                                        const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
+                                                        if (list) {
+                                                            const labels = list.querySelectorAll('label');
+                                                            labels.forEach(label => {
+                                                                const text = label.textContent?.toLowerCase() || '';
+                                                                (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                                {openDropdown === 'sizes' && (
                                                     <button
                                                         type="button"
                                                         onClick={() => setOpenDropdown(null)}
-                                                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
+                                                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
                                                     >
-                                                        Done
+                                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
                                                     </button>
+                                                )}
+                                                {/* Dropdown List */}
+                                                <div
+                                                    className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                    style={{ display: openDropdown === 'sizes' ? 'block' : 'none' }}
+                                                >
+                                                    <div className="dropdown-list">
+                                                        {sizes.map(size => {
+                                                            const isSelected = formData.selectedSizes.includes(size.id);
+                                                            return (
+                                                                <label
+                                                                    key={size.id}
+                                                                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isSelected}
+                                                                        onChange={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleMultiSelect('sizes', size.id);
+                                                                        }}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                    />
+                                                                    <span className="ml-3 text-sm text-gray-900">{size.name}</span>
+                                                                    {isSelected && (
+                                                                        <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                    )}
+                                                                </label>
+                                                            );
+                                                        })}
+                                                        {sizes.length === 0 && (
+                                                            <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                                                No sizes available
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setOpenDropdown(null)}
+                                                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
+                                                        >
+                                                            Done
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        {formData.selectedColors.length > 0 && (
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {formData.selectedColors.map(colorId => {
-                                                    const color = colors.find(c => c.id === colorId);
-                                                    return (
-                                                        <span
-                                                            key={colorId}
-                                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 border border-gray-200"
-                                                        >
-                                                            {color?.hex && (
-                                                                <span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: color.hex }}></span>
-                                                            )}
-                                                            {color?.name || colorId}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleMultiSelect('colors', colorId)}
-                                                                className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
+                                            {formData.selectedSizes.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {formData.selectedSizes.map(sizeId => {
+                                                        const size = sizes.find(s => s.id === sizeId);
+                                                        return (
+                                                            <span
+                                                                key={sizeId}
+                                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
                                                             >
-                                                                &times;
-                                                            </button>
-                                                        </span>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Auto-Generated Preview */}
-                                    <div className="col-span-2 bg-gray-50 p-4 rounded-md">
-                                        <h4 className="text-sm font-medium text-gray-900">SKU Output Preview</h4>
-                                        <div className="mt-2 text-sm text-gray-600">
-                                            <p><span className="font-semibold">Format:</span> {formData.generatedName || '(Start selecting attributes)'} (Color) [Size]</p>
-                                            <p className="mt-1"><span className="font-semibold">Code:</span> <code className="bg-gray-200 px-1 rounded text-blue-700">{formData.generatedCode || '(Start selecting attributes)'}</code></p>
-                                            <p className="mt-1 text-xs text-gray-500">
-                                                Based on selection, this will create <strong>{Math.max(1, formData.selectedColors.length) * Math.max(1, formData.selectedSizes.length)}</strong> distinct SKUs.
-                                            </p>
+                                                                {size?.name || sizeId}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleMultiSelect('sizes', sizeId)}
+                                                                    className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
+                                                                >
+                                                                    &times;
+                                                                </button>
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
+                                    )}
+
+                                    {/* Color(s) - Multi-Select - Also hidden in parent mode */}
+                                    {editMode !== 'parent' && (
+                                        <div className="col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
+                                            <div className="relative">
+                                                {/* Search Input */}
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search and Select Colors..."
+                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    onFocus={() => setOpenDropdown('colors')}
+                                                    onChange={(e) => {
+                                                        const searchTerm = e.target.value.toLowerCase();
+                                                        const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
+                                                        if (dropdown) dropdown.style.display = 'block';
+                                                        setOpenDropdown('colors');
+
+                                                        const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
+                                                        if (list) {
+                                                            const labels = list.querySelectorAll('label');
+                                                            labels.forEach(label => {
+                                                                const text = label.textContent?.toLowerCase() || '';
+                                                                (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                                {openDropdown === 'colors' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenDropdown(null)}
+                                                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                                                    >
+                                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                                {/* Dropdown List */}
+                                                <div
+                                                    className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                    style={{ display: openDropdown === 'colors' ? 'block' : 'none' }}
+                                                >
+                                                    <div className="dropdown-list">
+                                                        {colors.map(color => {
+                                                            const isSelected = formData.selectedColors.includes(color.id);
+                                                            return (
+                                                                <label
+                                                                    key={color.id}
+                                                                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isSelected}
+                                                                        onChange={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleMultiSelect('colors', color.id);
+                                                                        }}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                    />
+                                                                    {color.hex && (
+                                                                        <span
+                                                                            className="ml-3 w-4 h-4 rounded-full border border-gray-300"
+                                                                            style={{ backgroundColor: color.hex }}
+                                                                        />
+                                                                    )}
+                                                                    <span className="ml-2 text-sm text-gray-900">{color.name}</span>
+                                                                    {isSelected && (
+                                                                        <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                    )}
+                                                                </label>
+                                                            );
+                                                        })}
+                                                        {colors.length === 0 && (
+                                                            <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                                                No colors available
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setOpenDropdown(null)}
+                                                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
+                                                        >
+                                                            Done
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {formData.selectedColors.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {formData.selectedColors.map(colorId => {
+                                                        const color = colors.find(c => c.id === colorId);
+                                                        return (
+                                                            <span
+                                                                key={colorId}
+                                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 border border-gray-200"
+                                                            >
+                                                                {color?.hex && (
+                                                                    <span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: color.hex }}></span>
+                                                                )}
+                                                                {color?.name || colorId}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleMultiSelect('colors', colorId)}
+                                                                    className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
+                                                                >
+                                                                    &times;
+                                                                </button>
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Auto-Generated Preview - Only for new SKUs */}
+                                    {editMode === 'new' && (
+                                        <div className="col-span-2 bg-gray-50 p-4 rounded-md">
+                                            <h4 className="text-sm font-medium text-gray-900">SKU Output Preview</h4>
+                                            <div className="mt-2 text-sm text-gray-600">
+                                                <p><span className="font-semibold">Format:</span> {formData.generatedName || '(Start selecting attributes)'} (Color) [Size]</p>
+                                                <p className="mt-1"><span className="font-semibold">Code:</span> <code className="bg-gray-200 px-1 rounded text-blue-700">{formData.generatedCode || '(Start selecting attributes)'}</code></p>
+                                                <p className="mt-1 text-xs text-gray-500">
+                                                    Based on selection, this will create <strong>{Math.max(1, formData.selectedColors.length) * Math.max(1, formData.selectedSizes.length)}</strong> distinct SKUs.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700">Description</label>
@@ -1630,24 +2017,26 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                         </div>
                                     )}
 
-                                    {/* Media Uploaders */}
-                                    <div className="col-span-2 space-y-6 border-t pt-6 mt-2">
-                                        <MediaUploader
-                                            type="image"
-                                            media={formData.images}
-                                            onChange={(images) => setFormData({ ...formData, images })}
-                                            label="Product Images"
-                                            helperText="Upload high-quality images of the product."
-                                        />
+                                    {/* Media Uploaders - Hidden in parent mode */}
+                                    {editMode !== 'parent' && (
+                                        <div className="col-span-2 space-y-6 border-t pt-6 mt-2">
+                                            <MediaUploader
+                                                type="image"
+                                                media={formData.images}
+                                                onChange={(images) => setFormData({ ...formData, images })}
+                                                label="Product Images"
+                                                helperText="Upload high-quality images of the product."
+                                            />
 
-                                        <MediaUploader
-                                            type="video"
-                                            media={formData.videos}
-                                            onChange={(videos) => setFormData({ ...formData, videos })}
-                                            label="Product Videos"
-                                            helperText="Upload videos showing the product in motion."
-                                        />
-                                    </div>
+                                            <MediaUploader
+                                                type="video"
+                                                media={formData.videos}
+                                                onChange={(videos) => setFormData({ ...formData, videos })}
+                                                label="Product Videos"
+                                                helperText="Upload videos showing the product in motion."
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">

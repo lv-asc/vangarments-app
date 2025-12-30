@@ -130,6 +130,24 @@ export default function ConversationPage() {
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
+        if (!conversation) return;
+
+        const getConversationTitle = (): string => {
+            if (conversation.name) return `Chat @${conversation.name}`;
+            if (conversation.conversationType === 'direct' && conversation.otherParticipant) {
+                return `DMs @${conversation.otherParticipant.username}`;
+            }
+            if (conversation.conversationType === 'entity' && conversation.entity) {
+                const name = conversation.entity.brandInfo?.name || conversation.entity.name || 'Entity';
+                return `Chat @${name}`;
+            }
+            return 'Chat';
+        };
+
+        document.title = getConversationTitle();
+    }, [conversation]);
+
+    useEffect(() => {
         loadConversation();
         loadMessages();
         loadCurrentUser();
@@ -159,6 +177,16 @@ export default function ConversationPage() {
             const conv = await apiClient.getConversation(conversationId);
             setConversation(conv);
             apiClient.markConversationAsRead(conversationId);
+
+            // Redirection logic: if accessed via UUID but has slug/username, redirect
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId);
+            if (isUUID) {
+                if (conv.conversationType === 'direct' && conv.otherParticipant?.username) {
+                    router.replace(`/messages/u/${conv.otherParticipant.username}`);
+                } else if (conv.slug) {
+                    router.replace(`/messages/${conv.slug}`);
+                }
+            }
         } catch (err: any) {
             console.error('Failed to load conversation:', err);
             if (err.status === 401) {
@@ -495,6 +523,12 @@ export default function ConversationPage() {
                             setIsSettingsOpen(true);
                         } else if (conversation?.conversationType === 'direct' && conversation.otherParticipant) {
                             router.push(`/u/${conversation.otherParticipant.username}`);
+                        } else if (conversation?.conversationType === 'entity' && conversation.entity) {
+                            // Navigate to entity profile
+                            const slug = conversation.entity.slug || conversation.entity.brandInfo?.slug;
+                            if (slug) {
+                                router.push(`/brands/${slug}`);
+                            }
                         }
                     }}
                 >
@@ -537,6 +571,9 @@ export default function ConversationPage() {
                         {conversation?.conversationType === 'group' && (
                             <span className="text-xs text-gray-500 block -mt-1">Tap to edit info</span>
                         )}
+                        {conversation?.conversationType === 'entity' && (
+                            <span className="text-xs text-gray-500 block -mt-1">Tap to view profile</span>
+                        )}
                     </div>
                 </MotionDiv>
 
@@ -548,12 +585,14 @@ export default function ConversationPage() {
                     <PhotoIcon className="w-5 h-5" />
                 </button>
 
-                <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                    <EllipsisVerticalIcon className="w-5 h-5 text-gray-600" />
-                </button>
+                {conversation?.conversationType === 'group' && (
+                    <button
+                        onClick={() => setIsSettingsOpen(true)}
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                        <EllipsisVerticalIcon className="w-5 h-5 text-gray-600" />
+                    </button>
+                )}
             </div>
 
             {conversation && (

@@ -2,61 +2,59 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ConfigurationEditor } from '../../../components/admin/ConfigurationEditor';
-import { VUFSStandardsEditor } from '../../../components/admin/VUFSStandardsEditor';
-import { SystemSettingsEditor } from '../../../components/admin/SystemSettingsEditor';
-import { BackupManager } from '../../../components/admin/BackupManager';
 import { apiClient } from '@/lib/api';
+import toast from 'react-hot-toast';
 
-interface ConfigurationSection {
-  id: string;
-  name: string;
-  description: string;
-  type: 'vufs' | 'ui' | 'business' | 'features';
-  isEditable: boolean;
-  requiresRestart: boolean;
-  data: any;
+interface UISettings {
+  theme: string;
+  language: string;
+  dateFormat: string;
+  currency: string;
+  enableAnimations: boolean;
 }
 
 export default function ConfigurationPage() {
   const { user } = useAuth();
-  const [configurations, setConfigurations] = useState<ConfigurationSection[]>([]);
-  const [activeSection, setActiveSection] = useState<string>('vufs-standards');
+  const [settings, setSettings] = useState<UISettings>({
+    theme: 'light',
+    language: 'en',
+    dateFormat: 'MM/DD/YYYY',
+    currency: 'BRL',
+    enableAnimations: true
+  });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (user && user.roles?.includes('admin')) {
-      loadConfigurations();
+      loadSettings();
     }
   }, [user]);
 
-  const loadConfigurations = async () => {
+  const loadSettings = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.get<ConfigurationSection[]>('/configuration');
-      setConfigurations(data);
+      const data = await apiClient.get<{ success: boolean; data: UISettings }>('/configuration/ui-settings');
+      if (data.success && data.data) {
+        setSettings(data.data);
+      }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to load configurations');
+      // Use defaults if settings not found
+      console.log('Using default UI settings');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConfigurationUpdate = async (sectionId: string, updates: any) => {
+  const handleSave = async () => {
     try {
-      if (sectionId === 'vufs-standards') {
-        await apiClient.put('/configuration/vufs-standards', updates);
-      } else if (sectionId === 'system-settings') {
-        await apiClient.put('/configuration/system-settings', updates);
-      } else {
-        await apiClient.put(`/configuration/${sectionId}`, updates);
-      }
-
-      // Reload configurations to reflect changes
-      await loadConfigurations();
+      setSaving(true);
+      await apiClient.put('/configuration/ui-settings', settings);
+      toast.success('Settings saved successfully');
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to update configuration');
+      toast.error('Failed to save settings');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -74,132 +72,103 @@ export default function ConfigurationPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <button
-            onClick={loadConfigurations}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const activeConfig = configurations.find(config => config.id === activeSection);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Configuration Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">UI Settings</h1>
           <p className="mt-2 text-gray-600">
-            Manage VUFS standards, system settings, and application configuration
+            Configure user interface preferences and display options
           </p>
         </div>
 
-        <div className="flex gap-8">
-          {/* Sidebar Navigation */}
-          <div className="w-64 flex-shrink-0">
-            <nav className="bg-white rounded-lg shadow">
-              <div className="p-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Configuration Sections</h2>
-                <ul className="space-y-2">
-                  {configurations.map((config) => (
-                    <li key={config.id}>
-                      <button
-                        onClick={() => setActiveSection(config.id)}
-                        className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                          activeSection === config.id
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        {config.name}
-                        {config.requiresRestart && (
-                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Restart Required
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                  <li>
-                    <button
-                      onClick={() => setActiveSection('backups')}
-                      className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        activeSection === 'backups'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      Backup & Restore
-                    </button>
-                  </li>
-                </ul>
-              </div>
-            </nav>
+        <div className="bg-white rounded-lg shadow p-6 space-y-6">
+          {/* Theme */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Theme</label>
+              <select
+                value={settings.theme}
+                onChange={(e) => setSettings({ ...settings, theme: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+              <select
+                value={settings.language}
+                onChange={(e) => setSettings({ ...settings, language: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="en">English</option>
+                <option value="pt">Portuguese</option>
+                <option value="es">Spanish</option>
+              </select>
+            </div>
           </div>
 
-          {/* Main Content */}
-          <div className="flex-1">
-            <div className="bg-white rounded-lg shadow">
-              {activeSection === 'backups' ? (
-                <BackupManager />
-              ) : activeConfig ? (
-                <div className="p-6">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">{activeConfig.name}</h2>
-                    <p className="mt-2 text-gray-600">{activeConfig.description}</p>
-                    {activeConfig.requiresRestart && (
-                      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                        <div className="flex">
-                          <div className="flex-shrink-0">
-                            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div className="ml-3">
-                            <p className="text-sm text-yellow-700">
-                              Changes to this configuration require an application restart to take effect.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {activeConfig.type === 'vufs' && (
-                    <VUFSStandardsEditor
-                      data={activeConfig.data}
-                      onUpdate={(updates) => handleConfigurationUpdate(activeConfig.id, updates)}
-                    />
-                  )}
-
-                  {(activeConfig.type === 'ui' || activeConfig.type === 'business' || activeConfig.type === 'features') && (
-                    <SystemSettingsEditor
-                      type={activeConfig.type}
-                      data={activeConfig.data}
-                      onUpdate={(updates: any) => handleConfigurationUpdate(activeConfig.id, updates)}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="p-6">
-                  <p className="text-gray-500">Select a configuration section to edit.</p>
-                </div>
-              )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Date Format</label>
+              <select
+                value={settings.dateFormat}
+                onChange={(e) => setSettings({ ...settings, dateFormat: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+              </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Currency</label>
+              <select
+                value={settings.currency}
+                onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="BRL">Brazilian Real (BRL)</option>
+                <option value="USD">US Dollar (USD)</option>
+                <option value="EUR">Euro (EUR)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Animations Toggle */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="enableAnimations"
+              checked={settings.enableAnimations}
+              onChange={(e) => setSettings({ ...settings, enableAnimations: e.target.checked })}
+              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            />
+            <label htmlFor="enableAnimations" className="ml-2 text-sm text-gray-700">
+              Enable Animations
+            </label>
+          </div>
+
+          {/* Save Button */}
+          <div className="pt-4 border-t">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${saving ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+            >
+              {saving ? 'Saving...' : 'Save Settings'}
+            </button>
           </div>
         </div>
       </div>

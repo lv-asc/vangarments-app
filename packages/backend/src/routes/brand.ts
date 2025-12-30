@@ -460,6 +460,7 @@ router.put(
   body('youtube').optional().isLength({ max: 100 }).withMessage('YouTube must be 100 characters or less'),
   body('additionalLogos').optional().isArray().withMessage('Additional logos must be an array'),
   body('logoMetadata').optional().isArray().withMessage('Logo metadata must be an array'),
+  body('socialLinks').optional().isArray().withMessage('Social links must be an array'),
   validateRequest,
   brandProfileController.updateProfileData.bind(brandProfileController)
 );
@@ -602,8 +603,8 @@ router.get(
 
 router.get(
   '/:brandId/collections/:collectionId',
-  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
-  param('collectionId').isUUID().withMessage('Collection ID must be a valid UUID'),
+  param('brandId').isString().isLength({ min: 1 }).withMessage('Brand ID or Slug is required'),
+  param('collectionId').isString().isLength({ min: 1 }).withMessage('Collection ID or Slug is required'),
   validateRequest,
   brandProfileController.getCollection.bind(brandProfileController)
 );

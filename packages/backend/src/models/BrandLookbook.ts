@@ -115,6 +115,19 @@ export class BrandLookbookModel {
         return result.rows.map(row => this.mapRowToLookbook(row));
     }
 
+    static async findByCollection(collectionId: string): Promise<BrandLookbook[]> {
+        const query = `
+      SELECT lb.*, 
+             (SELECT COUNT(*) FROM brand_lookbook_items bli WHERE bli.lookbook_id = lb.id) as item_count
+      FROM brand_lookbooks lb
+      WHERE lb.collection_id = $1 AND lb.is_published = true
+      ORDER BY lb.year DESC NULLS LAST, lb.created_at DESC
+    `;
+        const result = await db.query(query, [collectionId]);
+        return result.rows.map(row => this.mapRowToLookbook(row));
+    }
+
+
     static async update(id: string, updates: UpdateLookbookData): Promise<BrandLookbook | null> {
         const setClauses: string[] = [];
         const values: any[] = [];

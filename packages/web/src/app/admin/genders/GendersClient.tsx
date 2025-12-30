@@ -3,41 +3,46 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { TrashIcon, PencilSquareIcon, PlusIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PencilSquareIcon, PlusIcon, UserGroupIcon, ArrowPathIcon, ArchiveBoxXMarkIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
 
 interface Gender {
     id: string;
     name: string;
     skuRef?: string;
     isActive: boolean;
+    isDeleted?: boolean;
+    deletedAt?: string;
 }
 
 export default function AdminGendersPage() {
     const [genders, setGenders] = useState<Gender[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
-    // Edit State
     const [editingGender, setEditingGender] = useState<Gender | null>(null);
     const [name, setName] = useState('');
     const [skuRef, setSkuRef] = useState('');
-
-    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
+    const [showTrash, setShowTrash] = useState(false);
+    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null; permanent?: boolean }>({
         isOpen: false,
-        id: null
+        id: null,
+        permanent: false
     });
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [showTrash]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const data = await apiClient.getVUFSGenders();
-            setGenders(data || []);
+            const data = showTrash
+                ? await apiClient.getDeletedVUFSGenders()
+                : await apiClient.getVUFSGenders();
+            setGenders(Array.isArray(data) ? data : (data?.genders || []));
         } catch (error) {
             console.error('Failed to fetch genders', error);
+            toast.error('Failed to load genders');
         } finally {
             setLoading(false);
         }
@@ -57,35 +62,57 @@ export default function AdminGendersPage() {
     };
 
     const handleSave = async () => {
-        if (!name.trim()) return;
+        if (!name.trim()) {
+            toast.error('Name is required');
+            return;
+        }
         try {
             if (editingGender) {
                 await apiClient.updateVUFSGender(editingGender.id, name, skuRef);
+                toast.success('Gender updated');
             } else {
                 await apiClient.addVUFSGender(name, skuRef);
+                toast.success('Gender added');
             }
             setIsModalOpen(false);
             fetchData();
         } catch (error) {
             console.error('Failed to save gender', error);
+            toast.error('Failed to save gender');
         }
     };
 
-    const handleDeleteClick = (id: string) => {
-        setDeleteModalState({ isOpen: true, id });
+    const handleDeleteClick = (id: string, permanent = false) => {
+        setDeleteModalState({ isOpen: true, id, permanent });
     };
 
     const handleConfirmDelete = async () => {
-        const { id } = deleteModalState;
-        if (!id) return;
-
+        if (!deleteModalState.id) return;
         try {
-            await apiClient.deleteVUFSGender(id);
+            if (deleteModalState.permanent) {
+                await apiClient.permanentlyDeleteVUFSGender(deleteModalState.id);
+                toast.success('Gender permanently deleted');
+            } else {
+                await apiClient.deleteVUFSGender(deleteModalState.id);
+                toast.success('Gender moved to trash');
+            }
             fetchData();
         } catch (error) {
             console.error('Failed to delete gender', error);
+            toast.error('Failed to delete gender');
         } finally {
-            setDeleteModalState({ isOpen: false, id: null });
+            setDeleteModalState({ isOpen: false, id: null, permanent: false });
+        }
+    };
+
+    const handleRestore = async (id: string) => {
+        try {
+            await apiClient.restoreVUFSGender(id);
+            toast.success('Gender restored');
+            fetchData();
+        } catch (error) {
+            console.error('Failed to restore gender', error);
+            toast.error('Failed to restore gender');
         }
     };
 
@@ -93,88 +120,135 @@ export default function AdminGendersPage() {
 
     return (
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            {/* Header */}
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Genders Management</h1>
                     <p className="mt-2 text-sm text-gray-700">Manage gender options.</p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                    <PlusIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                    Add Gender
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`inline-flex items-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium ${showTrash
+                                ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
+                                : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                            }`}
+                    >
+                        <ArchiveBoxXMarkIcon className="-ml-1 mr-2 h-5 w-5" />
+                        {showTrash ? 'View Active' : 'View Trash'}
+                    </button>
+                    {!showTrash && (
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pink-600 hover:bg-pink-700"
+                        >
+                            <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+                            Add Gender
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {/* List */}
+            {showTrash && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-800">
+                        <strong>Trash:</strong> Items here can be restored or permanently deleted.
+                    </p>
+                </div>
+            )}
+
             <div className="bg-white shadow overflow-hidden sm:rounded-md">
                 <ul role="list" className="divide-y divide-gray-200">
                     {genders.map((gender) => (
                         <li key={gender.id} className="block hover:bg-gray-50">
                             <div className="px-4 py-4 flex items-center sm:px-6">
-                                <div className="min-w-0 flex-1 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <span className="p-2 bg-pink-50 rounded-full text-pink-600">
-                                            <UserGroupIcon className="h-5 w-5" />
-                                        </span>
-                                        <p className="font-medium text-gray-900 truncate">{gender.name}</p>
+                                <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
+                                    <div className="flex items-center">
+                                        <UserGroupIcon className="h-8 w-8 text-pink-500 mr-4" />
+                                        <div>
+                                            <p className="font-medium text-pink-600">{gender.name}</p>
+                                            {gender.skuRef && (
+                                                <p className="text-xs text-gray-500">SKU: {gender.skuRef}</p>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleOpenModal(gender)}
-                                            className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-full"
-                                        >
-                                            <PencilSquareIcon className="h-5 w-5" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(gender.id)}
-                                            className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
-                                        >
-                                            <TrashIcon className="h-5 w-5" />
-                                        </button>
+                                    <div className="flex gap-2">
+                                        {showTrash ? (
+                                            <>
+                                                <button
+                                                    onClick={() => handleRestore(gender.id)}
+                                                    className="text-green-600 hover:text-green-900 bg-green-50 p-2 rounded-full"
+                                                    title="Restore"
+                                                >
+                                                    <ArrowPathIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteClick(gender.id, true)}
+                                                    className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
+                                                    title="Delete Permanently"
+                                                >
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => handleOpenModal(gender)}
+                                                    className="text-pink-600 hover:text-pink-900 bg-pink-50 p-2 rounded-full"
+                                                >
+                                                    <PencilSquareIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteClick(gender.id)}
+                                                    className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
+                                                >
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </li>
                     ))}
                     {genders.length === 0 && (
-                        <li className="px-4 py-8 text-center text-gray-500 text-sm">
-                            No genders defined. Add "Men", "Women", or "Unisex".
+                        <li className="px-4 py-8 text-center text-gray-500">
+                            {showTrash ? 'Trash is empty' : 'No genders found. Add "Men", "Women", or "Unisex".'}
                         </li>
                     )}
                 </ul>
             </div>
 
-            {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">{editingGender ? 'Edit Gender' : 'Add Gender'}</h3>
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="e.g. Men"
-                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
-                                autoFocus
-                            />
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">
+                            {editingGender ? 'Edit Gender' : 'Add Gender'}
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Name</label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2"
+                                    placeholder="e.g. Men, Women, Unisex"
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">SKU Ref (2 chars)</label>
+                                <input
+                                    type="text"
+                                    value={skuRef}
+                                    onChange={(e) => setSkuRef(e.target.value)}
+                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2 uppercase"
+                                    placeholder="e.g. ME"
+                                    maxLength={4}
+                                />
+                            </div>
                         </div>
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">SKU Ref (2 chars)</label>
-                            <input
-                                type="text"
-                                value={skuRef}
-                                onChange={(e) => setSkuRef(e.target.value)}
-                                placeholder="e.g. ME"
-                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2 uppercase"
-                                maxLength={4}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-3">
+                        <div className="mt-5 flex justify-end gap-3">
                             <button
                                 onClick={() => setIsModalOpen(false)}
                                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
@@ -184,7 +258,7 @@ export default function AdminGendersPage() {
                             <button
                                 onClick={handleSave}
                                 disabled={!name.trim()}
-                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                                className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-md hover:bg-pink-700 disabled:opacity-50"
                             >
                                 Save
                             </button>
@@ -197,10 +271,12 @@ export default function AdminGendersPage() {
                 isOpen={deleteModalState.isOpen}
                 onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
                 onConfirm={handleConfirmDelete}
-                title="Delete Gender"
-                message="Are you sure you want to delete this gender? This action cannot be undone."
+                title={deleteModalState.permanent ? 'Permanently Delete Gender' : 'Move Gender to Trash'}
+                message={deleteModalState.permanent
+                    ? 'This action cannot be undone. The gender will be permanently deleted.'
+                    : 'This gender will be moved to trash. You can restore it later.'}
                 variant="danger"
-                confirmText="Delete"
+                confirmText={deleteModalState.permanent ? 'Delete Forever' : 'Move to Trash'}
             />
         </div>
     );

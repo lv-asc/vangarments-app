@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import Cropper from 'react-easy-crop'
 import { Button } from '@/components/ui/Button'
 import getCroppedImg from '@/utils/cropImage'
 import { XMarkIcon } from '@heroicons/react/24/outline'
+import { convertHEICToObjectURL } from '@/utils/heicConverter'
 
 interface ImageCropperProps {
     imageSrc: string
@@ -10,6 +11,7 @@ interface ImageCropperProps {
     cropShape?: 'round' | 'rect'
     onCancel: () => void
     onCropComplete: (croppedBlob: Blob) => void
+    isHEIC?: boolean // Optional flag to indicate HEIC file
 }
 
 export default function ImageCropper({
@@ -17,12 +19,50 @@ export default function ImageCropper({
     aspectRatio = 1,
     cropShape = 'round',
     onCancel,
-    onCropComplete
+    onCropComplete,
+    isHEIC = false
 }: ImageCropperProps) {
     const [crop, setCrop] = useState({ x: 0, y: 0 })
     const [zoom, setZoom] = useState(1)
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
     const [isLoading, setIsLoading] = useState(false)
+    const [displayImageSrc, setDisplayImageSrc] = useState<string>(imageSrc)
+    const [isConverting, setIsConverting] = useState(false)
+
+    // Convert HEIC to displayable format if needed
+    useEffect(() => {
+        async function convertIfNeeded() {
+            // Check if the imageSrc is a blob URL from a HEIC file
+            if (imageSrc.startsWith('blob:') && isHEIC) {
+                setIsConverting(true)
+                try {
+                    // Fetch the blob and convert if it's HEIC
+                    const response = await fetch(imageSrc)
+                    const blob = await response.blob()
+                    const file = new File([blob], 'image.heic', { type: blob.type })
+
+                    // Check if conversion is needed
+                    if (file.type.includes('heic') || file.type.includes('heif') || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                        const convertedURL = await convertHEICToObjectURL(file)
+                        setDisplayImageSrc(convertedURL)
+                    }
+                } catch (error) {
+                    console.error('Failed to convert HEIC for cropping:', error)
+                    // Fall back to original src
+                } finally {
+                    setIsConverting(false)
+                }
+            }
+        }
+        convertIfNeeded()
+
+        // Cleanup object URLs
+        return () => {
+            if (displayImageSrc !== imageSrc && displayImageSrc.startsWith('blob:')) {
+                URL.revokeObjectURL(displayImageSrc)
+            }
+        }
+    }, [imageSrc, isHEIC])
 
     const onCropChange = (crop: { x: number; y: number }) => {
         setCrop(crop)
@@ -40,7 +80,7 @@ export default function ImageCropper({
         if (!croppedAreaPixels) return
         setIsLoading(true)
         try {
-            const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels)
+            const croppedImage = await getCroppedImg(displayImageSrc, croppedAreaPixels)
             if (croppedImage) {
                 onCropComplete(croppedImage)
             }
@@ -67,18 +107,26 @@ export default function ImageCropper({
 
                 {/* Cropper Area */}
                 <div className="relative flex-1 bg-gray-900 overflow-hidden">
-                    {/* @ts-ignore: react-easy-crop type definition issue */}
-                    <Cropper
-                        image={imageSrc}
-                        crop={crop}
-                        zoom={zoom}
-                        aspect={aspectRatio}
-                        onCropChange={onCropChange}
-                        onCropComplete={onCropCompleteHandler}
-                        onZoomChange={onZoomChange}
-                        showGrid={true}
-                        cropShape={cropShape}
-                    />
+                    {isConverting ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-white text-sm">Converting image...</div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* @ts-ignore: react-easy-crop type definition issue */}
+                            <Cropper
+                                image={displayImageSrc}
+                                crop={crop}
+                                zoom={zoom}
+                                aspect={aspectRatio}
+                                onCropChange={onCropChange}
+                                onCropComplete={onCropCompleteHandler}
+                                onZoomChange={onZoomChange}
+                                showGrid={true}
+                                cropShape={cropShape}
+                            />
+                        </>
+                    )}
                 </div>
 
                 {/* Controls */}
@@ -104,17 +152,17 @@ export default function ImageCropper({
                         <Button
                             variant="outline"
                             onClick={onCancel}
-                            disabled={isLoading}
+                            disabled={isLoading || isConverting}
                             className="border-gray-300 text-gray-700 hover:bg-gray-50 font-medium px-6"
                         >
                             Cancel
                         </Button>
                         <Button
                             onClick={handleSave}
-                            disabled={isLoading}
+                            disabled={isLoading || isConverting}
                             className="bg-pink-600 hover:bg-pink-700 text-white font-medium px-8 shadow-sm"
                         >
-                            {isLoading ? 'Processing...' : 'Save Photo'}
+                            {isConverting ? 'Converting...' : isLoading ? 'Processing...' : 'Save Photo'}
                         </Button>
                     </div>
                 </div>

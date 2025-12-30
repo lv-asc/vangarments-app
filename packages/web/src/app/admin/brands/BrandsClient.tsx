@@ -15,6 +15,7 @@ import { MagnifyingGlassIcon as MagnifyingGlassOutlineIcon, FunnelIcon, ArrowsUp
 import { getImageUrl } from '@/lib/utils';
 import BulkActionsBar from '@/components/admin/BulkActionsBar';
 import { useMultiSelect } from '@/hooks/useMultiSelect';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 export default function AdminBrandsPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -241,6 +242,7 @@ export default function AdminBrandsPage() {
                                         <div className="truncate">
                                             <div className="flex text-sm items-center gap-2">
                                                 <p className="font-medium text-blue-600 truncate">{brand.brandInfo?.name || 'Unnamed Brand'}</p>
+                                                {brand.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
                                                 {brand.brandInfo?.country && (
                                                     <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600 border border-gray-200">
                                                         {COUNTRIES.find(c => c.name === brand.brandInfo.country)?.flag} {brand.brandInfo.country}

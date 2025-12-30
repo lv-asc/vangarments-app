@@ -99,7 +99,7 @@ export function CTASection() {
               Criar Conta Gratuita
             </Button>
             <Button
-              href="/discover"
+              href="/search"
               variant="outline"
               size="xl"
               className="border-white text-white hover:bg-white/10 px-8 py-4 text-lg font-semibold"

@@ -12,6 +12,7 @@ import {
     XMarkIcon,
     ArrowPathIcon
 } from '@heroicons/react/24/outline';
+import { processImageFiles } from '@/utils/heicConverter';
 import SearchableCombobox from '@/components/ui/Combobox';
 import {
     DndContext,
@@ -287,17 +288,22 @@ export default function AddWardrobeItemPage() {
     };
 
     // Image Handlers
-    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            addImages(Array.from(e.target.files));
+            let files = Array.from(e.target.files);
+            // Convert HEIC files to JPEG
+            files = await processImageFiles(files);
+            addImages(files);
         }
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+            let files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif'));
+            // Convert HEIC files to JPEG
+            files = await processImageFiles(files);
             addImages(files);
         }
     };
@@ -593,7 +599,7 @@ export default function AddWardrobeItemPage() {
                                             <div>
                                                 <label htmlFor="file-upload" className="cursor-pointer text-blue-600 font-medium hover:text-blue-500">
                                                     <span>Upload files</span>
-                                                    <input id="file-upload" type="file" className="sr-only" accept="image/*" multiple onChange={handleImageSelect} />
+                                                    <input id="file-upload" type="file" className="sr-only" accept="image/*,.heic,.heif" multiple onChange={handleImageSelect} />
                                                 </label>
                                                 <p className="inline pl-1 text-gray-500">or drag and drop</p>
                                             </div>
@@ -624,7 +630,7 @@ export default function AddWardrobeItemPage() {
                                                     <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg aspect-square cursor-pointer hover:border-blue-500 hover:bg-white transition-colors">
                                                         <PhotoIcon className="h-8 w-8 text-gray-400" />
                                                         <span className="text-xs text-gray-500 mt-2">Add more</span>
-                                                        <input type="file" className="sr-only" accept="image/*" multiple onChange={handleImageSelect} />
+                                                        <input type="file" className="sr-only" accept="image/*,.heic,.heif" multiple onChange={handleImageSelect} />
                                                     </label>
                                                 </div>
                                             </AnySortableContext>

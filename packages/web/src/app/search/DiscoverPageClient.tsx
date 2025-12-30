@@ -90,11 +90,13 @@ export default function DiscoverPage() {
 
   // Search Logic
   const performSearch = useCallback(async (query: string, type: FilterType) => {
-    if (!query.trim()) {
+    // If no query and filter is 'all', show default view
+    if (!query.trim() && type === 'all') {
       setIsSearching(false);
       return;
     }
 
+    // If filter is selected (not 'all'), fetch results even without query
     setIsSearching(true);
     try {
       // Define promises based on filter type
@@ -111,52 +113,45 @@ export default function DiscoverPage() {
       const fetchEditorial = type === 'all' || type === 'editorial';
 
       // Brands
-      if (fetchBrands) promises.push(brandApi.getBrands({ search: query, businessType: 'brand', limit: 5 }));
+      if (fetchBrands) promises.push(brandApi.getBrands({ search: query || undefined, businessType: 'brand', limit: query ? 5 : 20 }));
       else promises.push(Promise.resolve([]));
 
       // Stores
-      if (fetchStores) promises.push(brandApi.getBrands({ search: query, businessType: 'store', limit: 5 }));
+      if (fetchStores) promises.push(brandApi.getBrands({ search: query || undefined, businessType: 'store', limit: query ? 5 : 20 }));
       else promises.push(Promise.resolve([]));
 
       // Suppliers
-      if (fetchSuppliers) promises.push(brandApi.getBrands({ search: query, businessType: 'supplier', limit: 5 }));
+      if (fetchSuppliers) promises.push(brandApi.getBrands({ search: query || undefined, businessType: 'supplier', limit: query ? 5 : 20 }));
       else promises.push(Promise.resolve([]));
 
       // Non-Profits
-      if (fetchNonProfits) promises.push(brandApi.getBrands({ search: query, businessType: 'non_profit', limit: 5 }));
+      if (fetchNonProfits) promises.push(brandApi.getBrands({ search: query || undefined, businessType: 'non_profit', limit: query ? 5 : 20 }));
       else promises.push(Promise.resolve([]));
 
       // Users
       if (fetchUsers) {
-        promises.push(apiClient.get(`/users?search=${encodeURIComponent(query)}&limit=5`)
+        const userLimit = query ? 5 : 20;
+        const userSearchParam = query ? `search=${encodeURIComponent(query)}&` : '';
+        promises.push(apiClient.get(`/users?${userSearchParam}limit=${userLimit}`)
           .then((res: any) => res.users || res.data?.users || [])
           .catch(() => [])
         );
       } else promises.push(Promise.resolve([]));
 
-      // Items (Wardrobe)
-      // Items (Wardrobe + Global SKUs)
+      // Items (Official SKUs only - no wardrobe items)
       if (fetchItems) {
-        const wardrobePromise = WardrobeAPI.getItems({ search: query, limit: 5 })
-          .then(res => res.items || [])
-          .catch(() => []);
+        const itemLimit = query ? 5 : 20;
+        const skuPromise = query
+          ? skuApi.searchSKUs(query).then(res => res.skus || []).catch(() => [])
+          : skuApi.getAllSKUs({ limit: itemLimit }).then(res => res.skus || []).catch(() => []);
 
-        const skuPromise = skuApi.searchSKUs(query)
-          .then(res => res.skus || [])
-          .catch(() => []);
-
-        promises.push(Promise.all([wardrobePromise, skuPromise])
-          .then(([wardrobeItems, skuItems]) => {
-            // Return combined items
-            return [...skuItems, ...wardrobeItems];
-          })
-          .catch(() => [])
-        );
+        promises.push(skuPromise);
       } else promises.push(Promise.resolve([]));
 
       // Posts (Social)
       if (fetchPosts) {
-        promises.push(socialApi.searchPosts({ q: query, limit: 5 })
+        const postLimit = query ? 5 : 20;
+        promises.push(socialApi.searchPosts({ q: query || undefined, limit: postLimit })
           .then((res: any) => res.posts || [])
           .catch(() => [])
         );
@@ -164,16 +159,28 @@ export default function DiscoverPage() {
 
       // Pages
       if (fetchPages) {
+        const pageLimit = query ? 5 : 20;
         promises.push(pageApi.getAll()
-          .then((pages: IPage[]) => pages.filter(p => p.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5))
+          .then((pages: IPage[]) => {
+            if (query) {
+              return pages.filter(p => p.name.toLowerCase().includes(query.toLowerCase())).slice(0, pageLimit);
+            }
+            return pages.slice(0, pageLimit);
+          })
           .catch(() => [])
         );
       } else promises.push(Promise.resolve([]));
 
       // Editorial (Articles, Columns, News)
       if (fetchEditorial) {
+        const editorialLimit = query ? 5 : 20;
         promises.push(journalismApi.getAll({ published: true })
-          .then((items: IJournalismData[]) => items.filter(i => i.title.toLowerCase().includes(query.toLowerCase())).slice(0, 5))
+          .then((items: IJournalismData[]) => {
+            if (query) {
+              return items.filter(i => i.title.toLowerCase().includes(query.toLowerCase())).slice(0, editorialLimit);
+            }
+            return items.slice(0, editorialLimit);
+          })
           .catch(() => [])
         );
       } else promises.push(Promise.resolve([]));
@@ -202,12 +209,17 @@ export default function DiscoverPage() {
 
   useEffect(() => {
     if (searchQuery) {
+      // If there's a search query, use debounced search
       debouncedSearch(searchQuery, filterType);
+    } else if (filterType !== 'all') {
+      // If no query but a specific filter is selected, immediately fetch results
+      performSearch('', filterType);
     } else {
+      // No query and filter is 'all' - show default featured view
       setIsSearching(false);
       setResults({ brands: [], stores: [], suppliers: [], nonProfits: [], users: [], items: [], posts: [], pages: [], editorial: [] });
     }
-  }, [searchQuery, filterType, debouncedSearch]);
+  }, [searchQuery, filterType, debouncedSearch, performSearch]);
 
   // UI Components
 
@@ -290,16 +302,24 @@ export default function DiscoverPage() {
   );
 
   const ItemCard = ({ item }: { item: any }) => {
+    const [showSizes, setShowSizes] = useState(false);
     const brandName = item.brand?.name || item.brand?.brand || 'Unknown Brand';
     const categoryName = item.category?.page || (typeof item.category === 'string' ? item.category : 'Item');
     const imageUrl = item.images?.[0]?.url || item.images?.[0]?.imageUrl;
+    const variants = item.variants || [];
+    const hasVariants = variants.length > 0;
 
-    // If it has 'ownerId', it's a wardrobe item
-    const href = item.ownerId ? `/wardrobe/${item.id}` : `/catalog/${item.id}`;
+    // Format price
+    const formatPrice = (price: number | undefined) => {
+      if (!price) return null;
+      return `R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    };
+
+    const mainPrice = formatPrice(item.retailPriceBrl);
 
     return (
-      <Link href={href} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
+      <div className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <Link href={`/catalog/${item.id}`} className="flex items-center gap-3">
           <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
             {imageUrl ? (
               <img src={getImageUrl(imageUrl)} alt="Item" className="h-full w-full object-cover" />
@@ -312,9 +332,37 @@ export default function DiscoverPage() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-gray-900 truncate">{brandName}</p>
             <p className="text-xs text-gray-500 truncate">{categoryName}</p>
+            {mainPrice && <p className="text-xs font-medium text-gray-700 mt-0.5">{mainPrice}</p>}
           </div>
-        </div>
-      </Link>
+        </Link>
+
+        {/* Size toggles */}
+        {hasVariants && (
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            <button
+              onClick={(e) => { e.preventDefault(); setShowSizes(!showSizes); }}
+              className="flex items-center justify-between w-full text-xs text-gray-500 hover:text-gray-700"
+            >
+              <span>{variants.length} size{variants.length > 1 ? 's' : ''} available</span>
+              <span className="text-gray-400">{showSizes ? '▲' : '▼'}</span>
+            </button>
+
+            {showSizes && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {variants.map((v: any) => (
+                  <Link
+                    key={v.id}
+                    href={`/catalog/${v.id}`}
+                    className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 text-gray-700"
+                  >
+                    {v.size}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -339,7 +387,7 @@ export default function DiscoverPage() {
   );
 
   const PageCard = ({ page }: { page: IPage }) => (
-    <Link href={`/pages/${page.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+    <Link href={`/pages/${page.slug || page.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-center gap-3">
         <div className="h-12 w-12 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
           {page.logoUrl ? (

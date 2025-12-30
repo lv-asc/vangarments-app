@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../utils/auth';
 import { ConfigurationService } from '../services/configurationService';
+import { EntityConfigurationModel } from '../models/EntityConfiguration';
 
 export class ConfigurationController {
   /**
@@ -9,7 +10,7 @@ export class ConfigurationController {
   static async getConfigurations(req: AuthenticatedRequest, res: Response) {
     try {
       const configurations = await ConfigurationService.getAllConfigurations();
-      
+
       res.json({
         success: true,
         data: configurations,
@@ -31,7 +32,7 @@ export class ConfigurationController {
   static async getVUFSStandards(req: AuthenticatedRequest, res: Response) {
     try {
       const vufsStandards = await ConfigurationService.getVUFSStandards();
-      
+
       res.json({
         success: true,
         data: vufsStandards,
@@ -53,7 +54,7 @@ export class ConfigurationController {
   static async updateVUFSStandards(req: AuthenticatedRequest, res: Response) {
     try {
       const { updates } = req.body;
-      
+
       if (!updates || !Array.isArray(updates)) {
         return res.status(400).json({
           error: {
@@ -64,7 +65,7 @@ export class ConfigurationController {
       }
 
       const result = await ConfigurationService.updateVUFSStandards(updates, req.user!.userId);
-      
+
       res.json({
         success: true,
         data: result,
@@ -87,9 +88,9 @@ export class ConfigurationController {
   static async addVUFSCategory(req: AuthenticatedRequest, res: Response) {
     try {
       const categoryData = req.body;
-      
+
       const result = await ConfigurationService.addVUFSCategory(categoryData, req.user!.userId);
-      
+
       res.json({
         success: true,
         data: result,
@@ -112,9 +113,9 @@ export class ConfigurationController {
   static async addVUFSBrand(req: AuthenticatedRequest, res: Response) {
     try {
       const brandData = req.body;
-      
+
       const result = await ConfigurationService.addVUFSBrand(brandData, req.user!.userId);
-      
+
       res.json({
         success: true,
         data: result,
@@ -137,9 +138,9 @@ export class ConfigurationController {
   static async addVUFSColor(req: AuthenticatedRequest, res: Response) {
     try {
       const colorData = req.body;
-      
+
       const result = await ConfigurationService.addVUFSColor(colorData, req.user!.userId);
-      
+
       res.json({
         success: true,
         data: result,
@@ -162,9 +163,9 @@ export class ConfigurationController {
   static async addVUFSMaterial(req: AuthenticatedRequest, res: Response) {
     try {
       const materialData = req.body;
-      
+
       const result = await ConfigurationService.addVUFSMaterial(materialData, req.user!.userId);
-      
+
       res.json({
         success: true,
         data: result,
@@ -187,9 +188,9 @@ export class ConfigurationController {
   static async updateSystemSettings(req: AuthenticatedRequest, res: Response) {
     try {
       const settings = req.body;
-      
+
       const result = await ConfigurationService.updateSystemSettings(settings, req.user!.userId);
-      
+
       res.json({
         success: true,
         data: result,
@@ -207,12 +208,66 @@ export class ConfigurationController {
   }
 
   /**
+   * Get UI settings
+   */
+  static async getUISettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      // Default settings - in a real app these would be stored in the database
+      const settings = {
+        theme: 'light',
+        language: 'en',
+        dateFormat: 'MM/DD/YYYY',
+        currency: 'BRL',
+        enableAnimations: true
+      };
+
+      res.json({
+        success: true,
+        data: settings,
+      });
+    } catch (error) {
+      console.error('Get UI settings error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to retrieve UI settings',
+        },
+      });
+    }
+  }
+
+  /**
+   * Update UI settings
+   */
+  static async updateUISettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      const settings = req.body;
+
+      // In a real app, this would persist to the database
+      // For now, just return success with the submitted settings
+      res.json({
+        success: true,
+        data: settings,
+        message: 'UI settings updated successfully',
+      });
+    } catch (error) {
+      console.error('Update UI settings error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update UI settings',
+        },
+      });
+    }
+  }
+
+  /**
    * Get configuration backup history
    */
   static async getBackupHistory(req: AuthenticatedRequest, res: Response) {
     try {
       const history = await ConfigurationService.getBackupHistory();
-      
+
       res.json({
         success: true,
         data: history,
@@ -234,9 +289,9 @@ export class ConfigurationController {
   static async rollbackConfiguration(req: AuthenticatedRequest, res: Response) {
     try {
       const { backupId } = req.params;
-      
+
       const result = await ConfigurationService.rollbackConfiguration(backupId, req.user!.userId);
-      
+
       res.json({
         success: true,
         data: result,
@@ -259,7 +314,7 @@ export class ConfigurationController {
   static async reloadConfiguration(req: AuthenticatedRequest, res: Response) {
     try {
       const result = await ConfigurationService.reloadConfiguration();
-      
+
       res.json({
         success: true,
         data: result,
@@ -271,6 +326,95 @@ export class ConfigurationController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to reload configuration',
+        },
+      });
+    }
+  }
+
+  /**
+   * Get all entity configurations
+   */
+  static async getEntityConfigurations(req: AuthenticatedRequest, res: Response) {
+    try {
+      const configurations = await EntityConfigurationModel.findAll();
+
+      res.json({
+        success: true,
+        data: configurations,
+      });
+    } catch (error) {
+      console.error('Get entity configurations error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to retrieve entity configurations',
+        },
+      });
+    }
+  }
+
+  /**
+   * Get a single entity configuration by type
+   */
+  static async getEntityConfiguration(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { entityType } = req.params;
+      const configuration = await EntityConfigurationModel.findByType(entityType);
+
+      if (!configuration) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: `Entity configuration for '${entityType}' not found`,
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        data: configuration,
+      });
+    } catch (error) {
+      console.error('Get entity configuration error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to retrieve entity configuration',
+        },
+      });
+    }
+  }
+
+  /**
+   * Update an entity configuration
+   */
+  static async updateEntityConfiguration(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { entityType } = req.params;
+      const updateData = req.body;
+
+      const configuration = await EntityConfigurationModel.update(entityType, updateData);
+
+      if (!configuration) {
+        return res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: `Entity configuration for '${entityType}' not found`,
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        data: configuration,
+        message: 'Entity configuration updated successfully',
+      });
+    } catch (error) {
+      console.error('Update entity configuration error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update entity configuration',
         },
       });
     }

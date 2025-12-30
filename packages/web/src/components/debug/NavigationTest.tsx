@@ -18,7 +18,7 @@ export function NavigationTest() {
       addResult('✅ Testing navigation service...');
       addResult(`Current path: ${currentPath}`);
 
-      const success = await navigate('/discover');
+      const success = await navigate('/search');
       if (success) {
         addResult('✅ Navigation service executed successfully');
       } else {

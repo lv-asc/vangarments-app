@@ -12,6 +12,7 @@ import {
 import toast from 'react-hot-toast';
 import { getImageUrl } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 interface TeamManagementProps {
     brandId: string;
@@ -33,6 +34,9 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [selectedMember, setSelectedMember] = useState<BrandTeamMember | null>(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -131,15 +135,25 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
         }
     };
 
-    const handleRemoveMember = async (memberId: string) => {
-        if (!confirm('Are you sure you want to remove this team member?')) return;
+    const handleRemoveMember = (memberId: string) => {
+        setMemberToDelete(memberId);
+        setIsDeleteModalOpen(true);
+    };
+
+    const confirmDeleteMember = async () => {
+        if (!memberToDelete) return;
 
         try {
-            await brandApi.removeTeamMember(brandId, memberId);
+            setIsDeleting(true);
+            await brandApi.removeTeamMember(brandId, memberToDelete);
             toast.success('Team member removed');
+            setIsDeleteModalOpen(false);
+            setMemberToDelete(null);
             loadTeam();
         } catch (error: any) {
             toast.error(error.message || 'Failed to remove member');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -432,6 +446,17 @@ export default function TeamManagement({ brandId }: TeamManagementProps) {
                     </div>
                 </div>
             </Modal>
+
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={confirmDeleteMember}
+                title="Remove Team Member"
+                message="Are you sure you want to remove this team member? This action cannot be undone."
+                confirmText="Remove"
+                variant="danger"
+                isLoading={isDeleting}
+            />
         </div>
     );
 }

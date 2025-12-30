@@ -22,6 +22,10 @@ router.post('/vufs-standards/brands', ConfigurationController.addVUFSBrand);
 router.post('/vufs-standards/colors', ConfigurationController.addVUFSColor);
 router.post('/vufs-standards/materials', ConfigurationController.addVUFSMaterial);
 
+// UI Settings
+router.get('/ui-settings', ConfigurationController.getUISettings);
+router.put('/ui-settings', ConfigurationController.updateUISettings);
+
 // System settings
 router.put('/system-settings', ConfigurationController.updateSystemSettings);
 
@@ -29,5 +33,10 @@ router.put('/system-settings', ConfigurationController.updateSystemSettings);
 router.get('/backups', ConfigurationController.getBackupHistory);
 router.post('/rollback/:backupId', ConfigurationController.rollbackConfiguration);
 router.post('/reload', ConfigurationController.reloadConfiguration);
+
+// Entity Configuration routes
+router.get('/entities', ConfigurationController.getEntityConfigurations);
+router.get('/entities/:entityType', ConfigurationController.getEntityConfiguration);
+router.put('/entities/:entityType', ConfigurationController.updateEntityConfiguration);
 
 export default router;

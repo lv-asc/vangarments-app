@@ -651,12 +651,18 @@ export class VUFSManagementController {
 
   static async addMaterial(req: Request, res: Response): Promise<void> {
     try {
-      const { name, category, skuRef } = req.body;
+      const { name, category, skuRef, compositions } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
       const material = await VUFSManagementService.addMaterial(name, category, skuRef);
+
+      if (compositions && Array.isArray(compositions) && compositions.length > 0) {
+        await VUFSManagementService.updateMaterialCompositions(material.id, compositions);
+        material.compositions = compositions;
+      }
+
       res.status(201).json({ message: 'Material created successfully', material });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -670,12 +676,18 @@ export class VUFSManagementController {
   static async updateMaterial(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name, skuRef } = req.body;
+      const { name, skuRef, compositions } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
       const material = await VUFSManagementService.updateMaterial(id, name, skuRef);
+
+      if (compositions && Array.isArray(compositions)) {
+        await VUFSManagementService.updateMaterialCompositions(id, compositions);
+        material.compositions = compositions;
+      }
+
       res.json({ message: 'Material updated successfully', material });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -686,7 +698,146 @@ export class VUFSManagementController {
     try {
       const { id } = req.params;
       await VUFSManagementService.deleteMaterial(id);
-      res.json({ message: 'Material deleted successfully' });
+      res.json({ message: 'Material moved to trash' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async getDeletedMaterials(req: Request, res: Response): Promise<void> {
+    try {
+      const materials = await VUFSManagementService.getDeletedMaterials();
+      res.json({ message: 'Deleted materials retrieved', materials });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async restoreMaterial(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restoreMaterial(id);
+      res.json({ message: 'Material restored successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async permanentlyDeleteMaterial(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.permanentlyDeleteMaterial(id);
+      res.json({ message: 'Material permanently deleted' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  // --- COMPOSITION MANAGEMENT ---
+
+  static async getCompositionCategories(req: Request, res: Response): Promise<void> {
+    try {
+      const categories = await VUFSManagementService.getCompositionCategories(req.query.includeDeleted === 'true');
+      res.json({ message: 'Composition categories retrieved', categories });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async addCompositionCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { name, description } = req.body;
+      if (!name) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
+        return;
+      }
+      const category = await VUFSManagementService.addCompositionCategory(name, description);
+      res.status(201).json({ message: 'Category created', category });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async updateCompositionCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+      const category = await VUFSManagementService.updateCompositionCategory(id, name, description);
+      res.json({ message: 'Category updated', category });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async deleteCompositionCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.deleteCompositionCategory(id);
+      res.json({ message: 'Category deleted' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async restoreCompositionCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restoreCompositionCategory(id);
+      res.json({ message: 'Category restored' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async getCompositions(req: Request, res: Response): Promise<void> {
+    try {
+      const compositions = await VUFSManagementService.getCompositions(req.query.includeDeleted === 'true');
+      res.json({ message: 'Compositions retrieved', compositions });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async addComposition(req: Request, res: Response): Promise<void> {
+    try {
+      const { name, categoryId, description } = req.body;
+      if (!name || !categoryId) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name and CategoryId are required' } });
+        return;
+      }
+      const composition = await VUFSManagementService.addComposition(name, categoryId, description);
+      res.status(201).json({ message: 'Composition created', composition });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async updateComposition(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { name, categoryId, description } = req.body;
+      const composition = await VUFSManagementService.updateComposition(id, name, categoryId, description);
+      res.json({ message: 'Composition updated', composition });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async deleteComposition(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.deleteComposition(id);
+      res.json({ message: 'Composition deleted' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async restoreComposition(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restoreComposition(id);
+      res.json({ message: 'Composition restored' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
@@ -740,11 +891,41 @@ export class VUFSManagementController {
     try {
       const { id } = req.params;
       await VUFSManagementService.deletePattern(id);
-      res.json({ message: 'Pattern deleted successfully' });
+      res.json({ message: 'Pattern moved to trash' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }
+
+  static async getDeletedPatterns(req: Request, res: Response): Promise<void> {
+    try {
+      const patterns = await VUFSManagementService.getDeletedPatterns();
+      res.json({ message: 'Deleted patterns retrieved', patterns });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async restorePattern(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restorePattern(id);
+      res.json({ message: 'Pattern restored successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async permanentlyDeletePattern(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.permanentlyDeletePattern(id);
+      res.json({ message: 'Pattern permanently deleted' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
 
   // --- FIT MANAGEMENT ---
 
@@ -794,11 +975,41 @@ export class VUFSManagementController {
     try {
       const { id } = req.params;
       await VUFSManagementService.deleteFit(id);
-      res.json({ message: 'Fit deleted successfully' });
+      res.json({ message: 'Fit moved to trash' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }
+
+  static async getDeletedFits(req: Request, res: Response): Promise<void> {
+    try {
+      const fits = await VUFSManagementService.getDeletedFits();
+      res.json({ message: 'Deleted fits retrieved', fits });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async restoreFit(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restoreFit(id);
+      res.json({ message: 'Fit restored successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async permanentlyDeleteFit(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.permanentlyDeleteFit(id);
+      res.json({ message: 'Fit permanently deleted' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
 
   // --- GENDER MANAGEMENT ---
 
@@ -848,7 +1059,36 @@ export class VUFSManagementController {
     try {
       const { id } = req.params;
       await VUFSManagementService.deleteGender(id);
-      res.json({ message: 'Gender deleted successfully' });
+      res.json({ message: 'Gender moved to trash' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async getDeletedGenders(req: Request, res: Response): Promise<void> {
+    try {
+      const genders = await VUFSManagementService.getDeletedGenders();
+      res.json({ message: 'Deleted genders retrieved', genders });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async restoreGender(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restoreGender(id);
+      res.json({ message: 'Gender restored successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async permanentlyDeleteGender(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.permanentlyDeleteGender(id);
+      res.json({ message: 'Gender permanently deleted' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
@@ -906,7 +1146,36 @@ export class VUFSManagementController {
     try {
       const { id } = req.params;
       await VUFSManagementService.deleteSize(id);
-      res.json({ message: 'Size deleted successfully' });
+      res.json({ message: 'Size moved to trash' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async getDeletedSizes(req: Request, res: Response): Promise<void> {
+    try {
+      const sizes = await VUFSManagementService.getDeletedSizes();
+      res.json({ message: 'Deleted sizes retrieved', sizes });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async restoreSize(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.restoreSize(id);
+      res.json({ message: 'Size restored successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async permanentlyDeleteSize(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.permanentlyDeleteSize(id);
+      res.json({ message: 'Size permanently deleted' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }

@@ -102,29 +102,51 @@ const SOCIAL_PLATFORMS = [
   'Website', 'X (Twitter)', 'Discord', 'Instagram', 'YouTube', 'Snapchat', 'Pinterest', 'TikTok',
   'Facebook', 'Spotify', 'Apple Music', 'YouTube Music'
 ];
+const MULTI_ENTRY_PLATFORMS = ['Website'];
+const MAX_MULTI_ENTRIES = 5;
+
+// Generate unique ID for social links
+const generateSocialLinkId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 // Sortable Social Link Item Component
 interface SortableSocialLinkItemProps {
+  id: string;
   platform: string;
   url: string;
+  index?: number; // For displaying "Website 2", "Website 3", etc.
   onChange: (url: string) => void;
+  onRemove: () => void;
   isDragging?: boolean;
 }
 
-function SortableSocialLinkItem({ platform, url, onChange, isDragging }: SortableSocialLinkItemProps) {
+function SortableSocialLinkItem({ id, platform, url, index, onChange, onRemove, isDragging }: SortableSocialLinkItemProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-  } = useSortable({ id: platform });
+  } = useSortable({ id });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const displayName = index && index > 1 ? `${platform} ${index}` : platform;
+
+  // Extract favicon URL for Website platform
+  const getFaviconUrl = (websiteUrl: string) => {
+    try {
+      const urlObj = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`);
+      return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`;
+    } catch {
+      return null;
+    }
+  };
+
+  const faviconUrl = platform === 'Website' && url ? getFaviconUrl(url) : null;
 
   return (
     <div
@@ -143,16 +165,40 @@ function SortableSocialLinkItem({ platform, url, onChange, isDragging }: Sortabl
       </button>
 
       <div className="w-28 flex items-center space-x-2">
-        <SocialIcon platform={platform} size="sm" className="text-gray-400" />
-        <span className="text-sm text-gray-600">{platform}</span>
+        {faviconUrl ? (
+          <img
+            src={faviconUrl}
+            alt=""
+            className="h-4 w-4 rounded-sm"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <SocialIcon
+          platform={platform}
+          size="sm"
+          className={`text-gray-400 ${faviconUrl ? 'hidden' : ''}`}
+        />
+        <span className="text-sm text-gray-600">{displayName}</span>
       </div>
       <input
         type="text"
         value={url}
         onChange={(e) => onChange(e.target.value)}
         className="flex-1 text-sm border-gray-200 rounded-md focus:border-[#00132d] focus:ring-[#00132d]"
-        placeholder={`Your ${platform} URL or handle`}
+        placeholder={`Your ${platform} URL`}
       />
+      <button
+        type="button"
+        onClick={onRemove}
+        className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -180,7 +226,7 @@ export default function ProfilePage() {
     username: '',
     bio: '',
     profileImage: '',
-    socialLinks: [] as { platform: string; url: string }[],
+    socialLinks: [] as { id?: string; platform: string; url: string }[],
     roles: [] as string[],
     privacySettings: {
       height: false,
@@ -1478,29 +1524,39 @@ export default function ProfilePage() {
                       onDragEnd={handleSocialLinksDragEnd}
                     >
                       <SortableContext
-                        items={editForm.socialLinks.map(link => link.platform)}
+                        items={editForm.socialLinks.map(link => link.id || link.platform)}
                         strategy={verticalListSortingStrategy}
                       >
                         <div className="grid grid-cols-1 gap-3">
-                          {editForm.socialLinks.map((link) => (
-                            <SortableSocialLinkItem
-                              key={link.platform}
-                              platform={link.platform}
-                              url={link.url}
-                              onChange={(newUrl) => {
-                                const newLinks = [...editForm.socialLinks];
-                                const idx = newLinks.findIndex(l => l.platform === link.platform);
-                                if (idx >= 0) {
-                                  if (newUrl) {
-                                    newLinks[idx].url = newUrl;
-                                  } else {
-                                    newLinks.splice(idx, 1);
-                                  }
+                          {editForm.socialLinks.map((link) => {
+                            // Calculate index for Website display
+                            const websiteIndex = link.platform === 'Website'
+                              ? editForm.socialLinks.filter(l => l.platform === 'Website').findIndex(l => (l.id || l.platform) === (link.id || link.platform)) + 1
+                              : undefined;
+                            return (
+                              <SortableSocialLinkItem
+                                key={link.id || link.platform}
+                                id={link.id || link.platform}
+                                platform={link.platform}
+                                url={link.url}
+                                index={websiteIndex}
+                                onChange={(newUrl) => {
+                                  const newLinks = editForm.socialLinks.map(l =>
+                                    (l.id || l.platform) === (link.id || link.platform)
+                                      ? { ...l, url: newUrl }
+                                      : l
+                                  );
                                   setEditForm({ ...editForm, socialLinks: newLinks });
-                                }
-                              }}
-                            />
-                          ))}
+                                }}
+                                onRemove={() => {
+                                  const newLinks = editForm.socialLinks.filter(
+                                    l => (l.id || l.platform) !== (link.id || link.platform)
+                                  );
+                                  setEditForm({ ...editForm, socialLinks: newLinks });
+                                }}
+                              />
+                            );
+                          })}
                         </div>
                       </SortableContext>
                     </DndContext>
@@ -1509,24 +1565,39 @@ export default function ProfilePage() {
                     <div className="pt-2 border-t border-gray-100">
                       <p className="text-xs text-gray-500 mb-2">Add more platforms:</p>
                       <div className="flex flex-wrap gap-2">
-                        {SOCIAL_PLATFORMS.filter(
-                          platform => !editForm.socialLinks.find(l => l.platform === platform)
-                        ).map((platform) => (
-                          <button
-                            key={platform}
-                            type="button"
-                            onClick={() => {
-                              setEditForm({
-                                ...editForm,
-                                socialLinks: [...editForm.socialLinks, { platform, url: '' }]
-                              });
-                            }}
-                            className="inline-flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
-                          >
-                            <SocialIcon platform={platform} size="xs" />
-                            {platform}
-                          </button>
-                        ))}
+                        {SOCIAL_PLATFORMS.filter(platform => {
+                          const count = editForm.socialLinks.filter(l => l.platform === platform).length;
+                          if (MULTI_ENTRY_PLATFORMS.includes(platform)) {
+                            return count < MAX_MULTI_ENTRIES;
+                          }
+                          return count === 0;
+                        }).map((platform) => {
+                          const count = editForm.socialLinks.filter(l => l.platform === platform).length;
+                          const isMulti = MULTI_ENTRY_PLATFORMS.includes(platform);
+                          const showCount = isMulti && count > 0;
+                          return (
+                            <button
+                              key={platform}
+                              type="button"
+                              onClick={() => {
+                                const newLink = {
+                                  id: generateSocialLinkId(),
+                                  platform,
+                                  url: ''
+                                };
+                                setEditForm({
+                                  ...editForm,
+                                  socialLinks: [...editForm.socialLinks, newLink]
+                                });
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                            >
+                              <SocialIcon platform={platform} size="xs" />
+                              {platform}
+                              {showCount && <span className="text-gray-400">({count}/{MAX_MULTI_ENTRIES})</span>}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

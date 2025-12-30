@@ -113,6 +113,10 @@ export default function MessagesPage() {
             return getUserAvatarUrl(conv.otherParticipant);
         }
         if (conv.conversationType === 'entity' && conv.entity) {
+            // Handle Page logos specifically if entityType is page, or fallback to generic logic
+            if (conv.entityType === 'page') {
+                return conv.entity.logoUrl || conv.entity.logo || null;
+            }
             return conv.entity.brandInfo?.logo || null;
         }
         return null;
@@ -140,11 +144,10 @@ export default function MessagesPage() {
         }
     };
 
-    const filteredConversations = conversations.filter(conv => {
-        if (!searchQuery) return true;
-        const title = getConversationTitle(conv).toLowerCase();
-        return title.includes(searchQuery.toLowerCase());
-    });
+    // Filter conversations if needed locally, though search bar now opens modal for "global" search.
+    // Keeping local filter for now as a fallback or if we want to filter existing convs AND show modal.
+    // The requirement says: "Change its name to 'Search/Create Chats'" and presumably use it to open the modal.
+    const filteredConversations = conversations;
 
     if (loading) {
         return (
@@ -177,15 +180,14 @@ export default function MessagesPage() {
                 onConversationCreated={handleConversationCreated}
             />
 
-            {/* Search */}
-            <div className="relative mb-6">
+            {/* Search - Opens Modal */}
+            <div className="relative mb-6 cursor-pointer" onClick={() => setIsNewConversationModalOpen(true)}>
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                     type="text"
-                    placeholder="Search conversations..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-gray-100 border-0 rounded-xl focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
+                    placeholder="Search/Create Chats"
+                    readOnly
+                    className="w-full pl-10 pr-4 py-3 bg-gray-100 border-0 rounded-xl focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all cursor-pointer"
                 />
             </div>
 
@@ -201,74 +203,96 @@ export default function MessagesPage() {
                     <ChatBubbleLeftRightIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <h2 className="text-lg font-medium text-gray-900 mb-2">No messages yet</h2>
                     <p className="text-gray-500">
-                        Start a conversation by messaging someone from their profile.
+                        Start a conversation by messaging someone from their profile or using the search above.
                     </p>
                 </div>
             ) : (
                 <div className="space-y-2">
-                    {filteredConversations.map((conv) => (
-                        <Link
-                            key={conv.id}
-                            href={getConversationUrl(conv)}
-                            className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all"
-                        >
-                            {/* Avatar */}
-                            <div className="relative flex-shrink-0">
-                                <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
-                                    {getConversationAvatar(conv) ? (
-                                        <Image
-                                            src={getImageUrl(getConversationAvatar(conv)!)}
-                                            alt={getConversationTitle(conv)}
-                                            fill
-                                            className="object-cover"
-                                        />
-                                    ) : (
-                                        <span className="text-xl font-medium text-gray-500">
-                                            {getAvatarInitial(conv)}
-                                        </span>
-                                    )}
-                                    {/* Status Indicator */}
-                                    {conv.conversationType === 'direct' && conv.otherParticipant && (
-                                        <div className="absolute right-0 bottom-0 block w-3 h-3 rounded-full border-2 border-white pointer-events-none z-10">
-                                            <OnlineIndicator
-                                                lastSeen={conv.otherParticipant.lastSeenAt}
-                                                className="w-full h-full"
-                                                showStatusText={false}
+                    {filteredConversations.map((conv) => {
+                        // Determine entity tag label
+                        let entityLabel = 'Entity';
+                        if (conv.conversationType === 'direct') entityLabel = 'User';
+                        else if (conv.conversationType === 'group') entityLabel = 'Group';
+                        else if (conv.entityType) {
+                            // Prioritize brandInfo.businessType
+                            const businessType = conv.entity?.brandInfo?.businessType || conv.entityType;
+                            if (businessType === 'non_profit') entityLabel = 'Non Profit';
+                            else entityLabel = businessType.charAt(0).toUpperCase() + businessType.slice(1);
+                        }
+
+                        return (
+                            <Link
+                                key={conv.id}
+                                href={getConversationUrl(conv)}
+                                className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all"
+                            >
+                                {/* Avatar */}
+                                <div className="relative flex-shrink-0">
+                                    <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
+                                        {getConversationAvatar(conv) ? (
+                                            <Image
+                                                src={getImageUrl(getConversationAvatar(conv)!)}
+                                                alt={getConversationTitle(conv)}
+                                                fill
+                                                className="object-cover"
                                             />
+                                        ) : (
+                                            <span className="text-xl font-medium text-gray-500">
+                                                {getAvatarInitial(conv)}
+                                            </span>
+                                        )}
+                                        {/* Status Indicator */}
+                                        {conv.conversationType === 'direct' && conv.otherParticipant && (
+                                            <div className="absolute right-0 bottom-0 block w-3 h-3 rounded-full border-2 border-white pointer-events-none z-10">
+                                                <OnlineIndicator
+                                                    lastSeen={conv.otherParticipant.lastSeenAt}
+                                                    className="w-full h-full"
+                                                    showStatusText={false}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                    {(conv.unreadCount || 0) > 0 && (
+                                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                            {conv.unreadCount}
                                         </div>
                                     )}
                                 </div>
-                                {(conv.unreadCount || 0) > 0 && (
-                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                                        {conv.unreadCount}
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                    <h3 className={`font-medium truncate ${(conv.unreadCount || 0) > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
-                                        {getConversationTitle(conv)}
-                                    </h3>
-                                    <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                                        {conv.lastMessage?.createdAt
-                                            ? formatTime(conv.lastMessage.createdAt)
-                                            : formatTime(conv.createdAt)
-                                        }
-                                    </span>
+                                {/* Content */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h3 className={`font-medium truncate ${(conv.unreadCount || 0) > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                                            {getConversationTitle(conv)}
+                                        </h3>
+                                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                            {/* Tag */}
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${conv.conversationType === 'direct' ? 'bg-gray-100 text-gray-600' :
+                                                conv.conversationType === 'group' ? 'bg-blue-50 text-blue-600' :
+                                                    'bg-purple-50 text-purple-600'
+                                                }`}>
+                                                {entityLabel}
+                                            </span>
+                                            <span className="text-xs text-gray-400">
+                                                {conv.lastMessage?.createdAt
+                                                    ? formatTime(conv.lastMessage.createdAt)
+                                                    : formatTime(conv.createdAt)
+                                                }
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <p className={`text-sm truncate ${(conv.unreadCount || 0) > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
+                                        {conv.lastMessage ? (
+                                            <>
+                                                {user?.username && conv.lastMessage.sender?.username === user.username && 'You: '}
+                                                {conv.lastMessage.content}
+                                            </>
+                                        ) : 'No messages yet'}
+                                    </p>
                                 </div>
-                                <p className={`text-sm truncate ${(conv.unreadCount || 0) > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
-                                    {conv.lastMessage ? (
-                                        <>
-                                            {user?.username && conv.lastMessage.sender?.username === user.username && 'You: '}
-                                            {conv.lastMessage.content}
-                                        </>
-                                    ) : 'No messages yet'}
-                                </p>
-                            </div>
-                        </Link>
-                    ))}
+                            </Link>
+                        );
+                    })}
                 </div>
             )}
         </div>

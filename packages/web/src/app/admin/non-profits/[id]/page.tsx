@@ -22,6 +22,7 @@ import BannerUploader, { BannerItem } from '@/components/admin/BannerUploader';
 import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api';
 import { getImageUrl } from '@/lib/utils';
+import { useEntityConfiguration } from '@/hooks/useEntityConfiguration';
 
 export default function AdminEditNonProfitPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -37,6 +38,9 @@ export default function AdminEditNonProfitPage() {
     const [brand, setBrand] = useState<any>(null); // Store full brand object
     const [logos, setLogos] = useState<LogoItem[]>([]);
     const [banners, setBanners] = useState<BannerItem[]>([]);
+
+    // Entity configuration for dynamic features and labels
+    const { hasFeature, getLabel, displayName } = useEntityConfiguration('non_profit');
 
     const [formData, setFormData] = useState({
         brandName: '',
@@ -346,14 +350,25 @@ export default function AdminEditNonProfitPage() {
                 {activeTab === 'details' ? (
                     <form onSubmit={handleSubmit} className="p-6 space-y-6">
 
-                        <LogoUploader logos={logos} onChange={setLogos} />
-
-                        <div className="space-y-4">
-                            <BannerUploader
-                                banners={banners}
-                                onChange={setBanners}
+                        {hasFeature('logos') && (
+                            <LogoUploader
+                                logos={logos}
+                                onChange={setLogos}
+                                label={getLabel('logos', 'label', `${displayName} Logos`)}
+                                buttonLabel={getLabel('logos', 'button', 'Upload Logo(s)')}
                             />
-                        </div>
+                        )}
+
+                        {hasFeature('banners') && (
+                            <div className="space-y-4">
+                                <BannerUploader
+                                    banners={banners}
+                                    onChange={setBanners}
+                                    label={getLabel('banners', 'label', `${displayName} Banners`)}
+                                    buttonLabel={getLabel('banners', 'button', 'Upload Banner(s)')}
+                                />
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                             <div className="col-span-2">

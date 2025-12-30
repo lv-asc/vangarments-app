@@ -18,10 +18,12 @@ import LookbookManagement from '@/components/admin/LookbookManagement';
 import TeamManagement from '@/components/admin/TeamManagement';
 import LogoUploader, { LogoItem } from '@/components/admin/LogoUploader';
 import BannerUploader, { BannerItem } from '@/components/admin/BannerUploader';
+import SocialLinksEditor from '@/components/admin/SocialLinksEditor';
 import FoundationDateInput from '@/components/ui/FoundationDateInput';
 import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api';
 import { getImageUrl } from '@/lib/utils';
+import { useEntityConfiguration } from '@/hooks/useEntityConfiguration';
 
 export default function AdminEditStorePage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -38,6 +40,9 @@ export default function AdminEditStorePage() {
     const [logos, setLogos] = useState<LogoItem[]>([]);
     const [banners, setBanners] = useState<BannerItem[]>([]);
 
+    // Entity configuration for dynamic features and labels
+    const { hasFeature, getLabel, displayName } = useEntityConfiguration('store');
+
     const [formData, setFormData] = useState({
         storeName: '',
         slug: '',
@@ -49,7 +54,8 @@ export default function AdminEditStorePage() {
         tags: [] as string[],
         foundedBy: '',
         foundedDate: '',
-        foundedDatePrecision: 'year' as 'year' | 'month' | 'day'
+        foundedDatePrecision: 'year' as 'year' | 'month' | 'day',
+        socialLinks: [] as { platform: string; url: string }[]
     });
 
     useEffect(() => {
@@ -93,7 +99,8 @@ export default function AdminEditStorePage() {
                 tags: loadedStore.brandInfo.tags || [],
                 foundedBy: loadedStore.profileData?.foundedBy || '',
                 foundedDate: loadedStore.profileData?.foundedDate || '',
-                foundedDatePrecision: loadedStore.profileData?.foundedDatePrecision || 'year'
+                foundedDatePrecision: loadedStore.profileData?.foundedDatePrecision || 'year',
+                socialLinks: loadedStore.brandInfo.socialLinks || []
             });
 
             // Initialize Banners
@@ -214,7 +221,10 @@ export default function AdminEditStorePage() {
                     contactInfo: mergedContactInfo,
                     logo: mainLogo,
                     banner: mainBanner,
-                    banners: bannersToSave as any
+                    banners: bannersToSave as any,
+                    socialLinks: formData.socialLinks
+                        .filter(link => link.url && link.url.trim() !== '')
+                        .map(({ platform, url }) => ({ platform, url })) // Strip id field
                 }
             });
 
@@ -335,58 +345,75 @@ export default function AdminEditStorePage() {
                         >
                             Details
                         </button>
-                        <button
-                            onClick={() => setActiveTab('drops')}
-                            className={`${activeTab === 'drops'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                        >
-                            Drops
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('lookbooks')}
-                            className={`${activeTab === 'lookbooks'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                        >
-                            Lookbooks
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('skus')}
-                            className={`${activeTab === 'skus'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                        >
-                            SKUs
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('team')}
-                            className={`${activeTab === 'team'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                        >
-                            Team
-                        </button>
+                        {hasFeature('collections') && (
+                            <button
+                                onClick={() => setActiveTab('drops')}
+                                className={`${activeTab === 'drops'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Drops
+                            </button>
+                        )}
+                        {hasFeature('lookbooks') && (
+                            <button
+                                onClick={() => setActiveTab('lookbooks')}
+                                className={`${activeTab === 'lookbooks'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Lookbooks
+                            </button>
+                        )}
+                        {hasFeature('skus') && (
+                            <button
+                                onClick={() => setActiveTab('skus')}
+                                className={`${activeTab === 'skus'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                SKUs
+                            </button>
+                        )}
+                        {hasFeature('team') && (
+                            <button
+                                onClick={() => setActiveTab('team')}
+                                className={`${activeTab === 'team'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            >
+                                Team
+                            </button>
+                        )}
                     </nav>
                 </div>
 
                 {activeTab === 'details' ? (
                     <form onSubmit={handleSubmit} className="p-6 space-y-6">
 
-                        <LogoUploader logos={logos} onChange={setLogos} label="Store Logos" />
-
-                        {/* Banner Upload */}
-                        <div className="space-y-4">
-                            <BannerUploader
-                                banners={banners}
-                                onChange={setBanners}
-                                label="Store Banners"
+                        {hasFeature('logos') && (
+                            <LogoUploader
+                                logos={logos}
+                                onChange={setLogos}
+                                label={getLabel('logos', 'label', `${displayName} Logos`)}
+                                buttonLabel={getLabel('logos', 'button', 'Upload Logo(s)')}
                             />
-                        </div>
+                        )}
+
+                        {hasFeature('banners') && (
+                            <div className="space-y-4">
+                                <BannerUploader
+                                    banners={banners}
+                                    onChange={setBanners}
+                                    label={getLabel('banners', 'label', `${displayName} Banners`)}
+                                    buttonLabel={getLabel('banners', 'button', 'Upload Banner(s)')}
+                                />
+                            </div>
+                        )}
 
                         {/* Store Info */}
                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -443,17 +470,6 @@ export default function AdminEditStorePage() {
                                     name="description"
                                     rows={3}
                                     value={formData.description}
-                                    onChange={handleChange}
-                                    className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Website</label>
-                                <input
-                                    type="url"
-                                    name="website"
-                                    value={formData.website}
                                     onChange={handleChange}
                                     className="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md border p-2"
                                 />
@@ -531,6 +547,15 @@ export default function AdminEditStorePage() {
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* Social Links */}
+                            <div className="col-span-2 border-t pt-6">
+                                <SocialLinksEditor
+                                    socialLinks={formData.socialLinks}
+                                    onChange={(links) => setFormData(prev => ({ ...prev, socialLinks: links }))}
+                                    label="Social Links"
+                                />
                             </div>
                         </div>
 

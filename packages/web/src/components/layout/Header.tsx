@@ -54,7 +54,7 @@ export function Header() {
      - Outfits: SparklesIcon (represents 'Outfits'/Creation better than Eye) 
   */
   const navigation = [
-    { name: t('discover'), href: '/discover', icon: MagnifyingGlassIcon },
+    { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
     { name: 'Social', href: '/social', icon: UserGroupIcon },
     { name: t('wardrobe'), href: '/wardrobe', icon: TagIcon },
     { name: 'Outfits', href: '/outfits', icon: SparklesIcon },

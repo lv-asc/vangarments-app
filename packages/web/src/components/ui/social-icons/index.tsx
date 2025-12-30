@@ -1,9 +1,11 @@
 import React from 'react';
 import { GlobeAltIcon, LinkIcon } from '@heroicons/react/24/outline';
+import { Favicon } from '../Favicon';
 
 interface SocialIconProps {
   className?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  url?: string;
 }
 
 const sizeClasses = {
@@ -119,7 +121,7 @@ export const YouTubeMusicIcon: React.FC<SocialIconProps> = ({ className = '', si
   </svg>
 );
 
-export const SocialIcon: React.FC<{ platform: string } & SocialIconProps> = ({ platform, ...props }) => {
+export const SocialIcon: React.FC<{ platform: string } & SocialIconProps> = ({ platform, url, ...props }) => {
   const p = platform.toLowerCase();
 
   if (p.includes('whatsapp')) return <WhatsAppIcon {...props} />;
@@ -134,7 +136,21 @@ export const SocialIcon: React.FC<{ platform: string } & SocialIconProps> = ({ p
   if (p.includes('facebook')) return <FacebookIcon {...props} />;
   if (p.includes('spotify')) return <SpotifyIcon {...props} />;
   if (p.includes('apple music')) return <AppleMusicIcon {...props} />;
-  if (p.includes('website')) return <LinkIcon className={`${sizeClasses[props.size || 'md']} ${props.className || ''}`} />;
+
+  if (p.includes('website')) {
+    const defaultIcon = <LinkIcon className={`${sizeClasses[props.size || 'md']} ${props.className || ''}`} />;
+    if (url) {
+      return (
+        <Favicon
+          url={url}
+          size={props.size === 'xs' ? 24 : 32}
+          className={props.className}
+          fallbackIcon={defaultIcon}
+        />
+      );
+    }
+    return defaultIcon;
+  }
 
   return <GlobeAltIcon className={`${sizeClasses[props.size || 'md']} ${props.className || ''}`} />; // Fallback
 };

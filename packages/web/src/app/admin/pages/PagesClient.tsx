@@ -5,12 +5,13 @@ import { PlusIcon, TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outli
 import toast from 'react-hot-toast';
 import { pageApi, IPage } from '@/lib/pageApi';
 import FoundationDateInput from '@/components/ui/FoundationDateInput';
+import Link from 'next/link';
+import { getImageUrl } from '@/lib/utils';
 
 export default function AdminPagesPage() {
     const [items, setItems] = useState<IPage[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingItem, setEditingItem] = useState<IPage | null>(null);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -47,13 +48,8 @@ export default function AdminPagesPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (editingItem) {
-                await pageApi.update(editingItem.id, formData);
-                toast.success('Page updated');
-            } else {
-                await pageApi.create(formData);
-                toast.success('Page created');
-            }
+            await pageApi.create(formData);
+            toast.success('Page created');
             fetchItems();
             handleCloseModal();
         } catch (error) {
@@ -72,48 +68,27 @@ export default function AdminPagesPage() {
         }
     };
 
-    const handleOpenModal = (item?: IPage) => {
-        if (item) {
-            setEditingItem(item);
-            setFormData({
-                name: item.name,
-                description: item.description || '',
-                logoUrl: item.logoUrl || '',
-                bannerUrl: item.bannerUrl || '',
-                websiteUrl: item.websiteUrl || '',
-                instagramUrl: item.instagramUrl || '',
-                twitterUrl: item.twitterUrl || '',
-                facebookUrl: item.facebookUrl || '',
-                foundedBy: item.foundedBy || '',
-                foundedDate: item.foundedDate || '',
-                foundedDatePrecision: item.foundedDatePrecision || 'year',
-                isVerified: item.isVerified,
-                isActive: item.isActive
-            });
-        } else {
-            setEditingItem(null);
-            setFormData({
-                name: '',
-                description: '',
-                logoUrl: '',
-                bannerUrl: '',
-                websiteUrl: '',
-                instagramUrl: '',
-                twitterUrl: '',
-                facebookUrl: '',
-                foundedBy: '',
-                foundedDate: '',
-                foundedDatePrecision: 'year',
-                isVerified: false,
-                isActive: true
-            });
-        }
+    const handleOpenModal = () => {
+        setFormData({
+            name: '',
+            description: '',
+            logoUrl: '',
+            bannerUrl: '',
+            websiteUrl: '',
+            instagramUrl: '',
+            twitterUrl: '',
+            facebookUrl: '',
+            foundedBy: '',
+            foundedDate: '',
+            foundedDatePrecision: 'year',
+            isVerified: false,
+            isActive: true
+        });
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setEditingItem(null);
         setFormData({
             name: '',
             description: '',
@@ -175,7 +150,7 @@ export default function AdminPagesPage() {
                                         <tr key={item.id}>
                                             <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
                                                 {item.logoUrl ? (
-                                                    <img src={item.logoUrl} alt={item.name} className="h-10 w-10 rounded-full object-cover border border-gray-200" />
+                                                    <img src={getImageUrl(item.logoUrl)} alt={item.name} className="h-10 w-10 rounded-full object-cover border border-gray-200" />
                                                 ) : (
                                                     <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 font-bold">
                                                         {item.name.charAt(0)}
@@ -206,12 +181,12 @@ export default function AdminPagesPage() {
                                                 )}
                                             </td>
                                             <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                                <button
-                                                    onClick={() => handleOpenModal(item)}
-                                                    className="text-indigo-600 hover:text-indigo-900 mr-4"
+                                                <Link
+                                                    href={`/admin/pages/${item.id}`}
+                                                    className="text-indigo-600 hover:text-indigo-900 mr-4 inline-block"
                                                 >
                                                     <PencilSquareIcon className="h-5 w-5" />
-                                                </button>
+                                                </Link>
                                                 <button
                                                     onClick={() => handleDelete(item.id)}
                                                     className="text-red-600 hover:text-red-900"
@@ -232,7 +207,7 @@ export default function AdminPagesPage() {
             {isModalOpen && (
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                        <h2 className="text-xl font-semibold mb-4">{editingItem ? 'Edit Page' : 'New Page'}</h2>
+                        <h2 className="text-xl font-semibold mb-4">New Page</h2>
                         <form onSubmit={handleSubmit}>
                             <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

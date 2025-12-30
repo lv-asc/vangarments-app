@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { TrashIcon, PencilSquareIcon, PlusIcon, RectangleGroupIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PencilSquareIcon, PlusIcon, RectangleGroupIcon, ArrowPathIcon, ArchiveBoxXMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 interface Pattern {
@@ -11,6 +11,8 @@ interface Pattern {
     name: string;
     skuRef?: string;
     isActive: boolean;
+    isDeleted?: boolean;
+    deletedAt?: string;
 }
 
 export default function AdminPatternsPage() {
@@ -20,19 +22,23 @@ export default function AdminPatternsPage() {
     const [editingPattern, setEditingPattern] = useState<Pattern | null>(null);
     const [name, setName] = useState('');
     const [skuRef, setSkuRef] = useState('');
-    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
+    const [showTrash, setShowTrash] = useState(false);
+    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null; permanent?: boolean }>({
         isOpen: false,
-        id: null
+        id: null,
+        permanent: false
     });
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [showTrash]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const data = await apiClient.getVUFSPatterns();
+            const data = showTrash
+                ? await apiClient.getDeletedVUFSPatterns()
+                : await apiClient.getVUFSPatterns();
             setPatterns(Array.isArray(data) ? data : (data?.patterns || []));
         } catch (error) {
             console.error('Failed to fetch patterns', error);
@@ -76,21 +82,37 @@ export default function AdminPatternsPage() {
         }
     };
 
-    const handleDeleteClick = (id: string) => {
-        setDeleteModalState({ isOpen: true, id });
+    const handleDeleteClick = (id: string, permanent = false) => {
+        setDeleteModalState({ isOpen: true, id, permanent });
     };
 
     const handleConfirmDelete = async () => {
         if (!deleteModalState.id) return;
         try {
-            await apiClient.deleteVUFSPattern(deleteModalState.id);
-            toast.success('Pattern deleted');
+            if (deleteModalState.permanent) {
+                await apiClient.permanentlyDeleteVUFSPattern(deleteModalState.id);
+                toast.success('Pattern permanently deleted');
+            } else {
+                await apiClient.deleteVUFSPattern(deleteModalState.id);
+                toast.success('Pattern moved to trash');
+            }
             fetchData();
         } catch (error) {
             console.error('Failed to delete pattern', error);
             toast.error('Failed to delete pattern');
         } finally {
-            setDeleteModalState({ isOpen: false, id: null });
+            setDeleteModalState({ isOpen: false, id: null, permanent: false });
+        }
+    };
+
+    const handleRestore = async (id: string) => {
+        try {
+            await apiClient.restoreVUFSPattern(id);
+            toast.success('Pattern restored');
+            fetchData();
+        } catch (error) {
+            console.error('Failed to restore pattern', error);
+            toast.error('Failed to restore pattern');
         }
     };
 
@@ -103,14 +125,36 @@ export default function AdminPatternsPage() {
                     <h1 className="text-3xl font-bold text-gray-900">Patterns Management</h1>
                     <p className="mt-2 text-sm text-gray-700">Manage pattern and print types.</p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-                >
-                    <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-                    Add Pattern
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`inline-flex items-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium ${showTrash
+                                ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
+                                : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                            }`}
+                    >
+                        <ArchiveBoxXMarkIcon className="-ml-1 mr-2 h-5 w-5" />
+                        {showTrash ? 'View Active' : 'View Trash'}
+                    </button>
+                    {!showTrash && (
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                        >
+                            <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+                            Add Pattern
+                        </button>
+                    )}
+                </div>
             </div>
+
+            {showTrash && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-800">
+                        <strong>Trash:</strong> Items here can be restored or permanently deleted.
+                    </p>
+                </div>
+            )}
 
             <div className="bg-white shadow overflow-hidden sm:rounded-md">
                 <ul role="list" className="divide-y divide-gray-200">
@@ -120,28 +164,56 @@ export default function AdminPatternsPage() {
                                 <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
                                     <div className="flex items-center">
                                         <RectangleGroupIcon className="h-8 w-8 text-indigo-500 mr-4" />
-                                        <p className="font-medium text-indigo-600">{pattern.name}</p>
+                                        <div>
+                                            <p className="font-medium text-indigo-600">{pattern.name}</p>
+                                            {pattern.skuRef && (
+                                                <p className="text-xs text-gray-500">SKU: {pattern.skuRef}</p>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button
-                                            onClick={() => handleOpenModal(pattern)}
-                                            className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-full"
-                                        >
-                                            <PencilSquareIcon className="h-5 w-5" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(pattern.id)}
-                                            className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
-                                        >
-                                            <TrashIcon className="h-5 w-5" />
-                                        </button>
+                                        {showTrash ? (
+                                            <>
+                                                <button
+                                                    onClick={() => handleRestore(pattern.id)}
+                                                    className="text-green-600 hover:text-green-900 bg-green-50 p-2 rounded-full"
+                                                    title="Restore"
+                                                >
+                                                    <ArrowPathIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteClick(pattern.id, true)}
+                                                    className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
+                                                    title="Delete Permanently"
+                                                >
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => handleOpenModal(pattern)}
+                                                    className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-full"
+                                                >
+                                                    <PencilSquareIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteClick(pattern.id)}
+                                                    className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
+                                                >
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         </li>
                     ))}
                     {patterns.length === 0 && (
-                        <li className="px-4 py-8 text-center text-gray-500">No patterns found</li>
+                        <li className="px-4 py-8 text-center text-gray-500">
+                            {showTrash ? 'Trash is empty' : 'No patterns found'}
+                        </li>
                     )}
                 </ul>
             </div>
@@ -173,26 +245,37 @@ export default function AdminPatternsPage() {
                                 maxLength={4}
                             />
                         </div>
-                        Save
-                    </button>
-                </div>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsModalOpen(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                            >
+                                Save
+                            </button>
+                        </div>
                     </div>
-                </div >
-            )
-}
-                    </div >
-                </div >
+                </div>
             )}
 
-<ConfirmationModal
-    isOpen={deleteModalState.isOpen}
-    onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
-    onConfirm={handleConfirmDelete}
-    title="Delete Pattern"
-    message="Are you sure you want to delete this pattern?"
-    variant="danger"
-    confirmText="Delete"
-/>
-        </div >
+            <ConfirmationModal
+                isOpen={deleteModalState.isOpen}
+                onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
+                onConfirm={handleConfirmDelete}
+                title={deleteModalState.permanent ? 'Permanently Delete Pattern' : 'Move Pattern to Trash'}
+                message={deleteModalState.permanent
+                    ? 'This action cannot be undone. The pattern will be permanently deleted.'
+                    : 'This pattern will be moved to trash. You can restore it later.'}
+                variant="danger"
+                confirmText={deleteModalState.permanent ? 'Delete Forever' : 'Move to Trash'}
+            />
+        </div>
     );
 }

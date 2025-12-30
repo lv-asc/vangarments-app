@@ -56,6 +56,7 @@ export interface CreateSKUItemData {
     retailPriceBrl?: number;
     retailPriceUsd?: number;
     retailPriceEur?: number;
+    parentSkuId?: string;
 }
 
 export interface UpdateSKUItemData {
@@ -89,9 +90,9 @@ export class SKUItemModel {
             INSERT INTO sku_items(
                 brand_id, name, code, collection, line, line_id,
                 category, description, materials, images, videos, metadata,
-                retail_price_brl, retail_price_usd, retail_price_eur
+                retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id
             )
-            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *
         `;
 
@@ -110,7 +111,8 @@ export class SKUItemModel {
             JSON.stringify(data.metadata || {}),
             data.retailPriceBrl,
             data.retailPriceUsd,
-            data.retailPriceEur
+            data.retailPriceEur,
+            data.parentSkuId || null
         ];
 
         const result = await db.query(query, values);

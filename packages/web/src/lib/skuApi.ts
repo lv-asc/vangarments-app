@@ -37,6 +37,15 @@ export interface SKUItem {
 }
 
 export const skuApi = {
+    getAllSKUs: async (options?: { limit?: number; offset?: number }): Promise<{ skus: SKUItem[] }> => {
+        const params = new URLSearchParams();
+        if (options?.limit) params.append('limit', options.limit.toString());
+        if (options?.offset) params.append('offset', options.offset.toString());
+
+        const response = await apiClient.get<{ skus: SKUItem[] }>(`/skus?${params.toString()}`);
+        return response;
+    },
+
     searchSKUs: async (term: string, brandId?: string): Promise<{ skus: SKUItem[] }> => {
         const params = new URLSearchParams();
         if (term) params.append('term', term);
@@ -52,3 +61,4 @@ export const skuApi = {
         return response;
     }
 };
+

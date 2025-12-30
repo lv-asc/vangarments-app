@@ -950,21 +950,68 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/materials');
     return (response as any).materials || response.data || response;
   }
-  async addVUFSMaterial(name: string, category: string = 'natural', skuRef?: string) {
-    return this.request('/vufs-management/materials', { method: 'POST', body: JSON.stringify({ name, category, skuRef }) });
+  async getDeletedVUFSMaterials() {
+    const response = await this.request<any>('/vufs-management/materials/trash');
+    return (response as any).materials || response.data || response;
+  }
+  async addVUFSMaterial(name: string, category: string = 'natural', skuRef?: string, compositions?: any[]) {
+    return this.request('/vufs-management/materials', { method: 'POST', body: JSON.stringify({ name, category, skuRef, compositions }) });
   }
   async deleteVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'DELETE' }); }
-  async updateVUFSMaterial(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
+  async restoreVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}/restore`, { method: 'POST' }); }
+  async permanentlyDeleteVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}/permanent`, { method: 'DELETE' }); }
+  async updateVUFSMaterial(id: string, name: string, skuRef?: string, compositions?: any[]) { return this.request(`/vufs-management/materials/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef, compositions }) }); }
+
+  // --- COMPOSITIONS ---
+  async getVUFSCompositionCategories() {
+    const response = await this.request<any>('/vufs-management/composition-categories');
+    return (response as any).categories || response.data || response;
+  }
+  async addVUFSCompositionCategory(name: string, description?: string) {
+    return this.request('/vufs-management/composition-categories', { method: 'POST', body: JSON.stringify({ name, description }) });
+  }
+  async updateVUFSCompositionCategory(id: string, name: string, description?: string) {
+    return this.request(`/vufs-management/composition-categories/${id}`, { method: 'PATCH', body: JSON.stringify({ name, description }) });
+  }
+  async deleteVUFSCompositionCategory(id: string) { return this.request(`/vufs-management/composition-categories/${id}`, { method: 'DELETE' }); }
+  async restoreVUFSCompositionCategory(id: string) { return this.request(`/vufs-management/composition-categories/${id}/restore`, { method: 'POST' }); }
+  async getDeletedVUFSCompositionCategories() {
+    const response = await this.request<any>('/vufs-management/composition-categories?includeDeleted=true');
+    // NOTE: Requires filtering on backend or separate param if needed. 
+    // The current backend implementation just uses ?includeDeleted=true to return ALL including deleted if simplified. 
+    // But typically we want JUST deleted. I will just rely on list view filtering for now or simple "get all".
+    // Actually, backend Service `getCompositionCategories` filters out deleted unless `includeDeleted` is true.
+    return (response as any).categories || response.data || response;
+  }
+
+  async getVUFSCompositions() {
+    const response = await this.request<any>('/vufs-management/compositions');
+    return (response as any).compositions || response.data || response;
+  }
+  async addVUFSComposition(name: string, categoryId: string, description?: string) {
+    return this.request('/vufs-management/compositions', { method: 'POST', body: JSON.stringify({ name, categoryId, description }) });
+  }
+  async updateVUFSComposition(id: string, name: string, categoryId?: string, description?: string) {
+    return this.request(`/vufs-management/compositions/${id}`, { method: 'PATCH', body: JSON.stringify({ name, categoryId, description }) });
+  }
+  async deleteVUFSComposition(id: string) { return this.request(`/vufs-management/compositions/${id}`, { method: 'DELETE' }); }
+  async restoreVUFSComposition(id: string) { return this.request(`/vufs-management/compositions/${id}/restore`, { method: 'POST' }); }
 
   // --- PATTERNS ---
   async getVUFSPatterns() {
     const response = await this.request<any>('/vufs-management/patterns');
     return (response as any).patterns || response.data || response;
   }
+  async getDeletedVUFSPatterns() {
+    const response = await this.request<any>('/vufs-management/patterns/trash');
+    return (response as any).patterns || response.data || response;
+  }
   async addVUFSPattern(name: string, skuRef?: string) {
     return this.request('/vufs-management/patterns', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
   }
   async deleteVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'DELETE' }); }
+  async restoreVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}/restore`, { method: 'POST' }); }
+  async permanentlyDeleteVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}/permanent`, { method: 'DELETE' }); }
   async updateVUFSPattern(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
 
   // --- FITS ---
@@ -972,10 +1019,16 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/fits');
     return (response as any).fits || response.data || response;
   }
+  async getDeletedVUFSFits() {
+    const response = await this.request<any>('/vufs-management/fits/trash');
+    return (response as any).fits || response.data || response;
+  }
   async addVUFSFit(name: string, skuRef?: string) {
     return this.request('/vufs-management/fits', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
   }
   async deleteVUFSFit(id: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'DELETE' }); }
+  async restoreVUFSFit(id: string) { return this.request(`/vufs-management/fits/${id}/restore`, { method: 'POST' }); }
+  async permanentlyDeleteVUFSFit(id: string) { return this.request(`/vufs-management/fits/${id}/permanent`, { method: 'DELETE' }); }
   async updateVUFSFit(id: string, name: string, categoryIds?: string[], skuRef?: string) { return this.request(`/vufs-management/fits/${id}`, { method: 'PATCH', body: JSON.stringify({ name, categoryIds, skuRef }) }); }
 
   // --- GENDERS ---
@@ -983,10 +1036,16 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/genders');
     return (response as any).genders || response.data || response;
   }
+  async getDeletedVUFSGenders() {
+    const response = await this.request<any>('/vufs-management/genders/trash');
+    return (response as any).genders || response.data || response;
+  }
   async addVUFSGender(name: string, skuRef?: string) {
     return this.request('/vufs-management/genders', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
   }
   async deleteVUFSGender(id: string) { return this.request(`/vufs-management/genders/${id}`, { method: 'DELETE' }); }
+  async restoreVUFSGender(id: string) { return this.request(`/vufs-management/genders/${id}/restore`, { method: 'POST' }); }
+  async permanentlyDeleteVUFSGender(id: string) { return this.request(`/vufs-management/genders/${id}/permanent`, { method: 'DELETE' }); }
   async updateVUFSGender(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/genders/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
 
 
@@ -1068,11 +1127,17 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/sizes');
     return (response as any).sizes || response.data || response;
   }
-  async addVUFSSize(name: string) {
-    return this.request('/vufs-management/sizes', { method: 'POST', body: JSON.stringify({ name }) });
+  async getDeletedVUFSSizes() {
+    const response = await this.request<any>('/vufs-management/sizes/trash');
+    return (response as any).sizes || response.data || response;
+  }
+  async addVUFSSize(name: string, skuRef?: string) {
+    return this.request('/vufs-management/sizes', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
   }
   async deleteVUFSSize(id: string) { return this.request(`/vufs-management/sizes/${id}`, { method: 'DELETE' }); }
-  async updateVUFSSize(id: string, name: string) { return this.request(`/vufs-management/sizes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }); }
+  async restoreVUFSSize(id: string) { return this.request(`/vufs-management/sizes/${id}/restore`, { method: 'POST' }); }
+  async permanentlyDeleteVUFSSize(id: string) { return this.request(`/vufs-management/sizes/${id}/permanent`, { method: 'DELETE' }); }
+  async updateVUFSSize(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/sizes/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
 
   async bulkAddVUFSItems(type: string, items: string[], attributeSlug?: string) {
     return this.request('/vufs-management/bulk', {

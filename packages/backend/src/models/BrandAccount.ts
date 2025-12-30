@@ -37,6 +37,10 @@ export interface BrandProfileData {
   youtube?: string;
   additionalLogos?: string[]; // Array of logo URLs
   logoMetadata?: Array<{ url: string; name: string }>;
+  socialLinks?: Array<{
+    platform: string;
+    url: string;
+  }>;
 }
 
 export interface BrandAccount {
@@ -277,7 +281,7 @@ export class BrandAccountModel {
       values.push(JSON.stringify(updatedBrandInfo));
     }
 
-    if (updateData.verificationStatus) {
+    if (updateData.verificationStatus !== undefined) {
       setClause.push(`verification_status = $${paramIndex++}`);
       values.push(updateData.verificationStatus);
     }

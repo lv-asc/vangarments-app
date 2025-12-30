@@ -36,6 +36,7 @@ export interface VUFSMaterialOption {
   name: string;
   category: 'natural' | 'synthetic' | 'blend';
   properties: string[];
+  compositions?: VUFSMaterialComposition[];
   isActive: boolean;
   skuRef?: string;
 }
@@ -45,6 +46,31 @@ export interface VUFSCareInstructionOption {
   instruction: string;
   category: 'washing' | 'drying' | 'ironing' | 'dry_cleaning' | 'storage';
   isActive: boolean;
+}
+
+export interface VUFSCompositionCategory {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  isDeleted: boolean;
+}
+
+export interface VUFSComposition {
+  id: string;
+  name: string;
+  categoryId: string;
+  categoryName?: string;
+  description?: string;
+  isActive: boolean;
+  isDeleted: boolean;
+}
+
+export interface VUFSMaterialComposition {
+  materialId: string;
+  compositionId: string;
+  compositionName: string;
+  percentage: number;
 }
 
 export class VUFSManagementService {
@@ -436,14 +462,52 @@ export class VUFSManagementService {
    * Get all materials from DB
    */
   static async getMaterials(): Promise<VUFSMaterialOption[]> {
-    const query = 'SELECT * FROM vufs_materials WHERE is_active = true ORDER BY name';
+    const query = `
+      SELECT m.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'compositionId', c.id, 
+                   'compositionName', c.name, 
+                   'percentage', mc.percentage
+                 )
+               ) FILTER (WHERE mc.composition_id IS NOT NULL), 
+               '[]'
+             ) as compositions
+      FROM vufs_materials m
+      LEFT JOIN vufs_material_compositions mc ON m.id = mc.material_id
+      LEFT JOIN vufs_compositions c ON mc.composition_id = c.id
+      WHERE m.is_active = true AND (m.is_deleted = false OR m.is_deleted IS NULL)
+      GROUP BY m.id
+      ORDER BY m.name`;
+
     const result = await db.query(query);
     return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
-      category: row.category as any || 'natural', // Default if null
+      category: row.category as any || 'natural',
       properties: [],
-      isActive: row.is_active
+      compositions: row.compositions.map((c: any) => ({
+        ...c,
+        materialId: row.id // ensure materialId is present in interface if needed, or mapped correctly
+      })),
+      isActive: row.is_active,
+      skuRef: row.sku_ref,
+      isDeleted: row.is_deleted || false
+    }));
+  }
+
+  static async getDeletedMaterials(): Promise<any[]> {
+    const query = 'SELECT * FROM vufs_materials WHERE is_deleted = true ORDER BY deleted_at DESC';
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category as any || 'natural',
+      isActive: row.is_active,
+      skuRef: row.sku_ref,
+      isDeleted: true,
+      deletedAt: row.deleted_at
     }));
   }
 
@@ -452,8 +516,17 @@ export class VUFSManagementService {
   }
 
   static async deleteMaterial(id: string): Promise<void> {
+    await db.query('UPDATE vufs_materials SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  static async restoreMaterial(id: string): Promise<void> {
+    await db.query('UPDATE vufs_materials SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+  }
+
+  static async permanentlyDeleteMaterial(id: string): Promise<void> {
     await this.deleteItem('vufs_materials', id);
   }
+
   static async updateMaterial(id: string, name: string, skuRef?: string): Promise<any> {
     return this.updateItem('vufs_materials', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
@@ -461,6 +534,124 @@ export class VUFSManagementService {
 
 
 
+
+
+
+  // --- COMPOSITION MANAGEMENT ---
+
+  static async getCompositionCategories(includeDeleted: boolean = false): Promise<VUFSCompositionCategory[]> {
+    const query = `SELECT * FROM vufs_composition_categories ${includeDeleted ? '' : 'WHERE is_deleted = false'} ORDER BY name`;
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({
+      id: row.id.toString(),
+      name: row.name,
+      description: row.description,
+      isActive: row.is_active,
+      isDeleted: row.is_deleted
+    }));
+  }
+
+  static async addCompositionCategory(name: string, description: string = ''): Promise<VUFSCompositionCategory> {
+    return this.addItem('vufs_composition_categories', name, { description });
+  }
+
+  static async updateCompositionCategory(id: string, name: string, description?: string): Promise<any> {
+    return this.updateItem('vufs_composition_categories', id, name, description !== undefined ? { description } : {});
+  }
+
+  static async deleteCompositionCategory(id: string): Promise<void> {
+    await db.query('UPDATE vufs_composition_categories SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  static async restoreCompositionCategory(id: string): Promise<void> {
+    await db.query('UPDATE vufs_composition_categories SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+  }
+
+  static async getCompositions(includeDeleted: boolean = false): Promise<VUFSComposition[]> {
+    const query = `
+      SELECT c.*, cat.name as category_name 
+      FROM vufs_compositions c 
+      LEFT JOIN vufs_composition_categories cat ON c.category_id = cat.id 
+      ${includeDeleted ? '' : 'WHERE c.is_deleted = false'} 
+      ORDER BY c.name`;
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({
+      id: row.id.toString(),
+      name: row.name,
+      categoryId: row.category_id?.toString(),
+      categoryName: row.category_name,
+      description: row.description,
+      isActive: row.is_active,
+      isDeleted: row.is_deleted
+    }));
+  }
+
+  static async addComposition(name: string, categoryId: string, description: string = ''): Promise<VUFSComposition> {
+    return this.addItem('vufs_compositions', name, { category_id: categoryId, description });
+  }
+
+  static async updateComposition(id: string, name: string, categoryId?: string, description?: string): Promise<any> {
+    const updates: any = {};
+    if (categoryId !== undefined) updates.category_id = categoryId;
+    if (description !== undefined) updates.description = description;
+    return this.updateItem('vufs_compositions', id, name, updates);
+  }
+
+  static async deleteComposition(id: string): Promise<void> {
+    await db.query('UPDATE vufs_compositions SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  static async restoreComposition(id: string): Promise<void> {
+    await db.query('UPDATE vufs_compositions SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+  }
+
+  /**
+   * Get compositions for a material
+   */
+  static async getMaterialCompositions(materialId: string): Promise<VUFSMaterialComposition[]> {
+    const query = `
+      SELECT mc.*, c.name as composition_name 
+      FROM vufs_material_compositions mc 
+      JOIN vufs_compositions c ON mc.composition_id = c.id 
+      WHERE mc.material_id = $1
+    `;
+    const result = await db.query(query, [materialId]);
+    return result.rows.map((row: any) => ({
+      materialId: row.material_id.toString(),
+      compositionId: row.composition_id.toString(),
+      compositionName: row.composition_name,
+      percentage: parseFloat(row.percentage)
+    }));
+  }
+
+  /**
+   * Update compositions for a material (Full replace)
+   */
+  static async updateMaterialCompositions(materialId: string, compositions: { compositionId: string, percentage: number }[]): Promise<void> {
+    await db.transaction(async (client) => {
+      // 1. Delete existing
+      await client.query('DELETE FROM vufs_material_compositions WHERE material_id = $1', [materialId]);
+
+      // 2. Insert new
+      if (compositions.length > 0) {
+        const values: any[] = [];
+        const placeholders: string[] = [];
+        let pIndex = 1;
+
+        compositions.forEach(comp => {
+          placeholders.push(`($${pIndex}, $${pIndex + 1}, $${pIndex + 2})`);
+          values.push(materialId, comp.compositionId, comp.percentage);
+          pIndex += 3;
+        });
+
+        const query = `
+          INSERT INTO vufs_material_compositions (material_id, composition_id, percentage)
+          VALUES ${placeholders.join(', ')}
+        `;
+        await client.query(query, values);
+      }
+    });
+  }
 
   // --- Category Attribute Matrix ---
 
@@ -594,14 +785,30 @@ export class VUFSManagementService {
   /**
    * Get materials by category
    */
-  static async getMaterialsByCategory(category: 'natural' | 'synthetic' | 'blend'): Promise<VUFSMaterialOption[]> {
-    const query = 'SELECT * FROM vufs_materials WHERE category = $1 AND is_active = true ORDER BY name';
+  static async getMaterialsByCategory(category: string): Promise<VUFSMaterialOption[]> {
+    const query = `
+      SELECT m.*, 
+             json_agg(
+                 json_build_object(
+                     'compositionId', c.id, 
+                     'compositionName', c.name,
+                     'percentage', mc.percentage
+                 )
+             ) FILTER (WHERE c.id IS NOT NULL) as compositions
+      FROM vufs_materials m
+      LEFT JOIN vufs_material_compositions mc ON m.id = mc.material_id
+      LEFT JOIN vufs_compositions c ON mc.composition_id = c.id
+      WHERE m.category = $1 AND m.is_active = true AND m.is_deleted = false
+      GROUP BY m.id
+      ORDER BY m.name
+    `;
     const result = await db.query(query, [category]);
     return result.rows.map((row: any) => ({
-      id: row.id,
+      id: row.id.toString(),
       name: row.name,
-      category: row.category as any,
+      category: row.category,
       properties: [],
+      compositions: row.compositions || [],
       isActive: row.is_active
     }));
   }
@@ -662,13 +869,31 @@ export class VUFSManagementService {
   }
 
   static async searchMaterials(query: string): Promise<VUFSMaterialOption[]> {
-    const sql = 'SELECT * FROM vufs_materials WHERE name ILIKE $1 AND is_active = true';
+    const sql = `
+      SELECT m.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'compositionId', c.id, 
+                   'compositionName', c.name, 
+                   'percentage', mc.percentage
+                 )
+               ) FILTER (WHERE mc.composition_id IS NOT NULL), 
+               '[]'
+             ) as compositions
+      FROM vufs_materials m
+      LEFT JOIN vufs_material_compositions mc ON m.id = mc.material_id
+      LEFT JOIN vufs_compositions c ON mc.composition_id = c.id
+      WHERE m.name ILIKE $1 AND m.is_active = true
+      GROUP BY m.id
+    `;
     const result = await db.query(sql, [`%${query}%`]);
     return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       category: row.category as any,
       properties: [],
+      compositions: row.compositions.map((c: any) => ({ ...c, materialId: row.id })),
       isActive: row.is_active
     }));
   }
@@ -770,27 +995,55 @@ export class VUFSManagementService {
   }
 
   /**
-   * Get Patterns from DB
+   * Get Patterns from DB (excluding deleted)
    */
   static async getPatterns(): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_patterns WHERE is_active = true ORDER BY name';
+    const query = 'SELECT * FROM vufs_patterns WHERE is_active = true AND (is_deleted = false OR is_deleted IS NULL) ORDER BY name';
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: row.is_deleted || false }));
+  }
+
+  /**
+   * Get deleted Patterns (trash)
+   */
+  static async getDeletedPatterns(): Promise<any[]> {
+    const query = 'SELECT * FROM vufs_patterns WHERE is_deleted = true ORDER BY deleted_at DESC';
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: true, deletedAt: row.deleted_at }));
   }
 
   static async addPattern(name: string, skuRef?: string): Promise<any> {
     return this.addItem('vufs_patterns', name, { sku_ref: skuRef });
   }
 
+  /**
+   * Soft delete a pattern (move to trash)
+   */
   static async deletePattern(id: string): Promise<void> {
+    await db.query('UPDATE vufs_patterns SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  /**
+   * Restore a pattern from trash
+   */
+  static async restorePattern(id: string): Promise<void> {
+    await db.query('UPDATE vufs_patterns SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+  }
+
+  /**
+   * Permanently delete a pattern
+   */
+  static async permanentlyDeletePattern(id: string): Promise<void> {
     await this.deleteItem('vufs_patterns', id);
   }
+
   static async updatePattern(id: string, name: string, skuRef?: string): Promise<any> {
     return this.updateItem('vufs_patterns', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
 
+
   /**
-   * Get Fits from vufs_fits table
+   * Get Fits from vufs_fits table (excluding deleted)
    */
   static async getFits(): Promise<any[]> {
     const query = `
@@ -805,7 +1058,7 @@ export class VUFSManagementService {
            END
          )) as associated_categories
       FROM vufs_fits f 
-      WHERE is_active = true 
+      WHERE is_active = true AND (is_deleted = false OR is_deleted IS NULL)
       ORDER BY name
     `;
     const result = await db.query(query);
@@ -813,17 +1066,41 @@ export class VUFSManagementService {
       ...row,
       isActive: row.is_active,
       skuRef: row.sku_ref,
+      isDeleted: row.is_deleted || false,
       associatedCategories: row.associated_categories || []
     }));
   }
+
+  static async getDeletedFits(): Promise<any[]> {
+    const query = 'SELECT * FROM vufs_fits WHERE is_deleted = true ORDER BY deleted_at DESC';
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({
+      ...row,
+      isActive: row.is_active,
+      skuRef: row.sku_ref,
+      isDeleted: true,
+      deletedAt: row.deleted_at
+    }));
+  }
+
 
   static async addFit(name: string, skuRef?: string): Promise<any> {
     return this.addItem('vufs_fits', name, { sku_ref: skuRef });
   }
 
   static async deleteFit(id: string): Promise<void> {
+    await db.query('UPDATE vufs_fits SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  static async restoreFit(id: string): Promise<void> {
+    await db.query('UPDATE vufs_fits SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+  }
+
+  static async permanentlyDeleteFit(id: string): Promise<void> {
     await this.deleteItem('vufs_fits', id);
   }
+
+
   static async getApparelForFit(fitId: string): Promise<string[]> {
     const query = `
       SELECT category_id 
@@ -903,12 +1180,18 @@ export class VUFSManagementService {
   }
 
   /**
-   * Get Sizes from vufs_sizes table
+   * Get Sizes from vufs_sizes table (excluding deleted)
    */
   static async getSizes(): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_sizes WHERE is_active = true ORDER BY sort_order ASC, name ASC';
+    const query = 'SELECT * FROM vufs_sizes WHERE is_active = true AND (is_deleted = false OR is_deleted IS NULL) ORDER BY sort_order ASC, name ASC';
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: row.is_deleted || false }));
+  }
+
+  static async getDeletedSizes(): Promise<any[]> {
+    const query = 'SELECT * FROM vufs_sizes WHERE is_deleted = true ORDER BY deleted_at DESC';
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: true, deletedAt: row.deleted_at }));
   }
 
   static async addSize(name: string, skuRef?: string): Promise<any> {
@@ -916,8 +1199,17 @@ export class VUFSManagementService {
   }
 
   static async deleteSize(id: string): Promise<void> {
+    await db.query('UPDATE vufs_sizes SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  static async restoreSize(id: string): Promise<void> {
+    await db.query('UPDATE vufs_sizes SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+  }
+
+  static async permanentlyDeleteSize(id: string): Promise<void> {
     await this.deleteItem('vufs_sizes', id);
   }
+
   static async updateSize(id: string, name: string, skuRef?: string): Promise<any> {
     return this.updateItem('vufs_sizes', id, name, skuRef ? { sku_ref: skuRef } : {});
   }
@@ -925,12 +1217,18 @@ export class VUFSManagementService {
   // --- GENDER MANAGEMENT ---
 
   /**
-   * Get Genders from DB
+   * Get Genders from DB (excluding deleted)
    */
   static async getGenders(): Promise<any[]> {
-    const query = 'SELECT * FROM vufs_genders WHERE is_active = true ORDER BY name';
+    const query = 'SELECT * FROM vufs_genders WHERE is_active = true AND (is_deleted = false OR is_deleted IS NULL) ORDER BY name';
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active }));
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: row.is_deleted || false }));
+  }
+
+  static async getDeletedGenders(): Promise<any[]> {
+    const query = 'SELECT * FROM vufs_genders WHERE is_deleted = true ORDER BY deleted_at DESC';
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: true, deletedAt: row.deleted_at }));
   }
 
   static async addGender(name: string, skuRef?: string): Promise<any> {
@@ -938,8 +1236,17 @@ export class VUFSManagementService {
   }
 
   static async deleteGender(id: string): Promise<void> {
+    await db.query('UPDATE vufs_genders SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+  }
+
+  static async restoreGender(id: string): Promise<void> {
+    await db.query('UPDATE vufs_genders SET is_deleted = false, deleted_at = NULL WHERE id = $1', [id]);
+  }
+
+  static async permanentlyDeleteGender(id: string): Promise<void> {
     await this.deleteItem('vufs_genders', id);
   }
+
 
   static async updateGender(id: string, name: string, skuRef?: string): Promise<any> {
     return this.updateItem('vufs_genders', id, name, skuRef ? { sku_ref: skuRef } : {});

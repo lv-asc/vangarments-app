@@ -7,6 +7,7 @@ import { api, apiClient } from '@/lib/api';
 import { Fragment, useEffect } from 'react';
 import { Combobox, Transition } from '@headlessui/react';
 import { ChevronUpDownIcon, CheckIcon } from '@heroicons/react/20/solid';
+import { processImageFiles } from '@/utils/heicConverter';
 import {
     DndContext,
     closestCenter,
@@ -304,8 +305,13 @@ export default function MediaUploader({
 
         try {
             setUploading(true);
-            const files = Array.from(e.target.files);
+            let files = Array.from(e.target.files);
             const newMediaItems: MediaItem[] = [];
+
+            // Convert HEIC files to JPEG if type is image
+            if (type === 'image') {
+                files = await processImageFiles(files);
+            }
 
             for (const file of files) {
                 // Validate type
@@ -403,7 +409,7 @@ export default function MediaUploader({
                         ref={fileInputRef}
                         type="file"
                         multiple // Allow multiple files
-                        accept={type === 'image' ? "image/*" : "video/*"}
+                        accept={type === 'image' ? "image/*,.heic,.heif" : "video/*"}
                         onChange={handleUpload}
                         disabled={uploading}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"

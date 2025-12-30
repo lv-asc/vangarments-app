@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { TrashIcon, StarIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { processImageFiles } from '@/utils/heicConverter';
 
 import {
     DndContext,
@@ -223,7 +224,11 @@ export default function BannerUploader({
 
         try {
             setUploading(true);
-            const files = Array.from(e.target.files);
+            let files = Array.from(e.target.files);
+
+            // Convert HEIC files to JPEG
+            files = await processImageFiles(files);
+
             const uploadPromises = files.map(file => api.uploadFile(file));
             const results = await Promise.all(uploadPromises);
 
@@ -284,7 +289,7 @@ export default function BannerUploader({
                     <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/*,.heic,.heif"
                         multiple
                         onChange={handleUpload}
                         disabled={uploading}

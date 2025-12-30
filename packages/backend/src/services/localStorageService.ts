@@ -396,6 +396,7 @@ export class LocalStorageService {
       else if (ext === '.png') mimetype = 'image/png';
       else if (ext === '.webp') mimetype = 'image/webp';
       else if (ext === '.gif') mimetype = 'image/gif';
+      else if (ext === '.heic' || ext === '.heif') mimetype = 'image/heic';
 
       return {
         exists: true,

@@ -3,15 +3,35 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { TrashIcon, PencilSquareIcon, PlusIcon, BeakerIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PencilSquareIcon, PlusIcon, BeakerIcon, ArrowPathIcon, ArchiveBoxXMarkIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+
+interface MaterialComposition {
+    compositionId: string;
+    compositionName?: string;
+    percentage: number;
+}
 
 interface Material {
     id: string;
     name: string;
-    category?: string;
+    category?: string; // Tag/Category Name
     skuRef?: string;
+    compositions?: MaterialComposition[];
     isActive: boolean;
+    isDeleted?: boolean;
+    deletedAt?: string;
+}
+
+interface CompositionOption {
+    id: string;
+    name: string;
+    categoryName?: string;
+}
+
+interface CategoryOption {
+    id: string;
+    name: string;
 }
 
 export default function AdminMaterialsPage() {
@@ -19,22 +39,35 @@ export default function AdminMaterialsPage() {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+
+    // Form State
     const [name, setName] = useState('');
     const [skuRef, setSkuRef] = useState('');
-    const [category, setCategory] = useState<'natural' | 'synthetic' | 'blend'>('natural');
-    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null }>({
+    const [category, setCategory] = useState(''); // Primary Tag
+    const [selectedCompositions, setSelectedCompositions] = useState<MaterialComposition[]>([]);
+
+    // Reference Data
+    const [availableCompositions, setAvailableCompositions] = useState<CompositionOption[]>([]);
+    const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);
+
+    const [showTrash, setShowTrash] = useState(false);
+    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null; permanent?: boolean }>({
         isOpen: false,
-        id: null
+        id: null,
+        permanent: false
     });
 
     useEffect(() => {
         fetchData();
-    }, []);
+        fetchReferences();
+    }, [showTrash]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const data = await apiClient.getVUFSMaterials();
+            const data = showTrash
+                ? await apiClient.getDeletedVUFSMaterials()
+                : await apiClient.getVUFSMaterials();
             setMaterials(Array.isArray(data) ? data : (data?.materials || []));
         } catch (error) {
             console.error('Failed to fetch materials', error);
@@ -44,32 +77,75 @@ export default function AdminMaterialsPage() {
         }
     };
 
+    const fetchReferences = async () => {
+        try {
+            const comps = await apiClient.getVUFSCompositions();
+            setAvailableCompositions(comps || []);
+            const cats = await apiClient.getVUFSCompositionCategories();
+            setAvailableCategories(cats || []);
+        } catch (error) {
+            console.error('Failed to load references', error);
+        }
+    };
+
     const handleOpenModal = (material?: Material) => {
         if (material) {
             setEditingMaterial(material);
             setName(material.name);
             setSkuRef(material.skuRef || '');
-            setCategory((material.category as any) || 'natural');
+            setCategory(material.category || (availableCategories[0]?.name || 'Natural Plant-Based Fibers'));
+            setSelectedCompositions(material.compositions || []);
         } else {
             setEditingMaterial(null);
             setName('');
             setSkuRef('');
-            setCategory('natural');
+            setCategory(availableCategories[0]?.name || 'Natural Plant-Based Fibers');
+            setSelectedCompositions([{ compositionId: '', percentage: 100 }]);
         }
         setIsModalOpen(true);
     };
 
+    // Composition Row Handlers
+    const updateCompositionRow = (index: number, field: 'compositionId' | 'percentage', value: any) => {
+        const updated = [...selectedCompositions];
+        if (field === 'percentage') {
+            updated[index].percentage = Number(value);
+        } else {
+            updated[index].compositionId = value;
+            updated[index].compositionName = availableCompositions.find(c => c.id === value)?.name;
+        }
+        setSelectedCompositions(updated);
+    };
+
+    const addCompositionRow = () => {
+        setSelectedCompositions([...selectedCompositions, { compositionId: '', percentage: 0 }]);
+    };
+
+    const removeCompositionRow = (index: number) => {
+        const updated = selectedCompositions.filter((_, i) => i !== index);
+        setSelectedCompositions(updated);
+    };
+
+    const totalPercentage = selectedCompositions.reduce((sum, c) => sum + (c.percentage || 0), 0);
+
     const handleSave = async () => {
-        if (!name.trim()) {
-            toast.error('Name is required');
+        if (!name.trim()) { toast.error('Name is required'); return; }
+
+        // Validate compositions
+        const validCompositions = selectedCompositions.filter(c => c.compositionId);
+        if (validCompositions.length > 0 && Math.abs(totalPercentage - 100) > 0.1) {
+            toast.error(`Total percentage must be 100% (Current: ${totalPercentage}%)`);
             return;
         }
+
         try {
+            const payloadCompositions = validCompositions.map(c => ({ compositionId: c.compositionId, percentage: c.percentage }));
+
             if (editingMaterial) {
-                await apiClient.updateVUFSMaterial(editingMaterial.id, name, skuRef);
+                await apiClient.updateVUFSMaterial(editingMaterial.id, name, skuRef, payloadCompositions);
                 toast.success('Material updated');
             } else {
-                await apiClient.addVUFSMaterial(name, category, skuRef);
+                await apiClient.addVUFSMaterial(name, category, skuRef, payloadCompositions);
                 toast.success('Material added');
             }
             setIsModalOpen(false);
@@ -80,139 +156,236 @@ export default function AdminMaterialsPage() {
         }
     };
 
-    const handleDeleteClick = (id: string) => {
-        setDeleteModalState({ isOpen: true, id });
+    const handleDeleteClick = (id: string, permanent = false) => {
+        setDeleteModalState({ isOpen: true, id, permanent });
     };
 
     const handleConfirmDelete = async () => {
         if (!deleteModalState.id) return;
         try {
-            await apiClient.deleteVUFSMaterial(deleteModalState.id);
-            toast.success('Material deleted');
+            if (deleteModalState.permanent) {
+                await apiClient.permanentlyDeleteVUFSMaterial(deleteModalState.id);
+                toast.success('Material permanently deleted');
+            } else {
+                await apiClient.deleteVUFSMaterial(deleteModalState.id);
+                toast.success('Material moved to trash');
+            }
+            setDeleteModalState({ ...deleteModalState, isOpen: false });
             fetchData();
         } catch (error) {
-            console.error('Failed to delete material', error);
             toast.error('Failed to delete material');
-        } finally {
-            setDeleteModalState({ isOpen: false, id: null });
         }
     };
 
-    if (loading) return <div className="p-10 text-center">Loading...</div>;
+    const handleRestore = async (id: string) => {
+        try {
+            await apiClient.restoreVUFSMaterial(id);
+            toast.success('Material restored');
+            fetchData();
+        } catch (error) {
+            toast.error('Failed to restore material');
+        }
+    };
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Materials Management</h1>
-                    <p className="mt-2 text-sm text-gray-700">Manage fabric and material types.</p>
-                </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
-                >
-                    <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-                    Add Material
-                </button>
-            </div>
-
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                <ul role="list" className="divide-y divide-gray-200">
-                    {materials.map((material) => (
-                        <li key={material.id} className="block hover:bg-gray-50">
-                            <div className="px-4 py-4 flex items-center sm:px-6">
-                                <div className="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
-                                    <div className="flex items-center">
-                                        <BeakerIcon className="h-8 w-8 text-green-500 mr-4" />
-                                        <div>
-                                            <p className="font-medium text-green-600">{material.name}</p>
-                                            {material.category && (
-                                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                                    {material.category}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => handleOpenModal(material)}
-                                            className="text-green-600 hover:text-green-900 bg-green-50 p-2 rounded-full"
-                                        >
-                                            <PencilSquareIcon className="h-5 w-5" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClick(material.id)}
-                                            className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
-                                        >
-                                            <TrashIcon className="h-5 w-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </li>
-                    ))}
-                    {materials.length === 0 && (
-                        <li className="px-4 py-8 text-center text-gray-500">No materials found</li>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold font-outfit text-gray-900">Materials Library (Fabrics)</h1>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setShowTrash(!showTrash)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${showTrash
+                                ? 'bg-gray-100 text-gray-900 border-gray-300'
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                            }`}
+                    >
+                        {showTrash ? <ArrowPathIcon className="w-5 h-5" /> : <ArchiveBoxXMarkIcon className="w-5 h-5" />}
+                        {showTrash ? 'View Active' : 'Trash'}
+                    </button>
+                    {!showTrash && (
+                        <button
+                            onClick={() => handleOpenModal()}
+                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                            Add Material
+                        </button>
                     )}
-                </ul>
+                </div>
             </div>
 
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material Name</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tag (Category)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Composition</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Internal Reference</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {loading ? (
+                                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400">Loading materials...</td></tr>
+                            ) : materials.length === 0 ? (
+                                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-400">No materials found</td></tr>
+                            ) : materials.map((material) => (
+                                <tr key={material.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm font-medium text-gray-900">{material.name}</div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${material.category?.toLowerCase().includes('natural') ? 'bg-green-100 text-green-800' :
+                                                material.category?.toLowerCase().includes('synthetic') ? 'bg-purple-100 text-purple-800' :
+                                                    'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                            {material.category || 'Uncategorized'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                        {material.compositions && material.compositions.length > 0 ? (
+                                            <div className="flex flex-col gap-1">
+                                                {material.compositions.map((c, idx) => (
+                                                    <span key={idx} className="text-xs">
+                                                        {c.percentage}% {c.compositionName}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400 italic">No composition</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {material.skuRef || '-'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        {showTrash ? (
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => handleRestore(material.id)} className="text-green-600 hover:text-green-900" title="Restore">
+                                                    <ArrowPathIcon className="w-5 h-5" />
+                                                </button>
+                                                <button onClick={() => handleDeleteClick(material.id, true)} className="text-red-600 hover:text-red-900" title="Delete Permanently">
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => handleOpenModal(material)} className="text-indigo-600 hover:text-indigo-900">
+                                                    <PencilSquareIcon className="w-5 h-5" />
+                                                </button>
+                                                <button onClick={() => handleDeleteClick(material.id)} className="text-red-600 hover:text-red-900">
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Add/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">
-                            {editingMaterial ? 'Edit Material' : 'Add Material'}
-                        </h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-bold font-outfit">{editingMaterial ? 'Edit Material' : 'Add Material'}</h2>
+                            <button onClick={() => setIsModalOpen(false)}><XMarkIcon className="w-6 h-6 text-gray-400" /></button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700">Material Name</label>
                                 <input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2"
-                                    placeholder="e.g. Cotton, Silk, Polyester"
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder="e.g. Organic Cotton Denim"
                                 />
                             </div>
+
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">SKU Ref (2 chars)</label>
+                                <label className="block text-sm font-medium text-gray-700">Tag (Category)</label>
+                                <select
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value)}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                >
+                                    {availableCategories.map(cat => (
+                                        <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Internal Reference (SKU Ref)</label>
                                 <input
                                     type="text"
                                     value={skuRef}
                                     onChange={(e) => setSkuRef(e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2 uppercase"
-                                    placeholder="e.g. CT"
-                                    maxLength={4}
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    placeholder="Optional"
                                 />
                             </div>
-                            {!editingMaterial && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Category</label>
-                                    <select
-                                        value={category}
-                                        onChange={(e) => setCategory(e.target.value as any)}
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm sm:text-sm border p-2"
-                                    >
-                                        <option value="natural">Natural</option>
-                                        <option value="synthetic">Synthetic</option>
-                                        <option value="blend">Blend</option>
-                                    </select>
-                                </div>
-                            )}
                         </div>
-                        <div className="mt-5 flex justify-end gap-3">
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
-                            >
-                                Save
-                            </button>
+
+                        {/* Compositions Section */}
+                        <div className="border-t pt-4">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-sm font-medium text-gray-700">Fiber Composition</label>
+                                <button type="button" onClick={addCompositionRow} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">
+                                    <PlusIcon className="w-4 h-4" /> Add Fiber
+                                </button>
+                            </div>
+
+                            <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
+                                {selectedCompositions.map((row, index) => (
+                                    <div key={index} className="flex gap-2 items-center">
+                                        <div className="flex-1">
+                                            <select
+                                                value={row.compositionId}
+                                                onChange={(e) => updateCompositionRow(index, 'compositionId', e.target.value)}
+                                                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                                            >
+                                                <option value="">Select Fiber...</option>
+                                                {availableCompositions.map(comp => (
+                                                    <option key={comp.id} value={comp.id}>{comp.name} ({comp.categoryName})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="w-24 relative">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={row.percentage}
+                                                onChange={(e) => updateCompositionRow(index, 'percentage', e.target.value)}
+                                                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none pr-6"
+                                            />
+                                            <span className="absolute right-2 top-2 text-gray-400 text-xs">%</span>
+                                        </div>
+                                        <button onClick={() => removeCompositionRow(index)} className="text-gray-400 hover:text-red-500">
+                                            <XMarkIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ))}
+                                {selectedCompositions.length === 0 && (
+                                    <div className="text-sm text-gray-500 text-center py-2">No composition defined. Add a fiber.</div>
+                                )}
+                                <div className={`text-right text-sm font-medium ${Math.abs(totalPercentage - 100) < 0.1 ? 'text-green-600' : 'text-orange-600'}`}>
+                                    Total: {totalPercentage}%
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Cancel</button>
+                            <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save Material</button>
                         </div>
                     </div>
                 </div>
@@ -222,10 +395,10 @@ export default function AdminMaterialsPage() {
                 isOpen={deleteModalState.isOpen}
                 onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
                 onConfirm={handleConfirmDelete}
-                title="Delete Material"
-                message="Are you sure you want to delete this material?"
-                variant="danger"
-                confirmText="Delete"
+                title={deleteModalState.permanent ? "Delete Permanently?" : "Move to Trash?"}
+                message={deleteModalState.permanent
+                    ? "This action cannot be undone. The material will be permanently removed."
+                    : "The material will be moved to trash and can be restored later."}
             />
         </div>
     );

@@ -24,7 +24,7 @@ export function SimpleHeader() {
     : '/login';
 
   const navigation = [
-    { name: 'Discover', href: '/discover', icon: MagnifyingGlassIcon },
+    { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
     { name: 'Wardrobe', href: '/wardrobe', icon: HomeIcon },
     { name: 'Looks', href: '/outfits', icon: EyeIcon },
     { name: 'Marketplace', href: '/marketplace', icon: ShoppingBagIcon },

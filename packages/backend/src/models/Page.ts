@@ -9,6 +9,8 @@ export interface Page {
     userId?: string;
     logoUrl?: string;
     bannerUrl?: string;
+    logoMetadata?: Array<{ url: string; name: string }>;
+    bannerMetadata?: Array<{ url: string; positionY?: number }>;
     websiteUrl?: string;
     instagramUrl?: string;
     twitterUrl?: string;
@@ -16,6 +18,7 @@ export interface Page {
     foundedBy?: string;
     foundedDate?: string;
     foundedDatePrecision?: 'year' | 'month' | 'day';
+    socialLinks?: Array<{ platform: string; url: string }>;
     isVerified: boolean;
     isActive: boolean;
     createdAt: Date;
@@ -61,6 +64,8 @@ export class PageModel {
         userId?: string;
         logoUrl?: string;
         bannerUrl?: string;
+        logoMetadata?: Array<{ url: string; name: string }>;
+        bannerMetadata?: Array<{ url: string; positionY?: number }>;
         websiteUrl?: string;
         instagramUrl?: string;
         twitterUrl?: string;
@@ -68,6 +73,7 @@ export class PageModel {
         foundedBy?: string;
         foundedDate?: string;
         foundedDatePrecision?: 'year' | 'month' | 'day';
+        socialLinks?: Array<{ platform: string; url: string }>;
         isVerified?: boolean;
         isActive?: boolean;
     }): Promise<Page> {
@@ -82,9 +88,10 @@ export class PageModel {
           logo_url, banner_url, website_url, 
           instagram_url, twitter_url, facebook_url, 
           founded_by, founded_date, founded_date_precision,
-          is_verified, is_active
+          social_links, is_verified, is_active,
+          logo_metadata, banner_metadata
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `;
         const result = await db.query(query, [
@@ -101,8 +108,11 @@ export class PageModel {
             data.foundedBy || null,
             data.foundedDate || null,
             data.foundedDatePrecision || null,
+            JSON.stringify(data.socialLinks || []),
             data.isVerified ?? false,
-            data.isActive ?? true
+            data.isActive ?? true,
+            JSON.stringify(data.logoMetadata || []),
+            JSON.stringify(data.bannerMetadata || [])
         ]);
         return this.mapRowToPage(result.rows[0]);
     }
@@ -114,6 +124,8 @@ export class PageModel {
         userId?: string | null;
         logoUrl?: string;
         bannerUrl?: string;
+        logoMetadata?: Array<{ url: string; name: string }>;
+        bannerMetadata?: Array<{ url: string; positionY?: number }>;
         websiteUrl?: string;
         instagramUrl?: string;
         twitterUrl?: string;
@@ -121,6 +133,7 @@ export class PageModel {
         foundedBy?: string;
         foundedDate?: string;
         foundedDatePrecision?: 'year' | 'month' | 'day';
+        socialLinks?: Array<{ platform: string; url: string }>;
         isVerified?: boolean;
         isActive?: boolean;
     }): Promise<Page | null> {
@@ -134,6 +147,8 @@ export class PageModel {
         if (data.userId !== undefined) { setClause.push(`user_id = $${paramIndex++}`); values.push(data.userId); }
         if (data.logoUrl !== undefined) { setClause.push(`logo_url = $${paramIndex++}`); values.push(data.logoUrl); }
         if (data.bannerUrl !== undefined) { setClause.push(`banner_url = $${paramIndex++}`); values.push(data.bannerUrl); }
+        if (data.logoMetadata !== undefined) { setClause.push(`logo_metadata = $${paramIndex++}`); values.push(JSON.stringify(data.logoMetadata)); }
+        if (data.bannerMetadata !== undefined) { setClause.push(`banner_metadata = $${paramIndex++}`); values.push(JSON.stringify(data.bannerMetadata)); }
         if (data.websiteUrl !== undefined) { setClause.push(`website_url = $${paramIndex++}`); values.push(data.websiteUrl); }
         if (data.instagramUrl !== undefined) { setClause.push(`instagram_url = $${paramIndex++}`); values.push(data.instagramUrl); }
         if (data.twitterUrl !== undefined) { setClause.push(`twitter_url = $${paramIndex++}`); values.push(data.twitterUrl); }
@@ -141,6 +156,7 @@ export class PageModel {
         if (data.foundedBy !== undefined) { setClause.push(`founded_by = $${paramIndex++}`); values.push(data.foundedBy); }
         if (data.foundedDate !== undefined) { setClause.push(`founded_date = $${paramIndex++}`); values.push(data.foundedDate); }
         if (data.foundedDatePrecision !== undefined) { setClause.push(`founded_date_precision = $${paramIndex++}`); values.push(data.foundedDatePrecision); }
+        if (data.socialLinks !== undefined) { setClause.push(`social_links = $${paramIndex++}`); values.push(JSON.stringify(data.socialLinks)); }
         if (data.isVerified !== undefined) { setClause.push(`is_verified = $${paramIndex++}`); values.push(data.isVerified); }
         if (data.isActive !== undefined) { setClause.push(`is_active = $${paramIndex++}`); values.push(data.isActive); }
 
@@ -175,6 +191,8 @@ export class PageModel {
             userId: row.user_id,
             logoUrl: row.logo_url,
             bannerUrl: row.banner_url,
+            logoMetadata: row.logo_metadata || [],
+            bannerMetadata: row.banner_metadata || [],
             websiteUrl: row.website_url,
             instagramUrl: row.instagram_url,
             twitterUrl: row.twitter_url,
@@ -182,6 +200,7 @@ export class PageModel {
             foundedBy: row.founded_by,
             foundedDate: row.founded_date,
             foundedDatePrecision: row.founded_date_precision,
+            socialLinks: row.social_links || [],
             isVerified: row.is_verified,
             isActive: row.is_active,
             createdAt: row.created_at,

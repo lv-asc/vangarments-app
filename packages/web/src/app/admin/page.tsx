@@ -112,6 +112,7 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
     colors: { id: 'colors', title: 'Colors', description: 'Manage Colors and Color Groups.', href: '/admin/colors', iconName: 'SwatchIcon', gradient: 'from-fuchsia-500 to-purple-600' },
     sizes: { id: 'sizes', title: 'Sizes', description: 'Manage Sizes, Conversions and Validity.', href: '/admin/sizes', iconName: 'FunnelIcon', gradient: 'from-amber-500 to-orange-600' },
     materials: { id: 'materials', title: 'Materials', description: 'Manage fabric and material types.', href: '/admin/materials', iconName: 'BeakerIcon', gradient: 'from-lime-500 to-green-600' },
+    compositions: { id: 'compositions', title: 'Compositions', description: 'Manage fiber compositions and categories.', href: '/admin/compositions', iconName: 'BeakerIcon', gradient: 'from-emerald-400 to-teal-500' },
     patterns: { id: 'patterns', title: 'Patterns', description: 'Manage pattern and print types.', href: '/admin/patterns', iconName: 'RectangleGroupIcon', gradient: 'from-indigo-500 to-violet-600' },
     styles: { id: 'styles', title: 'Styles', description: 'Manage apparel style types and categories.', href: '/admin/styles', iconName: 'SwatchIcon', gradient: 'from-purple-500 to-fuchsia-600' },
     fits: { id: 'fits', title: 'Fits', description: 'Manage fit types and silhouettes.', href: '/admin/fits', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-sky-500 to-blue-600' },
@@ -124,7 +125,9 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
     users: { id: 'users', title: 'User Management', description: 'Manage Users, Roles, and Permissions.', href: '/admin/users', iconName: 'UsersIcon', gradient: 'from-blue-600 to-indigo-600' },
     pages: { id: 'pages', title: 'Pages', description: 'Manage publication pages (Vogue, etc.)', href: '/admin/pages', iconName: 'BookOpenIcon', gradient: 'from-violet-500 to-purple-500' },
     journalism: { id: 'journalism', title: 'Journalism', description: 'Manage News, Columns, and Articles.', href: '/admin/journalism', iconName: 'NewspaperIcon', gradient: 'from-slate-600 to-gray-700' },
-    config: { id: 'config', title: 'System Configuration', description: 'Global settings and system parameters.', href: '/admin/configuration', iconName: 'Cog6ToothIcon', gradient: 'from-gray-600 to-gray-800' }
+    verified_entities: { id: 'verified_entities', title: 'Entity Verifications', description: 'Manage Entity Verification Status.', href: '/admin/entity-verifications', iconName: 'ShieldCheckIcon', gradient: 'from-blue-600 to-indigo-600' },
+    config: { id: 'config', title: 'System Configuration', description: 'Global settings and system parameters.', href: '/admin/configuration', iconName: 'Cog6ToothIcon', gradient: 'from-gray-600 to-gray-800' },
+    entity_config: { id: 'entity_config', title: 'Entity Configuration', description: 'Configure entity features and labels.', href: '/admin/entities/configuration', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-indigo-500 to-purple-600' }
 };
 
 
@@ -560,7 +563,7 @@ export default function AdminPage() {
     const [sectionsOrder, setSectionsOrder] = useState<{ [key: string]: string[] }>({
         'Commerce & Partners': ['brands', 'stores', 'suppliers', 'non_profits'],
         'Product Catalog': ['categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
-        'Content & Platform': ['users', 'pages', 'journalism', 'config']
+        'Content & Platform': ['users', 'pages', 'journalism', 'verified_entities', 'config', 'entity_config']
     });
 
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -584,8 +587,8 @@ export default function AdminPage() {
         const savedOrder = localStorage.getItem('admin_sections_order');
         let currentOrder = {
             'Commerce & Partners': ['brands', 'stores', 'suppliers', 'non_profits'],
-            'Product Catalog': ['categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
-            'Content & Platform': ['users', 'pages', 'journalism', 'config']
+            'Product Catalog': ['categories', 'apparel', 'skus', 'sku_codes', 'colors', 'sizes', 'materials', 'compositions', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
+            'Content & Platform': ['users', 'pages', 'journalism', 'verified_entities', 'config']
         };
 
         if (savedOrder) {
@@ -610,6 +613,22 @@ export default function AdminPage() {
             } else {
                 const firstKey = Object.keys(currentOrder)[0];
                 if (firstKey) currentOrder[firstKey].push('sku_codes');
+            }
+            needsMigration = true;
+        }
+
+
+        if (!allIds.includes('compositions')) {
+            if (currentOrder['Product Catalog']) {
+                const materialsIndex = currentOrder['Product Catalog'].indexOf('materials');
+                if (materialsIndex !== -1) {
+                    currentOrder['Product Catalog'].splice(materialsIndex + 1, 0, 'compositions');
+                } else {
+                    currentOrder['Product Catalog'].push('compositions');
+                }
+            } else {
+                const firstKey = Object.keys(currentOrder)[0];
+                if (firstKey) currentOrder[firstKey].push('compositions');
             }
             needsMigration = true;
         }
@@ -676,6 +695,23 @@ export default function AdminPage() {
             } else {
                 const firstKey = Object.keys(currentOrder)[0];
                 if (firstKey) currentOrder[firstKey].push('conditions');
+            }
+            needsMigration = true;
+        }
+
+        // Ensure 'entity_config' is present
+        if (!allIds.includes('entity_config')) {
+            if (currentOrder['Content & Platform']) {
+                // Add after config
+                const configIndex = currentOrder['Content & Platform'].indexOf('config');
+                if (configIndex !== -1) {
+                    currentOrder['Content & Platform'].splice(configIndex + 1, 0, 'entity_config');
+                } else {
+                    currentOrder['Content & Platform'].push('entity_config');
+                }
+            } else {
+                const lastKey = Object.keys(currentOrder).pop();
+                if (lastKey) currentOrder[lastKey].push('entity_config');
             }
             needsMigration = true;
         }
