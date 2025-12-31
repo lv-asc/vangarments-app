@@ -56,7 +56,27 @@ export class UserModel {
     const result = await db.query(query, [cpf || null, email, passwordHash || null, JSON.stringify(profile), username]);
     const user = result.rows[0];
 
-    return this.mapToUserProfile(user);
+    const mappedUser = this.mapToUserProfile(user);
+
+    // Auto-follow @v by default
+    try {
+      const vRes = await db.query("SELECT id FROM users WHERE username = 'v'");
+      if (vRes.rows.length > 0) {
+        const vId = vRes.rows[0].id;
+        if (mappedUser.id !== vId) {
+          // Use a raw query to avoid circular dependencies if we were to import UserFollowModel
+          await db.query(`
+            INSERT INTO user_follows (follower_id, following_id, status)
+            VALUES ($1, $2, 'accepted')
+            ON CONFLICT (follower_id, following_id) DO NOTHING
+          `, [mappedUser.id, vId]);
+        }
+      }
+    } catch (e) {
+      console.error('Error auto-following @v:', e);
+    }
+
+    return mappedUser;
   }
 
   static async findById(id: string): Promise<UserProfile | null> {
@@ -437,12 +457,13 @@ export class UserModel {
       socialLinks: profile.socialLinks || [],
       roles: row.roles ? row.roles.filter((role: string) => role !== null) : [],
       status: row.status || 'active',
+      verificationStatus: (row.roles && row.roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
       banExpiresAt: row.ban_expires_at ? new Date(row.ban_expires_at) : undefined,
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       _rawProfile: profile,
-    } as UserProfile & { roles?: string[], _rawProfile?: any, username?: string, usernameLastChanged?: Date, status: string, banExpiresAt?: Date, lastSeenAt?: Date };
+    } as UserProfile & { roles?: string[], verificationStatus?: string, _rawProfile?: any, username?: string, usernameLastChanged?: Date, status: string, banExpiresAt?: Date, lastSeenAt?: Date };
   }
 
   static async updateStatus(userId: string, status: string, banExpiresAt?: Date, banReason?: string): Promise<void> {
@@ -487,5 +508,34 @@ export class UserModel {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Update user verification status
+   */
+  static async updateVerificationStatus(
+    userId: string,
+    status: 'unverified' | 'pending' | 'verified' | 'rejected'
+  ): Promise<void> {
+    const query = `
+      UPDATE users 
+      SET verification_status = $1, updated_at = NOW()
+      WHERE id = $2
+    `;
+    await db.query(query, [status, userId]);
+  }
+
+  /**
+   * Get user verification status
+   */
+  static async getVerificationStatus(userId: string): Promise<string | null> {
+    const query = 'SELECT verification_status FROM users WHERE id = $1';
+    const result = await db.query(query, [userId]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0].verification_status || 'unverified';
   }
 }

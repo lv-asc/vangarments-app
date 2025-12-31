@@ -34,7 +34,9 @@ export class PostCommentModel {
   static async findById(id: string): Promise<PostComment | null> {
     const query = `
       SELECT pc.*, 
-             u.profile as user_profile
+             u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
       FROM post_comments pc
       LEFT JOIN users u ON pc.user_id = u.id
       WHERE pc.id = $1
@@ -52,6 +54,8 @@ export class PostCommentModel {
     const query = `
       SELECT pc.*, 
              u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
              COUNT(*) OVER() as total
       FROM post_comments pc
       LEFT JOIN users u ON pc.user_id = u.id
@@ -76,6 +80,8 @@ export class PostCommentModel {
     const query = `
       SELECT pc.*, 
              u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
              COUNT(*) OVER() as total
       FROM post_comments pc
       LEFT JOIN users u ON pc.user_id = u.id
@@ -132,6 +138,8 @@ export class PostCommentModel {
       user: row.user_profile ? {
         id: row.user_id,
         profile: row.user_profile,
+        verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+        roles: row.user_roles || [],
       } : undefined,
     };
   }

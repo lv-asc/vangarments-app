@@ -13,6 +13,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FollowEntityButton } from '@/components/social/FollowEntityButton';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { SocialIcon } from '@/components/ui/social-icons';
+import {
+    ChatBubbleLeftIcon,
+    ShoppingBagIcon,
+    UsersIcon,
+    UserGroupIcon,
+    Squares2X2Icon
+} from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
 
 // Helper to resolve image URLs
 const getImageUrl = (url: string | undefined | null) => {
@@ -35,7 +43,8 @@ interface OrgProfileProps {
 
 export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfileProps) {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items'>('overview');
+    const router = useRouter();
+    const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items' | 'followers'>('overview');
     const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
     const { brand, team, lookbooks, collections, followerCount } = profile;
@@ -154,7 +163,7 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                         {displayTypeLabel}
                                     </span>
                                     {user ? (
-                                        <>
+                                        <div className="flex items-center gap-2">
                                             {team.some(member => member.userId === user.id) && (
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
                                                     Team Member
@@ -165,7 +174,20 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                                 entityId={brand.id}
                                                 size="sm"
                                             />
-                                        </>
+                                            <button
+                                                onClick={() => {
+                                                    // Route to entity DM
+                                                    // For entities, we use the brand ID or slug if conversation already exists
+                                                    // but startConversation works with usernames. 
+                                                    // For now, consistent with how UserProfileLayout does it or use entity path.
+                                                    router.push(`/messages/${brand.id}`);
+                                                }}
+                                                className="inline-flex items-center gap-2 px-3 py-1 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                                            >
+                                                <ChatBubbleLeftIcon className="w-4 h-4" />
+                                                Message
+                                            </button>
+                                        </div>
                                     ) : (
                                         <a
                                             href="/login"
@@ -230,23 +252,35 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                             </div>
 
                             {/* Stats */}
-                            <div className="flex md:flex-col gap-6 md:gap-2 text-center md:text-right">
-                                <div>
-                                    <div className="text-2xl font-bold text-gray-900">{followerCount || 0}</div>
+                            <div className="flex md:flex-col gap-6 md:gap-4 text-center md:text-right">
+                                <button onClick={() => setActiveTab('followers')} className="group text-center md:text-right">
+                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
+                                        <UsersIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                                        {followerCount || 0}
+                                    </div>
                                     <div className="text-sm text-gray-500">Followers</div>
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-bold text-gray-900">{brand.analytics.totalCatalogItems}</div>
+                                </button>
+                                <button onClick={() => setActiveTab('items')} className="group text-center md:text-right">
+                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
+                                        <ShoppingBagIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                                        {brand.analytics.totalCatalogItems}
+                                    </div>
                                     <div className="text-sm text-gray-500">Items</div>
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-bold text-gray-900">{team.length}</div>
+                                </button>
+                                <button onClick={() => setActiveTab('team')} className="group text-center md:text-right">
+                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
+                                        <UserGroupIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                                        {team.length}
+                                    </div>
                                     <div className="text-sm text-gray-500">Team</div>
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-bold text-gray-900">{collections.length}</div>
+                                </button>
+                                <button onClick={() => setActiveTab('collections')} className="group text-center md:text-right">
+                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
+                                        <Squares2X2Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                                        {collections.length}
+                                    </div>
                                     <div className="text-sm text-gray-500">Collections</div>
-                                </div>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -257,7 +291,7 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
                 <div className="border-b border-gray-200">
                     <nav className="flex gap-8" aria-label="Tabs">
-                        {(['overview', 'team', 'lookbooks', 'collections'] as const).map((tab) => (
+                        {(['overview', 'items', 'followers', 'team', 'lookbooks', 'collections'] as const).map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -267,6 +301,8 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                     }`}
                             >
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                {tab === 'followers' && <span className="ml-2 text-gray-400">({followerCount || 0})</span>}
+                                {tab === 'items' && <span className="ml-2 text-gray-400">({brand.analytics.totalCatalogItems})</span>}
                                 {tab === 'team' && <span className="ml-2 text-gray-400">({team.length})</span>}
                                 {tab === 'lookbooks' && <span className="ml-2 text-gray-400">({lookbooks.length})</span>}
                                 {tab === 'collections' && <span className="ml-2 text-gray-400">({collections.length})</span>}
@@ -390,6 +426,22 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                             )}
                         </div>
                     )}
+
+                    {activeTab === 'items' && (
+                        <div className="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
+                            <ShoppingBagIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-900">Items Catalog</h3>
+                            <p className="text-gray-500 mt-2">The full product catalog is being loaded...</p>
+                        </div>
+                    )}
+
+                    {activeTab === 'followers' && (
+                        <div className="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
+                            <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-900">Followers</h3>
+                            <p className="text-gray-500 mt-2">Explore the community following this {displayTypeLabel.toLowerCase()}.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -410,8 +462,11 @@ function TeamMemberCard({ member }: { member: BrandTeamMember }) {
                     </div>
                 )}
             </div>
-            <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                {member.user?.name || 'Unknown'}
+            <div className="flex items-center justify-center gap-1">
+                <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                    {member.user?.name || 'Unknown'}
+                </div>
+                {member.user?.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
             </div>
             <div className="text-sm text-gray-500">
                 {member.roles?.join(', ') || (member as any).role}

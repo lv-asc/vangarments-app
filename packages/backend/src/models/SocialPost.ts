@@ -79,6 +79,8 @@ export class SocialPostModel {
     const query = `
       SELECT sp.*, 
              u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
              (
                SELECT COUNT(*)::int FROM post_likes pl WHERE pl.post_id = sp.id
              ) as likes_count,
@@ -104,6 +106,8 @@ export class SocialPostModel {
     const query = `
       SELECT sp.*, 
              u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
              (
                SELECT COUNT(*)::int FROM post_likes pl WHERE pl.post_id = sp.id
              ) as likes_count,
@@ -160,6 +164,8 @@ export class SocialPostModel {
     const query = `
       SELECT sp.*, 
              u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
              (
                SELECT COUNT(*)::int FROM post_likes pl WHERE pl.post_id = sp.id
              ) as likes_count,
@@ -269,6 +275,8 @@ export class SocialPostModel {
       user: row.user_profile ? {
         id: row.user_id,
         profile: row.user_profile,
+        verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+        roles: row.user_roles || [],
       } : undefined,
     };
   }

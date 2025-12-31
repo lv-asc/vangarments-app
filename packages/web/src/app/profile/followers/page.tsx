@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthWrapper';
 import { ArrowLeftIcon, MagnifyingGlassIcon, XMarkIcon, UsersIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { getImageUrl } from '@/utils/imageUrl';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 export default function FollowersPage() {
     const { user } = useAuth();
@@ -116,7 +117,10 @@ export default function FollowersPage() {
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-semibold text-gray-900 truncate">{follower.personalInfo?.name || follower.username}</h3>
+                                            <div className="flex items-center gap-1.5">
+                                                <h3 className="font-semibold text-gray-900 truncate">{follower.personalInfo?.name || follower.username}</h3>
+                                                {follower.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                                            </div>
                                             <p className="text-sm text-gray-500 truncate">@{follower.username}</p>
                                         </div>
                                     </Link>

@@ -551,7 +551,7 @@ export default function AdminPage() {
 
     // Initial Sections
     const defaultSections = [
-        { key: 'Commerce & Partners', title: 'Commerce & Partners', description: 'Manage your business relationships and entities' },
+        { key: 'Entities', title: 'Entities', description: 'Manage Entities like Brands, Stores and more, as well as their relationships' },
         { key: 'Product Catalog', title: 'Product Catalog', description: 'Configure your product taxonomy and inventory' },
         { key: 'Content & Platform', title: 'Content & Platform', description: 'Manage users, pages and system settings' }
     ];
@@ -561,9 +561,9 @@ export default function AdminPage() {
 
     // Items Order State
     const [sectionsOrder, setSectionsOrder] = useState<{ [key: string]: string[] }>({
-        'Commerce & Partners': ['brands', 'stores', 'suppliers', 'non_profits'],
+        'Entities': ['entity_config', 'brands', 'stores', 'suppliers', 'non_profits', 'pages', 'verified_entities'],
         'Product Catalog': ['categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
-        'Content & Platform': ['users', 'pages', 'journalism', 'verified_entities', 'config', 'entity_config']
+        'Content & Platform': ['users', 'journalism', 'config']
     });
 
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -586,9 +586,9 @@ export default function AdminPage() {
         setIsClient(true);
         const savedOrder = localStorage.getItem('admin_sections_order');
         let currentOrder = {
-            'Commerce & Partners': ['brands', 'stores', 'suppliers', 'non_profits'],
+            'Entities': ['entity_config', 'brands', 'stores', 'suppliers', 'non_profits', 'pages', 'verified_entities'],
             'Product Catalog': ['categories', 'apparel', 'skus', 'sku_codes', 'colors', 'sizes', 'materials', 'compositions', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
-            'Content & Platform': ['users', 'pages', 'journalism', 'verified_entities', 'config']
+            'Content & Platform': ['users', 'journalism', 'config']
         };
 
         if (savedOrder) {

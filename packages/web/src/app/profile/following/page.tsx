@@ -7,8 +7,9 @@ import { ArrowLeftIcon, ArrowRightIcon, MagnifyingGlassIcon, XMarkIcon, UsersIco
 import Link from 'next/link';
 import { getImageUrl } from '@/utils/imageUrl';
 import { debounce } from '@/lib/utils';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
-type EntityTypeFilter = 'all' | 'user' | 'brand' | 'store' | 'supplier' | 'page';
+type EntityTypeFilter = 'all' | 'user' | 'brand' | 'store' | 'supplier' | 'non_profit' | 'page';
 
 export default function FollowingPage() {
     const { user } = useAuth();
@@ -28,7 +29,7 @@ export default function FollowingPage() {
 
             const promises: Promise<any>[] = [];
             const fetchUsers = type === 'all' || type === 'user';
-            const fetchEntities = type === 'all' || ['brand', 'store', 'supplier', 'page'].includes(type as string);
+            const fetchEntities = type === 'all' || ['brand', 'store', 'supplier', 'non_profit', 'page'].includes(type as string);
 
             if (fetchUsers) {
                 promises.push(apiClient.getFollowing(user.id, 1, 100, query));
@@ -71,16 +72,18 @@ export default function FollowingPage() {
             name: u.personalInfo?.name || u.username,
             subtitle: `@${u.username}`,
             image: u.personalInfo?.avatarUrl,
-            link: `/u/${u.username}`
+            link: `/u/${u.username}`,
+            verificationStatus: u.verificationStatus
         }));
 
         const normalizedEntities = entities.map(e => ({
             id: e.id,
             type: e.entityType,
             name: e.entityName || 'Unnamed Entity',
-            subtitle: e.entityType.charAt(0).toUpperCase() + e.entityType.slice(1),
+            subtitle: e.entityType.charAt(0).toUpperCase() + e.entityType.slice(1).replace('_', '-'),
             image: e.entityLogo,
-            link: `/${e.entityType === 'brand' ? 'brands' : e.entityType === 'store' ? 'stores' : 'pages'}/${e.entitySlug || e.entityId}`
+            link: `/${e.entityType === 'brand' ? 'brands' : e.entityType === 'store' ? 'stores' : e.entityType === 'non_profit' ? 'non-profits' : 'pages'}/${e.entitySlug || e.entityId}`,
+            verificationStatus: e.verificationStatus
         }));
 
         const results = [...normalizedUsers, ...normalizedEntities];
@@ -90,7 +93,8 @@ export default function FollowingPage() {
             const typeLabel = item.type === 'user' ? 'Users' :
                 item.type === 'brand' ? 'Brands' :
                     item.type === 'store' ? 'Stores' :
-                        item.type === 'supplier' ? 'Suppliers' : 'Pages';
+                        item.type === 'supplier' ? 'Suppliers' :
+                            item.type === 'non_profit' ? 'Non-Profits' : 'Pages';
 
             if (!grouped[typeLabel]) grouped[typeLabel] = [];
             grouped[typeLabel].push(item);
@@ -113,6 +117,7 @@ export default function FollowingPage() {
         { id: 'brand', label: 'Brands', icon: FireIcon },
         { id: 'store', label: 'Stores', icon: BuildingStorefrontIcon },
         { id: 'supplier', label: 'Suppliers', icon: BuildingStorefrontIcon },
+        { id: 'non_profit', label: 'Non-Profits', icon: BuildingStorefrontIcon },
         { id: 'page', label: 'Pages', icon: RectangleStackIcon },
     ];
 
@@ -200,7 +205,10 @@ export default function FollowingPage() {
                                                 )}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h3 className="font-semibold text-gray-900 truncate">{item.name}</h3>
+                                                <div className="flex items-center gap-1.5">
+                                                    <h3 className="font-semibold text-gray-900 truncate">{item.name}</h3>
+                                                    {item.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                                                </div>
                                                 <p className="text-sm text-gray-500 truncate">{item.subtitle}</p>
                                             </div>
                                             <div className="text-gray-300 group-hover:text-[#00132d] transition-colors">

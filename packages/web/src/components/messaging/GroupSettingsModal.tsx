@@ -14,6 +14,7 @@ import { apiClient } from '@/lib/api';
 import { AlertModal } from '@/components/ui/AlertModal';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useRouter } from 'next/navigation';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 interface GroupSettingsModalProps {
     isOpen: boolean;
@@ -368,7 +369,10 @@ export default function GroupSettingsModal({
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2">
-                                                            <p className="text-sm font-bold truncate">{participant.user?.username}</p>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <p className="text-sm font-bold truncate">{participant.user?.username}</p>
+                                                                {participant.user?.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                                                            </div>
                                                             {participant.role === 'admin' && (
                                                                 <span className="bg-black text-[8px] font-black text-white px-1.5 py-0.5 rounded uppercase tracking-tighter">Admin</span>
                                                             )}

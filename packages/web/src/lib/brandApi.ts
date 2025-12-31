@@ -747,10 +747,10 @@ class BrandApi {
   // ============ VERIFICATION ============
 
   async verifyBrand(brandId: string, status: 'verified' | 'rejected', reason?: string): Promise<BrandAccount> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/verify`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
-      body: JSON.stringify({ verificationStatus: status })
+      body: JSON.stringify({ status, notes: reason })
     });
 
     if (!response.ok) {

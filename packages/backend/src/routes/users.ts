@@ -9,6 +9,7 @@ router.put('/profile', AuthUtils.authenticateToken, UserController.updateBasicPr
 router.put('/measurements', AuthUtils.authenticateToken, UserController.updateMeasurements);
 router.put('/address', AuthUtils.authenticateToken, UserController.updateAddress);
 router.put('/preferences', AuthUtils.authenticateToken, UserController.updatePreferences);
+router.put('/preferences/notifications', AuthUtils.authenticateToken, UserController.updateNotificationPreferences);
 router.post('/activity', AuthUtils.authenticateToken, UserController.updateActivity);
 
 // Public user routes
@@ -46,5 +47,9 @@ router.post('/:id/deactivate', AuthUtils.authenticateToken, UserController.deact
 router.post('/:id/reactivate', AuthUtils.authenticateToken, UserController.reactivateUser);
 router.post('/:id/restore', AuthUtils.authenticateToken, UserController.restoreUser);
 router.delete('/:id', AuthUtils.authenticateToken, UserController.deleteUser);
+
+// Verification endpoints (admin only)
+router.put('/:id/verify', AuthUtils.authenticateToken, UserController.verifyUser);
+router.put('/:id/unverify', AuthUtils.authenticateToken, UserController.unverifyUser);
 
 export default router;

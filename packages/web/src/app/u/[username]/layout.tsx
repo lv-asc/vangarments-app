@@ -63,7 +63,7 @@ interface UserProfile {
 
 const ProfileContext = createContext<{
     profile: UserProfile | null;
-    followStatus: { isFollowing: boolean; status?: 'pending' | 'accepted' };
+    followStatus: { isFollowing: boolean; isFollower?: boolean; status?: 'pending' | 'accepted' };
     loading: boolean;
     followLoading: boolean;
     handleFollowClick: () => Promise<void>;
@@ -88,7 +88,7 @@ export default function UserProfileLayout({
 
     const { user } = useAuth();
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [followStatus, setFollowStatus] = useState<{ isFollowing: boolean; status?: 'pending' | 'accepted' }>({ isFollowing: false });
+    const [followStatus, setFollowStatus] = useState<{ isFollowing: boolean; isFollower?: boolean; status?: 'pending' | 'accepted' }>({ isFollowing: false });
     const [loading, setLoading] = useState(true);
     const [followLoading, setFollowLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -196,6 +196,9 @@ export default function UserProfileLayout({
 
     const getFollowButtonText = () => {
         if (followStatus.isFollowing) {
+            if (followStatus.isFollower && followStatus.status === 'accepted') {
+                return 'Friends';
+            }
             return followStatus.status === 'pending' ? 'Requested' : 'Following';
         }
         return 'Follow';
@@ -325,7 +328,8 @@ export default function UserProfileLayout({
                                         href={`/u/${profile.username}`}
                                         className={`text-center group ${isActive(`/u/${profile.username}`) ? 'opacity-100' : 'opacity-70'}`}
                                     >
-                                        <div className="font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                        <div className="flex items-center justify-center gap-1.5 font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                            <ScaleIcon className="w-5 h-5 text-gray-400 group-hover:text-primary" />
                                             {profile.stats.wardrobeItems || 0}
                                         </div>
                                         <div className="text-xs text-gray-500 uppercase tracking-wide">Items</div>
@@ -334,7 +338,8 @@ export default function UserProfileLayout({
                                         href={`/u/${profile.username}/outfits`}
                                         className={`text-center group ${isActive(`/u/${profile.username}/outfits`) ? 'opacity-100' : 'opacity-70'}`}
                                     >
-                                        <div className="font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                        <div className="flex items-center justify-center gap-1.5 font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                            <ArrowsUpDownIcon className="w-5 h-5 text-gray-400 group-hover:text-primary" />
                                             {profile.stats.outfitsCreated || 0}
                                         </div>
                                         <div className="text-xs text-gray-500 uppercase tracking-wide">Outfits</div>
@@ -343,7 +348,8 @@ export default function UserProfileLayout({
                                         href={`/u/${profile.username}/followers`}
                                         className={`text-center group ${isActive(`/u/${profile.username}/followers`) ? 'opacity-100' : 'opacity-70'}`}
                                     >
-                                        <div className="font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                        <div className="flex items-center justify-center gap-1.5 font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                            <UserPlusIcon className="w-5 h-5 text-gray-400 group-hover:text-primary" />
                                             {profile.stats.followers || 0}
                                         </div>
                                         <div className="text-xs text-gray-500 uppercase tracking-wide">Followers</div>
@@ -352,7 +358,10 @@ export default function UserProfileLayout({
                                         href={`/u/${profile.username}/following`}
                                         className={`text-center group ${isActive(`/u/${profile.username}/following`) ? 'opacity-100' : 'opacity-70'}`}
                                     >
-                                        <div className="font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                        <div className="flex items-center justify-center gap-1.5 font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                            <div className="w-5 h-5 flex items-center justify-center">
+                                                <UserPlusIcon className="w-5 h-5 text-gray-400 group-hover:text-primary transform scale-x-[-1]" />
+                                            </div>
                                             {profile.stats.following || 0}
                                         </div>
                                         <div className="text-xs text-gray-500 uppercase tracking-wide">Following</div>
@@ -361,7 +370,11 @@ export default function UserProfileLayout({
                                         href={`/u/${profile.username}/friends`}
                                         className={`text-center group ${isActive(`/u/${profile.username}/friends`) ? 'opacity-100' : 'opacity-70'}`}
                                     >
-                                        <div className="font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                        <div className="flex items-center justify-center gap-1.5 font-bold text-xl text-gray-900 group-hover:text-primary transition-colors">
+                                            <div className="relative">
+                                                <UserPlusIcon className="w-4 h-4 text-gray-400 group-hover:text-primary" />
+                                                <UserPlusIcon className="w-3 h-3 text-gray-400 group-hover:text-primary absolute -right-2 -top-1" />
+                                            </div>
                                             {profile.stats.friendsCount || 0}
                                         </div>
                                         <div className="text-xs text-gray-500 uppercase tracking-wide">Friends</div>

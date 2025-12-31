@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { UserModel } from '../models/User';
+import { NotificationModel } from '../models/Notification';
 import { AuthenticatedRequest } from '../utils/auth';
 import { AddressUtils, BrazilianAddress } from '../utils/address';
 import { MeasurementUtils } from '../utils/measurements';
@@ -549,6 +550,7 @@ export class UserController {
         bannerImages: (user as any)._rawProfile?.bannerImages || [],
         socialLinks: user.socialLinks || [],
         roles: (user as any).roles || [],
+        verificationStatus: (user as any).verificationStatus,
         createdAt: user.createdAt,
         // Include full nested objects for frontend consumption
         personalInfo: user.personalInfo,
@@ -618,6 +620,7 @@ export class UserController {
         // Only expose main profile image (first one) to public
         socialLinks: user.socialLinks || [],
         roles: (user as any).roles || [],
+        verificationStatus: (user as any).verificationStatus,
         createdAt: user.createdAt,
         // Include partial nested objects safe for public
         personalInfo: {
@@ -1308,6 +1311,7 @@ export class UserController {
       }
 
       const memberships = await BrandTeamModel.getUserMembershipsWithDetails(req.user.userId);
+      console.log('DEBUG: getMyMemberships result:', JSON.stringify(memberships, null, 2));
       res.json({ success: true, memberships });
     } catch (error) {
       console.error('Get my memberships error:', error);
@@ -1456,6 +1460,20 @@ export class UserController {
         });
       }
 
+      // Create notification for the requester
+      // Get current user's details for the notification
+      const user = await UserModel.findById(req.user.userId);
+      const username = user?.username || 'Someone';
+
+      await NotificationModel.create({
+        userId: requesterId,
+        type: 'follow_request_accepted',
+        title: 'Request Accepted',
+        message: `${username} accepted your follow request`,
+        link: `/u/${username}`,
+        actorId: req.user.userId
+      });
+
       res.json({
         success: true,
         message: 'Follow request accepted'
@@ -1549,6 +1567,109 @@ export class UserController {
       console.error('Get follow request count error:', error);
       res.status(500).json({
         error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to get follow request count' }
+      });
+    }
+  }
+
+  /**
+   * Verify user (admin only)
+   * PUT /api/users/:id/verify
+   */
+  static async verifyUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({
+          error: { code: 'FORBIDDEN', message: 'Admin access required' }
+        });
+      }
+
+      const { id } = req.params;
+      const user = await UserModel.findById(id);
+
+      if (!user) {
+        return res.status(404).json({
+          error: { code: 'USER_NOT_FOUND', message: 'User not found' }
+        });
+      }
+
+      await UserModel.updateVerificationStatus(id, 'verified');
+      res.json({ success: true, message: 'User verified successfully' });
+    } catch (error) {
+      console.error('Verify user error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to verify user' }
+      });
+    }
+  }
+
+  /**
+   * Unverify user (admin only)
+   * PUT /api/users/:id/unverify
+   */
+  static async unverifyUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user?.roles.includes('admin')) {
+        return res.status(403).json({
+          error: { code: 'FORBIDDEN', message: 'Admin access required' }
+        });
+      }
+
+      const { id } = req.params;
+      const user = await UserModel.findById(id);
+
+      if (!user) {
+        return res.status(404).json({
+          error: { code: 'USER_NOT_FOUND', message: 'User not found' }
+        });
+      }
+
+      await UserModel.updateVerificationStatus(id, 'unverified');
+      res.json({ success: true, message: 'User unverified successfully' });
+    } catch (error) {
+      console.error('Unverify user error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to unverify user' }
+      });
+    }
+  }
+
+  /**
+   * Update notification preferences
+   * PUT /api/users/preferences/notifications
+   */
+  static async updateNotificationPreferences(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
+        });
+      }
+
+      const { showNotificationBadge, showMessageBadge } = req.body;
+
+      const notificationPreferences = {
+        showNotificationBadge: showNotificationBadge !== undefined ? showNotificationBadge : true,
+        showMessageBadge: showMessageBadge !== undefined ? showMessageBadge : true
+      };
+
+      const updatedUser = await UserModel.update(req.user.userId, {
+        notificationPreferences
+      });
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          error: { code: 'USER_NOT_FOUND', message: 'User not found' }
+        });
+      }
+
+      res.json({
+        success: true,
+        preferences: updatedUser.notificationPreferences
+      });
+    } catch (error) {
+      console.error('Update notification preferences error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to update notification preferences' }
       });
     }
   }

@@ -1,5 +1,7 @@
 'use client';
 
+import SKUCard from '@/components/ui/SKUCard';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { brandApi } from '@/lib/brandApi';
@@ -20,15 +22,228 @@ import {
   ShoppingBagIcon,
   DocumentTextIcon,
   RectangleStackIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { getImageUrl, debounce } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { useRecentVisits } from '@/hooks/useRecentVisits';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 type FilterType = 'all' | 'brand' | 'store' | 'supplier' | 'non_profit' | 'user' | 'item' | 'post' | 'page' | 'editorial';
 
+const ResultSection = ({ title, items, renderItem, icon: Icon }: { title: string, items: any[], renderItem: (item: any) => React.ReactNode, icon: any }) => {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="mb-8">
+      <div className="flex items-center space-x-2 mb-4 px-4 sm:px-0">
+        <Icon className="h-5 w-5 text-gray-500" />
+        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+      </div>
+      <div className={items[0]?.title ? "flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 scrollbar-hide snap-x" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 sm:px-0"}>
+        {items.map((item) => (
+          <div key={item.id} className="min-w-0">
+            {renderItem(item)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// UI Components (Helpers)
+
+const SectionHeader = ({ title, icon: Icon, link }: { title: string, icon: any, link?: string }) => (
+  <div className="flex items-center justify-between mb-4 px-4 sm:px-0 mt-8 first:mt-0">
+    <div className="flex items-center space-x-2">
+      <Icon className="h-6 w-6 text-gray-900" />
+      <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+    </div>
+    {link && (
+      <Link href={link} className="text-sm font-medium text-blue-600 hover:text-blue-500 flex items-center">
+        See all <ArrowRightIcon className="h-4 w-4 ml-1" />
+      </Link>
+    )}
+  </div>
+);
+
+const BrandCard = ({ brand }: { brand: any }) => {
+  const businessType = brand.brandInfo?.businessType;
+  const basePath = businessType === 'non_profit' ? 'non-profits' : 'brands';
+
+  return (
+    <Link href={`/${basePath}/${brand.brandInfo?.slug || brand.id}`} className="w-[160px] md:w-[200px] flex-none snap-start group cursor-pointer block">
+      <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
+        {brand.brandInfo?.logo ? (
+          <img
+            src={getImageUrl(brand.brandInfo.logo)}
+            alt={brand.brandInfo.name}
+            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-3xl bg-gray-50">
+            {brand.brandInfo?.name?.substring(0, 2).toUpperCase()}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-1 px-1">
+        <h3 className="font-semibold text-gray-900 truncate">{brand.brandInfo?.name}</h3>
+        {(brand.brandInfo?.verificationStatus === 'verified' || brand.verificationStatus === 'verified') && (
+          <VerifiedBadge size="sm" />
+        )}
+      </div>
+      <p className="text-xs text-gray-500 px-1 truncate">{brand.brandInfo?.country || 'Global'}</p>
+    </Link>
+  );
+};
+
+const StoryCard = ({ story }: { story: IJournalismData }) => (
+  <Link href={`/journalism/${story.id}`} className="min-w-[280px] md:min-w-[340px] snap-start group cursor-pointer relative rounded-xl overflow-hidden aspect-[16/10] block">
+    {story.images?.[0]?.url ? (
+      <img
+        src={story.images[0].url}
+        alt={story.title}
+        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+      />
+    ) : (
+      <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
+        <NewspaperIcon className="h-12 w-12" />
+      </div>
+    )}
+    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4 flex flex-col justify-end">
+      <span className="text-xs font-bold text-white/90 uppercase tracking-wider mb-1 bg-blue-600/80 px-2 py-0.5 rounded w-fit">{story.type}</span>
+      <h3 className="text-lg font-bold text-white leading-tight group-hover:underline decoration-white/50 underline-offset-4">{story.title}</h3>
+    </div>
+  </Link>
+);
+
+const UserCard = ({ user }: { user: any }) => (
+  <Link href={`/u/${user.username || user.name?.toLowerCase().replace(/\s/g, '')}`} className="flex items-center space-x-3 p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer block">
+    <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+      {user.personalInfo?.avatarUrl ? (
+        <img src={getImageUrl(user.personalInfo.avatarUrl)} alt={user.name || user.personalInfo?.name} className="h-full w-full object-cover" />
+      ) : (
+        <div className="h-full w-full flex items-center justify-center text-gray-500 text-xs font-bold">
+          {(user.name || user.personalInfo?.name || '').substring(0, 2).toUpperCase()}
+        </div>
+      )}
+    </div>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-1">
+        <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+        {user.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+      </div>
+      <p className="text-xs text-gray-500 truncate">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
+    </div>
+  </Link>
+);
+
+const VerticalUserCard = ({ user }: { user: any }) => (
+  <Link href={`/u/${user.username}`} className="w-[160px] md:w-[200px] flex-none snap-start group cursor-pointer block">
+    <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
+      {user.personalInfo?.avatarUrl ? (
+        <img src={getImageUrl(user.personalInfo.avatarUrl)} alt={user.name} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-3xl bg-gray-50">
+          {(user.name || '').substring(0, 2).toUpperCase()}
+        </div>
+      )}
+    </div>
+    <div className="flex items-center gap-1 px-1">
+      <h3 className="font-semibold text-gray-900 truncate">{user.name}</h3>
+      {user.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+    </div>
+    <p className="text-xs text-gray-500 px-1 truncate">@{user.username}</p>
+  </Link>
+);
+
+const VerticalSKUCard = ({ item }: { item: any }) => {
+  const brandName = item.brand?.name || item.brand?.brand || 'Unknown';
+  const brandSlug = item.brand?.slug || (item.brand?.name ? item.brand.name.toLowerCase().replace(/\s+/g, '-') : 'brand');
+  const productSlug = item.code ? item.code.toLowerCase().replace(/\s+/g, '-') : item.slug || (item.name ? item.name.toLowerCase().replace(/\s+/g, '-') : 'item');
+  const imageUrl = item.images?.[0]?.url || item.images?.[0]?.imageUrl || item.logo; // handle fallback
+
+  return (
+    <Link href={`/brands/${brandSlug}/${productSlug}`} className="w-[160px] md:w-[200px] flex-none snap-start group cursor-pointer block">
+      <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
+        {imageUrl ? (
+          <img src={getImageUrl(imageUrl)} alt={item.name} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <ShoppingBagIcon className="h-12 w-12" />
+          </div>
+        )}
+      </div>
+      <div className="px-1">
+        <h3 className="font-semibold text-gray-900 truncate">{brandName}</h3>
+        <p className="text-xs text-gray-500 truncate">{item.name}</p>
+      </div>
+    </Link>
+  );
+};
+
+const RecentCard = ({ item }: { item: any }) => {
+  // Brand / Store / Non-Profit / Supplier
+  if (['brand', 'store', 'supplier', 'non_profit'].includes(item.type) || item.businessType === 'brand' || item.businessType === 'store') {
+    return <BrandCard brand={{ brandInfo: { ...item, logo: item.logo }, id: item.id }} />;
+  }
+  // User
+  if (item.type === 'user' || item.businessType === 'user') {
+    return <VerticalUserCard user={{ ...item, personalInfo: { avatarUrl: item.logo }, name: item.name, username: item.username }} />;
+  }
+  // Item (SKU)
+  if (item.type === 'item' || item.businessType === 'item') {
+    return <VerticalSKUCard item={{ ...item, images: [{ url: item.logo }], brand: { name: 'Verified Item' } }} />; // Logic adaptation for Recents which stores less data
+  }
+
+  return null;
+};
+
+const PostCard = ({ post }: { post: any }) => (
+  <Link href={`/social/post/${post.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex items-center gap-3">
+      <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+        {post.images?.[0] ? (
+          <img src={getImageUrl(post.images[0])} alt="Post" className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-gray-400">
+            <ChatBubbleLeftRightIcon className="h-6 w-6" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-gray-900 truncate">{post.caption || 'Untitled Post'}</p>
+        <p className="text-xs text-gray-500 truncate">@{post.author?.username || 'user'}</p>
+      </div>
+    </div>
+  </Link>
+);
+
+const PageCard = ({ page }: { page: IPage }) => (
+  <Link href={`/pages/${page.slug || page.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex items-center gap-3">
+      <div className="h-12 w-12 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
+        {page.logoUrl ? (
+          <img src={getImageUrl(page.logoUrl)} alt={page.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-gray-400 font-bold text-xs">
+            {page.name.substring(0, 2).toUpperCase()}
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-gray-900 truncate">{page.name}</p>
+        {page.description && <p className="text-xs text-gray-500 truncate">{page.description}</p>}
+      </div>
+    </div>
+  </Link>
+);
+
 export default function DiscoverPage() {
   const router = useRouter();
+  const { recents } = useRecentVisits();
+  console.log('DiscoverPage: recents count:', recents.length);
+  console.log('DiscoverPage: recents data:', recents);
 
   // State
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +254,11 @@ export default function DiscoverPage() {
   // Data
   const [featuredBrands, setFeaturedBrands] = useState<any[]>([]);
   const [featuredStores, setFeaturedStores] = useState<any[]>([]);
+  const [featuredUsers, setFeaturedUsers] = useState<any[]>([]);
+  const [featuredItems, setFeaturedItems] = useState<any[]>([]);
+  const [featuredNonProfits, setFeaturedNonProfits] = useState<any[]>([]);
   const [featuredStories, setFeaturedStories] = useState<IJournalismData[]>([]);
+  const [featuredPages, setFeaturedPages] = useState<IPage[]>([]);
 
   // Search Results
   const [results, setResults] = useState<{
@@ -69,15 +288,23 @@ export default function DiscoverPage() {
     const fetchInitialData = async () => {
       setLoadingInitial(true);
       try {
-        const [brandsRes, storesRes, journalismRes] = await Promise.all([
+        const [brandsRes, storesRes, usersRes, itemsRes, nonProfitsRes, journalismRes, pagesRes] = await Promise.all([
           brandApi.getBrands({ limit: 10, businessType: 'brand' }),
           brandApi.getBrands({ limit: 10, businessType: 'store' }),
-          journalismApi.getAll({ published: true })
+          apiClient.get('/users?limit=10').then((res: any) => res.users || res.data?.users || []),
+          skuApi.getAllSKUs({ limit: 10 }).then(res => res.skus || []),
+          brandApi.getBrands({ limit: 10, businessType: 'non_profit' }),
+          journalismApi.getAll({ published: true }),
+          pageApi.getAll().then(res => Array.isArray(res) ? res.slice(0, 10) : []).catch(() => [])
         ]);
 
         setFeaturedBrands(Array.isArray(brandsRes) ? brandsRes : (brandsRes as any).brands || []);
         setFeaturedStores(Array.isArray(storesRes) ? storesRes : (storesRes as any).brands || []);
+        setFeaturedUsers(usersRes || []);
+        setFeaturedItems(itemsRes || []);
+        setFeaturedNonProfits(Array.isArray(nonProfitsRes) ? nonProfitsRes : (nonProfitsRes as any).brands || []);
         setFeaturedStories(Array.isArray(journalismRes) ? journalismRes : []);
+        setFeaturedPages(pagesRes || []);
       } catch (error) {
         console.error("Failed to load discover data", error);
       } finally {
@@ -221,209 +448,12 @@ export default function DiscoverPage() {
     }
   }, [searchQuery, filterType, debouncedSearch, performSearch]);
 
-  // UI Components
 
-  const SectionHeader = ({ title, icon: Icon, link }: { title: string, icon: any, link?: string }) => (
-    <div className="flex items-center justify-between mb-4 px-4 sm:px-0 mt-8 first:mt-0">
-      <div className="flex items-center space-x-2">
-        <Icon className="h-6 w-6 text-gray-900" />
-        <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-      </div>
-      {link && (
-        <Link href={link} className="text-sm font-medium text-blue-600 hover:text-blue-500 flex items-center">
-          See all <ArrowRightIcon className="h-4 w-4 ml-1" />
-        </Link>
-      )}
-    </div>
-  );
 
-  const BrandCard = ({ brand }: { brand: any }) => {
-    const businessType = brand.brandInfo?.businessType;
-    const basePath = businessType === 'non_profit' ? 'non-profits' : 'brands';
 
-    return (
-      <Link href={`/${basePath}/${brand.brandInfo?.slug || brand.id}`} className="min-w-[160px] md:min-w-[200px] snap-start group cursor-pointer block">
-        <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
-          {brand.brandInfo?.logo ? (
-            <img
-              src={getImageUrl(brand.brandInfo.logo)}
-              alt={brand.brandInfo.name}
-              className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-3xl bg-gray-50">
-              {brand.brandInfo?.name?.substring(0, 2).toUpperCase()}
-            </div>
-          )}
-        </div>
-        <h3 className="font-semibold text-gray-900 truncate px-1">{brand.brandInfo?.name}</h3>
-        <p className="text-xs text-gray-500 px-1 truncate">{brand.brandInfo?.country || 'Global'}</p>
-      </Link>
-    );
-  };
 
-  const StoryCard = ({ story }: { story: IJournalismData }) => (
-    <Link href={`/journalism/${story.id}`} className="min-w-[280px] md:min-w-[340px] snap-start group cursor-pointer relative rounded-xl overflow-hidden aspect-[16/10] block">
-      {story.images?.[0]?.url ? (
-        <img
-          src={story.images[0].url}
-          alt={story.title}
-          className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-        />
-      ) : (
-        <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-          <NewspaperIcon className="h-12 w-12" />
-        </div>
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4 flex flex-col justify-end">
-        <span className="text-xs font-bold text-white/90 uppercase tracking-wider mb-1 bg-blue-600/80 px-2 py-0.5 rounded w-fit">{story.type}</span>
-        <h3 className="text-lg font-bold text-white leading-tight group-hover:underline decoration-white/50 underline-offset-4">{story.title}</h3>
-      </div>
-    </Link>
-  );
 
-  const UserCard = ({ user }: { user: any }) => (
-    <div className="flex items-center space-x-3 p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/u/${user.username || user.name?.toLowerCase().replace(/\s/g, '')}`)}>
-      <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-        {user.personalInfo?.avatarUrl ? (
-          <img src={getImageUrl(user.personalInfo.avatarUrl)} alt={user.name || user.personalInfo?.name} className="h-full w-full object-cover" />
-        ) : (
-          <div className="h-full w-full flex items-center justify-center text-gray-500 text-xs font-bold">
-            {(user.name || user.personalInfo?.name || '').substring(0, 2).toUpperCase()}
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-        <p className="text-xs text-gray-500 truncate">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
-      </div>
-      {/* Can add follow button here later */}
-    </div>
-  );
 
-  const ItemCard = ({ item }: { item: any }) => {
-    const [showSizes, setShowSizes] = useState(false);
-    const brandName = item.brand?.name || item.brand?.brand || 'Unknown Brand';
-    const categoryName = item.category?.page || (typeof item.category === 'string' ? item.category : 'Item');
-    const imageUrl = item.images?.[0]?.url || item.images?.[0]?.imageUrl;
-    const variants = item.variants || [];
-    const hasVariants = variants.length > 0;
-
-    // Format price
-    const formatPrice = (price: number | undefined) => {
-      if (!price) return null;
-      return `R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-    };
-
-    const mainPrice = formatPrice(item.retailPriceBrl);
-
-    return (
-      <div className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-        <Link href={`/catalog/${item.id}`} className="flex items-center gap-3">
-          <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-            {imageUrl ? (
-              <img src={getImageUrl(imageUrl)} alt="Item" className="h-full w-full object-cover" />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center text-gray-400">
-                <ShoppingBagIcon className="h-6 w-6" />
-              </div>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 truncate">{brandName}</p>
-            <p className="text-xs text-gray-500 truncate">{categoryName}</p>
-            {mainPrice && <p className="text-xs font-medium text-gray-700 mt-0.5">{mainPrice}</p>}
-          </div>
-        </Link>
-
-        {/* Size toggles */}
-        {hasVariants && (
-          <div className="mt-2 pt-2 border-t border-gray-100">
-            <button
-              onClick={(e) => { e.preventDefault(); setShowSizes(!showSizes); }}
-              className="flex items-center justify-between w-full text-xs text-gray-500 hover:text-gray-700"
-            >
-              <span>{variants.length} size{variants.length > 1 ? 's' : ''} available</span>
-              <span className="text-gray-400">{showSizes ? '▲' : '▼'}</span>
-            </button>
-
-            {showSizes && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {variants.map((v: any) => (
-                  <Link
-                    key={v.id}
-                    href={`/catalog/${v.id}`}
-                    className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 text-gray-700"
-                  >
-                    {v.size}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const PostCard = ({ post }: { post: any }) => (
-    <Link href={`/social/post/${post.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-3">
-        <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-          {post.images?.[0] ? (
-            <img src={getImageUrl(post.images[0])} alt="Post" className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center text-gray-400">
-              <ChatBubbleLeftRightIcon className="h-6 w-6" />
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-900 truncate">{post.caption || 'Untitled Post'}</p>
-          <p className="text-xs text-gray-500 truncate">@{post.author?.username || 'user'}</p>
-        </div>
-      </div>
-    </Link>
-  );
-
-  const PageCard = ({ page }: { page: IPage }) => (
-    <Link href={`/pages/${page.slug || page.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-3">
-        <div className="h-12 w-12 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
-          {page.logoUrl ? (
-            <img src={getImageUrl(page.logoUrl)} alt={page.name} className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center text-gray-400 font-bold text-xs">
-              {page.name.substring(0, 2).toUpperCase()}
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900 truncate">{page.name}</p>
-          {page.description && <p className="text-xs text-gray-500 truncate">{page.description}</p>}
-        </div>
-      </div>
-    </Link>
-  );
-
-  const ResultSection = ({ title, items, renderItem, icon: Icon }: { title: string, items: any[], renderItem: (item: any) => React.ReactNode, icon: any }) => {
-    if (!items || items.length === 0) return null;
-    return (
-      <div className="mb-8">
-        <div className="flex items-center space-x-2 mb-4 px-4 sm:px-0">
-          <Icon className="h-5 w-5 text-gray-500" />
-          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
-        </div>
-        <div className={items[0]?.title ? "flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 scrollbar-hide snap-x" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 sm:px-0"}>
-          {items.map((item) => (
-            <div key={item.id} className="min-w-0">
-              {renderItem(item)}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -503,7 +533,7 @@ export default function DiscoverPage() {
                   <ResultSection title="Users" items={results.users} icon={UsersIcon} renderItem={item => <UserCard user={item} />} />
                 )}
                 {(filterType === 'all' || filterType === 'item') && (
-                  <ResultSection title="Items" items={results.items} icon={ShoppingBagIcon} renderItem={item => <ItemCard item={item} />} />
+                  <ResultSection title="Items" items={results.items} icon={ShoppingBagIcon} renderItem={item => <SKUCard item={item} />} />
                 )}
                 {(filterType === 'all' || filterType === 'post') && (
                   <ResultSection title="Posts" items={results.posts} icon={ChatBubbleLeftRightIcon} renderItem={item => <PostCard post={item} />} />
@@ -543,12 +573,17 @@ export default function DiscoverPage() {
               </section>
             )}
 
-            {featuredBrands.length > 0 && (
+            {recents.length > 0 && (
               <section className="sm:px-6 lg:px-8">
-                <SectionHeader title="Trending Brands" icon={FireIcon} link="/brands" />
+                <div className="flex items-center justify-between mb-4 px-4 sm:px-0 mt-8 first:mt-0">
+                  <div className="flex items-center space-x-2">
+                    <ClockIcon className="h-6 w-6 text-gray-900" />
+                    <h2 className="text-xl font-bold text-gray-900">Recently Viewed</h2>
+                  </div>
+                </div>
                 <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
-                  {featuredBrands.map((brand: any) => (
-                    <BrandCard key={brand.id} brand={brand} />
+                  {recents.map((recent) => (
+                    <RecentCard key={recent.id + recent.visitedAt} item={recent} />
                   ))}
                 </div>
               </section>
@@ -556,7 +591,7 @@ export default function DiscoverPage() {
 
             {featuredStores.length > 0 && (
               <section className="sm:px-6 lg:px-8">
-                <SectionHeader title="Design Stores" icon={BuildingStorefrontIcon} link="/stores" />
+                <SectionHeader title="Stores" icon={BuildingStorefrontIcon} link="/stores" />
                 <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
                   {featuredStores.map((store: any) => (
                     <BrandCard key={store.id} brand={store} />
@@ -565,7 +600,64 @@ export default function DiscoverPage() {
               </section>
             )}
 
-            {!loadingInitial && featuredBrands.length === 0 && featuredStores.length === 0 && (
+            {featuredBrands.length > 0 && (
+              <section className="sm:px-6 lg:px-8">
+                <SectionHeader title="Brands" icon={FireIcon} link="/brands" />
+                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                  {featuredBrands.map((brand: any) => (
+                    <BrandCard key={brand.id} brand={brand} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {featuredUsers.length > 0 && (
+              <section className="sm:px-6 lg:px-8">
+                <SectionHeader title="Users" icon={UsersIcon} />
+                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                  {featuredUsers.map((user: any) => (
+                    <VerticalUserCard key={user.id} user={user} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {featuredPages.length > 0 && (
+              <section className="sm:px-6 lg:px-8">
+                <SectionHeader title="Pages" icon={RectangleStackIcon} />
+                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                  {featuredPages.map((page: any) => (
+                    <div key={page.id} className="min-w-[280px] flex-none snap-start">
+                      <PageCard page={page} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {featuredNonProfits.length > 0 && (
+              <section className="sm:px-6 lg:px-8">
+                <SectionHeader title="Non-Profits" icon={UsersIcon} />
+                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                  {featuredNonProfits.map((np: any) => (
+                    <BrandCard key={np.id} brand={np} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {featuredItems.length > 0 && (
+              <section className="sm:px-6 lg:px-8">
+                <SectionHeader title="Items" icon={ShoppingBagIcon} />
+                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                  {featuredItems.map((item: any) => (
+                    <VerticalSKUCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {!loadingInitial && featuredBrands.length === 0 && featuredStores.length === 0 && featuredUsers.length === 0 && featuredNonProfits.length === 0 && featuredItems.length === 0 && featuredPages.length === 0 && (
               <div className="text-center py-20 text-gray-400">
                 <p>Start searching to discover content.</p>
               </div>

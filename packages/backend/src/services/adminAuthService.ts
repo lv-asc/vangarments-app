@@ -99,6 +99,10 @@ export class AdminAuthService {
       await UserModel.addRole(user.id, 'consumer');
 
       console.log(`✅ Admin user created: ${adminData.email}`);
+
+      // Auto-verify admin user
+      await UserModel.updateVerificationStatus(user.id, 'verified');
+
       return user;
     } catch (error) {
       console.error('Admin user creation error:', error);
@@ -120,6 +124,10 @@ export class AdminAuthService {
 
       if (!roles.includes('admin')) {
         await UserModel.addRole(userId, 'admin');
+
+        // Auto-verify when granting admin role
+        await UserModel.updateVerificationStatus(userId, 'verified');
+
         console.log(`✅ Admin privileges granted to user: ${user.email}`);
       } else {
         console.log(`ℹ️ User ${user.email} already has admin privileges`);
@@ -230,7 +238,11 @@ export class AdminAuthService {
         const roles = await UserModel.getUserRoles(existingAdmin.id);
         if (!roles.includes('admin')) {
           await UserModel.addRole(existingAdmin.id, 'admin');
+          await UserModel.updateVerificationStatus(existingAdmin.id, 'verified');
           console.log(`✅ Admin role added to existing user: ${defaultAdminData.email}`);
+        } else {
+          // Ensure existing admin is verified even if they already had the role
+          await UserModel.updateVerificationStatus(existingAdmin.id, 'verified');
         }
         return existingAdmin;
       }

@@ -29,7 +29,9 @@ export class PostLikeModel {
   static async findByIds(postId: string, userId: string): Promise<PostLike | null> {
     const query = `
       SELECT pl.*, 
-             u.profile as user_profile
+             u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
       FROM post_likes pl
       LEFT JOIN users u ON pl.user_id = u.id
       WHERE pl.post_id = $1 AND pl.user_id = $2
@@ -47,6 +49,8 @@ export class PostLikeModel {
     const query = `
       SELECT pl.*, 
              u.profile as user_profile,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
              COUNT(*) OVER() as total
       FROM post_likes pl
       LEFT JOIN users u ON pl.user_id = u.id
@@ -112,6 +116,8 @@ export class PostLikeModel {
       user: row.user_profile ? {
         id: row.user_id,
         profile: row.user_profile,
+        verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+        roles: row.user_roles || [],
       } : undefined,
     };
   }

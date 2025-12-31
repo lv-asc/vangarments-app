@@ -42,6 +42,8 @@ import messagesRoutes from './messages';
 import designFileRoutes from './designFileRoutes';
 import moodboardRoutes from './moodboardRoutes';
 import mockupRoutes from './mockupRoutes';
+import verificationRoutes from './verification';
+import notificationRoutes from './notifications';
 
 const router = Router();
 
@@ -87,6 +89,8 @@ router.use('/messages', messagesRoutes); // Direct messaging routes
 router.use('/design-files', designFileRoutes); // Phase 1: Creative & Design
 router.use('/moodboards', moodboardRoutes); // Phase 1: Moodboard system
 router.use('/mockups', mockupRoutes); // Phase 1: Mockup templates
+router.use('/verification', verificationRoutes); // Verification system
+router.use('/notifications', notificationRoutes); // Notification system
 
 // Health check for API
 router.get('/health', (req, res) => {

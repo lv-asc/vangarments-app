@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { OnlineIndicator } from '@/components/common/OnlineIndicator';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 import NewConversationModal from '@/components/messaging/NewConversationModal';
 
@@ -34,11 +35,13 @@ interface Conversation {
         username: string;
         profile: any;
         lastSeenAt?: string;
+        verificationStatus?: string;
     };
     entity?: any;
     avatarUrl?: string;
     slug?: string;
     createdAt: string;
+    verificationStatus?: string;
 }
 
 export default function MessagesPage() {
@@ -262,9 +265,17 @@ export default function MessagesPage() {
                                 {/* Content */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between mb-1">
-                                        <h3 className={`font-medium truncate ${(conv.unreadCount || 0) > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
-                                            {getConversationTitle(conv)}
-                                        </h3>
+                                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                            <h3 className={`font-medium truncate ${(conv.unreadCount || 0) > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                                                {getConversationTitle(conv)}
+                                            </h3>
+                                            {/* Verified Badge */}
+                                            {((conv.conversationType === 'direct' && conv.otherParticipant?.verificationStatus === 'verified') ||
+                                                (conv.conversationType === 'entity' && conv.entity?.verificationStatus === 'verified') ||
+                                                (conv.verificationStatus === 'verified')) && (
+                                                    <VerifiedBadge size="sm" />
+                                                )}
+                                        </div>
                                         <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                                             {/* Tag */}
                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${conv.conversationType === 'direct' ? 'bg-gray-100 text-gray-600' :

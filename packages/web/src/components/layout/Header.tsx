@@ -17,7 +17,8 @@ import {
   ChatBubbleLeftRightIcon,
   ShieldCheckIcon,
   ChevronDownIcon,
-  SwatchIcon
+  SwatchIcon,
+  BellIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -26,6 +27,9 @@ import { Navigation } from './Navigation';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTranslation } from '@/utils/translations';
+import { NotificationBadge } from '@/components/ui/NotificationBadge';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 // import { useRecentPages } from '@/components/providers/RecentPagesProvider'; // Removed unused import
 
 export function Header() {
@@ -35,6 +39,11 @@ export function Header() {
   const { user, isAuthenticated, logout } = useAuth();
   const { navigate, currentPath, isNavigating } = useNavigation();
   const { t } = useTranslation();
+  const {
+    unreadNotificationCount,
+    unreadMessageCount,
+    notificationPreferences
+  } = useNotifications();
   /* const { recentPages } = useRecentPages(); */ // Removed unused hook
 
   // Debug info for development
@@ -90,10 +99,11 @@ export function Header() {
             </Link>
           </div>
 
-          {/* Desktop Navigation - Always Visible */}
           <div className="ml-10 hidden space-x-6 lg:flex items-center">
             {navigation.map((link) => {
               const isActive = currentPath === link.href;
+              const showBadge = link.href === '/messages' && notificationPreferences.showMessageBadge && unreadMessageCount > 0;
+
               return (
                 <Link
                   key={link.name}
@@ -106,7 +116,16 @@ export function Header() {
                     } ${isNavigating ? 'opacity-50 pointer-events-none' : ''}`}
                   title={link.name}
                 >
-                  <link.icon className="h-5 w-5" />
+                  <div className="relative">
+                    <link.icon className="h-5 w-5" />
+                    {showBadge && (
+                      <NotificationBadge
+                        count={unreadMessageCount}
+                        show={true}
+                        size="sm"
+                      />
+                    )}
+                  </div>
                   <span className="text-xs font-medium">{link.name}</span>
                 </Link>
               );
@@ -120,17 +139,32 @@ export function Header() {
             {/* LanguageSelector Removed */}
 
             {isAuthenticated && user ? (
-              <div className="relative">
-                <div className="flex items-center">
-                  <Link
-                    href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
-                    className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <UserAvatar user={user} size="sm" />
+              <div className="relative flex items-center space-x-3">
+                {/* Notification Bell */}
+                <Link
+                  href="/notifications"
+                  className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors relative"
+                  title="Notifications"
+                >
+                  <BellIcon className="h-6 w-6" />
+                  <NotificationBadge
+                    count={unreadNotificationCount}
+                    show={notificationPreferences.showNotificationBadge}
+                  />
+                </Link>
+
+                {/* Profile Link */}
+                <Link
+                  href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
+                  className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <UserAvatar user={user} size="sm" />
+                  <div className="flex items-center gap-1">
                     <span className="font-medium">{user.name}</span>
-                    <span className="text-sm text-muted-foreground">@{user.username || user.email?.split('@')[0] || 'user'}</span>
-                  </Link>
-                </div>
+                    {user.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                  </div>
+                  <span className="text-sm text-muted-foreground">@{user.username || user.email?.split('@')[0] || 'user'}</span>
+                </Link>
               </div>
             ) : (
               <div className="space-x-4">
@@ -200,7 +234,10 @@ export function Header() {
                       <div className="flex items-center px-3 py-2">
                         <UserAvatar user={user} size="md" className="mr-3" />
                         <div>
-                          <div className="text-base font-medium text-[#00132d]">{user.name}</div>
+                          <div className="flex items-center gap-1">
+                            <div className="text-base font-medium text-[#00132d]">{user.name}</div>
+                            {user.verificationStatus === 'verified' && <VerifiedBadge size="xs" />}
+                          </div>
                           <div className="text-sm text-[#00132d]/60">@{user.username || user.email?.split('@')[0] || 'user'}</div>
                           <div className="text-xs text-[#00132d]/40">{user.email}</div>
                         </div>

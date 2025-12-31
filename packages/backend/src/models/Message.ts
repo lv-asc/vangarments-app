@@ -160,15 +160,21 @@ export class MessageModel {
             await ConversationModel.updateLastMessageAt(conversationId);
 
             // Get sender info (not in transaction to avoid bloat)
-            const userQuery = `SELECT username, profile FROM users WHERE id = $1`;
+            const userQuery = `
+                SELECT u.username, u.profile, u.verification_status,
+                       (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as roles
+                FROM users u WHERE u.id = $1`;
             const userResult = await db.query(userQuery, [senderId]);
 
             const message = this.mapRowToMessage(messageRow);
             if (userResult.rows.length > 0) {
+                const userRow = userResult.rows[0];
                 message.sender = {
                     id: senderId,
-                    username: userResult.rows[0].username,
-                    profile: userResult.rows[0].profile,
+                    username: userRow.username,
+                    profile: userRow.profile,
+                    verificationStatus: (userRow.roles && userRow.roles.includes('admin')) ? 'verified' : (userRow.verification_status || 'unverified'),
+                    roles: userRow.roles || [],
                 };
             }
             message.attachments = insertedAttachments;
@@ -235,7 +241,8 @@ export class MessageModel {
         offset = 0
     ): Promise<{ messages: Message[]; total: number }> {
         const query = `
-            SELECT m.*, u.username, u.profile,
+            SELECT m.*, u.username, u.profile, u.verification_status,
+                   (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
                    COUNT(*) OVER() as total
             FROM messages m
             JOIN users u ON m.sender_id = u.id
@@ -252,7 +259,8 @@ export class MessageModel {
 
             // Load reactions
             const reactionsQuery = `
-                SELECT mr.*, u.username, u.profile
+                SELECT mr.*, u.username, u.profile, u.verification_status,
+                       (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
                 FROM message_reactions mr
                 JOIN users u ON mr.user_id = u.id
                 WHERE mr.message_id = ANY($1)
@@ -268,7 +276,13 @@ export class MessageModel {
                     userId: row.user_id,
                     emoji: row.emoji,
                     createdAt: row.created_at,
-                    user: { id: row.user_id, username: row.username, profile: row.profile },
+                    user: {
+                        id: row.user_id,
+                        username: row.username,
+                        profile: row.profile,
+                        verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                        roles: row.user_roles || [],
+                    },
                 });
                 reactionsMap.set(row.message_id, reactions);
             }
@@ -319,7 +333,8 @@ export class MessageModel {
      */
     static async findById(id: string): Promise<Message | null> {
         const query = `
-            SELECT m.*, u.username, u.profile
+            SELECT m.*, u.username, u.profile, u.verification_status,
+                   (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
             FROM messages m
             JOIN users u ON m.sender_id = u.id
             WHERE m.id = $1 AND m.deleted_at IS NULL
@@ -397,7 +412,8 @@ export class MessageModel {
      */
     static async getReactions(messageId: string): Promise<MessageReaction[]> {
         const query = `
-            SELECT mr.*, u.username, u.profile
+            SELECT mr.*, u.username, u.profile, u.verification_status,
+                   (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
             FROM message_reactions mr
             JOIN users u ON mr.user_id = u.id
             WHERE mr.message_id = $1
@@ -410,7 +426,13 @@ export class MessageModel {
             userId: row.user_id,
             emoji: row.emoji,
             createdAt: row.created_at,
-            user: { id: row.user_id, username: row.username, profile: row.profile },
+            user: {
+                id: row.user_id,
+                username: row.username,
+                profile: row.profile,
+                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                roles: row.user_roles || [],
+            },
         }));
     }
 
@@ -477,6 +499,8 @@ export class MessageModel {
                 id: row.sender_id,
                 username: row.username,
                 profile: row.profile,
+                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                roles: row.user_roles || [],
             } : undefined,
         };
     }

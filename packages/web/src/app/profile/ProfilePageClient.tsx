@@ -11,6 +11,7 @@ import { getImageUrl } from '@/utils/imageUrl';
 import { useToast } from '@/components/ui/Toast';
 import { formatCEP, formatPhone } from '@/lib/masks';
 import { SocialIcon } from '@/components/ui/social-icons';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import {
   CameraIcon,
   PencilIcon,
@@ -37,6 +38,7 @@ import { SortableImageGrid } from '@/components/profile/SortableImageGrid';
 import { AVAILABLE_ROLES } from '@/constants/roles';
 import { MeasurementsSection } from '@/components/profile/MeasurementsSection';
 import { MeasurementManager } from '@/components/profile/MeasurementManager';
+import VerificationRequestModal from '@/components/verification/VerificationRequestModal';
 import {
   DndContext,
   closestCenter,
@@ -60,6 +62,7 @@ interface UserProfile {
   id: string;
   name: string;
   username: string;
+  verificationStatus?: string;
   usernameLastChanged?: string;
   email: string;
   bio?: string;
@@ -265,6 +268,7 @@ export default function ProfilePage() {
   const [croppingMode, setCroppingMode] = useState<'profile' | 'banner'>('profile');
   const [editingImageUrl, setEditingImageUrl] = useState<string | null>(null);
   const [showMeasurementManager, setShowMeasurementManager] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   // Refs for scrolling
   const profilePicturesRef = useRef<HTMLDivElement>(null);
@@ -284,6 +288,7 @@ export default function ProfilePage() {
     title?: string;
     isOwner: boolean;
     followersCount: number;
+    verificationStatus: string;
   }
   const [linkedEntities, setLinkedEntities] = useState<LinkedEntity[]>([]);
 
@@ -684,7 +689,8 @@ export default function ProfilePage() {
             await apiClient.updateProfileImages(currentImages);
           }
         } else if (!currentImages.includes(uploadedUrl)) {
-          currentImages.push(uploadedUrl);
+          // Prepend (not append) so the new image becomes the main profile picture
+          currentImages.unshift(uploadedUrl);
           await apiClient.updateProfileImages(currentImages);
         }
       } else {
@@ -1678,8 +1684,9 @@ export default function ProfilePage() {
               ) : (
                 <>
                   <div className="flex items-center space-x-3 mb-2">
-                    <h1 className="text-2xl font-bold text-gray-900">
+                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                       {userProfile.name}
+                      {userProfile.verificationStatus === 'verified' && <VerifiedBadge size="md" />}
                     </h1>
                     <button
                       onClick={handleEditProfile}
@@ -1878,6 +1885,7 @@ export default function ProfilePage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 className="font-semibold text-gray-900 truncate">{entity.brandName}</h4>
+                        {entity.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
                         <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
                           {businessTypeLabels[entity.businessType] || entity.businessType}
                         </span>

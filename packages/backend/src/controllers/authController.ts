@@ -15,6 +15,13 @@ export class AuthController {
             // Validate input data
             const validationResult = UserRegistrationSchema.safeParse(req.body);
             if (!validationResult.success) {
+                console.error('========== REGISTRATION VALIDATION FAILED ==========');
+                console.error('Request body:', JSON.stringify(req.body, null, 2));
+                console.error('Validation errors:');
+                validationResult.error.errors.forEach((err, i) => {
+                    console.error(`  Error ${i + 1}: Path="${err.path.join('.')}" Message="${err.message}"`);
+                });
+                console.error('====================================================');
                 return res.status(400).json({
                     error: {
                         code: 'VALIDATION_ERROR',

@@ -6,11 +6,13 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { brandApi, BrandFullProfile } from '@/lib/brandApi';
 import OrgProfile from '@/components/brands/OrgProfile';
+import { useRecentVisits } from '@/hooks/useRecentVisits';
 
 export default function BrandProfilePage() {
     const params = useParams();
     const router = useRouter();
     const slug = params.slug as string;
+    const { addVisit } = useRecentVisits();
 
     const [profile, setProfile] = useState<BrandFullProfile | null>(null);
     const [loading, setLoading] = useState(true);
@@ -33,6 +35,18 @@ export default function BrandProfilePage() {
         try {
             setLoading(true);
             const data = await brandApi.getFullProfile(slug);
+
+            // Add to recent visits
+            if (data?.brand) {
+                addVisit({
+                    id: data.brand.id,
+                    name: data.brand.brandInfo.name,
+                    logo: data.brand.brandInfo.logo,
+                    businessType: data.brand.brandInfo.businessType || 'brand',
+                    slug: data.brand.brandInfo.slug || slug,
+                    verificationStatus: data.brand.verificationStatus
+                });
+            }
 
             // Redirect if this is a store
             if (data.brand.brandInfo.businessType === 'store') {

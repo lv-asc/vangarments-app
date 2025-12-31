@@ -104,7 +104,9 @@ export class PageTeamModel {
       SELECT ptm.*, 
              u.profile->>'name' as user_name,
              u.profile->>'avatarUrl' as user_avatar,
-             u.username
+             u.username,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
       FROM page_team_members ptm
       LEFT JOIN users u ON ptm.user_id = u.id
       WHERE ptm.id = $1
@@ -118,7 +120,9 @@ export class PageTeamModel {
       SELECT ptm.*, 
              u.profile->>'name' as user_name,
              u.profile->>'avatarUrl' as user_avatar,
-             u.username
+             u.username,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
       FROM page_team_members ptm
       LEFT JOIN users u ON ptm.user_id = u.id
       WHERE ptm.page_id = $1
@@ -155,7 +159,9 @@ export class PageTeamModel {
                 id: row.user_id,
                 name: row.user_name,
                 avatarUrl: row.user_avatar || undefined,
-                username: row.username || undefined
+                username: row.username || undefined,
+                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                roles: row.user_roles || [],
             } : undefined
         };
     }

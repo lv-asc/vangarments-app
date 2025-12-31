@@ -125,6 +125,7 @@ export class SKUController {
                     si.*, 
                     ba.brand_info->>'name' as brand_name,
                     ba.brand_info->>'logo' as brand_logo,
+                    ba.brand_info->>'slug' as brand_slug,
                     bl.name as line_name, 
                     bl.logo as line_logo,
                     si.retail_price_brl,
@@ -222,7 +223,8 @@ export class SKUController {
                     metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
                     brand: {
                         name: row.brand_name,
-                        logo: row.brand_logo
+                        logo: row.brand_logo,
+                        slug: row.brand_slug
                     },
                     retailPriceBrl: row.retail_price_brl,
                     retailPriceUsd: row.retail_price_usd,
@@ -343,7 +345,7 @@ export class SKUController {
      */
     static async searchSKUs(req: Request, res: Response): Promise<void> {
         try {
-            const { term, brandId } = req.query;
+            const { term, brandId, parentsOnly = 'true' } = req.query;
 
             if (!term) {
                 res.status(400).json({ error: 'Search term required' });
@@ -351,12 +353,15 @@ export class SKUController {
             }
 
             const searchTerm = term as string;
+            const filterParents = parentsOnly === 'true';
+
             // Base query with joins for Brand and Line info
             let query = `
                 SELECT 
                     si.*, 
                     ba.brand_info->>'name' as brand_name,
                     ba.brand_info->>'logo' as brand_logo,
+                    ba.brand_info->>'slug' as brand_slug,
                     bl.name as line_name, 
                     bl.logo as line_logo,
                     si.retail_price_brl,
@@ -370,6 +375,11 @@ export class SKUController {
 
             const values: any[] = [];
             let paramIndex = 1;
+
+            // Filter to only parent SKUs (no parent_sku_id)
+            if (filterParents) {
+                query += ` AND si.parent_sku_id IS NULL`;
+            }
 
             if (brandId) {
                 query += ` AND si.brand_id = $${paramIndex++}`;
@@ -389,10 +399,43 @@ export class SKUController {
 
             const result = await db.query(query, values);
 
+            // Get variants for each parent SKU
+            const parentIds = result.rows.map(row => row.id);
+            let variantsMap: Record<string, any[]> = {};
+
+            if (filterParents && parentIds.length > 0) {
+                const variantsQuery = `
+                    SELECT id, parent_sku_id, name, code, metadata, retail_price_brl, retail_price_usd, retail_price_eur
+                    FROM sku_items 
+                    WHERE parent_sku_id = ANY($1) AND deleted_at IS NULL
+                    ORDER BY name ASC
+                `;
+                const variantsResult = await db.query(variantsQuery, [parentIds]);
+
+                variantsResult.rows.forEach(variant => {
+                    const parentId = variant.parent_sku_id;
+                    if (!variantsMap[parentId]) {
+                        variantsMap[parentId] = [];
+                    }
+                    const meta = typeof variant.metadata === 'string' ? JSON.parse(variant.metadata) : variant.metadata || {};
+                    variantsMap[parentId].push({
+                        id: variant.id,
+                        name: variant.name,
+                        code: variant.code,
+                        size: meta.sizeName || meta.size || variant.name,
+                        color: meta.colorName || meta.color,
+                        retailPriceBrl: variant.retail_price_brl,
+                        retailPriceUsd: variant.retail_price_usd,
+                        retailPriceEur: variant.retail_price_eur
+                    });
+                });
+            }
+
             const skus = result.rows.map(row => {
                 const item: any = {
                     id: row.id,
                     brandId: row.brand_id,
+                    parentSkuId: row.parent_sku_id,
                     name: row.name,
                     code: row.code,
                     collection: row.collection,
@@ -405,11 +448,13 @@ export class SKUController {
                     metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
                     brand: {
                         name: row.brand_name,
-                        logo: row.brand_logo
+                        logo: row.brand_logo,
+                        slug: row.brand_slug
                     },
                     retailPriceBrl: row.retail_price_brl,
                     retailPriceUsd: row.retail_price_usd,
-                    retailPriceEur: row.retail_price_eur
+                    retailPriceEur: row.retail_price_eur,
+                    variants: variantsMap[row.id] || []
                 };
 
                 if (row.line_name || row.line_logo || row.line_id) {

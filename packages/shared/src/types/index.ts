@@ -34,6 +34,7 @@ export interface UserProfile {
   };
   roles: UserRole[];
   status: 'active' | 'banned' | 'deactivated';
+  verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
   banExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;

@@ -1,6 +1,6 @@
 import { db } from '../database/connection';
 
-export type EntityType = 'brand' | 'store' | 'supplier' | 'page';
+export type EntityType = 'brand' | 'store' | 'supplier' | 'non_profit' | 'page';
 
 export interface EntityFollow {
     id: string;
@@ -85,7 +85,8 @@ export class EntityFollowModel {
         offset = 0
     ): Promise<{ followers: any[]; total: number }> {
         const query = `
-            SELECT ef.*, u.id as user_id, u.profile, u.username,
+            SELECT ef.*, u.id as user_id, u.profile, u.username, u.verification_status,
+                   (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
                    COUNT(*) OVER() as total
             FROM entity_follows ef
             JOIN users u ON ef.follower_id = u.id
@@ -102,6 +103,8 @@ export class EntityFollowModel {
                 username: row.username,
                 profile: row.profile,
                 followedAt: row.created_at,
+                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                roles: row.user_roles || [],
             })),
             total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
         };
@@ -119,12 +122,14 @@ export class EntityFollowModel {
     ): Promise<{ entities: any[]; total: number }> {
         let query = `
             SELECT ef.*, 
-                   ba.brand_info->>'name' as entity_name,
-                   ba.brand_info->>'logo' as entity_logo,
-                   ba.brand_info->>'slug' as entity_slug,
+                   COALESCE(ba.brand_info->>'name', p.name) as entity_name,
+                   COALESCE(ba.brand_info->>'logo', p.logo_url) as entity_logo,
+                   COALESCE(ba.brand_info->>'slug', p.slug) as entity_slug,
+                   ba.brand_info->>'businessType' as business_type,
                    COUNT(*) OVER() as total
             FROM entity_follows ef
-            LEFT JOIN brand_accounts ba ON ef.entity_id = ba.id
+            LEFT JOIN brand_accounts ba ON ef.entity_type IN ('brand', 'store', 'supplier') AND ef.entity_id = ba.id
+            LEFT JOIN pages p ON ef.entity_type = 'page' AND ef.entity_id = p.id
             WHERE ef.follower_id = $1
         `;
         const params: any[] = [followerId];
@@ -135,7 +140,7 @@ export class EntityFollowModel {
         }
 
         if (search) {
-            query += ` AND (ba.brand_info->>'name') ILIKE $${params.length + 1}`;
+            query += ` AND (COALESCE(ba.brand_info->>'name', p.name) ILIKE $${params.length + 1})`;
             params.push(`%${search}%`);
         }
 
@@ -145,12 +150,21 @@ export class EntityFollowModel {
         const result = await db.query(query, params);
 
         return {
-            entities: result.rows.map(row => ({
-                ...this.mapRowToEntityFollow(row),
-                entityName: row.entity_name,
-                entityLogo: row.entity_logo,
-                entitySlug: row.entity_slug,
-            })),
+            entities: result.rows.map(row => {
+                // Determine the actual entity type based on business_type
+                let actualEntityType = row.entity_type;
+                if (row.business_type === 'non_profit') {
+                    actualEntityType = 'non_profit';
+                }
+
+                return {
+                    ...this.mapRowToEntityFollow(row),
+                    entityType: actualEntityType,  // Override with actual type
+                    entityName: row.entity_name,
+                    entityLogo: row.entity_logo,
+                    entitySlug: row.entity_slug,
+                };
+            }),
             total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
         };
     }

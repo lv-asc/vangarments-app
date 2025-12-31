@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { CountryFlag } from '@/components/ui/flags';
 import { XIcon } from '@/components/ui/icons';
 import { useAuth } from '@/contexts/AuthWrapper';
+import VerificationRequestModal from '@/components/verification/VerificationRequestModal';
 import {
   BellIcon,
   GlobeAltIcon,
@@ -24,17 +25,6 @@ export function AccountPreferences() {
     language: user?.preferences?.language ?? 'pt-BR',
     currency: user?.preferences?.currency ?? 'BRL',
     theme: user?.preferences?.theme ?? 'light',
-    notifications: {
-      newFollowers: user?.preferences?.notifications?.newFollowers ?? true,
-      likes: user?.preferences?.notifications?.likes ?? true,
-      comments: user?.preferences?.notifications?.comments ?? true,
-      mentions: user?.preferences?.notifications?.mentions ?? true,
-      marketplaceActivity: user?.preferences?.notifications?.marketplaceActivity ?? true,
-      outfitSuggestions: user?.preferences?.notifications?.outfitSuggestions ?? false,
-      trendAlerts: user?.preferences?.notifications?.trendAlerts ?? false,
-      priceDrops: user?.preferences?.notifications?.priceDrops ?? true,
-      weeklyDigest: user?.preferences?.notifications?.weeklyDigest ?? true
-    },
     display: {
       itemsPerPage: user?.preferences?.display?.itemsPerPage ?? 20,
       defaultView: user?.preferences?.display?.defaultView ?? 'grid',
@@ -50,6 +40,8 @@ export function AccountPreferences() {
       confidenceThreshold: user?.preferences?.ai?.confidenceThreshold ?? 0.7
     }
   });
+
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +92,25 @@ export function AccountPreferences() {
         </div>
       )}
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Request Verification */}
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h4 className="font-semibold text-blue-900 mb-1">Request Verification</h4>
+              <p className="text-sm text-blue-700">
+                Get a verified badge on your profile. Verified accounts receive a blue checkmark.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowVerificationModal(true)}
+              className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              Request Verification
+            </button>
+          </div>
+        </div>
+
         {/* General Settings */}
         <div className="space-y-4">
           <div className="flex items-center space-x-2">
@@ -175,46 +186,7 @@ export function AccountPreferences() {
           </div>
         </div>
 
-        {/* Notification Settings */}
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <BellIcon className="h-5 w-5 text-gray-500" />
-            <h3 className="text-lg font-medium text-gray-900">Notificações</h3>
-          </div>
 
-          <div className="space-y-4">
-            {[
-              { key: 'newFollowers', label: 'Novos Seguidores', description: 'Quando alguém começar a te seguir' },
-              { key: 'likes', label: 'Curtidas', description: 'Quando alguém curtir seus posts' },
-              { key: 'comments', label: 'Comentários', description: 'Quando alguém comentar em seus posts' },
-              { key: 'mentions', label: 'Menções', description: 'Quando alguém te mencionar' },
-              { key: 'marketplaceActivity', label: 'Atividade do Marketplace', description: 'Vendas, compras e ofertas' },
-              { key: 'outfitSuggestions', label: 'Sugestões de Looks', description: 'Recomendações personalizadas de outfits' },
-              { key: 'trendAlerts', label: 'Alertas de Tendências', description: 'Novas tendências baseadas no seu estilo' },
-              { key: 'priceDrops', label: 'Quedas de Preço', description: 'Quando itens da sua wishlist ficarem mais baratos' },
-              { key: 'weeklyDigest', label: 'Resumo Semanal', description: 'Resumo das suas atividades e estatísticas' }
-            ].map((notification) => (
-              <div key={notification.key} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <div className="font-medium text-gray-900">{notification.label}</div>
-                  <div className="text-sm text-gray-600">{notification.description}</div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={preferences.notifications[notification.key as keyof typeof preferences.notifications]}
-                  onChange={(e) => setPreferences({
-                    ...preferences,
-                    notifications: {
-                      ...preferences.notifications,
-                      [notification.key]: e.target.checked
-                    }
-                  })}
-                  className="rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Display Settings */}
         <div className="space-y-4">
@@ -363,6 +335,13 @@ export function AccountPreferences() {
           </Button>
         </div>
       </form>
+
+      {/* Verification Request Modal */}
+      <VerificationRequestModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+        requestType="user"
+      />
     </div>
   );
 }

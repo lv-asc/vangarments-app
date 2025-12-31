@@ -18,6 +18,7 @@ import {
     LockClosedIcon
 } from '@heroicons/react/24/outline';
 import { AccountPreferences } from '@/components/profile/AccountPreferences';
+import { NotificationPreferences } from '@/components/profile/NotificationPreferences';
 
 export default function SettingsPage() {
     const { user, isAuthenticated, logout } = useAuth();
@@ -193,11 +194,10 @@ export default function SettingsPage() {
                         )}
 
                         {activeTab === 'notifications' && (
-                            <div className="text-center py-12">
-                                {/* @ts-ignore */}
-                                <BellIcon className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                                <h3 className="text-lg font-medium text-gray-900">Notifications</h3>
-                                <p className="text-gray-500 mt-2">Notification settings coming soon.</p>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 mb-1">Notification Preferences</h2>
+                                <p className="text-sm text-gray-500 mb-6">Manage how and when you receive notifications.</p>
+                                <NotificationPreferences />
                             </div>
                         )}
 

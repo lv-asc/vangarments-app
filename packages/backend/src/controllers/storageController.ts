@@ -37,7 +37,7 @@ export class StorageController {
       }
 
       const file = files[0];
-      const category = (req.body.category as 'wardrobe' | 'profiles' | 'marketplace' | 'social') || 'social';
+      const category = (req.body.category as 'wardrobe' | 'profiles' | 'marketplace' | 'social' | 'documents') || 'social';
 
       const result = await LocalStorageService.uploadImage(
         file.buffer,

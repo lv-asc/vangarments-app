@@ -114,7 +114,28 @@ export class PageModel {
             JSON.stringify(data.logoMetadata || []),
             JSON.stringify(data.bannerMetadata || [])
         ]);
-        return this.mapRowToPage(result.rows[0]);
+        const page = this.mapRowToPage(result.rows[0]);
+
+        // Ensure owner follows @v
+        if (data.userId) {
+            try {
+                const vRes = await db.query("SELECT id FROM users WHERE username = 'v'");
+                if (vRes.rows.length > 0) {
+                    const vId = vRes.rows[0].id;
+                    if (data.userId !== vId) {
+                        await db.query(`
+                            INSERT INTO user_follows (follower_id, following_id, status)
+                            VALUES ($1, $2, 'accepted')
+                            ON CONFLICT (follower_id, following_id) DO NOTHING
+                        `, [data.userId, vId]);
+                    }
+                }
+            } catch (e) {
+                console.error('Error auto-following @v from page creation:', e);
+            }
+        }
+
+        return page;
     }
 
     static async update(id: string, data: {

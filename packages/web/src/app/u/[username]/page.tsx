@@ -2,9 +2,26 @@
 
 import { useProfile } from './layout';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
+import { useRecentVisits } from '@/hooks/useRecentVisits';
+import { useEffect } from 'react';
 
 export default function PublicUserProfilePage() {
     const { profile, loading, canViewSection, followStatus } = useProfile();
+    const { addVisit } = useRecentVisits();
+
+    useEffect(() => {
+        if (profile) {
+            addVisit({
+                id: profile.id,
+                name: profile.name,
+                logo: profile.profileImage,
+                businessType: 'user',
+                type: 'user',
+                username: profile.username,
+                visitedAt: Date.now()
+            });
+        }
+    }, [profile?.id]);
 
     if (loading || !profile) {
         return null; // Layout handles loading/error

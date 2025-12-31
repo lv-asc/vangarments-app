@@ -28,6 +28,7 @@ import MentionSuggestions from '@/components/messaging/MentionSuggestions';
 import ConversationMediaPanel from '@/components/messaging/ConversationMediaPanel';
 import { AlertModal } from '@/components/ui/AlertModal';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 // Workaround for framer-motion type issues with React 18
 const MotionDiv = motion.div as any;
@@ -64,12 +65,14 @@ interface Conversation {
         username: string;
         profile: any;
         lastSeenAt?: string;
+        verificationStatus?: string;
     };
     entity?: any;
     name?: string;
     avatarUrl?: string;
     description?: string;
     participants?: any[];
+    verificationStatus?: string;
 }
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
@@ -557,8 +560,14 @@ export default function ConversationPage() {
                         )}
                     </div>
                     <div>
-                        <h1 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <h1 className="font-semibold text-gray-900 flex items-center gap-1.5">
                             {getConversationTitle()}
+                            {/* Verified Badge */}
+                            {((conversation?.conversationType === 'direct' && conversation.otherParticipant?.verificationStatus === 'verified') ||
+                                (conversation?.conversationType === 'entity' && conversation.entity?.verificationStatus === 'verified') ||
+                                (conversation?.verificationStatus === 'verified')) && (
+                                    <VerifiedBadge size="sm" />
+                                )}
                         </h1>
                         {conversation?.conversationType === 'direct' && conversation.otherParticipant && (
                             <div className="-mt-1">

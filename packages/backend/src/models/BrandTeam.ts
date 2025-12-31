@@ -132,7 +132,9 @@ export class BrandTeamModel {
       SELECT btm.*, 
              u.profile->>'name' as user_name,
              u.profile->>'avatarUrl' as user_avatar,
-             u.username
+             u.username,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
       FROM brand_team_members btm
       LEFT JOIN users u ON btm.user_id = u.id
       WHERE btm.id = $1
@@ -146,7 +148,9 @@ export class BrandTeamModel {
       SELECT btm.*, 
              u.profile->>'name' as user_name,
              u.profile->>'avatarUrl' as user_avatar,
-             u.username
+             u.username,
+             u.verification_status,
+             (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
       FROM brand_team_members btm
       LEFT JOIN users u ON btm.user_id = u.id
       WHERE btm.brand_id = $1
@@ -192,6 +196,7 @@ export class BrandTeamModel {
         title?: string;
         isOwner: boolean;
         followersCount: number;
+        verificationStatus: string;
     }>> {
         const query = `
             SELECT btm.brand_id, btm.roles, btm.title,
@@ -205,7 +210,8 @@ export class BrandTeamModel {
                        FROM entity_follows ef 
                        WHERE ef.entity_id = ba.id 
                        AND ef.entity_type = COALESCE(ba.brand_info->>'businessType', 'brand')
-                   ) as followers_count
+                   ) as followers_count,
+                   ba.verification_status
             FROM brand_team_members btm
             JOIN brand_accounts ba ON btm.brand_id = ba.id
             WHERE btm.user_id = $1 AND ba.deleted_at IS NULL
@@ -222,7 +228,8 @@ export class BrandTeamModel {
             roles: parseRoles(row.roles, null),
             title: row.title || undefined,
             isOwner: row.owner_id === userId,
-            followersCount: parseInt(row.followers_count, 10) || 0
+            followersCount: parseInt(row.followers_count, 10) || 0,
+            verificationStatus: row.verification_status || 'unverified'
         }));
     }
 
@@ -283,7 +290,9 @@ export class BrandTeamModel {
                 id: row.user_id,
                 name: row.user_name,
                 avatarUrl: row.user_avatar || undefined,
-                username: row.username || undefined
+                username: row.username || undefined,
+                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                roles: row.user_roles || [],
             } : undefined
         };
     }

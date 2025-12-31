@@ -30,10 +30,10 @@ export class LocalStorageService {
       fileSize: 50 * 1024 * 1024, // 50MB (increased for video)
     },
     fileFilter: (req, file, cb) => {
-      if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+      if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/') || file.mimetype === 'application/pdf') {
         cb(null, true);
       } else {
-        cb(new Error('Only image and video files are allowed'));
+        cb(new Error('Only image, video and PDF files are allowed'));
       }
     },
   }).array('image', 5); // Allow up to 5 files, field name 'image' (kept for compatibility)
@@ -53,6 +53,7 @@ export class LocalStorageService {
       await fs.mkdir(path.join(this.IMAGES_DIR, 'profiles'), { recursive: true });
       await fs.mkdir(path.join(this.IMAGES_DIR, 'marketplace'), { recursive: true });
       await fs.mkdir(path.join(this.IMAGES_DIR, 'social'), { recursive: true });
+      await fs.mkdir(path.join(this.IMAGES_DIR, 'documents'), { recursive: true });
 
       console.log('Local storage directories initialized successfully');
     } catch (error) {
@@ -68,7 +69,7 @@ export class LocalStorageService {
     buffer: Buffer,
     originalName: string,
     mimetype: string,
-    category: 'wardrobe' | 'profiles' | 'marketplace' | 'social' = 'wardrobe',
+    category: 'wardrobe' | 'profiles' | 'marketplace' | 'social' | 'documents' = 'wardrobe',
     userId?: string
   ): Promise<LocalImageUploadResult & {
     thumbnailPath?: string;
@@ -79,9 +80,16 @@ export class LocalStorageService {
     try {
       // Generate unique filename
       const fileId = uuidv4();
-      const extension = path.extname(originalName) || (mimetype.startsWith('video/') ? '.mp4' : '.jpg');
+      let extension = path.extname(originalName);
+      if (!extension) {
+        if (mimetype.startsWith('video/')) extension = '.mp4';
+        else if (mimetype === 'application/pdf') extension = '.pdf';
+        else extension = '.jpg';
+      }
+
       const filename = `${fileId}${extension}`;
       const isVideo = mimetype.startsWith('video/');
+      const isImage = mimetype.startsWith('image/');
 
       // Create user-specific directory if userId provided
       let targetDir = path.join(this.IMAGES_DIR, category);
@@ -102,7 +110,7 @@ export class LocalStorageService {
 
       let variants: any = {};
 
-      if (!isVideo) {
+      if (isImage) {
         // Generate multiple variants concurrently for images
         const [optimizedPath, thumbnailPath, mediumPath] = await Promise.all([
           // Optimized version (800px max)

@@ -6,6 +6,7 @@ import { pageApi, IPage } from '@/lib/pageApi';
 import Link from 'next/link';
 import { getImageUrl } from '@/lib/utils';
 import { GlobeAltIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import { FollowEntityButton } from '@/components/social/FollowEntityButton';
 
 export default function StaticPage() {
     const params = useParams();
@@ -140,6 +141,15 @@ export default function StaticPage() {
                                 ))}
                             </div>
                         )}
+
+                        {/* Follow Button */}
+                        <div className="mt-4">
+                            <FollowEntityButton
+                                entityType="page"
+                                entityId={page.id}
+                                size="md"
+                            />
+                        </div>
                     </div>
                 </div>
 

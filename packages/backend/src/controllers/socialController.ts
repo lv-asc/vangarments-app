@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { SocialService } from '../services/socialService';
 import { AuthenticatedRequest } from '../utils/auth';
 import { EntityFollowModel, EntityType } from '../models/EntityFollow';
+import { NotificationModel } from '../models/Notification';
+import { UserModel } from '../models/User';
 
 const socialService = new SocialService();
 
@@ -176,6 +178,22 @@ export class SocialController {
       }
 
       const follow = await socialService.followUser(followerId, followingId);
+
+      // Create notification if follow is accepted (public profile)
+      if (follow.status === 'accepted') {
+        // Get follower details for the notification
+        const follower = await UserModel.findById(followerId);
+        const followerName = follower?.username || 'Someone';
+
+        await NotificationModel.create({
+          userId: followingId,
+          type: 'new_follower',
+          title: 'New Follower',
+          message: `${followerName} started following you`,
+          link: `/u/${followerName}`,
+          actorId: followerId,
+        });
+      }
 
       res.status(201).json({
         success: true,
@@ -465,11 +483,19 @@ export class SocialController {
       const { userId: followingId } = req.params;
       const followerId = req.user!.id;
 
-      const isFollowing = await socialService.isFollowing(followerId, followingId);
+      const [isFollowing, isFollower, followRel] = await Promise.all([
+        socialService.isFollowing(followerId, followingId),
+        socialService.isFollowing(followingId, followerId),
+        socialService.getFollowRelationship(followerId, followingId)
+      ]);
 
       res.json({
         success: true,
-        data: { isFollowing },
+        data: {
+          isFollowing,
+          isFollower,
+          status: followRel?.status
+        },
       });
     } catch (error: any) {
       res.status(500).json({

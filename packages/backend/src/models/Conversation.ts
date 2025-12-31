@@ -219,7 +219,8 @@ export class ConversationModel {
      */
     static async getParticipants(conversationId: string): Promise<ConversationParticipant[]> {
         const query = `
-            SELECT cp.*, u.username, u.profile, u.last_seen_at
+            SELECT cp.*, u.username, u.profile, u.last_seen_at, u.verification_status,
+                   (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
             FROM conversation_participants cp
             JOIN users u ON cp.user_id = u.id
             WHERE cp.conversation_id = $1
@@ -238,7 +239,9 @@ export class ConversationModel {
                 id: row.user_id,
                 username: row.username,
                 profile: row.profile,
-                lastSeenAt: row.last_seen_at
+                lastSeenAt: row.last_seen_at,
+                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                roles: row.user_roles || [],
             },
         }));
     }
@@ -248,7 +251,8 @@ export class ConversationModel {
      */
     static async getLastMessage(conversationId: string): Promise<Message | undefined> {
         const query = `
-            SELECT m.*, u.username, u.profile
+            SELECT m.*, u.username, u.profile, u.verification_status,
+                   (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles
             FROM messages m
             JOIN users u ON m.sender_id = u.id
             WHERE m.conversation_id = $1 AND m.deleted_at IS NULL
@@ -440,6 +444,8 @@ export class ConversationModel {
                 id: row.sender_id,
                 username: row.username,
                 profile: row.profile,
+                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
+                roles: row.user_roles || [],
             } : undefined,
         };
     }

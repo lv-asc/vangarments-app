@@ -348,12 +348,18 @@ class ApiClient {
     // Format CPF for backend validation
     const formattedCPF = this.formatCPF(userData.cpf);
 
-    const requestData = {
+    const requestData: Record<string, any> = {
       ...userData,
       cpf: formattedCPF,
       birthDate: userData.birthDate || new Date().toISOString(),
       gender: userData.gender || 'prefer-not-to-say',
     };
+
+    // Remove empty strings for optional enum fields - Zod allows undefined but not ""
+    if (requestData.genderOther === '') delete requestData.genderOther;
+    if (requestData.bodyType === '') delete requestData.bodyType;
+
+    console.log('[API] Registration request data:', requestData);
 
     const response = await this.request<any>('/auth/register', {
       method: 'POST',
@@ -543,6 +549,19 @@ class ApiClient {
     const response = await this.request<any>('/admin/users');
     return (response as any).users || response.data || response;
   }
+
+  async getAllEntities(): Promise<any[]> {
+    const response = await this.request<any>('/admin/all-entities');
+    return (response as any).data?.entities || response.entities || [];
+  }
+
+  async updateEntityVerification(entityId: string, status: string, entityType: string): Promise<void> {
+    await this.request(`/admin/entities/${entityId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, entityType })
+    });
+  }
+
 
   async deleteUser(userId: string, force?: boolean): Promise<void> {
     const query = force ? '?force=true' : '';

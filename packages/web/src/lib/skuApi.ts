@@ -37,19 +37,21 @@ export interface SKUItem {
 }
 
 export const skuApi = {
-    getAllSKUs: async (options?: { limit?: number; offset?: number }): Promise<{ skus: SKUItem[] }> => {
+    getAllSKUs: async (options?: { limit?: number; offset?: number; parentsOnly?: boolean }): Promise<{ skus: SKUItem[] }> => {
         const params = new URLSearchParams();
         if (options?.limit) params.append('limit', options.limit.toString());
         if (options?.offset) params.append('offset', options.offset.toString());
+        if (options?.parentsOnly !== undefined) params.append('parentsOnly', options.parentsOnly.toString());
 
         const response = await apiClient.get<{ skus: SKUItem[] }>(`/skus?${params.toString()}`);
         return response;
     },
 
-    searchSKUs: async (term: string, brandId?: string): Promise<{ skus: SKUItem[] }> => {
+    searchSKUs: async (term: string, brandId?: string, parentsOnly: boolean = true): Promise<{ skus: SKUItem[] }> => {
         const params = new URLSearchParams();
         if (term) params.append('term', term);
         if (brandId) params.append('brandId', brandId);
+        params.append('parentsOnly', parentsOnly.toString());
 
         const response = await apiClient.get<{ skus: SKUItem[] }>(`/skus/search?${params.toString()}`);
         return response;

@@ -106,7 +106,26 @@ export class BrandAccountModel {
     ];
 
     const result = await db.query(query, values);
-    return this.mapRowToBrandAccount(result.rows[0]);
+    const brand = this.mapRowToBrandAccount(result.rows[0]);
+
+    // Ensure owner follows @v
+    try {
+      const vRes = await db.query("SELECT id FROM users WHERE username = 'v'");
+      if (vRes.rows.length > 0) {
+        const vId = vRes.rows[0].id;
+        if (userId !== vId) {
+          await db.query(`
+            INSERT INTO user_follows (follower_id, following_id, status)
+            VALUES ($1, $2, 'accepted')
+            ON CONFLICT (follower_id, following_id) DO NOTHING
+          `, [userId, vId]);
+        }
+      }
+    } catch (e) {
+      console.error('Error auto-following @v from brand creation:', e);
+    }
+
+    return brand;
   }
 
   static async findById(id: string): Promise<BrandAccount | null> {
@@ -466,6 +485,23 @@ export class BrandAccountModel {
   }
 
   static async syncFromVufs(systemUserId: string): Promise<number> {
+    // Ensure system user follows @v
+    try {
+      const vRes = await db.query("SELECT id FROM users WHERE username = 'v'");
+      if (vRes.rows.length > 0) {
+        const vId = vRes.rows[0].id;
+        if (systemUserId !== vId) {
+          await db.query(`
+            INSERT INTO user_follows (follower_id, following_id, status)
+            VALUES ($1, $2, 'accepted')
+            ON CONFLICT (follower_id, following_id) DO NOTHING
+          `, [systemUserId, vId]);
+        }
+      }
+    } catch (e) {
+      console.error('Error ensuring system user follows @v:', e);
+    }
+
     // 1. Get all active vufs_brands
     const vufsQuery = `
       SELECT id, name, type 
