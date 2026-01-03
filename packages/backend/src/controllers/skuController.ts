@@ -91,25 +91,120 @@ export class SKUController {
     }
 
     /**
-     * Get all SKUs for a brand with optional filtering
+     * Get all SKUs for a brand with optional filtering and variant grouping
      */
     static async getBrandSKUs(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { brandId } = req.params;
-            const { collection, line, search } = req.query;
+            const { collection, line, search, parentsOnly = 'true' } = req.query;
+            const filterParents = parentsOnly === 'true';
 
-            const skus = await SKUItemModel.findByBrandId(brandId, {
+            // Fetch all SKUs for this brand
+            const allSkus = await SKUItemModel.findByBrandId(brandId, {
                 collection: collection as string,
                 line: line as string,
                 search: search as string
             });
 
-            res.json({ skus });
+            if (filterParents) {
+                // Group ONLY by explicit parent_sku_id relationships
+                const childrenByParentId: Record<string, any[]> = {};
+                const childSkuIds = new Set<string>();
+
+                // First pass: identify children and group them by parent
+                allSkus.forEach((sku: any) => {
+                    if (sku.parentSkuId) {
+                        childSkuIds.add(sku.id);
+                        if (!childrenByParentId[sku.parentSkuId]) {
+                            childrenByParentId[sku.parentSkuId] = [];
+                        }
+                        childrenByParentId[sku.parentSkuId].push(sku);
+                    }
+                });
+
+                const groupedResults: any[] = [];
+
+                // Second pass: add parent SKUs with their variants, and standalone SKUs
+                allSkus.forEach((sku: any) => {
+                    // Skip child SKUs (they're included in their parent's variants)
+                    if (childSkuIds.has(sku.id)) return;
+
+                    const children = childrenByParentId[sku.id] || [];
+                    const variants = children.map((v: any) => ({
+                        id: v.id,
+                        name: v.name,
+                        code: v.code,
+                        size: v.metadata?.sizeName || v.metadata?.size || '',
+                        sizeId: v.metadata?.sizeId,
+                        color: v.metadata?.colorName || v.metadata?.color,
+                        retailPriceBrl: v.retailPriceBrl,
+                        retailPriceUsd: v.retailPriceUsd,
+                        retailPriceEur: v.retailPriceEur,
+                        images: v.images || []
+                    }));
+
+                    // If this parent has variants, strip the size suffix from the parent name
+                    // This handles cases where the parent was incorrectly saved with a size suffix like "[S]"
+                    let parentName = sku.name;
+                    if (variants.length > 0) {
+                        // Strip size suffixes like [S], [M], [L], [XL], [XXL], [XS], etc.
+                        parentName = sku.name.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim();
+                    }
+
+                    groupedResults.push({
+                        ...sku,
+                        name: parentName,
+                        variants
+                    });
+                });
+
+                // Fetch size sort orders and sort all variants
+                const allSizeIds = new Set<string>();
+                groupedResults.forEach(result => {
+                    result.variants?.forEach((v: any) => {
+                        if (v.sizeId) allSizeIds.add(v.sizeId);
+                    });
+                });
+
+                let sizeOrderMap: Record<string, number> = {};
+                if (allSizeIds.size > 0) {
+                    const sizeOrderQuery = `
+                        SELECT id, sort_order 
+                        FROM vufs_sizes 
+                        WHERE id = ANY($1)
+                    `;
+                    const sizeOrderResult = await db.query(sizeOrderQuery, [Array.from(allSizeIds)]);
+                    sizeOrderResult.rows.forEach((row: any) => {
+                        sizeOrderMap[row.id] = row.sort_order || 999;
+                    });
+                }
+
+                // Sort variants by size order
+                groupedResults.forEach(result => {
+                    if (result.variants && result.variants.length > 0) {
+                        result.variants.sort((a: any, b: any) => {
+                            const orderA = a.sizeId ? (sizeOrderMap[a.sizeId] || 999) : 999;
+                            const orderB = b.sizeId ? (sizeOrderMap[b.sizeId] || 999) : 999;
+                            return orderA - orderB;
+                        });
+                    }
+                });
+
+                // Sort by createdAt DESC
+                groupedResults.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                res.json({ skus: groupedResults });
+            } else {
+                // Return all without grouping
+                res.json({ skus: allSkus.map((s: any) => ({ ...s, variants: [] })) });
+            }
+
         } catch (error) {
             console.error('Get Brand SKUs error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }
+
 
     /**
      * Get all SKUs (Admin/Global view)
@@ -120,6 +215,7 @@ export class SKUController {
             const offset = (Number(page) - 1) * Number(limit);
             const filterParents = parentsOnly === 'true';
 
+            // Fetch ALL SKUs first (to enable explicit parent-child grouping)
             let query = `
                 SELECT 
                     si.*, 
@@ -128,22 +224,20 @@ export class SKUController {
                     ba.brand_info->>'slug' as brand_slug,
                     bl.name as line_name, 
                     bl.logo as line_logo,
+                    bc.name as collection_name,
+                    bc.cover_image_url as collection_cover_image,
                     si.retail_price_brl,
                     si.retail_price_usd,
                     si.retail_price_eur
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
                 LEFT JOIN brand_lines bl ON si.line_id = bl.id
+                LEFT JOIN brand_collections bc ON si.brand_id = bc.brand_id AND si.collection = bc.name
                 WHERE si.deleted_at IS NULL
             `;
 
             const values: any[] = [];
             let paramIndex = 1;
-
-            // Filter to only parent SKUs (no parent_sku_id)
-            if (filterParents) {
-                query += ` AND si.parent_sku_id IS NULL`;
-            }
 
             if (brandId) {
                 query += ` AND si.brand_id = $${paramIndex++}`;
@@ -161,95 +255,208 @@ export class SKUController {
                 paramIndex++;
             }
 
-            query += ` ORDER BY si.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-            values.push(Number(limit), offset);
+            query += ` ORDER BY si.created_at DESC`;
 
             const result = await db.query(query, values);
+            const allSkus = result.rows;
 
-            // Get total count for pagination (only parent SKUs if filtering)
-            let countQuery = `SELECT COUNT(*) as total FROM sku_items WHERE deleted_at IS NULL`;
+            // If parentsOnly is true, group ONLY by explicit parent_sku_id
             if (filterParents) {
-                countQuery += ` AND parent_sku_id IS NULL`;
-            }
-            const countResult = await db.query(countQuery);
-            const total = parseInt(countResult.rows[0].total);
+                const childrenByParentId: Record<string, any[]> = {};
+                const childSkuIds = new Set<string>();
 
-            // Get variants for each parent SKU
-            const parentIds = result.rows.map(row => row.id);
-            let variantsMap: Record<string, any[]> = {};
-
-            if (filterParents && parentIds.length > 0) {
-                const variantsQuery = `
-                    SELECT id, parent_sku_id, name, code, metadata, retail_price_brl, retail_price_usd, retail_price_eur
-                    FROM sku_items 
-                    WHERE parent_sku_id = ANY($1) AND deleted_at IS NULL
-                    ORDER BY name ASC
-                `;
-                const variantsResult = await db.query(variantsQuery, [parentIds]);
-
-                variantsResult.rows.forEach(variant => {
-                    const parentId = variant.parent_sku_id;
-                    if (!variantsMap[parentId]) {
-                        variantsMap[parentId] = [];
+                // First pass: identify children and group them by parent
+                allSkus.forEach(row => {
+                    if (row.parent_sku_id) {
+                        childSkuIds.add(row.id);
+                        if (!childrenByParentId[row.parent_sku_id]) {
+                            childrenByParentId[row.parent_sku_id] = [];
+                        }
+                        childrenByParentId[row.parent_sku_id].push(row);
                     }
-                    const meta = typeof variant.metadata === 'string' ? JSON.parse(variant.metadata) : variant.metadata || {};
-                    variantsMap[parentId].push({
-                        id: variant.id,
-                        name: variant.name,
-                        code: variant.code,
-                        size: meta.size || variant.name,
-                        retailPriceBrl: variant.retail_price_brl,
-                        retailPriceUsd: variant.retail_price_usd,
-                        retailPriceEur: variant.retail_price_eur
+                });
+
+                const groupedResults: any[] = [];
+
+                // Second pass: add parent SKUs with their variants, and standalone SKUs
+                allSkus.forEach(row => {
+                    // Skip child SKUs (they're included in their parent's variants)
+                    if (childSkuIds.has(row.id)) return;
+
+                    const children = childrenByParentId[row.id] || [];
+                    groupedResults.push({
+                        ...row,
+                        _variants: children
                     });
                 });
-            }
 
-            const skus = result.rows.map(row => {
-                const item: any = {
-                    id: row.id,
-                    brandId: row.brand_id,
-                    parentSkuId: row.parent_sku_id,
-                    name: row.name,
-                    code: row.code,
-                    collection: row.collection,
-                    line: row.line,
-                    lineId: row.line_id,
-                    category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
-                    description: row.description,
-                    materials: row.materials,
-                    images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
-                    videos: typeof row.videos === 'string' ? JSON.parse(row.videos) : row.videos || [],
-                    metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
-                    brand: {
-                        name: row.brand_name,
-                        logo: row.brand_logo,
-                        slug: row.brand_slug
-                    },
-                    retailPriceBrl: row.retail_price_brl,
-                    retailPriceUsd: row.retail_price_usd,
-                    retailPriceEur: row.retail_price_eur,
-                    createdAt: row.created_at,
-                    variants: variantsMap[row.id] || []
-                };
 
-                if (row.line_name || row.line_logo || row.line_id) {
-                    item.lineInfo = {
-                        id: row.line_id,
-                        name: row.line_name,
-                        logo: row.line_logo
-                    };
+                // Sort by created_at DESC and apply pagination
+                groupedResults.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                const paginatedResults = groupedResults.slice(offset, offset + Number(limit));
+                const total = groupedResults.length;
+
+                // Fetch size sort orders for all variants
+                const allSizeIds = new Set<string>();
+                paginatedResults.forEach(row => {
+                    (row._variants || []).forEach((v: any) => {
+                        const vMeta = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata || {};
+                        if (vMeta.sizeId) allSizeIds.add(vMeta.sizeId);
+                    });
+                });
+
+                let sizeOrderMap: Record<string, number> = {};
+                if (allSizeIds.size > 0) {
+                    const sizeOrderQuery = `
+                        SELECT id, sort_order 
+                        FROM vufs_sizes 
+                        WHERE id = ANY($1)
+                    `;
+                    const sizeOrderResult = await db.query(sizeOrderQuery, [Array.from(allSizeIds)]);
+                    sizeOrderResult.rows.forEach((row: any) => {
+                        sizeOrderMap[row.id] = row.sort_order || 999;
+                    });
                 }
 
-                return item;
-            });
+                // Map to output format
+                const skus = paginatedResults.map(row => {
+                    const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {};
+                    const variants = (row._variants || []).map((v: any) => {
+                        const vMeta = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata || {};
+                        return {
+                            id: v.id,
+                            name: v.name,
+                            code: v.code,
+                            size: vMeta.sizeName || vMeta.size || v.name,
+                            sizeId: vMeta.sizeId,
+                            color: vMeta.colorName || vMeta.color,
+                            retailPriceBrl: v.retail_price_brl,
+                            retailPriceUsd: v.retail_price_usd,
+                            retailPriceEur: v.retail_price_eur,
+                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || [],
+                            _sizeOrder: vMeta.sizeId ? (sizeOrderMap[vMeta.sizeId] || 999) : 999
+                        };
+                    });
 
-            res.json({ skus, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
+                    // Sort variants by size order
+                    variants.sort((a: any, b: any) => a._sizeOrder - b._sizeOrder);
+                    // Remove the temporary _sizeOrder field
+                    variants.forEach((v: any) => delete v._sizeOrder);
+
+                    // If this parent has variants, strip the size suffix from the parent name
+                    // This handles cases where the parent was incorrectly saved with a size suffix like "[S]"
+                    let parentName = row.name;
+                    if (variants.length > 0) {
+                        parentName = row.name.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim();
+                    }
+
+                    const item: any = {
+                        id: row._isVirtualParent ? `virtual-${row.id}` : row.id,
+                        brandId: row.brand_id,
+                        parentSkuId: row.parent_sku_id,
+                        name: parentName,
+                        code: row.code,
+                        collection: row.collection,
+                        line: row.line,
+                        lineId: row.line_id,
+                        category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
+                        description: row.description,
+                        materials: row.materials,
+                        images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
+                        videos: typeof row.videos === 'string' ? JSON.parse(row.videos) : row.videos || [],
+                        metadata: meta,
+                        brand: {
+                            name: row.brand_name,
+                            logo: row.brand_logo,
+                            slug: row.brand_slug
+                        },
+                        retailPriceBrl: row.retail_price_brl,
+                        retailPriceUsd: row.retail_price_usd,
+                        retailPriceEur: row.retail_price_eur,
+                        createdAt: row.created_at,
+                        isVirtualParent: row._isVirtualParent || false,
+                        variants
+                    };
+
+                    if (row.line_name || row.line_logo || row.line_id) {
+                        item.lineInfo = {
+                            id: row.line_id,
+                            name: row.line_name,
+                            logo: row.line_logo
+                        };
+                    }
+
+                    if (row.collection_name || row.collection_cover_image) {
+                        item.collectionInfo = {
+                            name: row.collection_name,
+                            coverImage: row.collection_cover_image
+                        };
+                    }
+
+
+                    return item;
+                });
+
+                res.json({ skus, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
+            } else {
+                // parentsOnly=false: return all SKUs without grouping
+                const total = allSkus.length;
+                const paginatedResults = allSkus.slice(offset, offset + Number(limit));
+
+                const skus = paginatedResults.map(row => {
+                    const item: any = {
+                        id: row.id,
+                        brandId: row.brand_id,
+                        parentSkuId: row.parent_sku_id,
+                        name: row.name,
+                        code: row.code,
+                        collection: row.collection,
+                        line: row.line,
+                        lineId: row.line_id,
+                        category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
+                        description: row.description,
+                        materials: row.materials,
+                        images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
+                        videos: typeof row.videos === 'string' ? JSON.parse(row.videos) : row.videos || [],
+                        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
+                        brand: {
+                            name: row.brand_name,
+                            logo: row.brand_logo,
+                            slug: row.brand_slug
+                        },
+                        retailPriceBrl: row.retail_price_brl,
+                        retailPriceUsd: row.retail_price_usd,
+                        retailPriceEur: row.retail_price_eur,
+                        createdAt: row.created_at,
+                        variants: []
+                    };
+
+                    if (row.line_name || row.line_logo || row.line_id) {
+                        item.lineInfo = {
+                            id: row.line_id,
+                            name: row.line_name,
+                            logo: row.line_logo
+                        };
+                    }
+
+                    if (row.collection_name || row.collection_cover_image) {
+                        item.collectionInfo = {
+                            name: row.collection_name,
+                            coverImage: row.collection_cover_image
+                        };
+                    }
+
+                    return item;
+                });
+
+                res.json({ skus, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) });
+            }
         } catch (error) {
             console.error('Get All SKUs error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }
+
 
     /**
      * Get a single SKU by ID
@@ -355,7 +562,7 @@ export class SKUController {
             const searchTerm = term as string;
             const filterParents = parentsOnly === 'true';
 
-            // Base query with joins for Brand and Line info
+            // Fetch all matching SKUs
             let query = `
                 SELECT 
                     si.*, 
@@ -376,11 +583,6 @@ export class SKUController {
             const values: any[] = [];
             let paramIndex = 1;
 
-            // Filter to only parent SKUs (no parent_sku_id)
-            if (filterParents) {
-                query += ` AND si.parent_sku_id IS NULL`;
-            }
-
             if (brandId) {
                 query += ` AND si.brand_id = $${paramIndex++}`;
                 values.push(brandId);
@@ -395,86 +597,184 @@ export class SKUController {
             )`;
             values.push(`%${searchTerm}%`);
 
-            query += ` ORDER BY si.created_at DESC LIMIT 20`;
+            query += ` ORDER BY si.created_at DESC LIMIT 100`;
 
             const result = await db.query(query, values);
+            const allSkus = result.rows;
 
-            // Get variants for each parent SKU
-            const parentIds = result.rows.map(row => row.id);
-            let variantsMap: Record<string, any[]> = {};
+            if (filterParents) {
+                // Group ONLY by explicit parent_sku_id
+                const childrenByParentId: Record<string, any[]> = {};
+                const childSkuIds = new Set<string>();
 
-            if (filterParents && parentIds.length > 0) {
-                const variantsQuery = `
-                    SELECT id, parent_sku_id, name, code, metadata, retail_price_brl, retail_price_usd, retail_price_eur
-                    FROM sku_items 
-                    WHERE parent_sku_id = ANY($1) AND deleted_at IS NULL
-                    ORDER BY name ASC
-                `;
-                const variantsResult = await db.query(variantsQuery, [parentIds]);
-
-                variantsResult.rows.forEach(variant => {
-                    const parentId = variant.parent_sku_id;
-                    if (!variantsMap[parentId]) {
-                        variantsMap[parentId] = [];
+                // First pass: identify children and group them by parent
+                allSkus.forEach(row => {
+                    if (row.parent_sku_id) {
+                        childSkuIds.add(row.id);
+                        if (!childrenByParentId[row.parent_sku_id]) {
+                            childrenByParentId[row.parent_sku_id] = [];
+                        }
+                        childrenByParentId[row.parent_sku_id].push(row);
                     }
-                    const meta = typeof variant.metadata === 'string' ? JSON.parse(variant.metadata) : variant.metadata || {};
-                    variantsMap[parentId].push({
-                        id: variant.id,
-                        name: variant.name,
-                        code: variant.code,
-                        size: meta.sizeName || meta.size || variant.name,
-                        color: meta.colorName || meta.color,
-                        retailPriceBrl: variant.retail_price_brl,
-                        retailPriceUsd: variant.retail_price_usd,
-                        retailPriceEur: variant.retail_price_eur
+                });
+
+                const groupedResults: any[] = [];
+
+                // Second pass: add parent SKUs with their variants, and standalone SKUs
+                allSkus.forEach(row => {
+                    // Skip child SKUs
+                    if (childSkuIds.has(row.id)) return;
+
+                    const children = childrenByParentId[row.id] || [];
+                    groupedResults.push({
+                        ...row,
+                        _variants: children
                     });
                 });
-            }
 
-            const skus = result.rows.map(row => {
-                const item: any = {
-                    id: row.id,
-                    brandId: row.brand_id,
-                    parentSkuId: row.parent_sku_id,
-                    name: row.name,
-                    code: row.code,
-                    collection: row.collection,
-                    line: row.line,
-                    lineId: row.line_id,
-                    category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
-                    description: row.description,
-                    materials: row.materials,
-                    images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
-                    metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
-                    brand: {
-                        name: row.brand_name,
-                        logo: row.brand_logo,
-                        slug: row.brand_slug
-                    },
-                    retailPriceBrl: row.retail_price_brl,
-                    retailPriceUsd: row.retail_price_usd,
-                    retailPriceEur: row.retail_price_eur,
-                    variants: variantsMap[row.id] || []
-                };
+                groupedResults.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                const topResults = groupedResults.slice(0, 20);
 
-                if (row.line_name || row.line_logo || row.line_id) {
-                    item.lineInfo = {
-                        id: row.line_id,
-                        name: row.line_name,
-                        logo: row.line_logo
-                    };
+
+                // Fetch size sort orders for all variants
+                const allSizeIds = new Set<string>();
+                topResults.forEach(row => {
+                    (row._variants || []).forEach((v: any) => {
+                        const vMeta = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata || {};
+                        if (vMeta.sizeId) allSizeIds.add(vMeta.sizeId);
+                    });
+                });
+
+                let sizeOrderMap: Record<string, number> = {};
+                if (allSizeIds.size > 0) {
+                    const sizeOrderQuery = `
+                        SELECT id, sort_order 
+                        FROM vufs_sizes 
+                        WHERE id = ANY($1)
+                    `;
+                    const sizeOrderResult = await db.query(sizeOrderQuery, [Array.from(allSizeIds)]);
+                    sizeOrderResult.rows.forEach((row: any) => {
+                        sizeOrderMap[row.id] = row.sort_order || 999;
+                    });
                 }
 
-                return item;
-            });
+                const skus = topResults.map(row => {
+                    const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {};
+                    const variants = (row._variants || []).map((v: any) => {
+                        const vMeta = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata || {};
+                        return {
+                            id: v.id,
+                            name: v.name,
+                            code: v.code,
+                            size: vMeta.sizeName || vMeta.size || v.name,
+                            sizeId: vMeta.sizeId,
+                            color: vMeta.colorName || vMeta.color,
+                            retailPriceBrl: v.retail_price_brl,
+                            retailPriceUsd: v.retail_price_usd,
+                            retailPriceEur: v.retail_price_eur,
+                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || [],
+                            _sizeOrder: vMeta.sizeId ? (sizeOrderMap[vMeta.sizeId] || 999) : 999
+                        };
+                    });
 
-            res.json({ skus });
+                    // Sort variants by size order
+                    variants.sort((a: any, b: any) => a._sizeOrder - b._sizeOrder);
+                    // Remove the temporary _sizeOrder field
+                    variants.forEach((v: any) => delete v._sizeOrder);
+
+                    // If this parent has variants, strip the size suffix from the parent name
+                    // This handles cases where the parent was incorrectly saved with a size suffix like "[S]"
+                    let parentName = row.name;
+                    if (variants.length > 0) {
+                        parentName = row.name.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim();
+                    }
+
+                    const item: any = {
+                        id: row._isVirtualParent ? `virtual-${row.id}` : row.id,
+                        brandId: row.brand_id,
+                        parentSkuId: row.parent_sku_id,
+                        name: parentName,
+                        code: row.code,
+                        collection: row.collection,
+                        line: row.line,
+                        lineId: row.line_id,
+                        category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
+                        description: row.description,
+                        materials: row.materials,
+                        images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
+                        metadata: meta,
+                        brand: {
+                            name: row.brand_name,
+                            logo: row.brand_logo,
+                            slug: row.brand_slug
+                        },
+                        retailPriceBrl: row.retail_price_brl,
+                        retailPriceUsd: row.retail_price_usd,
+                        retailPriceEur: row.retail_price_eur,
+                        isVirtualParent: row._isVirtualParent || false,
+                        variants
+                    };
+
+                    if (row.line_name || row.line_logo || row.line_id) {
+                        item.lineInfo = {
+                            id: row.line_id,
+                            name: row.line_name,
+                            logo: row.line_logo
+                        };
+                    }
+
+                    return item;
+                });
+
+                res.json({ skus });
+            } else {
+                // parentsOnly=false: return all without grouping
+                const skus = allSkus.slice(0, 20).map(row => {
+                    const item: any = {
+                        id: row.id,
+                        brandId: row.brand_id,
+                        parentSkuId: row.parent_sku_id,
+                        name: row.name,
+                        code: row.code,
+                        collection: row.collection,
+                        line: row.line,
+                        lineId: row.line_id,
+                        category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
+                        description: row.description,
+                        materials: row.materials,
+                        images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
+                        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
+                        brand: {
+                            name: row.brand_name,
+                            logo: row.brand_logo,
+                            slug: row.brand_slug
+                        },
+                        retailPriceBrl: row.retail_price_brl,
+                        retailPriceUsd: row.retail_price_usd,
+                        retailPriceEur: row.retail_price_eur,
+                        variants: []
+                    };
+
+                    if (row.line_name || row.line_logo || row.line_id) {
+                        item.lineInfo = {
+                            id: row.line_id,
+                            name: row.line_name,
+                            logo: row.line_logo
+                        };
+                    }
+
+                    return item;
+                });
+
+                res.json({ skus });
+            }
 
         } catch (error) {
             console.error('Search SKUs error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }
+
 
     /**
      * Get deleted SKUs (trash) - Admin only

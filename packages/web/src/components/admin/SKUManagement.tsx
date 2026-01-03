@@ -82,7 +82,7 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
             includePattern: false,
             includeMaterial: false,
             includeFit: false,
-            brandLineDisplay: 'brand-only' as 'brand-only' | 'brand-and-line' | 'line-only',
+            brandLineDisplay: 'brand-only' as 'brand-only' | 'brand-and-line' | 'line-only' | 'none',
             showCollection: false
         },
         generatedName: '',
@@ -195,41 +195,15 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
         }
     };
 
-    // Compute grouped SKUs: parent with variants
+    // Use the backend's pre-grouped SKUs with variants
+    // Backend now returns SKUs with variants array already populated
     const groupedSkus = useMemo(() => {
-        const getBaseName = (name: string) => {
-            return name.replace(/\s*\([^)]*\)\s*\[[^\]]*\]/g, '').trim();
-        };
-
-        const baseNameGroups: Record<string, any[]> = {};
-        skus.forEach(sku => {
-            const baseName = getBaseName(sku.name);
-            if (!baseNameGroups[baseName]) {
-                baseNameGroups[baseName] = [];
-            }
-            baseNameGroups[baseName].push(sku);
-        });
-
-        const result: any[] = [];
-        Object.entries(baseNameGroups).forEach(([baseName, groupSkus]) => {
-            if (groupSkus.length === 1) {
-                result.push({ ...groupSkus[0], variants: [] });
-            } else {
-                const firstSku = groupSkus[0];
-                result.push({
-                    id: `virtual-${firstSku.id}`,
-                    name: baseName,
-                    code: firstSku.code.replace(/-[a-z]+-[a-z]+$/, ''),
-                    brand: firstSku.brand,
-                    retailPriceBrl: firstSku.retailPriceBrl,
-                    images: firstSku.images,
-                    isVirtualParent: true,
-                    variants: groupSkus
-                });
-            }
-        });
-        return result;
+        return skus.map(sku => ({
+            ...sku,
+            variants: sku.variants || []
+        }));
     }, [skus]);
+
 
     const toggleGroupExpansion = (skuId: string) => {
         setExpandedGroups(prev => {

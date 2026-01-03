@@ -332,8 +332,14 @@ export default function MediaUploader({
                         isPrimary: media.length === 0 && newMediaItems.length === 0, // Primary if list was empty
                         type
                     });
-                } catch (err) {
+                } catch (err: any) {
                     console.error(`Failed to upload ${file.name}`, err);
+
+                    if (err?.status === 401 || err?.status === 403) {
+                        toast.error('Session expired. Please refresh/login.');
+                        // Stop uploading other files if session is dead
+                        throw err;
+                    }
                     toast.error(`Failed to upload ${file.name}`);
                 }
             }
@@ -343,9 +349,14 @@ export default function MediaUploader({
                 toast.success(`${newMediaItems.length} ${type === 'image' ? 'Images' : 'Videos'} uploaded`);
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Failed to upload ${type}`, error);
-            toast.error(`Failed to upload ${type}`);
+
+            if (error?.status === 401 || error?.status === 403 || error?.message?.includes('403') || error?.message?.includes('401')) {
+                toast.error('Session expired. Please refresh the page or login again.');
+            } else {
+                toast.error(`Failed to upload ${type}: ${error.message || 'Unknown error'}`);
+            }
         } finally {
             setUploading(false);
             if (fileInputRef.current) {

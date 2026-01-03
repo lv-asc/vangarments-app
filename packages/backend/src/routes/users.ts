@@ -52,4 +52,8 @@ router.delete('/:id', AuthUtils.authenticateToken, UserController.deleteUser);
 router.put('/:id/verify', AuthUtils.authenticateToken, UserController.verifyUser);
 router.put('/:id/unverify', AuthUtils.authenticateToken, UserController.unverifyUser);
 
+// Tagged content endpoint
+import { getTaggedContentForUser } from '../controllers/tagController';
+router.get('/:userId/tagged', getTaggedContentForUser);
+
 export default router;

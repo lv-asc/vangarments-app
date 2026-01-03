@@ -244,6 +244,40 @@ export class SocialController {
   }
 
   /**
+   * Remove a follower (remove someone who follows you)
+   */
+  async removeFollower(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { followerId } = req.params;
+      const userId = req.user!.id;
+
+      const success = await socialService.removeFollower(userId, followerId);
+
+      if (!success) {
+        res.status(404).json({
+          error: {
+            code: 'FOLLOWER_NOT_FOUND',
+            message: 'Follower relationship not found',
+          },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: 'Successfully removed follower',
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'REMOVE_FOLLOWER_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
    * Get user's followers
    */
   async getFollowers(req: Request, res: Response): Promise<void> {

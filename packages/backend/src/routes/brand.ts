@@ -692,4 +692,8 @@ router.delete(
   BrandLineController.deleteBrandLine
 );
 
+// ============ TAGGED CONTENT ROUTES ============
+import { getTaggedContentForBrand } from '../controllers/tagController';
+router.get('/:brandId/tagged', getTaggedContentForBrand);
+
 export default router;

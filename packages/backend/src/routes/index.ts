@@ -44,6 +44,8 @@ import moodboardRoutes from './moodboardRoutes';
 import mockupRoutes from './mockupRoutes';
 import verificationRoutes from './verification';
 import notificationRoutes from './notifications';
+import pomRoutes from './pom';
+import tagRoutes from './tags';
 
 const router = Router();
 
@@ -91,6 +93,8 @@ router.use('/moodboards', moodboardRoutes); // Phase 1: Moodboard system
 router.use('/mockups', mockupRoutes); // Phase 1: Mockup templates
 router.use('/verification', verificationRoutes); // Verification system
 router.use('/notifications', notificationRoutes); // Notification system
+router.use('/pom', pomRoutes); // Point of Measurement system
+router.use('/tags', tagRoutes); // Media tagging system
 
 // Health check for API
 router.get('/health', (req, res) => {

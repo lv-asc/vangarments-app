@@ -20,6 +20,8 @@ import {
     ArrowsUpDownIcon
 } from '@heroicons/react/24/outline';
 import { SocialIcon } from '@/components/ui/social-icons';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
+import { getSocialLinkLabel } from '@/lib/socialLinkUtils';
 
 interface UserProfile {
     id: string;
@@ -52,6 +54,7 @@ interface UserProfile {
     };
     socialLinks: { platform: string; url: string }[];
     roles: string[];
+    verificationStatus?: string;
     privacySettings?: {
         isPrivate?: boolean;
         wardrobe?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
@@ -387,6 +390,9 @@ export default function UserProfileLayout({
                                     <div>
                                         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                                             {profile.name}
+                                            {profile.verificationStatus === 'verified' && (
+                                                <VerifiedBadge size="md" />
+                                            )}
                                             {profile.roles.includes('admin') && (
                                                 <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-900 text-white">ADMIN</span>
                                             )}
@@ -491,8 +497,8 @@ export default function UserProfileLayout({
                                                 rel="noopener noreferrer"
                                                 className="flex items-center gap-2 text-sm text-primary hover:underline"
                                             >
-                                                <SocialIcon platform={link.platform} size="sm" />
-                                                {link.platform.charAt(0).toUpperCase() + link.platform.slice(1)}
+                                                <SocialIcon platform={link.platform} url={link.url} size="sm" />
+                                                {getSocialLinkLabel(link)}
                                             </a>
                                         ))}
                                     </div>

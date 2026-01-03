@@ -85,7 +85,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.id = $1
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.verification_status, u.last_seen_at, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [id]);
@@ -102,7 +102,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE LOWER(u.username) = LOWER($1)
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.verification_status, u.last_seen_at, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [username]);
@@ -131,7 +131,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       WHERE u.email = $1
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.verification_status, u.last_seen_at, u.created_at, u.updated_at
     `;
 
     const result = await db.query(query, [email]);
@@ -404,7 +404,7 @@ export class UserModel {
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       ${whereClause}
-      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.created_at, u.updated_at
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.verification_status, u.last_seen_at, u.created_at, u.updated_at
       ORDER BY u.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;

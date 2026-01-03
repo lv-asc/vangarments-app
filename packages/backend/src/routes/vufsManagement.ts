@@ -79,6 +79,16 @@ router.get('/patterns/trash', AuthUtils.authenticateToken, AuthUtils.requireRole
 router.post('/patterns/:id/restore', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.restorePattern);
 router.delete('/patterns/:id/permanent', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.permanentlyDeletePattern);
 
+// Pattern Groups routes
+router.get('/pattern-groups', VUFSManagementController.getPatternGroups);
+router.patch('/pattern-groups/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updatePatternGroup);
+
+// Pattern Subcategories routes
+router.get('/pattern-subcategories', VUFSManagementController.getPatternSubcategories);
+router.post('/pattern-subcategories', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addPatternSubcategory);
+router.patch('/pattern-subcategories/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updatePatternSubcategory);
+router.delete('/pattern-subcategories/:id', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.deletePatternSubcategory);
+
 // Fit routes
 router.get('/fits', VUFSManagementController.getFits);
 router.post('/fits', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.addFit);
@@ -138,6 +148,9 @@ router.delete('/attributes/values/:id', AuthUtils.authenticateToken, AuthUtils.r
 router.get('/attributes/values/:id/descendants', VUFSManagementController.getAttributeValueDescendants);
 router.put('/attributes/values/reorder', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.reorderAttributeValues);
 router.put('/attributes/values/:id/hierarchy', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.changeHierarchyLevel);
+
+// --- SKU REF UPDATE (Generic for all attribute types) ---
+router.put('/attributes/:type/:id/sku-ref', AuthUtils.authenticateToken, AuthUtils.requireRole(['admin']), VUFSManagementController.updateSkuRef);
 
 // --- MATRIX VIEW ---
 

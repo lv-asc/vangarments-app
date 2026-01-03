@@ -159,6 +159,14 @@ router.delete(
   socialController.unfollowUser.bind(socialController)
 );
 
+router.delete(
+  '/users/:followerId/follower',
+  AuthUtils.authenticateToken,
+  [param('followerId').isUUID().withMessage('Follower ID must be a valid UUID')],
+  validateRequest,
+  socialController.removeFollower.bind(socialController)
+);
+
 router.get(
   '/users/:userId/followers',
   userIdValidation,

@@ -7,6 +7,7 @@ import { journalismApi, IJournalismData } from '@/lib/journalismApi';
 import JournalismForm from '@/components/admin/JournalismForm';
 import { PlusIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 export default function AdminJournalismPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -15,6 +16,11 @@ export default function AdminJournalismPage() {
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [editingItem, setEditingItem] = useState<IJournalismData | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; itemId: string | null; itemTitle: string }>({
+        isOpen: false,
+        itemId: null,
+        itemTitle: ''
+    });
 
     useEffect(() => {
         if (!authLoading && (!user || !user.roles?.includes('admin'))) {
@@ -50,14 +56,24 @@ export default function AdminJournalismPage() {
         setIsEditing(true);
     };
 
-    const handleDelete = async (id: string) => {
-        if (!window.confirm('Delete this content indefinitely?')) return;
+    const handleDelete = async (id: string, title?: string) => {
+        if (!deleteConfirm.isOpen) {
+            setDeleteConfirm({
+                isOpen: true,
+                itemId: id,
+                itemTitle: title || 'this content'
+            });
+            return;
+        }
+
         try {
             await journalismApi.delete(id);
             toast.success('Deleted successfully');
             fetchItems();
         } catch (error) {
             toast.error('Failed to delete');
+        } finally {
+            setDeleteConfirm({ isOpen: false, itemId: null, itemTitle: '' });
         }
     };
 
@@ -131,7 +147,7 @@ export default function AdminJournalismPage() {
                                         <PencilSquareIcon className="h-5 w-5" aria-hidden="true" />
                                     </button>
                                     <button
-                                        onClick={() => handleDelete(item.id!)}
+                                        onClick={() => handleDelete(item.id!, item.title)}
                                         className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                                     >
                                         <TrashIcon className="h-5 w-5" aria-hidden="true" />
@@ -147,6 +163,15 @@ export default function AdminJournalismPage() {
                     )}
                 </ul>
             </div>
+            <ConfirmationModal
+                isOpen={deleteConfirm.isOpen}
+                onClose={() => setDeleteConfirm({ isOpen: false, itemId: null, itemTitle: '' })}
+                onConfirm={() => deleteConfirm.itemId && handleDelete(deleteConfirm.itemId)}
+                title="Delete Content"
+                message={`Are you sure you want to delete "${deleteConfirm.itemTitle}"? This action cannot be undone.`}
+                confirmText="Delete"
+                variant="danger"
+            />
         </div>
     );
 }

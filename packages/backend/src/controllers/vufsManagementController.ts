@@ -856,12 +856,12 @@ export class VUFSManagementController {
 
   static async addPattern(req: Request, res: Response): Promise<void> {
     try {
-      const { name, skuRef } = req.body;
+      const { name, skuRef, groupId, subcategoryId, description } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const pattern = await VUFSManagementService.addPattern(name, skuRef);
+      const pattern = await VUFSManagementService.addPattern(name, skuRef, groupId, subcategoryId, description);
       res.status(201).json({ message: 'Pattern created successfully', pattern });
     } catch (error: any) {
       if (error.message.includes('already exists')) {
@@ -875,12 +875,8 @@ export class VUFSManagementController {
   static async updatePattern(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name, skuRef } = req.body;
-      if (!name) {
-        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
-        return;
-      }
-      const pattern = await VUFSManagementService.updatePattern(id, name, skuRef);
+      const { name, skuRef, groupId, subcategoryId, description } = req.body;
+      const pattern = await VUFSManagementService.updatePattern(id, { name, skuRef, groupId, subcategoryId, description });
       res.json({ message: 'Pattern updated successfully', pattern });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -921,6 +917,76 @@ export class VUFSManagementController {
       const { id } = req.params;
       await VUFSManagementService.permanentlyDeletePattern(id);
       res.json({ message: 'Pattern permanently deleted' });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  // --- PATTERN GROUPS MANAGEMENT ---
+
+  static async getPatternGroups(req: Request, res: Response): Promise<void> {
+    try {
+      const groups = await VUFSManagementService.getPatternGroups();
+      res.json({ message: 'Pattern groups retrieved successfully', groups });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async getPatternSubcategories(req: Request, res: Response): Promise<void> {
+    try {
+      const subcategories = await VUFSManagementService.getPatternSubcategories();
+      res.json({ message: 'Pattern subcategories retrieved successfully', subcategories });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async updatePatternGroup(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { name, description, emoji } = req.body;
+      const group = await VUFSManagementService.updatePatternGroup(id, { name, description, emoji });
+      res.json({ message: 'Pattern group updated successfully', group });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async addPatternSubcategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { groupId, name } = req.body;
+      if (!groupId || !name) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'GroupId and Name are required' } });
+        return;
+      }
+      const subcategory = await VUFSManagementService.addPatternSubcategory(groupId, name);
+      res.status(201).json({ message: 'Pattern subcategory created successfully', subcategory });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async updatePatternSubcategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      if (!name) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
+        return;
+      }
+      const subcategory = await VUFSManagementService.updatePatternSubcategory(id, name);
+      res.json({ message: 'Pattern subcategory updated successfully', subcategory });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  static async deletePatternSubcategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await VUFSManagementService.deletePatternSubcategory(id);
+      res.json({ message: 'Pattern subcategory deleted successfully' });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
@@ -1481,6 +1547,47 @@ export class VUFSManagementController {
       const result = await VUFSManagementService.setSizeAttribute(sizeId, attributeSlug, value);
       res.json({ success: true, attribute: result });
     } catch (error: any) {
+      res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
+    }
+  }
+
+  // --- GENERIC SKU REF UPDATE ---
+  static async updateSkuRef(req: Request, res: Response): Promise<void> {
+    try {
+      const { type, id } = req.params;
+      const { skuRef } = req.body;
+
+      if (skuRef === undefined) {
+        res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'skuRef is required' } });
+        return;
+      }
+
+      // Map type to table name
+      const tableMap: Record<string, string> = {
+        'apparel': 'vufs_attribute_values',
+        'sizes': 'vufs_sizes',
+        'colors': 'vufs_colors',
+        'materials': 'vufs_materials',
+        'patterns': 'vufs_patterns',
+        'styles': 'vufs_attribute_values',
+        'fits': 'vufs_fits',
+        'genders': 'vufs_genders',
+        'conditions': 'wardrobe_conditions'
+      };
+
+      const tableName = tableMap[type];
+      if (!tableName) {
+        res.status(400).json({ error: { code: 'INVALID_TYPE', message: `Invalid attribute type: ${type}` } });
+        return;
+      }
+
+      await VUFSManagementService.updateSkuRef(tableName, id, skuRef);
+      res.json({ message: 'SKU ref updated successfully', skuRef });
+    } catch (error: any) {
+      if (error.message.includes('duplicate')) {
+        res.status(409).json({ error: { code: 'CONFLICT', message: 'This SKU code is already in use' } });
+        return;
+      }
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
     }
   }

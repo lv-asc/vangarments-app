@@ -20,6 +20,7 @@ export interface Page {
     foundedDatePrecision?: 'year' | 'month' | 'day';
     socialLinks?: Array<{ platform: string; url: string }>;
     isVerified: boolean;
+    verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -75,6 +76,7 @@ export class PageModel {
         foundedDatePrecision?: 'year' | 'month' | 'day';
         socialLinks?: Array<{ platform: string; url: string }>;
         isVerified?: boolean;
+        verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
         isActive?: boolean;
     }): Promise<Page> {
         let slug = data.slug;
@@ -89,9 +91,9 @@ export class PageModel {
           instagram_url, twitter_url, facebook_url, 
           founded_by, founded_date, founded_date_precision,
           social_links, is_verified, is_active,
-          logo_metadata, banner_metadata
+          logo_metadata, banner_metadata, verification_status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `;
         const result = await db.query(query, [
@@ -112,7 +114,8 @@ export class PageModel {
             data.isVerified ?? false,
             data.isActive ?? true,
             JSON.stringify(data.logoMetadata || []),
-            JSON.stringify(data.bannerMetadata || [])
+            JSON.stringify(data.bannerMetadata || []),
+            data.verificationStatus || 'unverified'
         ]);
         const page = this.mapRowToPage(result.rows[0]);
 
@@ -156,6 +159,7 @@ export class PageModel {
         foundedDatePrecision?: 'year' | 'month' | 'day';
         socialLinks?: Array<{ platform: string; url: string }>;
         isVerified?: boolean;
+        verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
         isActive?: boolean;
     }): Promise<Page | null> {
         const setClause: string[] = [];
@@ -179,6 +183,7 @@ export class PageModel {
         if (data.foundedDatePrecision !== undefined) { setClause.push(`founded_date_precision = $${paramIndex++}`); values.push(data.foundedDatePrecision); }
         if (data.socialLinks !== undefined) { setClause.push(`social_links = $${paramIndex++}`); values.push(JSON.stringify(data.socialLinks)); }
         if (data.isVerified !== undefined) { setClause.push(`is_verified = $${paramIndex++}`); values.push(data.isVerified); }
+        if (data.verificationStatus !== undefined) { setClause.push(`verification_status = $${paramIndex++}`); values.push(data.verificationStatus); }
         if (data.isActive !== undefined) { setClause.push(`is_active = $${paramIndex++}`); values.push(data.isActive); }
 
         if (setClause.length === 0) return this.findById(id);
@@ -223,6 +228,7 @@ export class PageModel {
             foundedDatePrecision: row.founded_date_precision,
             socialLinks: row.social_links || [],
             isVerified: row.is_verified,
+            verificationStatus: row.verification_status || (row.is_verified ? 'verified' : 'unverified'),
             isActive: row.is_active,
             createdAt: row.created_at,
             updatedAt: row.updated_at,

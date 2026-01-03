@@ -251,3 +251,6 @@ export * from './marketplace';
 
 // Re-export VUFS types
 export * from './vufs';
+
+// Re-export tagging types
+export * from './tagging';

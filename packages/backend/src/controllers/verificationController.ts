@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { VerificationRequestModel } from '../models/VerificationRequest';
 import { UserModel } from '../models/User';
 import { BrandAccountModel } from '../models/BrandAccount';
+import { PageModel } from '../models/Page';
 
 export interface AuthenticatedRequest extends Request {
     user?: {
@@ -70,7 +71,14 @@ export class VerificationController {
                     return;
                 }
 
-                const entity = await BrandAccountModel.findById(entityId);
+                let entity = await BrandAccountModel.findById(entityId);
+                let isPage = false;
+
+                if (!entity) {
+                    entity = await PageModel.findById(entityId) as any;
+                    isPage = true;
+                }
+
                 if (!entity) {
                     res.status(404).json({
                         error: {
@@ -105,7 +113,8 @@ export class VerificationController {
                 }
 
                 // Check if entity is already verified
-                if (entity.verificationStatus === 'verified') {
+                const isVerified = isPage ? (entity as any).isVerified : (entity as any).verificationStatus === 'verified';
+                if (isVerified) {
                     res.status(400).json({
                         error: {
                             code: 'ALREADY_VERIFIED',
@@ -129,7 +138,13 @@ export class VerificationController {
             if (requestType === 'user') {
                 await UserModel.updateVerificationStatus(userId, 'pending');
             } else {
-                await BrandAccountModel.update(entityId, { verificationStatus: 'pending' });
+                // Try updating BrandAccount first, then Page
+                const brandUpdated = await BrandAccountModel.update(entityId, { verificationStatus: 'pending' });
+                if (!brandUpdated) {
+                    await PageModel.update(entityId, { isVerified: false });
+                    // Also update the verification_status column if it exists (which it does)
+                    await db.query('UPDATE pages SET verification_status = $1 WHERE id = $2', ['pending', entityId]);
+                }
             }
 
             res.json({
@@ -233,7 +248,11 @@ export class VerificationController {
             if (request.requestType === 'user' && request.userId) {
                 await UserModel.updateVerificationStatus(request.userId, 'verified');
             } else if (request.requestType === 'entity' && request.entityId) {
-                await BrandAccountModel.update(request.entityId, { verificationStatus: 'verified' });
+                const brandUpdated = await BrandAccountModel.update(request.entityId, { verificationStatus: 'verified' });
+                if (!brandUpdated) {
+                    await PageModel.update(request.entityId, { isVerified: true });
+                    await db.query('UPDATE pages SET verification_status = $1 WHERE id = $2', ['verified', request.entityId]);
+                }
             }
 
             res.json({
@@ -293,7 +312,11 @@ export class VerificationController {
             if (request.requestType === 'user' && request.userId) {
                 await UserModel.updateVerificationStatus(request.userId, 'rejected');
             } else if (request.requestType === 'entity' && request.entityId) {
-                await BrandAccountModel.update(request.entityId, { verificationStatus: 'rejected' });
+                const brandUpdated = await BrandAccountModel.update(request.entityId, { verificationStatus: 'rejected' });
+                if (!brandUpdated) {
+                    await PageModel.update(request.entityId, { isVerified: false });
+                    await db.query('UPDATE pages SET verification_status = $1 WHERE id = $2', ['rejected', request.entityId]);
+                }
             }
 
             res.json({

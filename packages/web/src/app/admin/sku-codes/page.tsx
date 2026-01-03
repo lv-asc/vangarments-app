@@ -1,12 +1,12 @@
 'use client';
 
-import GlobalSKUManagement from '@/components/admin/GlobalSKUManagement';
+import SKUCodeConfiguration from '@/components/admin/SKUCodeConfiguration';
 
-export default function SKUManagementPage() {
+export default function SKUCodeConfigurationPage() {
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6 text-gray-900">SKU Management</h1>
-            <GlobalSKUManagement />
+            <h1 className="text-2xl font-bold mb-6 text-gray-900">SKU Code Configuration</h1>
+            <SKUCodeConfiguration />
         </div>
     );
 }

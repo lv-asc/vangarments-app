@@ -20,6 +20,7 @@ export interface VUFSBrandOption {
   description?: string;
   isActive: boolean;
   skuRef?: string;
+  logo?: string;
 }
 
 export interface VUFSColorOption {
@@ -73,6 +74,39 @@ export interface VUFSMaterialComposition {
   percentage: number;
 }
 
+export interface VUFSPatternGroup {
+  id: string;
+  name: string;
+  description?: string;
+  emoji?: string;
+  slug: string;
+  sortOrder: number;
+  isActive: boolean;
+  subcategories?: VUFSPatternSubcategory[];
+  patterns?: VUFSPattern[];
+}
+
+export interface VUFSPatternSubcategory {
+  id: string;
+  groupId: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  patterns?: VUFSPattern[];
+}
+
+export interface VUFSPattern {
+  id: string;
+  name: string;
+  description?: string;
+  skuRef?: string;
+  groupId?: string;
+  subcategoryId?: string;
+  isActive: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
+}
+
 export class VUFSManagementService {
   /**
    * Global Settings (Aliases & Visibility)
@@ -104,36 +138,15 @@ export class VUFSManagementService {
     parentId?: string,
     skuRef?: string
   ): Promise<VUFSCategoryOption> {
-    const parentIdVal = parentId ? parseInt(parentId) : null;
-
-    // Determine integer level based on string level
-    const levelMap: Record<string, number> = {
-      'subcategory1': 1,
-      'subcategory2': 2,
-      'apparel': 3,
-      'page': 1,
-      'blue': 2,
-      'white': 3,
-      'gray': 4
-    };
-    const levelInt = levelMap[level] || 1;
-
-    const query = `
-      INSERT INTO vufs_categories (name, level, parent_id, sku_ref)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `;
-
-    const result = await db.query(query, [name, levelInt, parentIdVal, skuRef || null]);
-    const row = result.rows[0];
-
+    // We use 'apparel' type_slug to match getCategories filter
+    const result = await this.addAttributeValue('apparel', name, parentId, { skuRef });
     return {
-      id: row.id.toString(),
-      name: row.name,
-      level: level,
-      parentId: row.parent_id?.toString(),
+      id: result.id,
+      name: result.name,
+      level: 'apparel',
+      parentId: result.parentId,
       isActive: true,
-      skuRef: row.sku_ref
+      skuRef: result.skuRef
     };
   }
 
@@ -155,41 +168,14 @@ export class VUFSManagementService {
   }
 
   static async updateCategory(id: string, name?: string, parentId?: string | null, skuRef?: string): Promise<VUFSCategoryOption> {
-    let query = 'UPDATE vufs_categories SET updated_at = CURRENT_TIMESTAMP';
-    const params: any[] = [id];
-    let paramCount = 1;
-
-    if (name !== undefined) {
-      paramCount++;
-      query += `, name = $${paramCount}`;
-      params.push(name);
-    }
-
-    if (parentId !== undefined) {
-      paramCount++;
-      query += `, parent_id = $${paramCount}`;
-      params.push(parentId ? parseInt(parentId) : null);
-    }
-
-    if (skuRef !== undefined) {
-      paramCount++;
-      query += `, sku_ref = $${paramCount}`;
-      params.push(skuRef || null);
-    }
-
-    query += ` WHERE id = $1 RETURNING *`;
-
-    const result = await db.query(query, params);
-    const row = result.rows[0];
-    if (!row) throw new Error('Category not found');
-
+    const result = await this.updateAttributeValue(id, { name, parentId, skuRef });
     return {
-      id: row.id.toString(),
-      name: row.name,
-      level: row.level === 1 ? 'subcategory1' : row.level === 2 ? 'subcategory2' : row.level === 3 ? 'apparel' : 'gray',
-      parentId: row.parent_id?.toString(),
-      isActive: row.is_active,
-      skuRef: row.sku_ref
+      id: result.id,
+      name: result.name,
+      level: 'apparel', // Default/Presumed
+      parentId: result.parentId,
+      isActive: true,
+      skuRef: result.skuRef
     };
   }
 
@@ -375,13 +361,9 @@ export class VUFSManagementService {
    * Soft delete a category (move to trash)
    */
   static async deleteCategory(id: string): Promise<void> {
-    // Recursively soft-delete children first
-    const childrenResult = await db.query('SELECT id FROM vufs_categories WHERE parent_id = $1 AND (is_deleted = false OR is_deleted IS NULL)', [id]);
-    for (const row of childrenResult.rows) {
-      await this.deleteCategory(row.id.toString());
-    }
-    // Soft delete by setting is_deleted flag
-    await db.query('UPDATE vufs_categories SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP WHERE id = $1', [id]);
+    // Categories are now stored in vufs_attribute_values (unified source)
+    // So we use the generic delete method
+    await this.deleteAttributeValue(id);
   }
 
   /**
@@ -406,17 +388,23 @@ export class VUFSManagementService {
   }
 
   /**
-   * Get all brands from DB
+   * Get all brands from DB with logo information from brand_accounts
    */
   static async getBrands(): Promise<VUFSBrandOption[]> {
-    const query = 'SELECT * FROM vufs_brands ORDER BY name';
+    const query = `
+      SELECT vb.*, ba.brand_info->>'logo' as logo
+      FROM vufs_brands vb
+      LEFT JOIN brand_accounts ba ON ba.brand_info->>'name' = vb.name
+      ORDER BY vb.name
+    `;
     const result = await db.query(query);
     return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type as any,
       parentId: row.parent_id,
-      isActive: row.is_active
+      isActive: row.is_active,
+      logo: row.logo || undefined
     }));
   }
 
@@ -997,10 +985,19 @@ export class VUFSManagementService {
   /**
    * Get Patterns from DB (excluding deleted)
    */
-  static async getPatterns(): Promise<any[]> {
+  static async getPatterns(): Promise<VUFSPattern[]> {
     const query = 'SELECT * FROM vufs_patterns WHERE is_active = true AND (is_deleted = false OR is_deleted IS NULL) ORDER BY name';
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: row.is_deleted || false }));
+    return result.rows.map((row: any) => ({
+      id: row.id.toString(),
+      name: row.name,
+      description: row.description,
+      skuRef: row.sku_ref,
+      groupId: row.group_id?.toString(),
+      subcategoryId: row.subcategory_id?.toString(),
+      isActive: row.is_active,
+      isDeleted: row.is_deleted || false
+    }));
   }
 
   /**
@@ -1012,8 +1009,36 @@ export class VUFSManagementService {
     return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: true, deletedAt: row.deleted_at }));
   }
 
-  static async addPattern(name: string, skuRef?: string): Promise<any> {
-    return this.addItem('vufs_patterns', name, { sku_ref: skuRef });
+  static async addPattern(
+    name: string,
+    skuRef?: string,
+    groupId?: string,
+    subcategoryId?: string,
+    description?: string
+  ): Promise<VUFSPattern> {
+    const query = `
+      INSERT INTO vufs_patterns (name, sku_ref, group_id, subcategory_id, description, is_active)
+      VALUES ($1, $2, $3, $4, $5, true)
+      RETURNING *
+    `;
+    const result = await db.query(query, [
+      name,
+      skuRef || null,
+      groupId ? parseInt(groupId) : null,
+      subcategoryId ? parseInt(subcategoryId) : null,
+      description || null
+    ]);
+    const row = result.rows[0];
+    return {
+      id: row.id.toString(),
+      name: row.name,
+      description: row.description,
+      skuRef: row.sku_ref,
+      groupId: row.group_id?.toString(),
+      subcategoryId: row.subcategory_id?.toString(),
+      isActive: row.is_active,
+      isDeleted: false
+    };
   }
 
   /**
@@ -1037,8 +1062,269 @@ export class VUFSManagementService {
     await this.deleteItem('vufs_patterns', id);
   }
 
-  static async updatePattern(id: string, name: string, skuRef?: string): Promise<any> {
-    return this.updateItem('vufs_patterns', id, name, skuRef ? { sku_ref: skuRef } : {});
+  static async updatePattern(
+    id: string,
+    updates: { name?: string; skuRef?: string; groupId?: string | null; subcategoryId?: string | null; description?: string }
+  ): Promise<VUFSPattern> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIdx = 1;
+
+    if (updates.name !== undefined) {
+      fields.push(`name = $${paramIdx++}`);
+      values.push(updates.name);
+    }
+    if (updates.skuRef !== undefined) {
+      fields.push(`sku_ref = $${paramIdx++}`);
+      values.push(updates.skuRef || null);
+    }
+    if (updates.groupId !== undefined) {
+      fields.push(`group_id = $${paramIdx++}`);
+      values.push(updates.groupId ? parseInt(updates.groupId) : null);
+    }
+    if (updates.subcategoryId !== undefined) {
+      fields.push(`subcategory_id = $${paramIdx++}`);
+      values.push(updates.subcategoryId ? parseInt(updates.subcategoryId) : null);
+    }
+    if (updates.description !== undefined) {
+      fields.push(`description = $${paramIdx++}`);
+      values.push(updates.description || null);
+    }
+
+    if (fields.length === 0) {
+      throw new Error('No fields to update');
+    }
+
+    values.push(id);
+    const query = `
+      UPDATE vufs_patterns 
+      SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $${paramIdx}
+      RETURNING *
+    `;
+    const result = await db.query(query, values);
+    const row = result.rows[0];
+    return {
+      id: row.id.toString(),
+      name: row.name,
+      description: row.description,
+      skuRef: row.sku_ref,
+      groupId: row.group_id?.toString(),
+      subcategoryId: row.subcategory_id?.toString(),
+      isActive: row.is_active,
+      isDeleted: row.is_deleted || false
+    };
+  }
+
+  // ==========================================
+  // PATTERN GROUPS MANAGEMENT
+  // ==========================================
+
+  /**
+   * Get all pattern groups with their subcategories and patterns
+   */
+  static async getPatternGroups(): Promise<VUFSPatternGroup[]> {
+    const groupsQuery = `
+      SELECT * FROM vufs_pattern_groups 
+      WHERE is_active = true 
+      ORDER BY sort_order
+    `;
+    const subcatsQuery = `
+      SELECT * FROM vufs_pattern_subcategories 
+      WHERE is_active = true 
+      ORDER BY sort_order
+    `;
+    const patternsQuery = `
+      SELECT * FROM vufs_patterns 
+      WHERE is_active = true AND (is_deleted = false OR is_deleted IS NULL) 
+      ORDER BY name
+    `;
+
+    const [groupsResult, subcatsResult, patternsResult] = await Promise.all([
+      db.query(groupsQuery),
+      db.query(subcatsQuery),
+      db.query(patternsQuery)
+    ]);
+
+    const subcatsMap = new Map<string, VUFSPatternSubcategory[]>();
+    const patternsMap = new Map<string, VUFSPattern[]>();
+    const patternsBySubcatMap = new Map<string, VUFSPattern[]>();
+
+    // Group patterns by group_id and subcategory_id
+    for (const row of patternsResult.rows) {
+      const pattern: VUFSPattern = {
+        id: row.id.toString(),
+        name: row.name,
+        description: row.description,
+        skuRef: row.sku_ref,
+        groupId: row.group_id?.toString(),
+        subcategoryId: row.subcategory_id?.toString(),
+        isActive: row.is_active,
+        isDeleted: row.is_deleted || false
+      };
+
+      if (pattern.subcategoryId) {
+        if (!patternsBySubcatMap.has(pattern.subcategoryId)) {
+          patternsBySubcatMap.set(pattern.subcategoryId, []);
+        }
+        patternsBySubcatMap.get(pattern.subcategoryId)!.push(pattern);
+      } else if (pattern.groupId) {
+        if (!patternsMap.has(pattern.groupId)) {
+          patternsMap.set(pattern.groupId, []);
+        }
+        patternsMap.get(pattern.groupId)!.push(pattern);
+      }
+    }
+
+    // Group subcategories by group_id
+    for (const row of subcatsResult.rows) {
+      const subcat: VUFSPatternSubcategory = {
+        id: row.id.toString(),
+        groupId: row.group_id.toString(),
+        name: row.name,
+        sortOrder: row.sort_order,
+        isActive: row.is_active,
+        patterns: patternsBySubcatMap.get(row.id.toString()) || []
+      };
+
+      if (!subcatsMap.has(subcat.groupId)) {
+        subcatsMap.set(subcat.groupId, []);
+      }
+      subcatsMap.get(subcat.groupId)!.push(subcat);
+    }
+
+    // Build final groups array
+    return groupsResult.rows.map((row: any) => ({
+      id: row.id.toString(),
+      name: row.name,
+      description: row.description,
+      emoji: row.emoji,
+      slug: row.slug,
+      sortOrder: row.sort_order,
+      isActive: row.is_active,
+      subcategories: subcatsMap.get(row.id.toString()) || [],
+      patterns: patternsMap.get(row.id.toString()) || []
+    }));
+  }
+
+  /**
+   * Get all pattern subcategories (flat list)
+   */
+  static async getPatternSubcategories(): Promise<VUFSPatternSubcategory[]> {
+    const query = 'SELECT * FROM vufs_pattern_subcategories WHERE is_active = true ORDER BY group_id, sort_order';
+    const result = await db.query(query);
+    return result.rows.map((row: any) => ({
+      id: row.id.toString(),
+      groupId: row.group_id.toString(),
+      name: row.name,
+      sortOrder: row.sort_order,
+      isActive: row.is_active
+    }));
+  }
+
+  /**
+   * Add a new pattern subcategory
+   */
+  static async addPatternSubcategory(groupId: string, name: string): Promise<VUFSPatternSubcategory> {
+    const maxOrderRes = await db.query(
+      'SELECT COALESCE(MAX(sort_order), 0) as max_order FROM vufs_pattern_subcategories WHERE group_id = $1',
+      [groupId]
+    );
+    const nextOrder = (maxOrderRes.rows[0]?.max_order || 0) + 1;
+
+    const query = `
+      INSERT INTO vufs_pattern_subcategories (group_id, name, sort_order)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `;
+    const result = await db.query(query, [parseInt(groupId), name, nextOrder]);
+    const row = result.rows[0];
+    return {
+      id: row.id.toString(),
+      groupId: row.group_id.toString(),
+      name: row.name,
+      sortOrder: row.sort_order,
+      isActive: row.is_active
+    };
+  }
+
+  /**
+   * Update a pattern subcategory
+   */
+  static async updatePatternSubcategory(id: string, name: string): Promise<VUFSPatternSubcategory> {
+    const query = `
+      UPDATE vufs_pattern_subcategories 
+      SET name = $1, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $2 
+      RETURNING *
+    `;
+    const result = await db.query(query, [name, id]);
+    const row = result.rows[0];
+    return {
+      id: row.id.toString(),
+      groupId: row.group_id.toString(),
+      name: row.name,
+      sortOrder: row.sort_order,
+      isActive: row.is_active
+    };
+  }
+
+  /**
+   * Delete a pattern subcategory (also nullifies patterns pointing to it)
+   */
+  static async deletePatternSubcategory(id: string): Promise<void> {
+    // First, remove subcategory reference from patterns
+    await db.query('UPDATE vufs_patterns SET subcategory_id = NULL WHERE subcategory_id = $1', [id]);
+    // Then delete the subcategory
+    await db.query('DELETE FROM vufs_pattern_subcategories WHERE id = $1', [id]);
+  }
+
+  /**
+   * Update a pattern group (name, description, emoji)
+   */
+  static async updatePatternGroup(
+    id: string,
+    updates: { name?: string; description?: string; emoji?: string }
+  ): Promise<VUFSPatternGroup> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIdx = 1;
+
+    if (updates.name !== undefined) {
+      fields.push(`name = $${paramIdx++}`);
+      values.push(updates.name);
+    }
+    if (updates.description !== undefined) {
+      fields.push(`description = $${paramIdx++}`);
+      values.push(updates.description);
+    }
+    if (updates.emoji !== undefined) {
+      fields.push(`emoji = $${paramIdx++}`);
+      values.push(updates.emoji);
+    }
+
+    if (fields.length === 0) {
+      throw new Error('No fields to update');
+    }
+
+    values.push(id);
+    const query = `
+      UPDATE vufs_pattern_groups 
+      SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $${paramIdx}
+      RETURNING *
+    `;
+    const result = await db.query(query, values);
+    const row = result.rows[0];
+    return {
+      id: row.id.toString(),
+      name: row.name,
+      description: row.description,
+      emoji: row.emoji,
+      slug: row.slug,
+      sortOrder: row.sort_order,
+      isActive: row.is_active
+    };
   }
 
 
@@ -1571,5 +1857,15 @@ export class VUFSManagementService {
         }
       }
     }
+  }
+
+  // --- GENERIC SKU REF UPDATE ---
+  /**
+   * Update the sku_ref field for any attribute table
+   */
+  static async updateSkuRef(tableName: string, id: string, skuRef: string): Promise<void> {
+    const sanitizedTable = tableName.replace(/[^a-z_]/g, ''); // Basic SQL injection prevention
+    const query = `UPDATE ${sanitizedTable} SET sku_ref = $2 WHERE id = $1`;
+    await db.query(query, [id, skuRef || null]);
   }
 }

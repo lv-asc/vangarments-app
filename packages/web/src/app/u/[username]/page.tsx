@@ -18,6 +18,7 @@ export default function PublicUserProfilePage() {
                 businessType: 'user',
                 type: 'user',
                 username: profile.username,
+                verificationStatus: profile.verificationStatus,
                 visitedAt: Date.now()
             });
         }

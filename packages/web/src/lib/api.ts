@@ -697,7 +697,12 @@ class ApiClient {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new ApiErrorClass(data.message || 'File upload failed');
+      throw new ApiErrorClass(
+        data.message || data.error?.message || 'File upload failed',
+        data.code || data.error?.code || 'UPLOAD_ERROR',
+        data,
+        response.status
+      );
     }
 
     return data.data || data;
@@ -1025,13 +1030,42 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/patterns/trash');
     return (response as any).patterns || response.data || response;
   }
-  async addVUFSPattern(name: string, skuRef?: string) {
-    return this.request('/vufs-management/patterns', { method: 'POST', body: JSON.stringify({ name, skuRef }) });
+  async addVUFSPattern(name: string, skuRef?: string, groupId?: string, subcategoryId?: string, description?: string) {
+    return this.request('/vufs-management/patterns', {
+      method: 'POST',
+      body: JSON.stringify({ name, skuRef, groupId, subcategoryId, description })
+    });
   }
   async deleteVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'DELETE' }); }
   async restoreVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}/restore`, { method: 'POST' }); }
   async permanentlyDeleteVUFSPattern(id: string) { return this.request(`/vufs-management/patterns/${id}/permanent`, { method: 'DELETE' }); }
-  async updateVUFSPattern(id: string, name: string, skuRef?: string) { return this.request(`/vufs-management/patterns/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef }) }); }
+  async updateVUFSPattern(id: string, updates: { name?: string; skuRef?: string; groupId?: string | null; subcategoryId?: string | null; description?: string }) {
+    return this.request(`/vufs-management/patterns/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+  }
+
+  // --- PATTERN GROUPS ---
+  async getVUFSPatternGroups() {
+    const response = await this.request<any>('/vufs-management/pattern-groups');
+    return (response as any).groups || response.data || response;
+  }
+  async updateVUFSPatternGroup(id: string, updates: { name?: string; description?: string; emoji?: string }) {
+    return this.request(`/vufs-management/pattern-groups/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+  }
+
+  // --- PATTERN SUBCATEGORIES ---
+  async getVUFSPatternSubcategories() {
+    const response = await this.request<any>('/vufs-management/pattern-subcategories');
+    return (response as any).subcategories || response.data || response;
+  }
+  async addVUFSPatternSubcategory(groupId: string, name: string) {
+    return this.request('/vufs-management/pattern-subcategories', { method: 'POST', body: JSON.stringify({ groupId, name }) });
+  }
+  async updateVUFSPatternSubcategory(id: string, name: string) {
+    return this.request(`/vufs-management/pattern-subcategories/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+  }
+  async deleteVUFSPatternSubcategory(id: string) {
+    return this.request(`/vufs-management/pattern-subcategories/${id}`, { method: 'DELETE' });
+  }
 
   // --- FITS ---
   async getVUFSFits() {
@@ -1393,6 +1427,12 @@ class ApiClient {
 
   async unfollowUser(userId: string): Promise<any> {
     return this.request<any>(`/social/users/${userId}/follow`, {
+      method: 'DELETE',
+    });
+  }
+
+  async removeFollower(followerId: string): Promise<any> {
+    return this.request<any>(`/social/users/${followerId}/follower`, {
       method: 'DELETE',
     });
   }
@@ -1932,6 +1972,88 @@ class ApiClient {
     return this.request<{ success: boolean; status: 'none' | 'pending' | 'accepted' }>(
       `/users/follow-status/${userId}`
     );
+  }
+
+  // ==================== POM (Point of Measurement) SYSTEM ====================
+
+  async getPOMCategories() {
+    const response = await this.request<any>('/pom/categories');
+    return (response as any).categories || response;
+  }
+
+  async getPOMDefinitions(categoryId?: string) {
+    const params = categoryId ? `?categoryId=${categoryId}` : '';
+    const response = await this.request<any>(`/pom/definitions${params}`);
+    return (response as any).definitions || response;
+  }
+
+  async getApparelPOMs(apparelId: string) {
+    const response = await this.request<any>(`/pom/apparel/${apparelId}`);
+    return (response as any).poms || response;
+  }
+
+  async setApparelPOMs(apparelId: string, pomIds: Array<{ pomId: string; isRequired?: boolean; sortOrder?: number }>) {
+    return this.request<any>(`/pom/apparel/${apparelId}`, {
+      method: 'POST',
+      body: JSON.stringify({ pomIds }),
+    });
+  }
+
+  async getSKUMeasurements(skuId: string) {
+    const response = await this.request<any>(`/pom/sku/${skuId}`);
+    return (response as any).measurements || response;
+  }
+
+  async saveSKUMeasurements(skuId: string, measurements: Array<{ pomId: string; sizeId: string; value: number; tolerance?: number }>) {
+    return this.request<any>(`/pom/sku/${skuId}`, {
+      method: 'POST',
+      body: JSON.stringify({ measurements }),
+    });
+  }
+
+  async getPackageMeasurementTypes() {
+    const response = await this.request<any>('/pom/package-types');
+    return (response as any).types || response;
+  }
+
+  async getUserMeasurementTypes() {
+    const response = await this.request<any>('/pom/user-types');
+    return (response as any).types || response;
+  }
+
+  async upsertPOMDefinition(data: {
+    id?: string;
+    categoryId: string;
+    code: string;
+    name: string;
+    description?: string;
+    measurementUnit?: string;
+    isHalfMeasurement?: boolean;
+    defaultTolerance?: number;
+    sortOrder?: number;
+  }) {
+    return this.request<any>('/pom/definition', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePOMDefinition(id: string) {
+    return this.request<any>(`/pom/definition/${id}`, { method: 'DELETE' });
+  }
+
+  async upsertPackageMeasurementType(data: { id?: string; name: string; description?: string; unit?: string; sortOrder?: number }) {
+    return this.request<any>('/pom/package-type', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async upsertUserMeasurementType(data: { id?: string; name: string; description?: string; unit?: string; sortOrder?: number }) {
+    return this.request<any>('/pom/user-type', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 

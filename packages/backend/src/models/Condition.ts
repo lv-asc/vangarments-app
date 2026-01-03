@@ -6,6 +6,7 @@ export interface Condition {
     rating: number;
     group: 'new' | 'used';
     isActive: boolean;
+    skuRef?: string;
     createdAt: Date;
 }
 
@@ -23,6 +24,7 @@ export class ConditionModel {
             rating: parseFloat(row.rating),
             group: row.group,
             isActive: row.is_active,
+            skuRef: row.sku_ref,
             createdAt: row.created_at
         }));
     }
@@ -40,6 +42,7 @@ export class ConditionModel {
             rating: parseFloat(row.rating),
             group: row.group,
             isActive: row.is_active,
+            skuRef: row.sku_ref,
             createdAt: row.created_at
         };
     }
@@ -59,6 +62,7 @@ export class ConditionModel {
             rating: parseFloat(row.rating),
             group: row.group,
             isActive: row.is_active,
+            skuRef: row.sku_ref,
             createdAt: row.created_at
         };
     }

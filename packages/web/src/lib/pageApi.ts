@@ -18,6 +18,7 @@ export interface IPage {
     foundedDatePrecision?: 'year' | 'month' | 'day';
     socialLinks?: Array<{ platform: string; url: string }>;
     isVerified: boolean;
+    verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
     isActive: boolean;
     createdAt: string;
     updatedAt: string;

@@ -215,6 +215,8 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState('wardrobe');
   const [wardrobeItems, setWardrobeItems] = useState<any[]>([]);
   const [wardrobeLoading, setWardrobeLoading] = useState(false);
+  const [wardrobeError, setWardrobeError] = useState(false);
+  const hasAttemptedWardrobeFetch = useRef(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const toast = useToast();
@@ -325,21 +327,36 @@ export default function ProfilePage() {
 
   // Fetch wardrobe items when wardrobe tab is active
   useEffect(() => {
-    if (activeTab === 'wardrobe' && wardrobeItems.length === 0 && !wardrobeLoading) {
+    // Only fetch if:
+    // - We're on the wardrobe tab
+    // - We haven't already attempted to fetch
+    // - We're not currently loading
+    // - We don't have items yet
+    // - We haven't encountered an error
+    if (
+      activeTab === 'wardrobe' &&
+      !hasAttemptedWardrobeFetch.current &&
+      !wardrobeLoading &&
+      wardrobeItems.length === 0 &&
+      !wardrobeError
+    ) {
       const fetchWardrobeItems = async () => {
+        hasAttemptedWardrobeFetch.current = true;
         setWardrobeLoading(true);
+        setWardrobeError(false);
         try {
           const response = await apiClient.getWardrobeItems({ limit: 6 });
           setWardrobeItems(response.items || []);
         } catch (err) {
           console.error('Error fetching wardrobe items:', err);
+          setWardrobeError(true);
         } finally {
           setWardrobeLoading(false);
         }
       };
       fetchWardrobeItems();
     }
-  }, [activeTab, wardrobeItems.length, wardrobeLoading]);
+  }, [activeTab, wardrobeItems.length, wardrobeLoading, wardrobeError]);
 
   // Banner slideshow - auto-rotate every 5 seconds (same as brands/stores)
   useEffect(() => {

@@ -33,7 +33,9 @@ import {
 
     UserGroupIcon,
     PlusIcon,
-    QrCodeIcon
+    QrCodeIcon,
+    TrashIcon,
+    ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 import {
     DndContext,
@@ -58,6 +60,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Menu, Transition, Dialog } from '@headlessui/react';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 // --- Configuration & Constants ---
 
@@ -82,7 +85,8 @@ const ICON_MAP: { [key: string]: React.ElementType } = {
     CalendarIcon,
     SunIcon,
     UserGroupIcon,
-    QrCodeIcon
+    QrCodeIcon,
+    ShieldCheckIcon
 };
 
 const GRADIENT_OPTIONS = [
@@ -131,7 +135,7 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
 };
 
 
-const SortableAdminCard = ({ item, sections, onMoveToSection, onEdit }: { item: any, sections: any[], onMoveToSection: (itemId: string, targetSectionKey: string) => void, onEdit: (item: any) => void }) => {
+const SortableAdminCard = ({ item, sections, onMoveToSection, onEdit, onDelete }: { item: any, sections: any[], onMoveToSection: (itemId: string, targetSectionKey: string) => void, onEdit: (item: any) => void, onDelete: (id: string) => void }) => {
     const router = useRouter();
     const {
         attributes,
@@ -208,6 +212,20 @@ const SortableAdminCard = ({ item, sections, onMoveToSection, onEdit }: { item: 
                                         >
                                             <PencilSquareIcon className="mr-2 h-4 w-4" aria-hidden="true" />
                                             Edit
+                                        </button>
+                                    )}
+                                </Menu.Item>
+                            </div>
+                            <div className="px-1 py-1">
+                                <Menu.Item>
+                                    {({ active }) => (
+                                        <button
+                                            onClick={() => onDelete(item.id)}
+                                            className={`${active ? 'bg-red-500 text-white' : 'text-red-600'
+                                                } group flex w-full items-center rounded-md px-2 py-2 text-xs font-medium`}
+                                        >
+                                            <TrashIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+                                            Delete
                                         </button>
                                     )}
                                 </Menu.Item>
@@ -361,21 +379,30 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }: { isOpen: boolean, onC
                                     </div>
                                 </div>
 
-                                <div className="mt-6 flex justify-end gap-3">
+                                <div className="mt-6 flex justify-between gap-3">
                                     <button
                                         type="button"
-                                        className="inline-flex justify-center rounded-md border border-transparent bg-blue-100 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
-                                        onClick={() => onSave(formData)}
+                                        className="inline-flex justify-center rounded-md border border-transparent bg-red-100 px-4 py-2 text-sm font-medium text-red-900 hover:bg-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+                                        onClick={() => onSave({ ...formData, _delete: true })}
                                     >
-                                        Save Changes
+                                        Delete Card
                                     </button>
-                                    <button
-                                        type="button"
-                                        className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700 dark:hover:bg-slate-700"
-                                        onClick={onClose}
-                                    >
-                                        Cancel
-                                    </button>
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            className="inline-flex justify-center rounded-md border border-transparent bg-blue-100 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
+                                            onClick={() => onSave(formData)}
+                                        >
+                                            Save Changes
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 dark:bg-slate-800 dark:text-gray-300 dark:border-slate-700 dark:hover:bg-slate-700"
+                                            onClick={onClose}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
                                 </div>
                             </Dialog.Panel>
                         </Transition.Child>
@@ -576,6 +603,11 @@ export default function AdminPage() {
 
     // Item Editing State
     const [editingItem, setEditingItem] = useState<any | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; itemId: string | null; itemTitle: string }>({
+        isOpen: false,
+        itemId: null,
+        itemTitle: ''
+    });
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -761,10 +793,42 @@ export default function AdminPage() {
     };
 
     const handleSaveItem = (updatedItem: any) => {
+        if (updatedItem._delete) {
+            handleDeleteItem(updatedItem.id);
+            setEditingItem(null);
+            return;
+        }
         const newItems = { ...items, [updatedItem.id]: updatedItem };
         setItems(newItems);
         localStorage.setItem('admin_items_metadata', JSON.stringify(newItems));
         setEditingItem(null);
+    };
+
+    const handleDeleteItem = (itemId: string) => {
+        const item = items[itemId];
+        if (!deleteConfirm.isOpen) {
+            setDeleteConfirm({
+                isOpen: true,
+                itemId: itemId,
+                itemTitle: item?.title || 'this card'
+            });
+            return;
+        }
+
+        // Remove from items
+        const newItems = { ...items };
+        delete newItems[itemId];
+        setItems(newItems);
+        localStorage.setItem('admin_items_metadata', JSON.stringify(newItems));
+
+        // Remove from sections order
+        const newOrder = { ...sectionsOrder };
+        Object.keys(newOrder).forEach(sectionKey => {
+            newOrder[sectionKey] = newOrder[sectionKey].filter(id => id !== itemId);
+        });
+        setSectionsOrder(newOrder);
+        localStorage.setItem('admin_sections_order', JSON.stringify(newOrder));
+        setDeleteConfirm({ isOpen: false, itemId: null, itemTitle: '' });
     };
 
     const handleCreateSection = (data: { title: string, description: string }) => {
@@ -957,7 +1021,7 @@ export default function AdminPage() {
                                         {sectionsOrder[section.key].map((itemId) => {
                                             const item = items[itemId];
                                             if (!item) return null;
-                                            return <SortableAdminCard key={item.id} item={item} sections={sections} onMoveToSection={handleMoveToSection} onEdit={setEditingItem} />;
+                                            return <SortableAdminCard key={item.id} item={item} sections={sections} onMoveToSection={handleMoveToSection} onEdit={setEditingItem} onDelete={handleDeleteItem} />;
                                         })}
                                         {sectionsOrder[section.key].length === 0 && (
                                             <div className="col-span-full h-full flex items-center justify-center text-gray-400 text-sm italic">Drop items here</div>
@@ -971,7 +1035,7 @@ export default function AdminPage() {
                     <DragOverlay dropAnimation={dropAnimation}>
                         {activeId ? (
                             <div className="opacity-90 scale-105 cursor-grabbing">
-                                <SortableAdminCard item={items[activeId]} sections={sections} onMoveToSection={() => { }} onEdit={() => { }} />
+                                <SortableAdminCard item={items[activeId]} sections={sections} onMoveToSection={() => { }} onEdit={() => { }} onDelete={() => { }} />
                             </div>
                         ) : null}
                     </DragOverlay>
@@ -998,6 +1062,17 @@ export default function AdminPage() {
                     onClose={() => setShowCreateItem(false)}
                     sections={sections}
                     onSave={handleCreateItem}
+                />
+
+                {/* Delete Confirmation Modal */}
+                <ConfirmationModal
+                    isOpen={deleteConfirm.isOpen}
+                    onClose={() => setDeleteConfirm({ isOpen: false, itemId: null, itemTitle: '' })}
+                    onConfirm={() => deleteConfirm.itemId && handleDeleteItem(deleteConfirm.itemId)}
+                    title="Delete Card"
+                    message={`Are you sure you want to delete the "${deleteConfirm.itemTitle}" card? This action will remove it from your dashboard.`}
+                    confirmText="Delete"
+                    variant="danger"
                 />
             </div>
         </div>

@@ -7,11 +7,19 @@ import { pageApi, IPage } from '@/lib/pageApi';
 import FoundationDateInput from '@/components/ui/FoundationDateInput';
 import Link from 'next/link';
 import { getImageUrl } from '@/lib/utils';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 export default function AdminPagesPage() {
     const [items, setItems] = useState<IPage[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; pageId: string | null; pageName: string }>({
+        isOpen: false,
+        pageId: null,
+        pageName: ''
+    });
+    const [deleteLoading, setDeleteLoading] = useState(false);
+
 
     // Form state
     const [formData, setFormData] = useState({
@@ -58,14 +66,21 @@ export default function AdminPagesPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this page?')) return;
+        setDeleteLoading(true);
         try {
             await pageApi.delete(id);
             toast.success('Page deleted');
             setItems(items.filter(item => item.id !== id));
         } catch (error) {
             toast.error('Failed to delete page');
+        } finally {
+            setDeleteLoading(false);
+            setDeleteConfirm({ isOpen: false, pageId: null, pageName: '' });
         }
+    };
+
+    const openDeleteConfirm = (page: IPage) => {
+        setDeleteConfirm({ isOpen: true, pageId: page.id, pageName: page.name });
     };
 
     const handleOpenModal = () => {
@@ -188,7 +203,7 @@ export default function AdminPagesPage() {
                                                     <PencilSquareIcon className="h-5 w-5" />
                                                 </Link>
                                                 <button
-                                                    onClick={() => handleDelete(item.id)}
+                                                    onClick={() => openDeleteConfirm(item)}
                                                     className="text-red-600 hover:text-red-900"
                                                 >
                                                     <TrashIcon className="h-5 w-5" />
@@ -365,6 +380,18 @@ export default function AdminPagesPage() {
                     </div>
                 </div>
             )}
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteConfirm.isOpen}
+                onClose={() => setDeleteConfirm({ isOpen: false, pageId: null, pageName: '' })}
+                onConfirm={() => deleteConfirm.pageId && handleDelete(deleteConfirm.pageId)}
+                title="Delete Page"
+                message={`Are you sure you want to delete "${deleteConfirm.pageName}"? This action cannot be undone.`}
+                confirmText="Delete"
+                variant="danger"
+                isLoading={deleteLoading}
+            />
         </div>
     );
 }

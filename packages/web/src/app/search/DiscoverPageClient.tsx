@@ -86,10 +86,10 @@ const BrandCard = ({ brand }: { brand: any }) => {
           </div>
         )}
       </div>
-      <div className="flex items-center gap-1 px-1">
-        <h3 className="font-semibold text-gray-900 truncate">{brand.brandInfo?.name}</h3>
+      <div className="flex items-center gap-1 px-1 min-w-0">
+        <h3 className="font-semibold text-gray-900 truncate min-w-0">{brand.brandInfo?.name}</h3>
         {(brand.brandInfo?.verificationStatus === 'verified' || brand.verificationStatus === 'verified') && (
-          <VerifiedBadge size="sm" />
+          <VerifiedBadge size="sm" className="flex-shrink-0" />
         )}
       </div>
       <p className="text-xs text-gray-500 px-1 truncate">{brand.brandInfo?.country || 'Global'}</p>
@@ -129,9 +129,11 @@ const UserCard = ({ user }: { user: any }) => (
       )}
     </div>
     <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-1">
-        <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-        {user.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+      <div className="flex items-center gap-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 truncate min-w-0">{user.name}</p>
+        {(user.verificationStatus === 'verified' || user.isVerified === true) && (
+          <VerifiedBadge size="sm" className="flex-shrink-0" />
+        )}
       </div>
       <p className="text-xs text-gray-500 truncate">@{user.username || user.name?.toLowerCase().replace(/\s/g, '')}</p>
     </div>
@@ -149,11 +151,38 @@ const VerticalUserCard = ({ user }: { user: any }) => (
         </div>
       )}
     </div>
-    <div className="flex items-center gap-1 px-1">
-      <h3 className="font-semibold text-gray-900 truncate">{user.name}</h3>
-      {user.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+    <div className="flex items-center gap-1 px-1 min-w-0">
+      <h3 className="font-semibold text-gray-900 truncate min-w-0">{user.name}</h3>
+      {(user.verificationStatus === 'verified' || user.isVerified === true) && (
+        <VerifiedBadge size="sm" className="flex-shrink-0" />
+      )}
     </div>
     <p className="text-xs text-gray-500 px-1 truncate">@{user.username}</p>
+  </Link>
+);
+
+const VerticalPageCard = ({ page }: { page: any }) => (
+  <Link href={`/pages/${page.slug || page.id}`} className="w-[160px] md:w-[200px] flex-none snap-start group cursor-pointer block">
+    <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
+      {page.logoUrl ? (
+        <img
+          src={getImageUrl(page.logoUrl)}
+          alt={page.name}
+          className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-3xl bg-gray-50">
+          {page.name?.substring(0, 2).toUpperCase()}
+        </div>
+      )}
+    </div>
+    <div className="flex items-center gap-1 px-1 min-w-0">
+      <h3 className="font-semibold text-gray-900 truncate min-w-0">{page.name}</h3>
+      {(page.verificationStatus === 'verified' || page.isVerified === true) && (
+        <VerifiedBadge size="sm" className="flex-shrink-0" />
+      )}
+    </div>
+    <p className="text-xs text-gray-500 px-1 truncate">Page</p>
   </Link>
 );
 
@@ -163,11 +192,14 @@ const VerticalSKUCard = ({ item }: { item: any }) => {
   const productSlug = item.code ? item.code.toLowerCase().replace(/\s+/g, '-') : item.slug || (item.name ? item.name.toLowerCase().replace(/\s+/g, '-') : 'item');
   const imageUrl = item.images?.[0]?.url || item.images?.[0]?.imageUrl || item.logo; // handle fallback
 
+  // Strip size suffix from display name (e.g., "[S]", "[M]", etc.)
+  const displayName = item.name?.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim() || item.name;
+
   return (
     <Link href={`/brands/${brandSlug}/${productSlug}`} className="w-[160px] md:w-[200px] flex-none snap-start group cursor-pointer block">
       <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
         {imageUrl ? (
-          <img src={getImageUrl(imageUrl)} alt={item.name} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+          <img src={getImageUrl(imageUrl)} alt={displayName} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300">
             <ShoppingBagIcon className="h-12 w-12" />
@@ -176,7 +208,7 @@ const VerticalSKUCard = ({ item }: { item: any }) => {
       </div>
       <div className="px-1">
         <h3 className="font-semibold text-gray-900 truncate">{brandName}</h3>
-        <p className="text-xs text-gray-500 truncate">{item.name}</p>
+        <p className="text-xs text-gray-500 truncate">{displayName}</p>
       </div>
     </Link>
   );
@@ -185,15 +217,19 @@ const VerticalSKUCard = ({ item }: { item: any }) => {
 const RecentCard = ({ item }: { item: any }) => {
   // Brand / Store / Non-Profit / Supplier
   if (['brand', 'store', 'supplier', 'non_profit'].includes(item.type) || item.businessType === 'brand' || item.businessType === 'store') {
-    return <BrandCard brand={{ brandInfo: { ...item, logo: item.logo }, id: item.id }} />;
+    return <BrandCard brand={{ brandInfo: { ...item, logo: item.logo }, id: item.id, verificationStatus: item.verificationStatus }} />;
   }
   // User
   if (item.type === 'user' || item.businessType === 'user') {
-    return <VerticalUserCard user={{ ...item, personalInfo: { avatarUrl: item.logo }, name: item.name, username: item.username }} />;
+    return <VerticalUserCard user={{ ...item, personalInfo: { avatarUrl: item.logo }, name: item.name, username: item.username, verificationStatus: item.verificationStatus }} />;
   }
-  // Item (SKU)
-  if (item.type === 'item' || item.businessType === 'item') {
-    return <VerticalSKUCard item={{ ...item, images: [{ url: item.logo }], brand: { name: 'Verified Item' } }} />; // Logic adaptation for Recents which stores less data
+  // Page
+  if (item.type === 'page' || item.businessType === 'page') {
+    return <VerticalPageCard page={{ ...item, logoUrl: item.logo }} />;
+  }
+  // Editorial (Journalism)
+  if (item.type === 'editorial' || item.businessType === 'editorial') {
+    return <StoryCard story={{ ...item, image: item.logo } as any} />;
   }
 
   return null;
@@ -232,7 +268,10 @@ const PageCard = ({ page }: { page: IPage }) => (
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-gray-900 truncate">{page.name}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-sm font-semibold text-gray-900 truncate">{page.name}</p>
+          {(page.verificationStatus === 'verified' || (page as any).isVerified) && <VerifiedBadge size="sm" />}
+        </div>
         {page.description && <p className="text-xs text-gray-500 truncate">{page.description}</p>}
       </div>
     </div>

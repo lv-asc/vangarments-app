@@ -78,25 +78,55 @@ export class StorageController {
         relativePath = path.join('images', category, filename);
       }
 
-      // Check if image exists and get info
+      // Check if file exists and get info
       const imageInfo = await LocalStorageService.getImageInfo(relativePath);
 
       if (!imageInfo.exists) {
         res.status(404).json({
           error: {
-            code: 'IMAGE_NOT_FOUND',
-            message: 'Image not found',
+            code: 'FILE_NOT_FOUND',
+            message: 'File not found',
           },
         });
         return;
       }
 
-      // Set appropriate headers
-      res.set({
-        'Content-Type': imageInfo.mimetype || 'image/jpeg',
+      const fileSize = imageInfo.size || 0;
+      const range = req.headers.range;
+      const mimetype = imageInfo.mimetype || 'application/octet-stream';
+
+      // Handle Range Request (Video Streaming)
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+
+        const fileStream = LocalStorageService.createImageStream(relativePath, { start, end });
+
+        const head = {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': mimetype,
+          'Last-Modified': imageInfo.lastModified?.toUTCString(),
+          // Don't cache partial content permanently, but allow re-validation
+          'Cache-Control': 'no-cache',
+        };
+
+        res.writeHead(206, head);
+        fileStream.pipe(res);
+        return;
+      }
+
+      // Handle Normal Request
+      const head = {
+        'Content-Length': fileSize,
+        'Content-Type': mimetype,
         'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
         'Last-Modified': imageInfo.lastModified?.toUTCString(),
-      });
+        'Accept-Ranges': 'bytes', // Important for telling clients we support ranges
+      };
 
       // Check if client has cached version
       const ifModifiedSince = req.headers['if-modified-since'];
@@ -108,30 +138,19 @@ export class StorageController {
         }
       }
 
-      // Stream the image
-      const imageStream = LocalStorageService.createImageStream(relativePath);
+      res.writeHead(200, head);
+      LocalStorageService.createImageStream(relativePath).pipe(res);
 
-      imageStream.on('error', (error) => {
-        console.error('Error streaming image:', error);
-        if (!res.headersSent) {
-          res.status(500).json({
-            error: {
-              code: 'STREAM_ERROR',
-              message: 'Error serving image',
-            },
-          });
-        }
-      });
-
-      imageStream.pipe(res);
     } catch (error) {
-      console.error('Serve image error:', error);
-      res.status(500).json({
-        error: {
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'An error occurred while serving the image',
-        },
-      });
+      console.error('Serve file error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'An error occurred while serving the file',
+          },
+        });
+      }
     }
   }
 

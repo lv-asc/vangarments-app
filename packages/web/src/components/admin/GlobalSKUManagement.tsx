@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
-import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import SearchableCombobox from '../ui/Combobox';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 
 interface GlobalSKUManagementProps {
 }
@@ -23,6 +24,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
     // VUFS Data Options
     const [vufsBrands, setVufsBrands] = useState<any[]>([]);
+    const [vufsCategories, setVufsCategories] = useState<any[]>([]);
     const [lines, setLines] = useState<any[]>([]);
     const [collections, setCollections] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]); // Keep for backward compat if needed, or remove
@@ -76,6 +78,14 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     // Dropdown state for sizes/colors
     const [openDropdown, setOpenDropdown] = useState<'sizes' | 'colors' | null>(null);
 
+    // POM/Measurements State
+    const [pomCategories, setPomCategories] = useState<any[]>([]);
+    const [pomDefinitions, setPomDefinitions] = useState<any[]>([]);
+    const [apparelPOMs, setApparelPOMs] = useState<any[]>([]);
+    const [measurements, setMeasurements] = useState<Record<string, Record<string, { value: number; tolerance?: number }>>>({});
+    const [showAsCircumference, setShowAsCircumference] = useState<Set<string>>(new Set());
+    const [selectedPomIds, setSelectedPomIds] = useState<string[]>([]);
+
     // Form Data
     const [formData, setFormData] = useState({
         brandId: '',
@@ -110,7 +120,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             includePattern: false,
             includeMaterial: false,
             includeFit: false,
-            brandLineDisplay: 'brand-only' as 'brand-only' | 'brand-and-line' | 'line-only',
+            brandLineDisplay: 'brand-only' as 'brand-only' | 'brand-and-line' | 'line-only' | 'none',
             showCollection: false
         },
 
@@ -151,6 +161,67 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [openDropdown]);
+
+    // Fetch apparel-specific POMs when apparel changes
+    useEffect(() => {
+        const fetchApparelPOMs = async () => {
+            if (!formData.apparelId) {
+                setApparelPOMs([]);
+                setSelectedPomIds([]);
+                return;
+            }
+
+            try {
+                // 1. Detect category of the selected apparel value
+                const selectedApparel = apparels.find(a => a.id === formData.apparelId);
+                let poms = [];
+                let matchedCategory = null;
+
+                if (selectedApparel) {
+                    matchedCategory = vufsCategories.find(c =>
+                        c.name.toLowerCase() === selectedApparel.name.toLowerCase()
+                    );
+
+                    if (matchedCategory) {
+                        // 2. Try to get explicit mappings for this category
+                        poms = await apiClient.getApparelPOMs(matchedCategory.id);
+                    }
+                }
+
+                if (Array.isArray(poms) && poms.length > 0) {
+                    setApparelPOMs(poms);
+                } else {
+                    // 3. Fallback: Detect category and show all items from that category based on name
+                    if (selectedApparel && pomCategories.length > 0) {
+                        const name = selectedApparel.name.toLowerCase();
+                        // Find a category that matches the apparel name (e.g. "Tops", "Shirts" -> "Tops")
+                        const matchedCat = pomCategories.find(c =>
+                            name.includes(c.name.toLowerCase().replace('ies', 'y')) || // Accessories -> Accessory
+                            c.name.toLowerCase().includes(name.replace(/s$/, '')) // T-Shirts -> T-Shirt
+                        );
+
+                        if (matchedCat) {
+                            const catPoms = pomDefinitions.filter(p => p.category_id === matchedCat.id);
+                            setApparelPOMs(catPoms.map(p => ({
+                                ...p,
+                                pom_id: p.id,
+                                category_name: matchedCat.name
+                            })));
+                        } else {
+                            setApparelPOMs([]);
+                        }
+                    } else {
+                        setApparelPOMs([]);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to fetch apparel POMs', e);
+                setApparelPOMs([]);
+            }
+        };
+
+        fetchApparelPOMs();
+    }, [formData.apparelId, pomCategories, pomDefinitions, apparels, vufsCategories]);
 
     // Helper to slugify strings for SKU codes
     const slugify = (text: string) => text.toString().toLowerCase()
@@ -238,6 +309,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         // Name Generation
         let prefix = '';
         switch (formData.nameConfig.brandLineDisplay) {
+            case 'none':
+                prefix = '';
+                break;
             case 'brand-only':
                 prefix = brand?.name || '';
                 break;
@@ -294,6 +368,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
             const [
                 brandsRes,
+                categoriesRes,
                 apparelsRes,
                 stylesRes,
                 patternsRes,
@@ -305,6 +380,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 mediaLabelsRes
             ] = await Promise.all([
                 apiClient.getVUFSBrands(),
+                apiClient.getVUFSCategories(),
                 apiClient.getVUFSAttributeValues('apparel'),
                 apiClient.getVUFSAttributeValues('style'),
                 apiClient.getVUFSPatterns(),
@@ -331,7 +407,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             });
 
             setVufsBrands(brandsRes || []);
+            setVufsCategories(categoriesRes || []);
             setApparels(apparelsRes || []);
+            console.log('[GlobalSKUManagement] Styles fetched:', stylesRes?.length || 0, stylesRes);
             setStyles(stylesRes || []);
             setPatterns(patternsRes || []);
             setMaterials(materialsRes || []);
@@ -341,6 +419,18 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             setConditions(conditionsRes || []);
             setMediaLabels(mediaLabelsRes || []);
             setGenders(Array.isArray(gendersData) ? gendersData : []);
+
+            // Fetch POM categories and definitions
+            try {
+                const [pomCats, pomDefs] = await Promise.all([
+                    apiClient.getPOMCategories(),
+                    apiClient.getPOMDefinitions()
+                ]);
+                setPomCategories(Array.isArray(pomCats) ? pomCats : []);
+                setPomDefinitions(Array.isArray(pomDefs) ? pomDefs : []);
+            } catch (e) {
+                console.error('Failed to fetch POM data', e);
+            }
 
         } catch (error) {
             console.error('Failed to fetch VUFS data', error);
@@ -406,99 +496,26 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     // Link: Style items should have parentId = selectedApparelId
     // If no hierarchy in DB (separate types), we might show all styles or filter if we can establish a link.
     // Assuming 'Style' items have 'parent_id' pointing to 'Apparel' items even across types (since same table).
-    const apparelOptions = apparels; // Root level apparels
+    const apparelOptions = useMemo(() => apparels.map(a => ({
+        ...a,
+        icon: <ApparelIcon name={a.name} className="w-full h-full" />
+    })), [apparels]);
+
 
     const styleOptions = useMemo(() => {
-        if (!formData.apparelId) {
-            return styles;
-        }
-        // Filter styles that are children of the selected apparel
-        return styles.filter(s => s.parentId === formData.apparelId);
-    }, [styles, formData.apparelId]);
+        return styles;
+    }, [styles]);
 
-    // Compute grouped SKUs: parent SKUs with their variants nested
+    // Use SKUs directly from backend - they already have variants array populated
+    // Backend handles all grouping by explicit parent_sku_id relationships
     const groupedSkus = useMemo(() => {
-        // Helper to extract base name (without color in parentheses and size in brackets)
-        const getBaseName = (name: string) => {
-            return name.replace(/\s*\([^)]*\)\s*\[[^\]]*\]/g, '').trim();
-        };
-
-        // First, group by explicit parent_sku_id
-        const variantsByParent: Record<string, any[]> = {};
-        const parentSkusById = skus.filter(sku => !sku.parentSkuId);
-
-        skus.forEach(sku => {
-            if (sku.parentSkuId) {
-                if (!variantsByParent[sku.parentSkuId]) {
-                    variantsByParent[sku.parentSkuId] = [];
-                }
-                variantsByParent[sku.parentSkuId].push(sku);
-            }
-        });
-
-        // For SKUs without parent_sku_id, group by base name similarity
-        const baseNameGroups: Record<string, any[]> = {};
-        const processedIds = new Set<string>();
-
-        // Mark all variants (those with parent_sku_id) as processed
-        skus.forEach(sku => {
-            if (sku.parentSkuId) {
-                processedIds.add(sku.id);
-            }
-        });
-
-        // Group remaining SKUs by base name
-        parentSkusById.forEach(sku => {
-            if (processedIds.has(sku.id)) return;
-
-            const baseName = getBaseName(sku.name);
-            if (!baseNameGroups[baseName]) {
-                baseNameGroups[baseName] = [];
-            }
-            baseNameGroups[baseName].push(sku);
-        });
-
-        // Convert name groups into parent/variant structure
-        const result: any[] = [];
-
-        // First add SKUs that have explicit parent relationships
-        parentSkusById.forEach(parent => {
-            if (variantsByParent[parent.id]) {
-                result.push({
-                    ...parent,
-                    variants: variantsByParent[parent.id] || []
-                });
-                processedIds.add(parent.id);
-            }
-        });
-
-        // Then add name-based groups - create VIRTUAL parent with base name
-        Object.entries(baseNameGroups).forEach(([baseName, groupSkus]) => {
-            if (groupSkus.some(s => processedIds.has(s.id))) return; // Skip if already processed
-
-            if (groupSkus.length === 1) {
-                // Single SKU, no variants - show as is
-                result.push({ ...groupSkus[0], variants: [] });
-            } else {
-                // Multiple SKUs with same base name - create a virtual parent with base name
-                // ALL SKUs become variants (including what was previously the first)
-                const firstSku = groupSkus[0];
-                result.push({
-                    id: `virtual-${firstSku.id}`, // Virtual ID for the parent row
-                    name: baseName, // Display base name without size/color
-                    code: firstSku.code.replace(/-[a-z]+-[a-z]+$/, ''), // Simplified code
-                    brand: firstSku.brand,
-                    brandId: firstSku.brandId,
-                    retailPriceBrl: firstSku.retailPriceBrl,
-                    images: firstSku.images,
-                    isVirtualParent: true, // Flag to identify virtual parents
-                    variants: groupSkus // ALL SKUs are variants
-                });
-            }
-        });
-
-        return result;
+        // SKUs from backend already have variants array - just pass through
+        return skus.map(sku => ({
+            ...sku,
+            variants: sku.variants || []
+        }));
     }, [skus]);
+
 
     // Toggle expansion of a SKU group
     const toggleGroupExpansion = (skuId: string) => {
@@ -543,7 +560,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const openModal = async (sku?: any) => {
         if (sku) {
             setEditingSku(sku);
-            setEditMode('variant'); // Editing a variant SKU
+            // Check if this is a variant (has parentSkuId) or a parent SKU
+            const isVariant = !!sku.parentSkuId;
+            setEditMode(isVariant ? 'variant' : 'edit'); // 'variant' for variants, 'edit' for parent SKUs
             setEditingParentVariants([]);
             const metadata = sku.metadata || {};
 
@@ -557,7 +576,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 skuBrandName: brandName,
                 matchingVufsBrand,
                 resolvedBrandId,
-                vufsBrandsCount: vufsBrands.length
+                vufsBrandsCount: vufsBrands.length,
+                isVariant,
+                parentSkuId: sku.parentSkuId
             });
 
             // Fetch lines and collections for the brand first
@@ -566,7 +587,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 [fetchedLines] = await Promise.all([
                     fetchLines(resolvedBrandId),
                     fetchCollections(resolvedBrandId),
-                    fetchRelatedVariants(sku) // Fetch related variants
+                    isVariant ? fetchRelatedVariants(sku) : Promise.resolve() // Only fetch related variants if editing a variant
                 ]) as [any[], void, void];
             }
 
@@ -618,12 +639,33 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 retailPriceUsd: sku.retailPriceUsd || '',
                 retailPriceEur: sku.retailPriceEur || ''
             });
+
+            // Fetch measurements for this SKU
+            try {
+                const skuMeasurements = await apiClient.getSKUMeasurements(sku.id);
+                const mState: Record<string, any> = {};
+                skuMeasurements.forEach((m: any) => {
+                    const pomId = String(m.pom_id);
+                    if (!mState[pomId]) mState[pomId] = {};
+                    mState[pomId][m.size_id] = {
+                        value: m.value,
+                        tolerance: m.tolerance
+                    };
+                });
+                setMeasurements(mState);
+                setSelectedPomIds(Object.keys(mState));
+            } catch (e) {
+                console.error('Failed to fetch SKU measurements', e);
+                setMeasurements({});
+                setSelectedPomIds([]);
+            }
         } else {
             setEditingSku(null);
             setEditMode('new'); // Creating new SKU
             setEditingParentVariants([]);
             setRelatedVariants([]);
             setSelectedVariants([]);
+            setSelectedPomIds([]);
             setFormData({
                 brandId: '',
                 lineId: '',
@@ -730,6 +772,26 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             retailPriceEur: firstVariant.retailPriceEur || ''
         });
 
+        // Fetch measurements - for now, fetch for the first variant to have some data
+        try {
+            const firstMeasurements = await apiClient.getSKUMeasurements(firstVariant.id);
+            const mState: Record<string, any> = {};
+            firstMeasurements.forEach((m: any) => {
+                const pomId = String(m.pom_id);
+                if (!mState[pomId]) mState[pomId] = {};
+                mState[pomId][m.size_id] = {
+                    value: m.value,
+                    tolerance: m.tolerance
+                };
+            });
+            setMeasurements(mState);
+            setSelectedPomIds(Object.keys(mState));
+        } catch (e) {
+            console.error('Failed to fetch parent variant measurements', e);
+            setMeasurements({});
+            setSelectedPomIds([]);
+        }
+
         setShowModal(true);
     };
     const handleMultiSelect = (type: 'sizes' | 'colors', id: string) => {
@@ -814,28 +876,27 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         e.preventDefault();
         try {
             if (editMode === 'parent' && editingParentVariants.length > 0) {
-                // PARENT EDIT MODE: Update all variant SKUs with parent-level changes
-                // This updates fields that are common across variants (not size/color/images)
+                // ... (existing logic)
                 let updatedCount = 0;
                 let failedCount = 0;
 
                 for (const variant of editingParentVariants) {
                     try {
-                        // Keep variant's own size/color/images but update everything else
                         const variantMetadata = variant.metadata || {};
                         const parentPayload = {
-                            name: variant.name, // Keep variant's name (with size/color)
-                            code: variant.code, // Keep variant's code
+                            // ... (existing fields)
+                            name: variant.name,
+                            code: variant.code,
                             brandId: formData.brandId,
                             lineId: formData.lineId || null,
                             collection: formData.collection || null,
-                            description: formData.description, // Update description
-                            images: variant.images, // Keep variant's images
-                            videos: variant.videos, // Keep variant's videos
+                            description: formData.description,
+                            images: variant.images,
+                            videos: variant.videos,
                             materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
                             category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
                             metadata: {
-                                ...variantMetadata, // Keep variant-specific metadata (size/color IDs)
+                                ...variantMetadata,
                                 modelName: formData.modelName,
                                 genderId: formData.genderId,
                                 apparelId: formData.apparelId,
@@ -843,137 +904,84 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                 patternId: formData.patternId,
                                 materialId: formData.materialId,
                                 fitId: formData.fitId,
-                                genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
-                                apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
-                                styleName: styles.find(c => c.id === formData.styleId)?.name,
-                                patternName: patterns.find(p => p.id === formData.patternId)?.name,
-                                fitName: fits.find(f => f.id === formData.fitId)?.name,
                                 nameConfig: formData.nameConfig
-                            },
-                            retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
-                            retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
-                            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null
+                            }
                         };
+                        await apiClient.updateSKU(variant.id, parentPayload as any);
 
-                        await apiClient.updateSKU(variant.id, parentPayload);
+                        // Also update measurements for this variant if relevant
+                        if (variantMetadata.sizeId && measurements) {
+                            const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
+                                const m = (sizeValues as any)[variantMetadata.sizeId];
+                                if (!m || m.value === undefined) return null;
+                                return { pomId, sizeId: variantMetadata.sizeId, value: m.value, tolerance: m.tolerance };
+                            }).filter(Boolean);
+                            if (sizeMeasurements.length > 0) {
+                                await apiClient.saveSKUMeasurements(variant.id, sizeMeasurements as any);
+                            }
+                        }
+
                         updatedCount++;
                     } catch (error) {
                         console.error(`Failed to update variant ${variant.id}:`, error);
                         failedCount++;
                     }
                 }
-
-                if (failedCount > 0) {
-                    toast.error(`Updated ${updatedCount} SKU(s), ${failedCount} failed`);
-                } else {
-                    toast.success(`Updated ${updatedCount} variant SKU(s) successfully`);
-                }
+                toast.success(`Updated ${updatedCount} variant SKU(s)`);
             } else if (editingSku) {
-                // VARIANT EDIT MODE: Update specific SKU
+                // Update main SKU
                 const colorId = formData.selectedColors[0] || null;
                 const sizeId = formData.selectedSizes[0] || null;
                 const payload = buildSKUPayload(colorId, sizeId, true);
-
-                // Update main SKU
                 await apiClient.updateSKU(editingSku.id, payload);
 
-                // Update selected variants if any
-                if (selectedVariants.length > 0) {
-                    for (const variantId of selectedVariants) {
-                        try {
-                            await apiClient.updateSKU(variantId, payload);
-                        } catch (error) {
-                            console.error(`Failed to update variant ${variantId}:`, error);
-                        }
+                // Save measurements for this specific SKU
+                if (sizeId && measurements) {
+                    const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
+                        const m = (sizeValues as any)[sizeId];
+                        if (!m || m.value === undefined) return null;
+                        return { pomId, sizeId, value: m.value, tolerance: m.tolerance };
+                    }).filter(Boolean);
+                    if (sizeMeasurements.length > 0) {
+                        await apiClient.saveSKUMeasurements(editingSku.id, sizeMeasurements as any);
                     }
-                    toast.success(`Updated ${1 + selectedVariants.length} SKU(s) successfully`);
-                } else {
-                    toast.success('SKU updated successfully');
                 }
+                toast.success('SKU updated successfully');
             } else {
-                // Bulk Create Logic with parent/variant grouping
-                // Parent SKU is created without size/color; variants have size/color
+                // Bulk Create
                 const sizesToCreate = formData.selectedSizes.length > 0 ? formData.selectedSizes : [];
                 const colorsToCreate = formData.selectedColors.length > 0 ? formData.selectedColors : [];
+                const parentPayload = buildSKUPayload(null, null, false);
+                const parentResult = await apiClient.createSKU(formData.brandId, parentPayload);
+                const parentId = parentResult?.sku?.id;
 
-                let createdCount = 0;
-                let failedCount = 0;
-                let parentSkuId: string | null = null;
-
-                // Calculate total: 1 parent + (sizes * colors) variants
-                const hasVariants = sizesToCreate.length > 0 || colorsToCreate.length > 0;
-                const totalVariants = Math.max(sizesToCreate.length, 1) * Math.max(colorsToCreate.length, 1);
-                const totalToCreate = hasVariants ? 1 + totalVariants : 1;
-
-                console.log('[SKU Bulk Create] Starting bulk creation:', {
-                    sizesToCreate,
-                    colorsToCreate,
-                    totalToCreate,
-                    hasVariants,
-                    brandId: formData.brandId
-                });
-
-                // Step 1: Create parent SKU (without size/color)
-                try {
-                    const parentPayload = buildSKUPayload(null, null, false);
-                    console.log('[SKU Bulk Create] Creating parent SKU:', {
-                        payloadName: parentPayload.name,
-                        payloadCode: parentPayload.code
-                    });
-
-                    const parentResult = await apiClient.createSKU(formData.brandId, parentPayload);
-                    createdCount++;
-
-                    if (parentResult?.sku?.id) {
-                        parentSkuId = parentResult.sku.id;
-                        console.log('[SKU Bulk Create] Parent SKU created with ID:', parentSkuId);
-                    }
-                } catch (error) {
-                    console.error('[SKU Bulk Create] Failed to create parent SKU:', error);
-                    failedCount++;
-                }
-
-                // Step 2: Create variant SKUs (with size/color) linked to parent
-                if (parentSkuId && hasVariants) {
+                if (parentId && (sizesToCreate.length > 0 || colorsToCreate.length > 0)) {
                     const effectiveSizes = sizesToCreate.length > 0 ? sizesToCreate : [null];
                     const effectiveColors = colorsToCreate.length > 0 ? colorsToCreate : [null];
 
                     for (const colorId of effectiveColors) {
                         for (const sizeId of effectiveSizes) {
-                            // Skip creating a variant with no size and no color (that's the parent)
                             if (!sizeId && !colorId) continue;
+                            const variantPayload = buildSKUPayload(colorId, sizeId, false);
+                            variantPayload.parentSkuId = parentId;
+                            const variantResult = await apiClient.createSKU(formData.brandId, variantPayload);
 
-                            try {
-                                const variantPayload = buildSKUPayload(colorId, sizeId, false);
-                                variantPayload.parentSkuId = parentSkuId;
-
-                                console.log('[SKU Bulk Create] Creating variant SKU:', {
-                                    colorId,
-                                    sizeId,
-                                    payloadName: variantPayload.name,
-                                    payloadCode: variantPayload.code
-                                });
-
-                                await apiClient.createSKU(formData.brandId, variantPayload);
-                                createdCount++;
-                                console.log('[SKU Bulk Create] Successfully created variant SKU #', createdCount);
-                            } catch (error) {
-                                console.error(`[SKU Bulk Create] Failed to create variant for Color: ${colorId}, Size: ${sizeId}`, error);
-                                failedCount++;
+                            // Save measurements for this variant if size matches
+                            if (variantResult?.sku?.id && sizeId && measurements) {
+                                const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
+                                    const m = (sizeValues as any)[sizeId];
+                                    if (!m || m.value === undefined) return null;
+                                    return { pomId, sizeId, value: m.value, tolerance: m.tolerance };
+                                }).filter(Boolean);
+                                if (sizeMeasurements.length > 0) {
+                                    await apiClient.saveSKUMeasurements(variantResult.sku.id, sizeMeasurements as any);
+                                }
                             }
                         }
                     }
                 }
-
-                console.log('[SKU Bulk Create] Bulk creation complete:', { createdCount, failedCount, totalToCreate, parentSkuId });
-
-                if (createdCount > 0) {
-                    toast.success(`${createdCount} SKU(s) created${failedCount > 0 ? ` (${failedCount} failed)` : ''}`);
-                } else {
-                    toast.error('Failed to create SKUs');
-                }
+                toast.success('SKUs created successfully');
             }
-
             setShowModal(false);
             fetchSkus();
         } catch (error) {
@@ -1188,15 +1196,35 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                                                <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
                                                     {sku.brand?.name && (
-                                                        <span className="mr-4">
+                                                        <span className="flex items-center gap-1">
+                                                            {sku.brand.logo && (
+                                                                <img src={sku.brand.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                            )}
                                                             Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
                                                         </span>
                                                     )}
+                                                    {(sku.lineInfo?.name || sku.line) && (
+                                                        <span className="flex items-center gap-1">
+                                                            {sku.lineInfo?.logo && (
+                                                                <img src={sku.lineInfo.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                            )}
+                                                            Line: <span className="font-medium text-gray-900">{sku.lineInfo?.name || sku.line}</span>
+                                                        </span>
+                                                    )}
+                                                    {sku.collection && (
+                                                        <span className="flex items-center gap-1">
+                                                            {sku.collectionInfo?.coverImage && (
+                                                                <img src={sku.collectionInfo.coverImage} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                            )}
+                                                            Collection: <span className="font-medium text-gray-900">{sku.collection}</span>
+                                                        </span>
+                                                    )}
+
                                                     {sku.retailPriceBrl && (
                                                         <span>
-                                                            Retail: <span className="font-medium text-gray-900">R$ {sku.retailPriceBrl}</span>
+                                                            R$ <span className="font-medium text-gray-900">{Number(sku.retailPriceBrl).toFixed(2)}</span>
                                                         </span>
                                                     )}
                                                 </div>
@@ -1205,21 +1233,30 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                         <div className="flex items-center gap-2">
                                             {/* Show edit button for virtual parents */}
                                             {sku.isVirtualParent && (
-                                                <button
-                                                    onClick={() => openParentModal(sku)}
-                                                    className="p-2 text-blue-500 hover:text-blue-700"
-                                                    title="Edit parent (updates all variants)"
-                                                >
-                                                    <PencilIcon className="h-5 w-5" />
-                                                </button>
+                                                <>
+                                                    <button
+                                                        onClick={() => openParentModal(sku)}
+                                                        className="p-2 text-blue-500 hover:text-blue-700"
+                                                        title="Edit parent (updates all variants)"
+                                                    >
+                                                        <PencilIcon className="h-5 w-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(sku.id)}
+                                                        className="p-2 text-red-500 hover:text-red-700"
+                                                        title="Delete parent and all variants"
+                                                    >
+                                                        <TrashIcon className="h-5 w-5" />
+                                                    </button>
+                                                </>
                                             )}
                                             {/* Show edit/delete for real SKUs, not virtual parents */}
                                             {!sku.isVirtualParent && (
                                                 <>
-                                                    <button onClick={() => openModal(sku)} className="p-2 text-gray-400 hover:text-blue-500">
+                                                    <button onClick={() => openModal(sku)} className="p-2 text-blue-500 hover:text-blue-700">
                                                         <PencilIcon className="h-5 w-5" />
                                                     </button>
-                                                    <button onClick={() => handleDelete(sku.id)} className="p-2 text-gray-400 hover:text-red-500">
+                                                    <button onClick={() => handleDelete(sku.id)} className="p-2 text-red-500 hover:text-red-700">
                                                         <TrashIcon className="h-5 w-5" />
                                                     </button>
                                                 </>
@@ -1389,7 +1426,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                             collection: ''
                                                         }));
                                                     }}
-                                                    options={vufsBrands}
+                                                    options={vufsBrands.map(b => ({ ...b, image: b.logo }))}
                                                     placeholder="Select Brand..."
                                                 />
                                             </div>
@@ -1403,7 +1440,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                         const line = lines.find(l => l.name === name);
                                                         setFormData({ ...formData, lineId: line?.id || '' });
                                                     }}
-                                                    options={lines}
+                                                    options={lines.map(l => ({ ...l, image: l.logo }))}
                                                     placeholder="Select Line (Optional)"
                                                     disabled={!formData.brandId}
                                                 />
@@ -1415,7 +1452,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     label="Collection"
                                                     value={formData.collection}
                                                     onChange={(name) => setFormData({ ...formData, collection: name || '' })}
-                                                    options={collections} // Assumes collections have {name: ...}
+                                                    options={collections.map(c => ({ ...c, image: c.coverImageUrl }))}
                                                     placeholder="Select Collection (Optional)"
                                                     disabled={!formData.brandId}
                                                     freeSolo={true} // Allow new collection names? Maybe not if restricted. But API allows string.
@@ -1484,7 +1521,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                             const item = patterns.find(p => p.name === name);
                                                             setFormData({ ...formData, patternId: item?.id || '' });
                                                         }}
-                                                        options={patterns}
+                                                        options={patterns.map(p => ({
+                                                            ...p,
+                                                            icon: React.createElement(getPatternIcon(p.name), { className: 'w-full h-full' })
+                                                        }))}
                                                         placeholder="Select Pattern..."
                                                     />
                                                 </div>
@@ -1523,10 +1563,14 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                             const item = genders.find(g => g.name === name);
                                                             setFormData({ ...formData, genderId: item?.id || '' });
                                                         }}
-                                                        options={genders}
+                                                        options={genders.map(g => ({
+                                                            ...g,
+                                                            icon: React.createElement(getGenderIcon(g.name), { className: 'w-full h-full' })
+                                                        }))}
                                                         placeholder="Select Gender..."
                                                     />
                                                 </div>
+
                                                 <div className="col-span-2 border-t pt-6 mt-4">
                                                     <h4 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider text-xs">Retail Price</h4>
                                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1704,6 +1748,22 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                                                                     />
                                                                     <label htmlFor="lineOnly" className="ml-2 text-sm text-gray-700">Line Only</label>
+                                                                </div>
+
+                                                                <div className="flex items-center">
+                                                                    <input
+                                                                        type="radio"
+                                                                        id="noBrandLine"
+                                                                        name="brandLineDisplay"
+                                                                        value="none"
+                                                                        checked={formData.nameConfig.brandLineDisplay === 'none'}
+                                                                        onChange={(e) => setFormData(prev => ({
+                                                                            ...prev,
+                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                        }))}
+                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                    />
+                                                                    <label htmlFor="noBrandLine" className="ml-2 text-sm text-gray-700">None</label>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1967,6 +2027,164 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         />
                                     </div>
+
+                                    {/* Measurements Section (Refactored: POM -> Sizes) */}
+                                    {formData.apparelId && apparelPOMs.length > 0 && formData.selectedSizes.length > 0 && (
+                                        <div className="col-span-2 border-t pt-6 mt-6">
+                                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                                                <div>
+                                                    <h3 className="text-lg font-semibold text-gray-900">Measurements (POMs)</h3>
+                                                    <p className="text-sm text-gray-500 mt-1">
+                                                        Select the Points of Measure you want to define.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* POM Selector */}
+                                            <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Add Measurement Point
+                                                </label>
+                                                <div className="max-w-md">
+                                                    <SearchableCombobox
+                                                        label=""
+                                                        value=""
+                                                        onChange={(name) => {
+                                                            const pom = apparelPOMs.find(p => p.name === name);
+                                                            if (pom && !selectedPomIds.includes(pom.pom_id || pom.id)) {
+                                                                setSelectedPomIds(prev => [...prev, pom.pom_id || pom.id]);
+                                                            }
+                                                        }}
+                                                        options={apparelPOMs
+                                                            .filter(pom => !selectedPomIds.includes(pom.pom_id || pom.id))
+                                                            .map(pom => ({ ...pom, id: pom.pom_id || pom.id }))} // SearchableCombobox needs id/name
+                                                        placeholder="Search to add POM..."
+                                                    />
+                                                </div>
+                                                {selectedPomIds.length === 0 && (
+                                                    <p className="text-xs text-gray-500 mt-2 italic">
+                                                        No measurements selected. Add one to start.
+                                                    </p>
+                                                )}
+                                                {selectedPomIds.length > 0 && (
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        {selectedPomIds.length} measurements active.
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* List of Selected POMs */}
+                                            <div className="space-y-6">
+                                                {selectedPomIds.map((pomId, index) => {
+                                                    const pom = apparelPOMs.find(p => (p.pom_id || p.id) === pomId);
+                                                    if (!pom) return null; // Should not happen
+
+                                                    const measurementKey = String(pomId);
+                                                    const isHalf = pom.is_half_measurement;
+                                                    const showCirc = showAsCircumference.has(measurementKey);
+
+                                                    return (
+                                                        <div key={pomId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                                            {/* POM Header */}
+                                                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                                                        {pom.code}
+                                                                    </span>
+                                                                    <h4 className="font-semibold text-gray-900">{pom.name}</h4>
+                                                                    {isHalf && (
+                                                                        <div className="flex items-center gap-2 ml-2">
+                                                                            <span className="text-[10px] font-bold bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-100 uppercase">
+                                                                                Half
+                                                                            </span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setShowAsCircumference(prev => {
+                                                                                        const next = new Set(prev);
+                                                                                        if (next.has(measurementKey)) next.delete(measurementKey);
+                                                                                        else next.add(measurementKey);
+                                                                                        return next;
+                                                                                    });
+                                                                                }}
+                                                                                className="text-[10px] text-blue-600 hover:text-blue-800 font-bold whitespace-nowrap underline"
+                                                                            >
+                                                                                Switch to {showCirc ? 'FLAT' : 'CIRCULAR'} Input
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSelectedPomIds(prev => prev.filter(id => id !== pomId))}
+                                                                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                    title="Remove Measurement"
+                                                                >
+                                                                    <XMarkIcon className="w-5 h-5" />
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Sizes Grid */}
+                                                            <div className="p-4 bg-white">
+                                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                                                    {formData.selectedSizes.map(sizeId => {
+                                                                        const size = sizes.find(s => s.id === sizeId);
+                                                                        const currentValue = measurements[measurementKey]?.[sizeId];
+                                                                        const displayValue = isHalf && showCirc && currentValue?.value
+                                                                            ? currentValue.value * 2
+                                                                            : currentValue?.value || '';
+
+                                                                        return (
+                                                                            <div key={`${pomId}-${sizeId}`}>
+                                                                                <label className="block text-xs font-medium text-gray-500 mb-1 uppercase text-center">
+                                                                                    {size?.name || 'Unknown'}
+                                                                                </label>
+                                                                                <div className="relative">
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        step="0.1"
+                                                                                        placeholder="0.00"
+                                                                                        className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 pr-8 text-center"
+                                                                                        value={displayValue}
+                                                                                        onChange={(e) => {
+                                                                                            const valStr = e.target.value;
+                                                                                            const val = valStr === '' ? undefined : parseFloat(valStr);
+
+                                                                                            setMeasurements(prev => {
+                                                                                                const next = { ...prev };
+                                                                                                if (!next[measurementKey]) next[measurementKey] = {};
+
+                                                                                                if (val === undefined) {
+                                                                                                    delete next[measurementKey][sizeId];
+                                                                                                    if (Object.keys(next[measurementKey]).length === 0) delete next[measurementKey];
+                                                                                                } else {
+                                                                                                    const flatVal = isHalf && showCirc ? val / 2 : val;
+                                                                                                    next[measurementKey][sizeId] = {
+                                                                                                        value: flatVal,
+                                                                                                        tolerance: currentValue?.tolerance || pom.default_tolerance || 0.5
+                                                                                                    };
+                                                                                                }
+                                                                                                return next;
+                                                                                            });
+                                                                                        }}
+                                                                                    />
+                                                                                    <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+                                                                                        <span className="text-[10px] text-gray-400">
+                                                                                            {pom.measurement_unit || 'cm'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Variant Selector - Only show when editing and variants exist */}
                                     {editingSku && relatedVariants.length > 0 && (

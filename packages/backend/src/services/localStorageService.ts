@@ -405,6 +405,11 @@ export class LocalStorageService {
       else if (ext === '.webp') mimetype = 'image/webp';
       else if (ext === '.gif') mimetype = 'image/gif';
       else if (ext === '.heic' || ext === '.heif') mimetype = 'image/heic';
+      else if (ext === '.mp4') mimetype = 'video/mp4';
+      else if (ext === '.webm') mimetype = 'video/webm';
+      else if (ext === '.mov') mimetype = 'video/quicktime';
+      else if (ext === '.avi') mimetype = 'video/x-msvideo';
+      else if (ext === '.pdf') mimetype = 'application/pdf';
 
       return {
         exists: true,
@@ -518,11 +523,11 @@ export class LocalStorageService {
   }
 
   /**
-   * Create a readable stream for an image
+   * Create a readable stream for a file (supports partial content)
    */
-  static createImageStream(relativePath: string): NodeJS.ReadableStream {
+  static createImageStream(relativePath: string, options?: { start?: number; end?: number }): NodeJS.ReadableStream {
     const fullPath = path.join(this.STORAGE_ROOT, relativePath);
-    return require('fs').createReadStream(fullPath);
+    return require('fs').createReadStream(fullPath, options);
   }
 
   /**

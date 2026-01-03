@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FollowEntityButton } from '@/components/social/FollowEntityButton';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { SocialIcon } from '@/components/ui/social-icons';
+import { getSocialLinkLabel, isWebsitePlatform } from '@/lib/socialLinkUtils';
 import {
     ChatBubbleLeftIcon,
     ShoppingBagIcon,
@@ -226,7 +227,9 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                         : (brandInfo.socialLinks || []);
 
                                     const displayLinks = [...rawLinks];
-                                    if (brandInfo.website && !displayLinks.some(l => l.platform === 'website')) {
+                                    // Case-insensitive check for existing website link
+                                    const hasWebsiteLink = displayLinks.some(l => isWebsitePlatform(l.platform));
+                                    if (brandInfo.website && !hasWebsiteLink) {
                                         displayLinks.unshift({ platform: 'website' as any, url: brandInfo.website });
                                     }
 
@@ -243,7 +246,7 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                                     className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm font-medium transition-colors border border-gray-100 hover:border-gray-200"
                                                 >
                                                     <SocialIcon platform={link.platform} url={link.url} size="sm" />
-                                                    <span>{link.platform}</span>
+                                                    <span>{getSocialLinkLabel(link)}</span>
                                                 </a>
                                             ))}
                                         </div>

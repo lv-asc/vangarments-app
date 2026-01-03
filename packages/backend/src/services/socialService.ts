@@ -155,6 +155,14 @@ export class SocialService {
   }
 
   /**
+   * Remove a follower (when you want to remove someone who follows you)
+   */
+  async removeFollower(userId: string, followerId: string): Promise<boolean> {
+    // This removes the follow relationship where followerId is following userId
+    return await UserFollowModel.delete(followerId, userId);
+  }
+
+  /**
    * Get user's followers
    */
   async getFollowers(userId: string, page = 1, limit = 20, search?: string): Promise<{ users: UserProfile[]; hasMore: boolean }> {

@@ -5,7 +5,7 @@ import { Fragment, useState } from 'react'
 interface ComboboxProps {
     value: string | null
     onChange: (value: string | null) => void
-    options: Array<{ id?: string | number; name: string; value?: string; hex?: string }>
+    options: Array<{ id?: string | number; name: string; value?: string; hex?: string; image?: string; icon?: React.ReactNode }>
     label?: string
     placeholder?: string
     className?: string
@@ -35,6 +35,8 @@ export default function SearchableCombobox({
                     .includes(query.toLowerCase().replace(/\s+/g, ''))
             )
 
+    const selectedOption = options.find((option) => option.name === value)
+
     return (
         <div className={className}>
             {label && (
@@ -51,21 +53,41 @@ export default function SearchableCombobox({
             >
                 <div className="relative mt-1">
                     <Combobox.Button as="div" className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-gray-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 sm:text-sm">
-                        <Combobox.Input
-                            className="w-full border-none py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 focus:ring-0"
-                            displayValue={(val: string | null) => val || ''}
-                            onChange={(event) => {
-                                setQuery(event.target.value)
-                                if (event.target.value === '' && !freeSolo) {
-                                    onChange(null)
-                                }
-                                if (freeSolo) {
-                                    onChange(event.target.value)
-                                }
-                            }}
-                            placeholder={placeholder}
-                            autoComplete="off"
-                        />
+                        <div className="flex items-center pl-3">
+                            {selectedOption?.icon && (
+                                <span className="flex-shrink-0 inline-block h-5 w-5 text-gray-500">
+                                    {selectedOption.icon}
+                                </span>
+                            )}
+                            {selectedOption?.image && (
+                                <img
+                                    src={selectedOption.image}
+                                    alt=""
+                                    className="flex-shrink-0 inline-block h-6 w-6 rounded-full border border-gray-200 object-cover bg-gray-50"
+                                />
+                            )}
+                            {selectedOption?.hex && !selectedOption?.image && !selectedOption?.icon && (
+                                <span
+                                    className="flex-shrink-0 inline-block h-4 w-4 rounded-full border border-gray-200"
+                                    style={{ backgroundColor: selectedOption.hex }}
+                                ></span>
+                            )}
+                            <Combobox.Input
+                                className={`w-full border-none py-2 ${selectedOption?.image || selectedOption?.hex || selectedOption?.icon ? 'pl-2' : 'pl-0'} pr-10 text-sm leading-5 text-gray-900 focus:ring-0`}
+                                displayValue={(val: string | null) => val || ''}
+                                onChange={(event) => {
+                                    setQuery(event.target.value)
+                                    if (event.target.value === '' && !freeSolo) {
+                                        onChange(null)
+                                    }
+                                    if (freeSolo) {
+                                        onChange(event.target.value)
+                                    }
+                                }}
+                                placeholder={placeholder}
+                                autoComplete="off"
+                            />
+                        </div>
                         <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                             <ChevronUpDownIcon
                                 className="h-5 w-5 text-gray-400"
@@ -112,7 +134,19 @@ export default function SearchableCombobox({
                                         {({ selected, active }) => (
                                             <>
                                                 <div className="flex items-center">
-                                                    {option.hex && (
+                                                    {option.icon && (
+                                                        <span className={`flex-shrink-0 inline-block h-5 w-5 mr-2 ${active ? 'text-white' : 'text-gray-500'}`}>
+                                                            {option.icon}
+                                                        </span>
+                                                    )}
+                                                    {option.image && (
+                                                        <img
+                                                            src={option.image}
+                                                            alt=""
+                                                            className="flex-shrink-0 inline-block h-6 w-6 rounded-full border border-gray-200 mr-2 object-cover bg-gray-50"
+                                                        />
+                                                    )}
+                                                    {option.hex && !option.image && !option.icon && (
                                                         <span
                                                             className="flex-shrink-0 inline-block h-4 w-4 rounded-full border border-gray-200 mr-2"
                                                             style={{ backgroundColor: option.hex }}

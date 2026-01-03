@@ -38,14 +38,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
         try {
             // Fetch notification count
-            const notificationResponse = await apiClient.get('/notifications/unread-count');
-            setUnreadNotificationCount(notificationResponse.count || 0);
+            // Use silent failure for polling to avoid console spam
+            const notificationResponse = await apiClient.get('/notifications/unread-count').catch(err => {
+                if (err?.status === 403 || err?.status === 401) return null; // Silently ignore auth errors
+                throw err;
+            });
+
+            if (notificationResponse) {
+                setUnreadNotificationCount(notificationResponse.count || 0);
+            }
 
             // Fetch message count
-            const messageResponse = await apiClient.get('/api/messages/unread-count');
-            setUnreadMessageCount(messageResponse.data?.unreadCount || 0);
-        } catch (error) {
-            console.error('Error fetching notification counts:', error);
+            const messageResponse = await apiClient.get('/messages/unread-count').catch(err => {
+                if (err?.status === 403 || err?.status === 401) return null;
+                throw err;
+            });
+
+            if (messageResponse) {
+                setUnreadMessageCount(messageResponse.data?.unreadCount || 0);
+            }
+        } catch (error: any) {
+            // Don't log auth errors as they are expected when session expires
+            if (error?.status !== 403 && error?.status !== 401) {
+                console.error('Error fetching notification counts:', error);
+            }
         }
     };
 
@@ -54,7 +70,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         showMessageBadge?: boolean;
     }) => {
         try {
-            const response = await apiClient.put('/api/users/preferences/notifications', preferences);
+            const response = await apiClient.put('/users/preferences/notifications', preferences);
 
             if (response.preferences) {
                 setNotificationPreferences(response.preferences);

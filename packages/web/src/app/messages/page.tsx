@@ -271,7 +271,11 @@ export default function MessagesPage() {
                                             </h3>
                                             {/* Verified Badge */}
                                             {((conv.conversationType === 'direct' && conv.otherParticipant?.verificationStatus === 'verified') ||
-                                                (conv.conversationType === 'entity' && conv.entity?.verificationStatus === 'verified') ||
+                                                (conv.conversationType === 'entity' && (
+                                                    conv.entity?.verificationStatus === 'verified' ||
+                                                    conv.entity?.brandInfo?.verificationStatus === 'verified' ||
+                                                    conv.entity?.isVerified === true
+                                                )) ||
                                                 (conv.verificationStatus === 'verified')) && (
                                                     <VerifiedBadge size="sm" />
                                                 )}
