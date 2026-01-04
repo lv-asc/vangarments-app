@@ -198,6 +198,8 @@ export class BrandCatalogModel {
              vi.category_hierarchy,
              vi.brand_hierarchy,
              vi.metadata as vufs_metadata,
+             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image,
+             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as all_images,
              COUNT(*) OVER() as total
       FROM brand_catalog_items bci
       LEFT JOIN brand_accounts ba ON bci.brand_id = ba.id
@@ -344,7 +346,12 @@ export class BrandCatalogModel {
     }));
   }
 
-  private static mapRowToBrandCatalogItem(row: any): BrandCatalogItem {
+  private static mapRowToBrandCatalogItem(row: any): BrandCatalogItem & { brand?: any; item?: any } {
+    const brandInfo = row.brand_info ? (typeof row.brand_info === 'string' ? JSON.parse(row.brand_info) : row.brand_info) : null;
+    const vufsMetadata = row.vufs_metadata ? (typeof row.vufs_metadata === 'string' ? JSON.parse(row.vufs_metadata) : row.vufs_metadata) : null;
+
+    const { slugify } = require('../utils/slugify');
+
     return {
       id: row.id,
       brandId: row.brand_id,
@@ -355,6 +362,21 @@ export class BrandCatalogModel {
       brandSpecificData: row.brand_specific_data || {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      brand: brandInfo ? {
+        id: row.brand_id,
+        name: brandInfo.name,
+        slug: brandInfo.slug || slugify(brandInfo.name),
+        logo: brandInfo.logo
+      } : undefined,
+      item: vufsMetadata ? {
+        id: row.vufs_item_id,
+        name: vufsMetadata.name || 'Untitled Item',
+        description: vufsMetadata.description || '',
+        images: row.all_images && row.all_images.length > 0 ? row.all_images : (row.primary_image ? [row.primary_image] : []),
+        metadata: vufsMetadata,
+        category: row.category_hierarchy,
+        retailPriceBrl: row.official_price ? parseFloat(row.official_price) : undefined
+      } : undefined
     };
   }
 }

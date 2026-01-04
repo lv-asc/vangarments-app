@@ -555,10 +555,17 @@ export class BrandAccountModel {
   }
 
   private static mapRowToBrandAccount(row: any): BrandAccount {
+    const brandInfo = row.brand_info;
+    const { slugify } = require('../utils/slugify');
+
+    if (brandInfo && !brandInfo.slug && brandInfo.name) {
+      brandInfo.slug = slugify(brandInfo.name);
+    }
+
     return {
       id: row.id,
       userId: row.user_id,
-      brandInfo: row.brand_info,
+      brandInfo: brandInfo,
       profileData: row.profile_data || undefined,
       verificationStatus: row.verification_status,
       partnershipTier: row.partnership_tier,

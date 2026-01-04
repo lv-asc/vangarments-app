@@ -11,6 +11,8 @@ export interface RecentVisit {
     businessType: string; // brand, store, supplier, etc.
     type: 'brand' | 'store' | 'user' | 'item' | 'post' | 'page' | 'editorial';
     slug?: string;
+    brandName?: string; // for items
+    brandSlug?: string; // for items
     username?: string; // for users
     verificationStatus?: string;
     visitedAt: number;

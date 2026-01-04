@@ -25,6 +25,7 @@ export interface BrandCollectionItem {
     itemId: string;
     sortOrder: number;
     item?: any; // VUFS item details populated on fetch
+    catalogItem?: any; // Brand Catalog item details populated on fetch
 }
 
 export interface CreateCollectionData {
@@ -217,27 +218,86 @@ export class BrandCollectionModel {
 
     static async getItems(collectionId: string): Promise<BrandCollectionItem[]> {
         const query = `
-      SELECT bci.*, vi.metadata, vi.category_hierarchy, vi.brand_hierarchy,
-             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image
+      SELECT bci.*, 
+             -- Direct VUFS Link
+             vi.id as vufs_id,
+             vi.metadata as vufs_metadata, 
+             vi.category_hierarchy, 
+             vi.brand_hierarchy,
+             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image,
+             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as all_images,
+             
+             -- Catalog Item Link
+             bcat.id as cat_id,
+             bcat.official_price,
+             bcat.brand_specific_data,
+             
+             -- VUFS linked via Catalog
+             vi_cat.id as cat_vufs_id,
+             vi_cat.metadata as cat_vufs_metadata,
+             vi_cat.category_hierarchy as cat_category_hierarchy,
+             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi_cat.id AND ii.is_primary = true LIMIT 1) as cat_primary_image,
+             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi_cat.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as cat_all_images
+
       FROM brand_collection_items bci
       LEFT JOIN vufs_items vi ON bci.item_id = vi.id
+      LEFT JOIN brand_catalog_items bcat ON bci.item_id = bcat.id
+      LEFT JOIN vufs_items vi_cat ON bcat.vufs_item_id = vi_cat.id
       WHERE bci.collection_id = $1
       ORDER BY bci.sort_order ASC
     `;
 
         const result = await db.query(query, [collectionId]);
-        return result.rows.map(row => ({
-            collectionId: row.collection_id,
-            itemId: row.item_id,
-            sortOrder: row.sort_order,
-            item: row.metadata ? {
-                id: row.item_id,
-                metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+        return result.rows.map(row => {
+            const metadata = row.vufs_metadata ? (typeof row.vufs_metadata === 'string' ? JSON.parse(row.vufs_metadata) : row.vufs_metadata) : null;
+            const catMetadata = row.cat_vufs_metadata ? (typeof row.cat_vufs_metadata === 'string' ? JSON.parse(row.cat_vufs_metadata) : row.cat_vufs_metadata) : null;
+
+            // Construct Item object (from direct link)
+            const item = metadata ? {
+                id: row.vufs_id,
+                name: metadata.name || 'Untitled Item',
+                description: metadata.description || '',
+                images: row.all_images && row.all_images.length > 0 ? row.all_images : (row.primary_image ? [row.primary_image] : []),
+                metadata: metadata,
                 categoryHierarchy: row.category_hierarchy,
                 brandHierarchy: row.brand_hierarchy,
                 primaryImage: row.primary_image
-            } : undefined
-        }));
+            } : undefined;
+
+            // Construct Catalog Item object
+            const catalogItem = row.cat_id ? {
+                id: row.cat_id,
+                vufsItemId: row.cat_vufs_id,
+                name: catMetadata?.name || 'Untitled Item',
+                description: catMetadata?.description || '',
+                officialPrice: row.official_price,
+                brandSpecificData: row.brand_specific_data,
+                images: row.cat_all_images && row.cat_all_images.length > 0 ? row.cat_all_images : (row.cat_primary_image ? [row.cat_primary_image] : []),
+                metadata: catMetadata,
+                categoryHierarchy: row.cat_category_hierarchy,
+                primaryImage: row.cat_primary_image
+            } : undefined;
+
+            // Use the catalog item's underlying item as fallback for 'item' property if direct item is missing but catalog item exists
+            // This ensures frontend code using item.item works even if it's a catalog item link
+            const effectiveItem = item || (catalogItem ? {
+                id: catalogItem.vufsItemId,
+                name: catalogItem.name,
+                description: catalogItem.description,
+                images: catalogItem.images,
+                metadata: catalogItem.metadata,
+                categoryHierarchy: catalogItem.categoryHierarchy,
+                primaryImage: catalogItem.primaryImage
+            } : undefined);
+
+            return {
+                collectionId: row.collection_id,
+                itemId: row.item_id,
+                sortOrder: row.sort_order,
+                item: effectiveItem,
+                catalogItem: catalogItem // Add this property to the interface below
+            };
+        });
     }
 
     static async updateItemOrder(collectionId: string, items: Array<{ itemId: string; sortOrder: number }>): Promise<void> {
@@ -264,7 +324,7 @@ export class BrandCollectionModel {
             id: row.id,
             brandId: row.brand_id,
             name: row.name,
-            slug: row.slug || undefined,
+            slug: row.slug || slugify(row.name),
             description: row.description || undefined,
             coverImageUrl: row.cover_image_url || undefined,
             collectionType: row.collection_type || undefined,

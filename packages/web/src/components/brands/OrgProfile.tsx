@@ -7,8 +7,10 @@ import {
     BrandTeamMember,
     BrandLookbook,
     BrandCollection,
-    BrandProfileData
+    BrandProfileData,
+    brandApi
 } from '@/lib/brandApi';
+import SKUCard from '@/components/ui/SKUCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { FollowEntityButton } from '@/components/social/FollowEntityButton';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
@@ -23,18 +25,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 
-// Helper to resolve image URLs
-const getImageUrl = (url: string | undefined | null) => {
-    if (!url) return '';
-    if (url.startsWith('http') || url.startsWith('data:')) return url;
-    if (url.startsWith('/api')) return url;
-
-    let path = url.startsWith('/') ? url.substring(1) : url;
-    if (path.startsWith('storage/')) {
-        path = path.substring('storage/'.length);
-    }
-    return `/api/storage/${path}`;
-};
+// Helper removed in favor of imported util
+import { getImageUrl } from '@/lib/utils';
 
 interface OrgProfileProps {
     profile: BrandFullProfile;
@@ -47,6 +39,8 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items' | 'followers'>('overview');
     const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+    const [catalogItems, setCatalogItems] = useState<any[]>([]);
+    const [loadingItems, setLoadingItems] = useState(false);
 
     const { brand, team, lookbooks, collections, followerCount } = profile;
     const brandInfo = brand.brandInfo;
@@ -90,6 +84,25 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
 
         return () => clearInterval(interval);
     }, [banners.length]);
+
+    // Fetch items when tab is switched
+    useEffect(() => {
+        if (activeTab === 'items' && catalogItems.length === 0 && !loadingItems) {
+            loadCatalog();
+        }
+    }, [activeTab]);
+
+    const loadCatalog = async () => {
+        try {
+            setLoadingItems(true);
+            const data = await brandApi.getBrandCatalog(brand.id);
+            setCatalogItems(data.items || []);
+        } catch (err) {
+            console.error('Failed to load brand catalog:', err);
+        } finally {
+            setLoadingItems(false);
+        }
+    };
 
     const currentBanner = banners[currentBannerIndex];
 
@@ -431,10 +444,32 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                     )}
 
                     {activeTab === 'items' && (
-                        <div className="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-                            <ShoppingBagIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900">Items Catalog</h3>
-                            <p className="text-gray-500 mt-2">The full product catalog is being loaded...</p>
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-semibold text-gray-900">Items Catalog</h2>
+                                <span className="text-sm text-gray-500">{brand.analytics.totalCatalogItems} items available</span>
+                            </div>
+
+                            {loadingItems ? (
+                                <div className="flex justify-center py-20">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                                </div>
+                            ) : catalogItems.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {catalogItems.map((item) => (
+                                        <SKUCard
+                                            key={item.id}
+                                            item={{ ...(item.item || item), brand: brand.brandInfo }}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
+                                    <ShoppingBagIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                    <h3 className="text-lg font-semibold text-gray-900">No items found</h3>
+                                    <p className="text-gray-500 mt-2">This brand hasn't added any items to their catalog yet.</p>
+                                </div>
+                            )}
                         </div>
                     )}
 

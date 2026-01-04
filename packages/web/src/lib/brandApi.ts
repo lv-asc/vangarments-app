@@ -324,6 +324,25 @@ class BrandApi {
     return response.json();
   }
 
+  async getBrandCatalog(brandId: string, filters?: any): Promise<{ items: any[]; total: number; hasMore: boolean }> {
+    const params = new URLSearchParams();
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.collection) params.append('collection', filters.collection);
+
+    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/catalog?${params}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get brand catalog: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
   async addCatalogItem(item: Omit<CatalogItem, 'id' | 'vufsCode'>): Promise<CatalogItem> {
     const response = await fetch(`${API_BASE_URL}/api/brands/catalog`, {
       method: 'POST',

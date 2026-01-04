@@ -55,7 +55,7 @@ function getTagLink(tag: MediaTag): string | null {
         case 'supplier':
             return `/suppliers/${id}`;
         case 'item':
-            return `/products/${id}`;
+            return `/items/${id}`;
         default:
             return null;
     }

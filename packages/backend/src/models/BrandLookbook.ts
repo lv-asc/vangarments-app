@@ -211,8 +211,9 @@ export class BrandLookbookModel {
 
     static async getItems(lookbookId: string): Promise<BrandLookbookItem[]> {
         const query = `
-      SELECT bli.*, vi.metadata, vi.category_hierarchy, vi.brand_hierarchy,
-             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image
+      SELECT bli.*, vi.metadata as vufs_metadata, vi.category_hierarchy, vi.brand_hierarchy,
+             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image,
+             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as all_images
       FROM brand_lookbook_items bli
       LEFT JOIN vufs_items vi ON bli.item_id = vi.id
       WHERE bli.lookbook_id = $1
@@ -220,18 +221,25 @@ export class BrandLookbookModel {
     `;
 
         const result = await db.query(query, [lookbookId]);
-        return result.rows.map(row => ({
-            lookbookId: row.lookbook_id,
-            itemId: row.item_id,
-            sortOrder: row.sort_order,
-            item: row.metadata ? {
-                id: row.item_id,
-                metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
-                categoryHierarchy: row.category_hierarchy,
-                brandHierarchy: row.brand_hierarchy,
-                primaryImage: row.primary_image
-            } : undefined
-        }));
+        return result.rows.map(row => {
+            const metadata = typeof row.vufs_metadata === 'string' ? JSON.parse(row.vufs_metadata) : row.vufs_metadata;
+
+            return {
+                lookbookId: row.lookbook_id,
+                itemId: row.item_id,
+                sortOrder: row.sort_order,
+                item: row.vufs_metadata ? {
+                    id: row.item_id,
+                    name: metadata?.name || 'Untitled Item',
+                    description: metadata?.description || '',
+                    images: row.all_images && row.all_images.length > 0 ? row.all_images : (row.primary_image ? [row.primary_image] : []),
+                    metadata: metadata,
+                    categoryHierarchy: row.category_hierarchy,
+                    brandHierarchy: row.brand_hierarchy,
+                    primaryImage: row.primary_image
+                } : undefined
+            };
+        });
     }
 
     static async updateItemOrder(lookbookId: string, items: Array<{ itemId: string; sortOrder: number }>): Promise<void> {
@@ -259,7 +267,7 @@ export class BrandLookbookModel {
             brandId: row.brand_id,
             collectionId: row.collection_id || undefined,
             name: row.name,
-            slug: row.slug || undefined,
+            slug: row.slug || slugify(row.name),
             description: row.description || undefined,
             coverImageUrl: row.cover_image_url || undefined,
             images: row.images || [],

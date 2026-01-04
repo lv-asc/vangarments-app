@@ -35,8 +35,8 @@ export default function ProductPageClient() {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const brandSlug = params.slug as string;
-    const productSlug = params.productSlug as string;
+    // In the new route structure /items/[slug], params.slug is the product/item slug
+    const productSlug = params.slug as string;
     const variantId = searchParams.get('variant');
 
     const [product, setProduct] = useState<any>(null);
@@ -58,11 +58,9 @@ export default function ProductPageClient() {
                 const result = await skuApi.searchSKUs(productSlug, undefined, true);
 
                 if (result.skus && result.skus.length > 0) {
-                    // Find the product that matches the brand slug
-                    let matchingProduct = result.skus.find((sku: any) => {
-                        const skuBrandSlug = sku.brand?.slug || slugify(sku.brand?.name || '');
-                        return skuBrandSlug === brandSlug;
-                    });
+                    // For now, we take the first match as the slug should be unique enough
+                    // Ideally we could also check if slugify(sku.code) matches productSlug
+                    let matchingProduct = result.skus[0];
 
                     if (matchingProduct) {
                         // Check if this is a variant (has parentSkuId but no variants)
@@ -118,6 +116,7 @@ export default function ProductPageClient() {
                         }
 
                         // Track visit
+                        const bSlug = matchingProduct.brand?.slug || (matchingProduct.brand?.name ? slugify(matchingProduct.brand.name) : 'brand');
                         addVisit({
                             id: matchingProduct.id,
                             name: matchingProduct.name,
@@ -126,7 +125,7 @@ export default function ProductPageClient() {
                             type: 'item',
                             slug: matchingProduct.code ? slugify(matchingProduct.code) : slugify(matchingProduct.name),
                             brandName: matchingProduct.brand?.name,
-                            brandSlug: brandSlug || matchingProduct.brand?.slug || (matchingProduct.brand?.name ? slugify(matchingProduct.brand.name) : 'brand'),
+                            brandSlug: bSlug,
                             visitedAt: Date.now()
                         });
                     } else {
@@ -147,7 +146,7 @@ export default function ProductPageClient() {
         };
 
         fetchProduct();
-    }, [brandSlug, productSlug, variantId, router]);
+    }, [productSlug, variantId, router]); // Removed brandSlug from deps
 
     if (loading) {
         return (
@@ -199,6 +198,9 @@ export default function ProductPageClient() {
     // Get the size ID of the selected variant
     const selectedSizeId = selectedVariant?.sizeId;
     const selectedSizeName = selectedVariant?.size;
+
+    // Derived brand slug for links
+    const brandSlug = product.brand?.slug || (product.brand?.name ? slugify(product.brand.name) : 'brand');
 
     return (
         <div className="min-h-screen bg-gray-50 pb-20">

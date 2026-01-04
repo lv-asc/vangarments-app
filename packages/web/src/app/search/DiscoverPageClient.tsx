@@ -190,14 +190,18 @@ const VerticalSKUCard = ({ item }: { item: any }) => {
   const brandName = item.brand?.name || item.brand?.brand || 'Unknown';
   const brandSlug = item.brand?.slug || (item.brand?.name ? item.brand.name.toLowerCase().replace(/\s+/g, '-') : 'brand');
   const productSlug = item.code ? item.code.toLowerCase().replace(/\s+/g, '-') : item.slug || (item.name ? item.name.toLowerCase().replace(/\s+/g, '-') : 'item');
-  const imageUrl = item.images?.[0]?.url || item.images?.[0]?.imageUrl || item.logo; // handle fallback
+  const imageUrl = item.images?.[0]?.url || item.images?.[0]?.imageUrl || item.logo;
+  const productUrl = `/items/${productSlug}`;
 
-  // Strip size suffix from display name (e.g., "[S]", "[M]", etc.)
+  // Strip size suffix from display name
   const displayName = item.name?.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim() || item.name;
 
+  const slugify = (text: string) => text.toString().toLowerCase()
+    .replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
+
   return (
-    <Link href={`/brands/${brandSlug}/${productSlug}`} className="w-[160px] md:w-[200px] flex-none snap-start group cursor-pointer block">
-      <div className="aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
+    <div className="w-[160px] md:w-[200px] flex-none snap-start group block">
+      <Link href={productUrl} className="block aspect-[4/3] rounded-lg bg-gray-100 overflow-hidden relative border border-gray-100 mb-3 shadow-sm group-hover:shadow-md transition-all">
         {imageUrl ? (
           <img src={getImageUrl(imageUrl)} alt={displayName} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
         ) : (
@@ -205,12 +209,38 @@ const VerticalSKUCard = ({ item }: { item: any }) => {
             <ShoppingBagIcon className="h-12 w-12" />
           </div>
         )}
-      </div>
+      </Link>
       <div className="px-1">
-        <h3 className="font-semibold text-gray-900 truncate">{brandName}</h3>
-        <p className="text-xs text-gray-500 truncate">{displayName}</p>
+        {/* Badges Row */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+          <Link href={`/brands/${brandSlug}`} className="flex items-center gap-1 hover:opacity-80 transition-opacity min-w-0">
+            <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+              {item.brand?.logo ? <img src={getImageUrl(item.brand.logo)} className="h-full w-full object-contain" /> : <div className="h-full w-full flex items-center justify-center text-[6px] font-bold text-gray-400">{brandName.charAt(0)}</div>}
+            </div>
+            <span className="text-[10px] font-bold text-gray-900 truncate">{brandName}</span>
+          </Link>
+          {(item.lineInfo || item.line) && (
+            <Link href={`/brands/${brandSlug}?line=${item.lineId || item.lineInfo?.id || slugify(item.lineInfo?.name || item.line)}`} className="flex items-center gap-0.5 hover:opacity-80 transition-opacity min-w-0">
+              <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                {item.lineInfo?.logo ? <img src={getImageUrl(item.lineInfo.logo)} className="h-full w-full object-contain" /> : <div className="h-full w-full flex items-center justify-center text-[6px] font-bold text-gray-400">L</div>}
+              </div>
+              <span className="text-[9px] text-gray-500 truncate max-w-[50px]">{item.lineInfo?.name || item.line}</span>
+            </Link>
+          )}
+          {(item.collectionInfo?.name || item.collection) && (
+            <Link href={`/brands/${brandSlug}/collections/${slugify(item.collectionInfo?.name || item.collection)}`} className="flex items-center gap-0.5 hover:opacity-80 transition-opacity min-w-0">
+              <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                {item.collectionInfo?.coverImage ? <img src={getImageUrl(item.collectionInfo.coverImage)} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-[6px] font-bold text-gray-400">C</div>}
+              </div>
+              <span className="text-[9px] text-gray-500 truncate max-w-[50px]">{item.collectionInfo?.name || item.collection}</span>
+            </Link>
+          )}
+        </div>
+        <Link href={productUrl}>
+          <p className="text-xs text-gray-500 truncate hover:text-blue-600">{displayName}</p>
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 };
 
@@ -219,17 +249,34 @@ const RecentCard = ({ item }: { item: any }) => {
   if (['brand', 'store', 'supplier', 'non_profit'].includes(item.type) || item.businessType === 'brand' || item.businessType === 'store') {
     return <BrandCard brand={{ brandInfo: { ...item, logo: item.logo }, id: item.id, verificationStatus: item.verificationStatus }} />;
   }
-  // User
+  // User - use UserCard (same as Users filter)
   if (item.type === 'user' || item.businessType === 'user') {
-    return <VerticalUserCard user={{ ...item, personalInfo: { avatarUrl: item.logo }, name: item.name, username: item.username, verificationStatus: item.verificationStatus }} />;
+    return <UserCard user={{ ...item, personalInfo: { avatarUrl: item.logo }, name: item.name, username: item.username, verificationStatus: item.verificationStatus }} />;
   }
   // Page
   if (item.type === 'page' || item.businessType === 'page') {
-    return <VerticalPageCard page={{ ...item, logoUrl: item.logo }} />;
+    return <PageCard page={{ ...item, logoUrl: item.logo }} />;
   }
   // Editorial (Journalism)
   if (item.type === 'editorial' || item.businessType === 'editorial') {
     return <StoryCard story={{ ...item, image: item.logo } as any} />;
+  }
+  // Item (Product) - use SKUCard (same as Items filter)
+  if (item.type === 'item') {
+    return (
+      <SKUCard
+        item={{
+          ...item,
+          name: item.name,
+          code: item.slug,
+          images: [{ url: item.logo }],
+          brand: {
+            name: item.brandName,
+            slug: item.brandSlug
+          }
+        }}
+      />
+    );
   }
 
   return null;
@@ -622,7 +669,9 @@ export default function DiscoverPage() {
                 </div>
                 <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
                   {recents.map((recent) => (
-                    <RecentCard key={recent.id + recent.visitedAt} item={recent} />
+                    <div key={recent.id + recent.visitedAt} className="min-w-[280px] sm:min-w-[320px] flex-none snap-start">
+                      <RecentCard item={recent} />
+                    </div>
                   ))}
                 </div>
               </section>
@@ -631,7 +680,7 @@ export default function DiscoverPage() {
             {featuredStores.length > 0 && (
               <section className="sm:px-6 lg:px-8">
                 <SectionHeader title="Stores" icon={BuildingStorefrontIcon} link="/stores" />
-                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 sm:px-0">
                   {featuredStores.map((store: any) => (
                     <BrandCard key={store.id} brand={store} />
                   ))}
@@ -653,9 +702,9 @@ export default function DiscoverPage() {
             {featuredUsers.length > 0 && (
               <section className="sm:px-6 lg:px-8">
                 <SectionHeader title="Users" icon={UsersIcon} />
-                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 sm:px-0">
                   {featuredUsers.map((user: any) => (
-                    <VerticalUserCard key={user.id} user={user} />
+                    <UserCard key={user.id} user={user} />
                   ))}
                 </div>
               </section>
@@ -664,11 +713,9 @@ export default function DiscoverPage() {
             {featuredPages.length > 0 && (
               <section className="sm:px-6 lg:px-8">
                 <SectionHeader title="Pages" icon={RectangleStackIcon} />
-                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 sm:px-0">
                   {featuredPages.map((page: any) => (
-                    <div key={page.id} className="min-w-[280px] flex-none snap-start">
-                      <PageCard page={page} />
-                    </div>
+                    <PageCard key={page.id} page={page} />
                   ))}
                 </div>
               </section>
@@ -677,7 +724,7 @@ export default function DiscoverPage() {
             {featuredNonProfits.length > 0 && (
               <section className="sm:px-6 lg:px-8">
                 <SectionHeader title="Non-Profits" icon={UsersIcon} />
-                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 sm:px-0">
                   {featuredNonProfits.map((np: any) => (
                     <BrandCard key={np.id} brand={np} />
                   ))}
@@ -688,9 +735,9 @@ export default function DiscoverPage() {
             {featuredItems.length > 0 && (
               <section className="sm:px-6 lg:px-8">
                 <SectionHeader title="Items" icon={ShoppingBagIcon} />
-                <div className="flex overflow-x-auto gap-4 pb-4 px-4 sm:px-0 snap-x scrollbar-hide">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 px-4 sm:px-0">
                   {featuredItems.map((item: any) => (
-                    <VerticalSKUCard key={item.id} item={item} />
+                    <SKUCard key={item.id} item={item} />
                   ))}
                 </div>
               </section>

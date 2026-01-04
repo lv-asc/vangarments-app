@@ -1,18 +1,19 @@
 import { Router } from 'express';
-import { authenticate, optionalAuthenticate } from '../middleware/authMiddleware';
+import { authenticateToken } from '../middleware/auth';
 import * as tagController from '../controllers/tagController';
 
 const router = Router();
 
 // Tag management endpoints
-router.post('/', authenticate, tagController.addTag);
-router.get('/', optionalAuthenticate, tagController.getTagsBySource);
-router.get('/:tagId', optionalAuthenticate, tagController.getTag);
-router.patch('/:tagId', authenticate, tagController.updateTag);
-router.delete('/:tagId', authenticate, tagController.deleteTag);
+router.post('/', authenticateToken, tagController.addTag);
+router.get('/', tagController.getTagsBySource);
+router.get('/:tagId', tagController.getTag);
+router.patch('/:tagId', authenticateToken, tagController.updateTag);
+router.delete('/:tagId', authenticateToken, tagController.deleteTag);
 
 // Search endpoints
-router.get('/search/entities', optionalAuthenticate, tagController.searchEntities);
-router.get('/search/items', optionalAuthenticate, tagController.searchItems);
+router.get('/search/entities', tagController.searchEntities);
+router.get('/search/items', tagController.searchItems);
 
 export default router;
+
