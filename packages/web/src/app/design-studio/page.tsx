@@ -70,6 +70,9 @@ export default function DesignStudioPage() {
     const [loading, setLoading] = useState(true);
     const [showNewMoodboardModal, setShowNewMoodboardModal] = useState(false);
     const [showUploadMockupModal, setShowUploadMockupModal] = useState(false);
+    const [showUploadFileModal, setShowUploadFileModal] = useState(false);
+    const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ show: boolean; id: string; name: string }>({ show: false, id: '', name: '' });
+    const [deleteFileModal, setDeleteFileModal] = useState<{ show: boolean; id: string; name: string }>({ show: false, id: '', name: '' });
 
     useEffect(() => {
         document.title = 'Design Studio';
@@ -83,26 +86,47 @@ export default function DesignStudioPage() {
         setLoading(true);
         try {
             const token = localStorage.getItem('auth_token');
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+
             if (activeTab === 'files') {
-                const res = await fetch(`${API_BASE_URL}/design-files`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const endpoint = isDev
+                    ? `${API_BASE_URL}/design-files/list-dev`
+                    : `${API_BASE_URL}/design-files`;
+                const headers: HeadersInit = {};
+                if (!isDev && token) {
+                    headers.Authorization = `Bearer ${token}`;
+                }
+                const res = await fetch(endpoint, { headers });
                 if (res.ok) {
                     const data = await res.json();
                     setDesignFiles(data.files || []);
                 }
             } else if (activeTab === 'moodboards') {
-                const res = await fetch(`${API_BASE_URL}/moodboards`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const endpoint = isDev
+                    ? `${API_BASE_URL}/moodboards/list-dev`
+                    : `${API_BASE_URL}/moodboards`;
+                const headers: HeadersInit = {};
+                if (!isDev && token) {
+                    headers.Authorization = `Bearer ${token}`;
+                }
+                const res = await fetch(endpoint, { headers });
                 if (res.ok) {
                     const data = await res.json();
                     setMoodboards(data.moodboards || []);
                 }
             } else if (activeTab === 'mockups') {
-                const res = await fetch(`${API_BASE_URL}/mockups`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                // Use /list-dev for local development (no auth required)
+                const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+                const listEndpoint = isDev
+                    ? `${API_BASE_URL}/mockups/list-dev`
+                    : `${API_BASE_URL}/mockups`;
+
+                const headers: HeadersInit = {};
+                if (!isDev && token) {
+                    headers.Authorization = `Bearer ${token}`;
+                }
+
+                const res = await fetch(listEndpoint, { headers });
                 if (res.ok) {
                     const data = await res.json();
                     setMockups(data.mockups || []);
@@ -117,12 +141,19 @@ export default function DesignStudioPage() {
     const handleCreateMoodboard = async (title: string) => {
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${API_BASE_URL}/moodboards`, {
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+            const endpoint = isDev
+                ? `${API_BASE_URL}/moodboards/create-dev`
+                : `${API_BASE_URL}/moodboards`;
+
+            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+            if (!isDev && token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
+                headers,
                 body: JSON.stringify({ title })
             });
 
@@ -144,11 +175,20 @@ export default function DesignStudioPage() {
             formData.append('name', name);
             formData.append('description', description);
 
-            const res = await fetch(`${API_BASE_URL}/mockups/upload`, {
+            // Use /upload-dev for local development (no auth required)
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+            const uploadEndpoint = isDev
+                ? `${API_BASE_URL}/mockups/upload-dev`
+                : `${API_BASE_URL}/mockups/upload`;
+
+            const headers: HeadersInit = {};
+            if (!isDev && token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(uploadEndpoint, {
                 method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`
-                },
+                headers,
                 body: formData
             });
 
@@ -158,7 +198,7 @@ export default function DesignStudioPage() {
                 setShowUploadMockupModal(false);
             } else {
                 const error = await res.json();
-                alert(`Upload failed: ${error.error || 'Unknown error'}`);
+                alert(`Upload failed: ${error.error || 'Unknown error'}. Details: ${error.details || ''}`);
             }
         } catch (error) {
             console.error('Error uploading mockup:', error);
@@ -166,14 +206,102 @@ export default function DesignStudioPage() {
         }
     };
 
-    const handleDeleteMockup = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this mockup?')) return;
+    const handleUploadFile = async (file: File, name: string, description: string) => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('name', name);
+            formData.append('description', description);
+
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+            const uploadEndpoint = isDev
+                ? `${API_BASE_URL}/design-files/upload-dev`
+                : `${API_BASE_URL}/design-files/upload`;
+
+            const headers: HeadersInit = {};
+            if (!isDev && token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(uploadEndpoint, {
+                method: 'POST',
+                headers,
+                body: formData
+            });
+
+            if (res.ok) {
+                const newFile = await res.json();
+                setDesignFiles([newFile, ...designFiles]);
+                setShowUploadFileModal(false);
+            } else {
+                const error = await res.json();
+                alert(`Upload failed: ${error.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            alert('Failed to upload file');
+        }
+    };
+
+    const handleDeleteFile = (id: string, name: string) => {
+        setDeleteFileModal({ show: true, id, name });
+    };
+
+    const confirmDeleteFile = async () => {
+        const id = deleteFileModal.id;
+        setDeleteFileModal({ show: false, id: '', name: '' });
 
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${API_BASE_URL}/mockups/${id}`, {
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+            const endpoint = isDev
+                ? `${API_BASE_URL}/design-files/delete-dev/${id}`
+                : `${API_BASE_URL}/design-files/${id}`;
+
+            const headers: HeadersInit = {};
+            if (!isDev && token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(endpoint, {
                 method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
+                headers
+            });
+
+            if (res.ok) {
+                setDesignFiles(designFiles.filter(f => f.id !== id));
+            }
+        } catch (error) {
+            console.error('Error deleting file:', error);
+        }
+    };
+
+    const handleDeleteMockup = (id: string, name: string) => {
+        setDeleteConfirmModal({ show: true, id, name });
+    };
+
+    const confirmDeleteMockup = async () => {
+        const id = deleteConfirmModal.id;
+        setDeleteConfirmModal({ show: false, id: '', name: '' });
+
+        try {
+            const token = localStorage.getItem('auth_token');
+
+            // Use /delete-dev for local development (no auth required)
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+            const deleteEndpoint = isDev
+                ? `${API_BASE_URL}/mockups/delete-dev/${id}`
+                : `${API_BASE_URL}/mockups/${id}`;
+
+            const headers: HeadersInit = {};
+            if (!isDev && token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(deleteEndpoint, {
+                method: 'DELETE',
+                headers
             });
 
             if (res.ok) {
@@ -311,6 +439,7 @@ export default function DesignStudioPage() {
                                     Upload your first design file to get started
                                 </p>
                                 <button
+                                    onClick={() => setShowUploadFileModal(true)}
                                     className="px-6 py-3 rounded-lg font-medium transition-all hover:opacity-90"
                                     style={{ backgroundColor: creamPrimary, color: navyPrimary }}
                                 >
@@ -318,32 +447,53 @@ export default function DesignStudioPage() {
                                 </button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                {designFiles.map((file) => (
-                                    <div
-                                        key={file.id}
-                                        className="rounded-xl border p-4 transition-all group cursor-pointer hover:opacity-90"
-                                        style={{ backgroundColor: `${navySecondary}80`, borderColor: '#2D3A4D' }}
+                            <div>
+                                {/* Upload button when files exist */}
+                                <div className="flex justify-end mb-4">
+                                    <button
+                                        onClick={() => setShowUploadFileModal(true)}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all hover:opacity-90"
+                                        style={{ backgroundColor: creamPrimary, color: navyPrimary }}
                                     >
-                                        <div className="aspect-square rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${navyPrimary}80` }}>
-                                            {file.thumbnailPath ? (
-                                                <img
-                                                    src={file.thumbnailPath}
-                                                    alt={file.filename}
-                                                    className="w-full h-full object-cover rounded-lg"
-                                                />
-                                            ) : (
-                                                getFileTypeIcon(file.fileType)
-                                            )}
+                                        <ArrowUpTrayIcon className="w-5 h-5" />
+                                        Upload File
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                    {designFiles.map((file) => (
+                                        <div
+                                            key={file.id}
+                                            className="rounded-xl border p-4 transition-all group relative cursor-pointer hover:opacity-90"
+                                            style={{ backgroundColor: `${navySecondary}80`, borderColor: '#2D3A4D' }}
+                                        >
+                                            <div className="aspect-square rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${navyPrimary}80` }}>
+                                                {file.thumbnailPath ? (
+                                                    <img
+                                                        src={file.thumbnailPath}
+                                                        alt={file.filename}
+                                                        className="w-full h-full object-cover rounded-lg"
+                                                    />
+                                                ) : (
+                                                    getFileTypeIcon(file.fileType)
+                                                )}
+                                            </div>
+                                            <h4 className="font-medium text-sm truncate" style={{ color: creamPrimary }}>
+                                                {file.originalFilename}
+                                            </h4>
+                                            <p className="text-xs mt-1" style={{ color: creamSecondary }}>
+                                                {formatFileSize(file.fileSizeBytes)}
+                                            </p>
+                                            {/* Delete button on hover */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id, file.originalFilename); }}
+                                                className="absolute top-2 right-2 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                style={{ backgroundColor: '#EF4444' }}
+                                            >
+                                                <XMarkIcon className="w-4 h-4 text-white" />
+                                            </button>
                                         </div>
-                                        <h4 className="font-medium text-sm truncate" style={{ color: creamPrimary }}>
-                                            {file.originalFilename}
-                                        </h4>
-                                        <p className="text-xs mt-1" style={{ color: creamSecondary }}>
-                                            {formatFileSize(file.fileSizeBytes)}
-                                        </p>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -378,7 +528,7 @@ export default function DesignStudioPage() {
                                         <div className="aspect-square rounded-lg flex items-center justify-center mb-3 overflow-hidden" style={{ backgroundColor: `${navyPrimary}80` }}>
                                             {mockup.mimeType.startsWith('image/') && mockup.mimeType !== 'image/svg+xml' ? (
                                                 <img
-                                                    src={`${API_BASE_URL}/mockups/${mockup.id}/file`}
+                                                    src={`${API_BASE_URL}/mockups/${mockup.id}/${(API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1')) ? 'preview-dev' : 'file'}`}
                                                     alt={mockup.originalFilename}
                                                     className="w-full h-full object-contain"
                                                 />
@@ -393,7 +543,7 @@ export default function DesignStudioPage() {
                                             {formatFileSize(mockup.fileSizeBytes)}
                                         </p>
                                         <button
-                                            onClick={() => handleDeleteMockup(mockup.id)}
+                                            onClick={() => handleDeleteMockup(mockup.id, mockup.metadata?.name || mockup.originalFilename)}
                                             className="absolute top-2 right-2 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                             style={{ backgroundColor: '#EF4444' }}
                                         >
@@ -490,6 +640,96 @@ export default function DesignStudioPage() {
                     onClose={() => setShowUploadMockupModal(false)}
                     onUpload={handleUploadMockup}
                 />
+            )}
+
+            {/* Upload Design File Modal */}
+            {showUploadFileModal && (
+                <UploadFileModal
+                    onClose={() => setShowUploadFileModal(false)}
+                    onUpload={handleUploadFile}
+                />
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmModal.show && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div
+                        className="rounded-2xl border p-6 w-full max-w-md shadow-2xl"
+                        style={{ backgroundColor: navySecondary, borderColor: '#2D3A4D' }}
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#EF444420' }}>
+                                <XMarkIcon className="w-6 h-6" style={{ color: '#EF4444' }} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold" style={{ color: creamPrimary }}>Delete Mockup</h2>
+                                <p className="text-sm" style={{ color: creamSecondary }}>This action cannot be undone</p>
+                            </div>
+                        </div>
+
+                        <p className="mb-6" style={{ color: creamSecondary }}>
+                            Are you sure you want to delete <strong style={{ color: creamPrimary }}>{deleteConfirmModal.name}</strong>?
+                        </p>
+
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmModal({ show: false, id: '', name: '' })}
+                                className="px-4 py-2 rounded-lg font-medium transition-colors hover:opacity-80"
+                                style={{ backgroundColor: '#374151', color: creamSecondary }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDeleteMockup}
+                                className="px-6 py-2 rounded-lg font-medium transition-colors hover:opacity-90"
+                                style={{ backgroundColor: '#EF4444', color: 'white' }}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete File Confirmation Modal */}
+            {deleteFileModal.show && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div
+                        className="rounded-2xl border p-6 w-full max-w-md shadow-2xl"
+                        style={{ backgroundColor: navySecondary, borderColor: '#2D3A4D' }}
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: '#EF444420' }}>
+                                <XMarkIcon className="w-6 h-6" style={{ color: '#EF4444' }} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold" style={{ color: creamPrimary }}>Delete File</h2>
+                                <p className="text-sm" style={{ color: creamSecondary }}>This action cannot be undone</p>
+                            </div>
+                        </div>
+
+                        <p className="mb-6" style={{ color: creamSecondary }}>
+                            Are you sure you want to delete <strong style={{ color: creamPrimary }}>{deleteFileModal.name}</strong>?
+                        </p>
+
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setDeleteFileModal({ show: false, id: '', name: '' })}
+                                className="px-4 py-2 rounded-lg font-medium transition-colors hover:opacity-80"
+                                style={{ backgroundColor: '#374151', color: creamSecondary }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmDeleteFile}
+                                className="px-6 py-2 rounded-lg font-medium transition-colors hover:opacity-90"
+                                style={{ backgroundColor: '#EF4444', color: 'white' }}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -679,6 +919,166 @@ function UploadMockupModal({
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Mockup name"
+                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none"
+                            style={{
+                                backgroundColor: navyPrimary,
+                                borderWidth: '1px',
+                                borderStyle: 'solid',
+                                borderColor: '#2D3A4D',
+                                color: creamPrimary
+                            }}
+                        />
+                    </div>
+
+                    {/* Description Input */}
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium mb-2" style={{ color: creamSecondary }}>
+                            Description (optional)
+                        </label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Add a description..."
+                            rows={3}
+                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none resize-none"
+                            style={{
+                                backgroundColor: navyPrimary,
+                                borderWidth: '1px',
+                                borderStyle: 'solid',
+                                borderColor: '#2D3A4D',
+                                color: creamPrimary
+                            }}
+                        />
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 transition-colors hover:opacity-80"
+                            style={{ color: creamSecondary }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={!file}
+                            className="px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                            style={{ backgroundColor: creamPrimary, color: navyPrimary }}
+                        >
+                            Upload
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// Upload File Modal Component
+function UploadFileModal({
+    onClose,
+    onUpload
+}: {
+    onClose: () => void;
+    onUpload: (file: File, name: string, description: string) => void;
+}) {
+    const [file, setFile] = useState<File | null>(null);
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [dragOver, setDragOver] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const acceptedTypes = '.ai,.eps,.svg,.obj,.fbx,.gltf,.glb,.sketch,.png,.jpg,.jpeg,.pdf,.docx,.txt';
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setDragOver(false);
+        const droppedFile = e.dataTransfer.files[0];
+        if (droppedFile) {
+            setFile(droppedFile);
+            if (!name) setName(droppedFile.name.replace(/\.[^/.]+$/, ''));
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+            if (!name) setName(selectedFile.name.replace(/\.[^/.]+$/, ''));
+        }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (file) {
+            onUpload(file, name || file.name, description);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div
+                className="rounded-2xl border p-6 w-full max-w-lg shadow-2xl"
+                style={{ backgroundColor: navySecondary, borderColor: '#2D3A4D' }}
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold" style={{ color: creamPrimary }}>Upload Design File</h2>
+                    <button onClick={onClose} className="p-1 rounded-full hover:opacity-80">
+                        <XMarkIcon className="w-6 h-6" style={{ color: creamSecondary }} />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit}>
+                    {/* Drop Zone */}
+                    <div
+                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={handleDrop}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors"
+                        style={{
+                            borderColor: dragOver ? creamPrimary : '#3D4A5D',
+                            backgroundColor: dragOver ? `${navyPrimary}80` : 'transparent'
+                        }}
+                    >
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept={acceptedTypes}
+                            onChange={handleFileChange}
+                            className="hidden"
+                        />
+                        {file ? (
+                            <div>
+                                <DocumentIcon className="w-12 h-12 mx-auto mb-2" style={{ color: '#22C55E' }} />
+                                <p style={{ color: creamPrimary }}>{file.name}</p>
+                                <p className="text-sm mt-1" style={{ color: creamSecondary }}>
+                                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                            </div>
+                        ) : (
+                            <div>
+                                <ArrowUpTrayIcon className="w-12 h-12 mx-auto mb-2" style={{ color: '#4A5568' }} />
+                                <p style={{ color: creamSecondary }}>Drop file here or click to browse</p>
+                                <p className="text-xs mt-2" style={{ color: '#6B7280' }}>
+                                    AI, EPS, SVG, Sketch, PDF, Images, etc.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Name Input */}
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium mb-2" style={{ color: creamSecondary }}>
+                            File Name
+                        </label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Enter file name"
                             className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none"
                             style={{
                                 backgroundColor: navyPrimary,

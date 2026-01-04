@@ -162,7 +162,7 @@ app.get('/api/security/status', async (req, res) => {
 });
 
 // API routes
-app.use('/api', apiRoutes);
+app.use('/api/v1', apiRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

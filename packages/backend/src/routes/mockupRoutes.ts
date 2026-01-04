@@ -98,7 +98,238 @@ async function convertPsdToPng(buffer: Buffer): Promise<{ pngBuffer: Buffer; wid
     }
 }
 
-// All routes require authentication
+// Development-only upload route (no auth required)
+if (process.env.NODE_ENV === 'development') {
+    router.post('/upload-dev', upload.single('file'), async (req: Request, res: Response) => {
+        try {
+            const file = req.file;
+            if (!file) {
+                return res.status(400).json({ error: 'No file uploaded' });
+            }
+
+            const { name, description } = req.body;
+            const ext = path.extname(file.originalname).toLowerCase();
+            const isPSD = ext === '.psd';
+
+            let uniqueFilename: string;
+            let storagePath: string;
+            let previewFilename: string | undefined;
+            let previewPath: string | undefined;
+            let psdDimensions: { width: number; height: number } | undefined;
+
+            // Generate unique filename
+            const baseId = uuidv4();
+
+            if (isPSD) {
+                // Save original PSD
+                uniqueFilename = `${baseId}.psd`;
+                storagePath = path.join(MOCKUP_STORAGE_DIR, uniqueFilename);
+                await fs.writeFile(storagePath, file.buffer);
+
+                // Convert to PNG for preview
+                try {
+                    console.log('Converting PSD to PNG...');
+                    const { pngBuffer, width, height } = await convertPsdToPng(file.buffer);
+
+                    previewFilename = `${baseId}_preview.png`;
+                    previewPath = path.join(MOCKUP_STORAGE_DIR, previewFilename);
+                    await fs.writeFile(previewPath, pngBuffer);
+
+                    psdDimensions = { width, height };
+                    console.log(`PSD converted: ${width}x${height}`);
+                } catch (conversionError) {
+                    console.error('PSD conversion failed:', conversionError);
+                }
+            } else {
+                // Regular file - save as-is
+                uniqueFilename = `${baseId}${ext}`;
+                storagePath = path.join(MOCKUP_STORAGE_DIR, uniqueFilename);
+                await fs.writeFile(storagePath, file.buffer);
+            }
+
+            // Create database record with dev user ID
+            const data: CreateDesignFileData = {
+                ownerId: '00000000-0000-0000-0000-000000000000', // Dev user ID
+                filename: uniqueFilename,
+                originalFilename: file.originalname,
+                fileType: 'mockup',
+                mimeType: isPSD ? 'image/vnd.adobe.photoshop' : file.mimetype,
+                fileSizeBytes: file.size,
+                gcsPath: `/storage/mockups/${uniqueFilename}`,
+                thumbnailPath: previewFilename ? `/storage/mockups/${previewFilename}` : undefined,
+                metadata: {
+                    description: description || '',
+                    name: name || file.originalname,
+                    isPSD,
+                    previewFilename,
+                    originalFormat: ext.replace('.', ''),
+                    ...(psdDimensions && { width: psdDimensions.width, height: psdDimensions.height })
+                },
+                visibility: 'private'
+            };
+
+            const mockup = await DesignFileModel.create(data);
+
+            res.status(201).json({
+                ...mockup,
+                url: `/api/v1/mockups/${mockup.id}/file-dev`,
+                previewUrl: previewFilename ? `/api/v1/mockups/${mockup.id}/preview-dev` : undefined
+            });
+        } catch (error) {
+            console.error('Error uploading mockup (dev):', error);
+            res.status(500).json({ error: 'Failed to upload mockup', details: (error as Error).message });
+        }
+    });
+
+    // Dev routes for serving files without auth
+    router.get('/:id/file-dev', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const mockup = await DesignFileModel.findById(id);
+
+            if (!mockup) {
+                return res.status(404).json({ error: 'Mockup not found' });
+            }
+
+            const isPSD = mockup.metadata?.isPSD;
+            let filePath: string;
+            let contentType: string;
+
+            if (isPSD && mockup.metadata?.previewFilename) {
+                filePath = path.join(MOCKUP_STORAGE_DIR, mockup.metadata.previewFilename);
+                contentType = 'image/png';
+            } else {
+                filePath = path.join(MOCKUP_STORAGE_DIR, mockup.filename);
+                contentType = mockup.mimeType;
+            }
+
+            try {
+                await fs.access(filePath);
+            } catch {
+                return res.status(404).json({ error: 'File not found on disk' });
+            }
+
+            res.setHeader('Content-Type', contentType);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+            const fileBuffer = await fs.readFile(filePath);
+            res.send(fileBuffer);
+        } catch (error) {
+            console.error('Error serving mockup file (dev):', error);
+            res.status(500).json({ error: 'Failed to serve file' });
+        }
+    });
+
+    // Dev route for deleting mockups without auth
+    router.delete('/delete-dev/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const mockup = await DesignFileModel.findById(id);
+
+            if (!mockup) {
+                return res.status(404).json({ error: 'Mockup not found' });
+            }
+
+            // Delete main file from disk
+            const filePath = path.join(MOCKUP_STORAGE_DIR, mockup.filename);
+            try {
+                await fs.unlink(filePath);
+            } catch (error) {
+                console.warn('Could not delete main file from disk:', error);
+            }
+
+            // Delete preview file if exists (for PSDs)
+            const previewFilename = mockup.metadata?.previewFilename;
+            if (previewFilename) {
+                const previewPath = path.join(MOCKUP_STORAGE_DIR, previewFilename);
+                try {
+                    await fs.unlink(previewPath);
+                } catch (error) {
+                    console.warn('Could not delete preview file from disk:', error);
+                }
+            }
+
+            // Soft delete from database
+            const deleted = await DesignFileModel.delete(id);
+
+            if (deleted) {
+                res.json({ success: true, message: 'Mockup deleted' });
+            } else {
+                res.status(500).json({ error: 'Failed to delete mockup' });
+            }
+        } catch (error) {
+            console.error('Error deleting mockup (dev):', error);
+            res.status(500).json({ error: 'Failed to delete mockup' });
+        }
+    });
+
+    // Dev route for listing mockups without auth
+    router.get('/list-dev', async (req: Request, res: Response) => {
+        try {
+            const { limit = '50', offset = '0' } = req.query;
+
+            // Get all mockups (for dev, we get all regardless of owner)
+            const result = await DesignFileModel.findByOwner(
+                '00000000-0000-0000-0000-000000000000', // Dev user ID
+                { fileType: 'mockup' },
+                parseInt(limit as string, 10),
+                parseInt(offset as string, 10)
+            );
+
+            res.json({
+                mockups: result.files,
+                total: result.total
+            });
+        } catch (error) {
+            console.error('Error fetching mockups (dev):', error);
+            res.status(500).json({ error: 'Failed to fetch mockups' });
+        }
+    });
+
+    // Dev route for serving file preview without auth (for thumbnails)
+    router.get('/:id/preview-dev', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const mockup = await DesignFileModel.findById(id);
+
+            if (!mockup) {
+                return res.status(404).json({ error: 'Mockup not found' });
+            }
+
+            const isPSD = mockup.metadata?.isPSD;
+            let filePath: string;
+            let contentType: string;
+
+            if (isPSD && mockup.metadata?.previewFilename) {
+                filePath = path.join(MOCKUP_STORAGE_DIR, mockup.metadata.previewFilename);
+                contentType = 'image/png';
+            } else {
+                filePath = path.join(MOCKUP_STORAGE_DIR, mockup.filename);
+                contentType = mockup.mimeType;
+            }
+
+            try {
+                await fs.access(filePath);
+            } catch {
+                return res.status(404).json({ error: 'File not found on disk' });
+            }
+
+            res.setHeader('Content-Type', contentType);
+            // Allow cross-origin access for images (needed for dev)
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+            const fileBuffer = await fs.readFile(filePath);
+            res.send(fileBuffer);
+        } catch (error) {
+            console.error('Error serving mockup preview (dev):', error);
+            res.status(500).json({ error: 'Failed to serve file' });
+        }
+    });
+}
+
+// All routes below require authentication
 router.use(authenticateToken);
 
 // =====================================================

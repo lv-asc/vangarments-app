@@ -72,11 +72,19 @@ export default function MoodboardEditorPage() {
         const fetchData = async () => {
             try {
                 const token = localStorage.getItem('auth_token');
+                const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
 
                 // Fetch moodboard
-                const moodboardRes = await fetch(`${API_BASE_URL}/moodboards/${params.id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const moodboardEndpoint = isDev
+                    ? `${API_BASE_URL}/moodboards/get-dev/${params.id}`
+                    : `${API_BASE_URL}/moodboards/${params.id}`;
+
+                const moodboardHeaders: HeadersInit = {};
+                if (!isDev && token) {
+                    moodboardHeaders.Authorization = `Bearer ${token}`;
+                }
+
+                const moodboardRes = await fetch(moodboardEndpoint, { headers: moodboardHeaders });
 
                 if (moodboardRes.ok) {
                     const data = await moodboardRes.json();
@@ -87,9 +95,16 @@ export default function MoodboardEditorPage() {
                 }
 
                 // Fetch mockups for image picker
-                const mockupsRes = await fetch(`${API_BASE_URL}/mockups`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const mockupsEndpoint = isDev
+                    ? `${API_BASE_URL}/mockups/list-dev`
+                    : `${API_BASE_URL}/mockups`;
+
+                const mockupsHeaders: HeadersInit = {};
+                if (!isDev && token) {
+                    mockupsHeaders.Authorization = `Bearer ${token}`;
+                }
+
+                const mockupsRes = await fetch(mockupsEndpoint, { headers: mockupsHeaders });
 
                 if (mockupsRes.ok) {
                     const mockupData = await mockupsRes.json();
@@ -123,14 +138,21 @@ export default function MoodboardEditorPage() {
         setSaving(true);
         try {
             const token = localStorage.getItem('auth_token');
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
             const canvasData = canvasRef.current.exportToJSON();
 
-            const res = await fetch(`${API_BASE_URL}/moodboards/${moodboard.id}`, {
+            const endpoint = isDev
+                ? `${API_BASE_URL}/moodboards/update-dev/${moodboard.id}`
+                : `${API_BASE_URL}/moodboards/${moodboard.id}`;
+
+            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+            if (!isDev && token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(endpoint, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
+                headers,
                 body: JSON.stringify({ canvasData })
             });
 
@@ -320,12 +342,20 @@ function SettingsModal({
         setSaving(true);
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch(`${API_BASE_URL}/moodboards/${moodboard.id}`, {
+            const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
+
+            const endpoint = isDev
+                ? `${API_BASE_URL}/moodboards/update-dev/${moodboard.id}`
+                : `${API_BASE_URL}/moodboards/${moodboard.id}`;
+
+            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+            if (!isDev && token) {
+                headers.Authorization = `Bearer ${token}`;
+            }
+
+            const res = await fetch(endpoint, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
+                headers,
                 body: JSON.stringify({
                     title,
                     description,

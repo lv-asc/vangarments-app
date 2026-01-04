@@ -1,8 +1,144 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { DesignFileModel, CreateDesignFileData, UpdateDesignFileData } from '../models/DesignFile';
+import { db } from '../database/connection';
 
 const router = Router();
+
+// Development-only routes (no auth required)
+if (process.env.NODE_ENV === 'development') {
+    // Dev route for listing design files without auth (excludes mockups)
+    router.get('/list-dev', async (req: Request, res: Response) => {
+        try {
+            const { limit = '50', offset = '0' } = req.query;
+
+            // Query directly to exclude mockups from design files
+            const countQuery = `
+                SELECT COUNT(*) FROM design_files 
+                WHERE owner_id = $1 AND deleted_at IS NULL AND file_type != 'mockup'
+            `;
+            const query = `
+                SELECT * FROM design_files 
+                WHERE owner_id = $1 AND deleted_at IS NULL AND file_type != 'mockup'
+                ORDER BY created_at DESC
+                LIMIT $2 OFFSET $3
+            `;
+            const devUserId = '00000000-0000-0000-0000-000000000000';
+
+            const [countResult, filesResult] = await Promise.all([
+                db.query(countQuery, [devUserId]),
+                db.query(query, [devUserId, parseInt(limit as string, 10), parseInt(offset as string, 10)])
+            ]);
+
+            res.json({
+                files: filesResult.rows.map((row: any) => ({
+                    id: row.id,
+                    ownerId: row.owner_id,
+                    brandId: row.brand_id,
+                    filename: row.filename,
+                    originalFilename: row.original_filename,
+                    fileType: row.file_type,
+                    mimeType: row.mime_type,
+                    fileSizeBytes: parseInt(row.file_size_bytes, 10),
+                    gcsPath: row.gcs_path,
+                    thumbnailPath: row.thumbnail_path,
+                    metadata: row.metadata || {},
+                    tags: row.tags || [],
+                    visibility: row.visibility,
+                    createdAt: row.created_at,
+                    updatedAt: row.updated_at
+                })),
+                total: parseInt(countResult.rows[0].count, 10)
+            });
+        } catch (error) {
+            console.error('Error fetching design files (dev):', error);
+            res.status(500).json({ error: 'Failed to fetch design files' });
+        }
+    });
+
+    // Dev route for uploading design files without auth
+    router.post('/upload-dev', async (req: Request, res: Response) => {
+        // Use multer for file upload
+        const multer = require('multer');
+        const path = require('path');
+        const fs = require('fs/promises');
+        const { v4: uuidv4 } = require('uuid');
+
+        const STORAGE_DIR = path.join(process.cwd(), 'storage', 'design-files');
+
+        // Ensure storage directory exists
+        await fs.mkdir(STORAGE_DIR, { recursive: true });
+
+        const storage = multer.memoryStorage();
+        const upload = multer({
+            storage,
+            limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+        }).single('file');
+
+        upload(req, res, async (err: any) => {
+            if (err) {
+                return res.status(400).json({ error: 'File upload failed', details: err.message });
+            }
+
+            try {
+                const file = (req as any).file;
+                if (!file) {
+                    return res.status(400).json({ error: 'No file provided' });
+                }
+
+                const fileId = uuidv4();
+                const ext = path.extname(file.originalname).toLowerCase();
+                const filename = `${fileId}${ext}`;
+                const filePath = path.join(STORAGE_DIR, filename);
+
+                // Save file to disk
+                await fs.writeFile(filePath, file.buffer);
+
+                // Determine file type based on extension
+                let fileType = 'raster';
+                if (['.ai', '.eps', '.svg'].includes(ext)) fileType = 'vector';
+                else if (['.obj', '.fbx', '.gltf', '.glb'].includes(ext)) fileType = '3d_model';
+                else if (['.sketch'].includes(ext)) fileType = 'sketch';
+
+                const name = req.body.name || file.originalname.replace(ext, '');
+
+                // Create database entry
+                const designFile = await DesignFileModel.create({
+                    ownerId: '00000000-0000-0000-0000-000000000000', // Dev user
+                    filename,
+                    originalFilename: file.originalname,
+                    fileType: fileType as any,
+                    mimeType: file.mimetype,
+                    fileSizeBytes: file.size,
+                    gcsPath: `/storage/design-files/${filename}`,
+                    metadata: { name, description: req.body.description || '' }
+                });
+
+                res.status(201).json(designFile);
+            } catch (error) {
+                console.error('Error processing upload (dev):', error);
+                res.status(500).json({ error: 'Failed to process upload' });
+            }
+        });
+    });
+
+    // Dev route for deleting design files without auth
+    router.delete('/delete-dev/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const deleted = await DesignFileModel.delete(id);
+
+            if (deleted) {
+                res.json({ success: true });
+            } else {
+                res.status(404).json({ error: 'File not found' });
+            }
+        } catch (error) {
+            console.error('Error deleting file (dev):', error);
+            res.status(500).json({ error: 'Failed to delete file' });
+        }
+    });
+}
 
 // All routes require authentication
 router.use(authenticateToken);

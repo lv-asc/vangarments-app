@@ -10,6 +10,101 @@ import {
 
 const router = Router();
 
+// Development-only routes (no auth required)
+if (process.env.NODE_ENV === 'development') {
+    // Dev route for listing moodboards without auth
+    router.get('/list-dev', async (req: Request, res: Response) => {
+        try {
+            const { limit = '20', offset = '0' } = req.query;
+            const result = await MoodboardModel.findByOwner(
+                '00000000-0000-0000-0000-000000000000', // Dev user ID
+                parseInt(limit as string, 10),
+                parseInt(offset as string, 10)
+            );
+            res.json(result);
+        } catch (error) {
+            console.error('Error fetching moodboards (dev):', error);
+            res.status(500).json({ error: 'Failed to fetch moodboards' });
+        }
+    });
+
+    // Dev route for creating moodboard without auth
+    router.post('/create-dev', async (req: Request, res: Response) => {
+        try {
+            const {
+                brandId,
+                title,
+                slug,
+                description,
+                coverImage,
+                visibility,
+                canvasWidth,
+                canvasHeight,
+                backgroundColor
+            } = req.body;
+
+            if (!title) {
+                return res.status(400).json({ error: 'Title is required' });
+            }
+
+            const data: CreateMoodboardData = {
+                ownerId: '00000000-0000-0000-0000-000000000000', // Dev user ID
+                brandId,
+                title,
+                slug,
+                description,
+                coverImage,
+                visibility,
+                canvasWidth,
+                canvasHeight,
+                backgroundColor
+            };
+
+            const moodboard = await MoodboardModel.create(data);
+            res.status(201).json(moodboard);
+        } catch (error) {
+            console.error('Error creating moodboard (dev):', error);
+            res.status(500).json({ error: 'Failed to create moodboard' });
+        }
+    });
+
+    // Dev route for getting individual moodboard without auth
+    router.get('/get-dev/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const { includeElements = 'true' } = req.query;
+            const moodboard = await MoodboardModel.findById(id, includeElements === 'true');
+
+            if (!moodboard) {
+                return res.status(404).json({ error: 'Moodboard not found' });
+            }
+
+            res.json(moodboard);
+        } catch (error) {
+            console.error('Error fetching moodboard (dev):', error);
+            res.status(500).json({ error: 'Failed to fetch moodboard' });
+        }
+    });
+
+    // Dev route for updating moodboard without auth
+    router.put('/update-dev/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const updateData = req.body;
+            const moodboard = await MoodboardModel.update(id, updateData);
+
+            if (!moodboard) {
+                return res.status(404).json({ error: 'Moodboard not found' });
+            }
+
+            res.json(moodboard);
+        } catch (error) {
+            console.error('Error updating moodboard (dev):', error);
+            res.status(500).json({ error: 'Failed to update moodboard' });
+        }
+    });
+}
+
 // All routes require authentication
 router.use(authenticateToken);
 
