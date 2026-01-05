@@ -169,12 +169,13 @@ export class SocialController {
       const followerId = req.user!.id;
 
       if (followerId === followingId) {
-        return res.status(400).json({
+        res.status(400).json({
           error: {
             code: 'SELF_FOLLOW_NOT_ALLOWED',
             message: 'You cannot follow yourself',
           },
         });
+        return;
       }
 
       const follow = await socialService.followUser(followerId, followingId);
@@ -576,12 +577,13 @@ export class SocialController {
 
       // Prevent users from following themselves as entities
       if (followerId === entityId) {
-        return res.status(400).json({
+        res.status(400).json({
           error: {
             code: 'SELF_FOLLOW_NOT_ALLOWED',
             message: 'You cannot follow yourself',
           },
         });
+        return;
       }
 
       const follow = await EntityFollowModel.follow({

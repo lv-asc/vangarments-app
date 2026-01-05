@@ -76,7 +76,7 @@ const nextConfig = {
     return config;
   },
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
     NEXT_PUBLIC_APP_NAME: 'Vangarments',
     NEXT_PUBLIC_APP_VERSION: '1.0.0',
   },
@@ -91,13 +91,13 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === 'production',
   },
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-    const backendUrl = apiUrl.replace(/\/api\/?$/, ''); // http://localhost:3001
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const backendUrl = apiUrl.replace(/\/api(\/v1)?\/?$/, ''); // http://localhost:3001
 
     return [
       {
         source: '/api/:path*',
-        destination: `${apiUrl}/:path*`, // e.g. http://localhost:3001/api/:path*
+        destination: `${apiUrl}/:path*`, // e.g. http://localhost:3001/api/v1/:path*
       },
       {
         source: '/storage/:path*',

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeftIcon, CloudIcon, ServerIcon, ArrowUpTrayIcon, ArrowDownTrayIcon, ArrowPathIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { apiClient } from '@/lib/api';
@@ -13,12 +13,22 @@ interface DbStatus {
     cloudHost: string;
 }
 
+interface SyncProgress {
+    step: number;
+    totalSteps: number;
+    percent: number;
+    description: string;
+    details?: string;
+}
+
 export default function DatabaseAdminPage() {
     const [status, setStatus] = useState<DbStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [syncMessage, setSyncMessage] = useState('');
     const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+    const [progress, setProgress] = useState<SyncProgress | null>(null);
+    const eventSourceRef = useRef<EventSource | null>(null);
 
     // Modal states
     const [modalConfig, setModalConfig] = useState<{
@@ -37,6 +47,12 @@ export default function DatabaseAdminPage() {
 
     useEffect(() => {
         fetchStatus();
+        return () => {
+            // Cleanup EventSource on unmount
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+            }
+        };
     }, []);
 
     const fetchStatus = async () => {
@@ -76,34 +92,97 @@ export default function DatabaseAdminPage() {
         });
     };
 
+    const startSyncWithSSE = (endpoint: string, actionName: string) => {
+        setSyncing(true);
+        setSyncStatus('running');
+        setSyncMessage(`${actionName}...`);
+        setProgress({ step: 0, totalSteps: 4, percent: 0, description: 'Initializing...', details: 'Connecting to server' });
+
+        // Close any existing EventSource
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+        }
+
+        // Get auth token for SSE
+        const token = typeof window !== 'undefined'
+            ? (document.cookie.match(/auth_token=([^;]+)/)?.[1] || localStorage.getItem('auth_token'))
+            : null;
+
+        // Create EventSource with auth (using fetch for initial auth, then SSE)
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const sseUrl = `${apiUrl}/admin/db/sync/${endpoint}`;
+
+        // Unfortunately EventSource doesn't support headers, so we'll use fetch with streaming
+        fetch(sseUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        }).then(async response => {
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (!reader) {
+                throw new Error('No response body');
+            }
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (data.status === 'complete') {
+                                setProgress({ step: 4, totalSteps: 4, percent: 100, description: 'Complete!', details: data.message });
+                                setSyncMessage(data.message || `${actionName} completed successfully!`);
+                                setSyncStatus('success');
+                                setSyncing(false);
+                            } else if (data.status === 'error') {
+                                setSyncMessage(data.message || `${actionName} failed`);
+                                setSyncStatus('error');
+                                setSyncing(false);
+                                setProgress(null);
+                            } else if (data.step !== undefined) {
+                                setProgress({
+                                    step: data.step,
+                                    totalSteps: data.totalSteps,
+                                    percent: data.percent,
+                                    description: data.description,
+                                    details: data.details
+                                });
+                                setSyncMessage(data.description);
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse SSE data:', e);
+                        }
+                    }
+                }
+            }
+        }).catch(error => {
+            console.error('SSE fetch error:', error);
+            setSyncMessage(`${actionName} failed: ${error.message}`);
+            setSyncStatus('error');
+            setSyncing(false);
+            setProgress(null);
+        });
+    };
+
     const handlePush = async () => {
         setModalConfig({
             isOpen: true,
             title: 'Push to Cloud',
             message: 'Are you sure you want to push the local database to the cloud? This will OVERWRITE all existing data on the cloud instance. This action cannot be undone.',
             variant: 'danger',
-            onConfirm: async () => {
+            onConfirm: () => {
                 setModalConfig(prev => ({ ...prev, isOpen: false }));
-                try {
-                    setSyncing(true);
-                    setSyncStatus('running');
-                    setSyncMessage('Pushing to cloud... This may take a few minutes.');
-
-                    const response = await apiClient.post('/admin/db/sync/push');
-
-                    if ((response as any).success) {
-                        setSyncMessage('Successfully pushed local database to cloud!');
-                        setSyncStatus('success');
-                    } else {
-                        setSyncMessage((response as any).message || 'Push failed');
-                        setSyncStatus('error');
-                    }
-                } catch (error: any) {
-                    setSyncMessage(`Push failed: ${error.message}`);
-                    setSyncStatus('error');
-                } finally {
-                    setSyncing(false);
-                }
+                startSyncWithSSE('push', 'Pushing to cloud');
             }
         });
     };
@@ -114,28 +193,9 @@ export default function DatabaseAdminPage() {
             title: 'Pull from Cloud',
             message: 'Are you sure you want to pull the cloud database to local? This will OVERWRITE all your local data. This action cannot be undone.',
             variant: 'danger',
-            onConfirm: async () => {
+            onConfirm: () => {
                 setModalConfig(prev => ({ ...prev, isOpen: false }));
-                try {
-                    setSyncing(true);
-                    setSyncStatus('running');
-                    setSyncMessage('Pulling from cloud... This may take a few minutes.');
-
-                    const response = await apiClient.post('/admin/db/sync/pull');
-
-                    if ((response as any).success) {
-                        setSyncMessage('Successfully pulled cloud database to local!');
-                        setSyncStatus('success');
-                    } else {
-                        setSyncMessage((response as any).message || 'Pull failed');
-                        setSyncStatus('error');
-                    }
-                } catch (error: any) {
-                    setSyncMessage(`Pull failed: ${error.message}`);
-                    setSyncStatus('error');
-                } finally {
-                    setSyncing(false);
-                }
+                startSyncWithSSE('pull', 'Pulling from cloud');
             }
         });
     };
@@ -268,8 +328,71 @@ export default function DatabaseAdminPage() {
                             </p>
                         </div>
 
-                        {/* Sync Status Message */}
-                        {syncMessage && (
+                        {/* Progress Bar with Steps */}
+                        {progress && syncing && (
+                            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                                <div className="space-y-4">
+                                    {/* Progress header */}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-medium text-gray-700">
+                                            Step {progress.step} of {progress.totalSteps}
+                                        </span>
+                                        <span className="text-sm font-semibold text-blue-600">
+                                            {progress.percent}%
+                                        </span>
+                                    </div>
+
+                                    {/* Progress bar */}
+                                    <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                        <div
+                                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+                                            style={{ width: `${progress.percent}%` }}
+                                        />
+                                    </div>
+
+                                    {/* Step description */}
+                                    <div className="bg-gray-50 rounded-lg p-4">
+                                        <div className="flex items-center gap-3">
+                                            <ArrowPathIcon className="h-5 w-5 animate-spin text-blue-600 flex-shrink-0" />
+                                            <div>
+                                                <p className="font-medium text-gray-900">{progress.description}</p>
+                                                {progress.details && (
+                                                    <p className="text-sm text-gray-500 mt-0.5">{progress.details}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Step indicators */}
+                                    <div className="flex justify-between mt-2">
+                                        {[1, 2, 3, 4].map((step) => (
+                                            <div key={step} className="flex flex-col items-center">
+                                                <div
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step < progress.step
+                                                            ? 'bg-green-500 text-white'
+                                                            : step === progress.step
+                                                                ? 'bg-blue-600 text-white'
+                                                                : 'bg-gray-200 text-gray-500'
+                                                        }`}
+                                                >
+                                                    {step < progress.step ? (
+                                                        <CheckCircleIcon className="h-5 w-5" />
+                                                    ) : (
+                                                        step
+                                                    )}
+                                                </div>
+                                                <span className="text-xs text-gray-500 mt-1">
+                                                    {step === 1 ? 'Dump' : step === 2 ? 'Process' : step === 3 ? 'Upload' : 'Cleanup'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Sync Status Message (shown when not showing progress) */}
+                        {syncMessage && !progress && (
                             <div className={`rounded-lg p-4 ${syncStatus === 'success' ? 'bg-green-50 border border-green-200' :
                                 syncStatus === 'error' ? 'bg-red-50 border border-red-200' :
                                     'bg-blue-50 border border-blue-200'
@@ -282,6 +405,21 @@ export default function DatabaseAdminPage() {
                                         syncStatus === 'error' ? 'text-red-800' :
                                             'text-blue-800'
                                         }`}>{syncMessage}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Success/Error message after completion */}
+                        {syncMessage && progress && !syncing && (
+                            <div className={`rounded-lg p-4 ${syncStatus === 'success' ? 'bg-green-50 border border-green-200' :
+                                'bg-red-50 border border-red-200'
+                                }`}>
+                                <div className="flex items-center gap-3">
+                                    {syncStatus === 'success' && <CheckCircleIcon className="h-5 w-5 text-green-600" />}
+                                    {syncStatus === 'error' && <ExclamationCircleIcon className="h-5 w-5 text-red-600" />}
+                                    <p className={`text-sm font-medium ${syncStatus === 'success' ? 'text-green-800' : 'text-red-800'}`}>
+                                        {syncMessage}
+                                    </p>
                                 </div>
                             </div>
                         )}

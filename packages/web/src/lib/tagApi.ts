@@ -8,7 +8,7 @@ import {
     TagSourceType,
 } from '@vangarments/shared';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 class TagApiClient {
     private async request<T>(

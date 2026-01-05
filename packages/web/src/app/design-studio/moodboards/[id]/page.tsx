@@ -15,7 +15,7 @@ import { CanvasToolbar, LayerPanel, PropertiesPanel } from '@/components/design-
 import type { FabricCanvasRef, CanvasObject } from '@/components/design-studio/FabricCanvas';
 
 // API Base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 // Theme colors
 const navyPrimary = '#0D1B2A';

@@ -17,7 +17,7 @@ class ApiStatusChecker {
 
   async checkStatus(): Promise<ApiStatus> {
     const startTime = Date.now();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
     try {
       const response = await fetch(`${apiUrl}/health`, {
@@ -63,7 +63,7 @@ class ApiStatusChecker {
 
   subscribe(listener: (status: ApiStatus) => void): () => void {
     this.listeners.push(listener);
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.listeners.indexOf(listener);

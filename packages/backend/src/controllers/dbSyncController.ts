@@ -35,47 +35,81 @@ export const dbSyncController = {
     },
 
     /**
-     * Push local database to cloud
+     * Push local database to cloud (with SSE progress)
      */
     async pushToCloud(req: Request, res: Response) {
+        console.log('[DbSync] === Push to Cloud Request Received ===');
+
+        // Set up SSE headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+
+        const sendProgress = (step: number, totalSteps: number, description: string, details?: string) => {
+            const percent = Math.round((step / totalSteps) * 100);
+            const data = JSON.stringify({ step, totalSteps, percent, description, details });
+            res.write(`data: ${data}\n\n`);
+        };
+
         try {
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
-            res.flushHeaders();
+            sendProgress(0, 4, 'Initializing sync...', 'Preparing to dump local database');
 
-            res.write('data: {"status": "starting", "message": "Starting push to cloud..."}\n\n');
+            const result = await dbSyncService.pushToCloud((step, total, desc, details) => {
+                sendProgress(step, total, desc, details);
+            });
 
-            const result = await dbSyncService.pushToCloud();
-
-            res.write(`data: ${JSON.stringify({ status: result.success ? 'complete' : 'error', ...result })}\n\n`);
-            res.end();
+            if (result.success) {
+                sendProgress(4, 4, 'Complete!', result.message);
+                res.write(`data: ${JSON.stringify({ status: 'complete', ...result })}\n\n`);
+            } else {
+                res.write(`data: ${JSON.stringify({ status: 'error', ...result })}\n\n`);
+            }
         } catch (error: any) {
-            console.error('[DbSync] Push failed:', error);
-            res.write(`data: {"status": "error", "message": "${error.message}"}\n\n`);
+            console.error('[DbSync] Push failed with exception:', error);
+            res.write(`data: ${JSON.stringify({ status: 'error', message: error.message })}\n\n`);
+        } finally {
             res.end();
         }
     },
 
     /**
-     * Pull cloud database to local
+     * Pull cloud database to local (with SSE progress)
      */
     async pullFromCloud(req: Request, res: Response) {
+        console.log('[DbSync] === Pull from Cloud Request Received ===');
+
+        // Set up SSE headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+
+        const sendProgress = (step: number, totalSteps: number, description: string, details?: string) => {
+            const percent = Math.round((step / totalSteps) * 100);
+            const data = JSON.stringify({ step, totalSteps, percent, description, details });
+            res.write(`data: ${data}\n\n`);
+        };
+
         try {
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
-            res.flushHeaders();
+            sendProgress(0, 4, 'Initializing sync...', 'Preparing to pull from cloud');
 
-            res.write('data: {"status": "starting", "message": "Starting pull from cloud..."}\n\n');
+            const result = await dbSyncService.pullFromCloud((step, total, desc, details) => {
+                sendProgress(step, total, desc, details);
+            });
 
-            const result = await dbSyncService.pullFromCloud();
-
-            res.write(`data: ${JSON.stringify({ status: result.success ? 'complete' : 'error', ...result })}\n\n`);
-            res.end();
+            if (result.success) {
+                sendProgress(4, 4, 'Complete!', result.message);
+                res.write(`data: ${JSON.stringify({ status: 'complete', ...result })}\n\n`);
+            } else {
+                res.write(`data: ${JSON.stringify({ status: 'error', ...result })}\n\n`);
+            }
         } catch (error: any) {
-            console.error('[DbSync] Pull failed:', error);
-            res.write(`data: {"status": "error", "message": "${error.message}"}\n\n`);
+            console.error('[DbSync] Pull failed with exception:', error);
+            res.write(`data: ${JSON.stringify({ status: 'error', message: error.message })}\n\n`);
+        } finally {
             res.end();
         }
     }

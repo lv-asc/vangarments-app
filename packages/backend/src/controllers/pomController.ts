@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { db } from '../database/connection';
+import { JWTPayload } from '../utils/auth';
 
 interface AuthenticatedRequest extends Request {
-    user?: { id: string; email: string };
+    user?: JWTPayload;
 }
 
 export class POMController {

@@ -1,8 +1,8 @@
-import { 
-  SocialPost, 
-  PostComment, 
-  PostLike, 
-  UserFollow, 
+import {
+  SocialPost,
+  PostComment,
+  PostLike,
+  UserFollow,
   UserProfile,
   UserSocialStats,
   CreatePostRequest,
@@ -14,7 +14,7 @@ import {
   UsersResponse
 } from '@vangarments/shared';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 class SocialApiClient {
   private async request<T>(
@@ -22,7 +22,7 @@ class SocialApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const token = localStorage.getItem('authToken');
-    
+
     const response = await fetch(`${API_BASE_URL}/social${endpoint}`, {
       ...options,
       headers: {
@@ -62,7 +62,7 @@ class SocialApiClient {
   // Feed and Discovery
   async getFeed(params: FeedRequest = {}): Promise<FeedResponse> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.page) searchParams.set('page', params.page.toString());
     if (params.limit) searchParams.set('limit', params.limit.toString());
     if (params.feedType) searchParams.set('feedType', params.feedType);
@@ -72,7 +72,7 @@ class SocialApiClient {
 
   async searchPosts(params: SearchPostsRequest = {}): Promise<SearchResponse> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.q) searchParams.set('q', params.q);
     if (params.postType) searchParams.set('postType', params.postType);
     if (params.userId) searchParams.set('userId', params.userId);
@@ -148,7 +148,7 @@ class SocialApiClient {
   async getUserWardrobe(category?: string): Promise<{ items: any[] }> {
     const searchParams = new URLSearchParams();
     if (category) searchParams.set('category', category);
-    
+
     return this.request<{ items: any[] }>(`/wardrobe?${searchParams.toString()}`);
   }
 

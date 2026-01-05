@@ -3,13 +3,11 @@ import { VerificationRequestModel } from '../models/VerificationRequest';
 import { UserModel } from '../models/User';
 import { BrandAccountModel } from '../models/BrandAccount';
 import { PageModel } from '../models/Page';
+import { JWTPayload } from '../utils/auth';
+import { db } from '../database/connection';
 
 export interface AuthenticatedRequest extends Request {
-    user?: {
-        id: string;
-        email: string;
-        roles: string[];
-    };
+    user?: JWTPayload;
 }
 
 export class VerificationController {

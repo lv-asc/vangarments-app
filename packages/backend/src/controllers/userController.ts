@@ -126,7 +126,7 @@ export class UserController {
         req.file.buffer,
         req.file.originalname,
         req.file.mimetype,
-        'banners',
+        'profiles',
         req.user.userId
       );
 

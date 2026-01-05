@@ -116,41 +116,76 @@ export class DbSyncService {
     /**
      * Push local database to cloud
      */
-    async pushToCloud(): Promise<SyncResult> {
-        console.log('[DbSync] Starting push to cloud...');
+    async pushToCloud(onProgress?: (step: number, totalSteps: number, description: string, details?: string) => void): Promise<SyncResult> {
+        const progress = onProgress || (() => { });
+        const TOTAL_STEPS = 4;
+
+        console.log('='.repeat(50));
+        console.log('[DbSync] PUSH TO CLOUD - STARTED');
+        console.log(`[DbSync] Cloud target: ${this.cloudConfig.host}`);
+        console.log('='.repeat(50));
+
         const timestamp = new Date();
         const dumpFile = path.join(this.backupDir, `local_dump_${Date.now()}.sql`);
 
         try {
             // Step 1: Dump local database
-            console.log('[DbSync] Dumping local database...');
+            progress(1, TOTAL_STEPS, 'Dumping local database...', `Exporting from ${this.localConfig.host}/${this.localConfig.database}`);
+            console.log('[DbSync] Step 1/4: Dumping local database...');
+
             const localEnv = this.getEnvForConfig(this.localConfig);
             const dumpCmd = `pg_dump -h ${this.localConfig.host} -U ${this.localConfig.user} --clean --if-exists ${this.localConfig.database} > "${dumpFile}"`;
-            await execAsync(dumpCmd, { env: { ...process.env, ...localEnv }, timeout: 300000 });
 
-            // Step 2: Fix ownership in dump file (replace local user with cloud user)
-            console.log('[DbSync] Preparing dump file for cloud...');
+            const dumpStart = Date.now();
+            await execAsync(dumpCmd, { env: { ...process.env, ...localEnv }, timeout: 300000 });
+            const dumpDuration = ((Date.now() - dumpStart) / 1000).toFixed(1);
+
+            const dumpStats = fs.statSync(dumpFile);
+            const dumpSizeMB = (dumpStats.size / (1024 * 1024)).toFixed(2);
+            console.log(`[DbSync]   ✓ Dump complete! Size: ${dumpSizeMB} MB, Time: ${dumpDuration}s`);
+
+            // Step 2: Fix ownership in dump file
+            progress(2, TOTAL_STEPS, 'Preparing dump file...', `Processing ${dumpSizeMB} MB SQL dump`);
+            console.log('[DbSync] Step 2/4: Preparing dump file for cloud...');
+
             let dumpContent = fs.readFileSync(dumpFile, 'utf-8');
+            const ownerReplacements = (dumpContent.match(new RegExp(`OWNER TO ${this.localConfig.user}`, 'g')) || []).length;
             dumpContent = dumpContent.replace(new RegExp(`OWNER TO ${this.localConfig.user}`, 'g'), `OWNER TO ${this.cloudConfig.user}`);
             fs.writeFileSync(dumpFile, dumpContent);
+            console.log(`[DbSync]   ✓ Fixed ${ownerReplacements} ownership statements`);
 
             // Step 3: Restore to cloud
-            console.log('[DbSync] Restoring to cloud database...');
+            progress(3, TOTAL_STEPS, 'Uploading to cloud...', `Restoring to ${this.cloudConfig.host}`);
+            console.log('[DbSync] Step 3/4: Restoring to cloud database...');
+
             const cloudEnv = this.getEnvForConfig(this.cloudConfig);
             const restoreCmd = `psql -h ${this.cloudConfig.host} -U ${this.cloudConfig.user} -d ${this.cloudConfig.database} < "${dumpFile}"`;
-            await execAsync(restoreCmd, { env: { ...process.env, ...cloudEnv }, timeout: 600000 });
 
-            // Cleanup old dump files (keep last 5)
+            const restoreStart = Date.now();
+            await execAsync(restoreCmd, { env: { ...process.env, ...cloudEnv }, timeout: 600000 });
+            const restoreDuration = ((Date.now() - restoreStart) / 1000).toFixed(1);
+            console.log(`[DbSync]   ✓ Restore complete! Time: ${restoreDuration}s`);
+
+            // Step 4: Cleanup
+            progress(4, TOTAL_STEPS, 'Cleaning up...', 'Removing old backup files');
+            console.log('[DbSync] Step 4/4: Cleanup...');
             this.cleanupOldBackups();
 
-            console.log('[DbSync] Push to cloud completed successfully.');
+            const totalDuration = ((Date.now() - timestamp.getTime()) / 1000).toFixed(1);
+            console.log('='.repeat(50));
+            console.log(`[DbSync] PUSH TO CLOUD - COMPLETED in ${totalDuration}s`);
+            console.log('='.repeat(50));
+
             return {
                 success: true,
-                message: 'Successfully pushed local database to cloud',
+                message: `Successfully pushed ${dumpSizeMB} MB to cloud in ${totalDuration}s`,
                 timestamp
             };
         } catch (error: any) {
-            console.error('[DbSync] Push failed:', error);
+            console.error('='.repeat(50));
+            console.error('[DbSync] PUSH TO CLOUD - FAILED');
+            console.error('[DbSync] Error:', error.message);
+            console.error('='.repeat(50));
             return {
                 success: false,
                 message: `Push failed: ${error.message}`,
@@ -162,37 +197,51 @@ export class DbSyncService {
     /**
      * Pull cloud database to local
      */
-    async pullFromCloud(): Promise<SyncResult> {
+    async pullFromCloud(onProgress?: (step: number, totalSteps: number, description: string, details?: string) => void): Promise<SyncResult> {
+        const progress = onProgress || (() => { });
+        const TOTAL_STEPS = 4;
+
         console.log('[DbSync] Starting pull from cloud...');
         const timestamp = new Date();
         const dumpFile = path.join(this.backupDir, `cloud_dump_${Date.now()}.sql`);
 
         try {
             // Step 1: Dump cloud database
-            console.log('[DbSync] Dumping cloud database...');
+            progress(1, TOTAL_STEPS, 'Dumping cloud database...', `Exporting from ${this.cloudConfig.host}/${this.cloudConfig.database}`);
+            console.log('[DbSync] Step 1/4: Dumping cloud database...');
+
             const cloudEnv = this.getEnvForConfig(this.cloudConfig);
             const dumpCmd = `pg_dump -h ${this.cloudConfig.host} -U ${this.cloudConfig.user} --clean --if-exists ${this.cloudConfig.database} > "${dumpFile}"`;
             await execAsync(dumpCmd, { env: { ...process.env, ...cloudEnv }, timeout: 300000 });
 
-            // Step 2: Fix ownership in dump file (replace cloud user with local user)
-            console.log('[DbSync] Preparing dump file for local...');
+            const dumpStats = fs.statSync(dumpFile);
+            const dumpSizeMB = (dumpStats.size / (1024 * 1024)).toFixed(2);
+
+            // Step 2: Fix ownership in dump file
+            progress(2, TOTAL_STEPS, 'Preparing dump file...', `Processing ${dumpSizeMB} MB SQL dump`);
+            console.log('[DbSync] Step 2/4: Preparing dump file for local...');
+
             let dumpContent = fs.readFileSync(dumpFile, 'utf-8');
             dumpContent = dumpContent.replace(new RegExp(`OWNER TO ${this.cloudConfig.user}`, 'g'), `OWNER TO ${this.localConfig.user}`);
             fs.writeFileSync(dumpFile, dumpContent);
 
             // Step 3: Restore to local
-            console.log('[DbSync] Restoring to local database...');
+            progress(3, TOTAL_STEPS, 'Restoring to local...', `Importing to ${this.localConfig.host}/${this.localConfig.database}`);
+            console.log('[DbSync] Step 3/4: Restoring to local database...');
+
             const localEnv = this.getEnvForConfig(this.localConfig);
             const restoreCmd = `psql -h ${this.localConfig.host} -U ${this.localConfig.user} -d ${this.localConfig.database} < "${dumpFile}"`;
             await execAsync(restoreCmd, { env: { ...process.env, ...localEnv }, timeout: 600000 });
 
-            // Cleanup old dump files
+            // Step 4: Cleanup
+            progress(4, TOTAL_STEPS, 'Cleaning up...', 'Removing old backup files');
+            console.log('[DbSync] Step 4/4: Cleanup...');
             this.cleanupOldBackups();
 
             console.log('[DbSync] Pull from cloud completed successfully.');
             return {
                 success: true,
-                message: 'Successfully pulled cloud database to local',
+                message: `Successfully pulled ${dumpSizeMB} MB from cloud to local`,
                 timestamp
             };
         } catch (error: any) {
