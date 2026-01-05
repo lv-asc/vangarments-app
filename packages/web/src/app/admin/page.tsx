@@ -270,12 +270,12 @@ const SortableAdminCard = ({ item, sections, onMoveToSection, onEdit, onDelete }
 };
 
 // Edit Item Modal Component
-const EditItemModal = ({ isOpen, onClose, item, onSave }: { isOpen: boolean, onClose: () => void, item: any, onSave: (item: any) => void }) => {
-    const [formData, setFormData] = useState(item);
+const EditItemModal = ({ isOpen, onClose, item, sections, currentSectionKey, onSave }: { isOpen: boolean, onClose: () => void, item: any, sections: { key: string, title: string }[], currentSectionKey: string, onSave: (item: any) => void }) => {
+    const [formData, setFormData] = useState({ ...item, sectionKey: currentSectionKey });
 
     useEffect(() => {
-        setFormData(item);
-    }, [item]);
+        setFormData({ ...item, sectionKey: currentSectionKey });
+    }, [item, currentSectionKey]);
 
     if (!item) return null;
 
@@ -333,6 +333,29 @@ const EditItemModal = ({ isOpen, onClose, item, onSave }: { isOpen: boolean, onC
                                             className="w-full rounded-md border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
                                             rows={3}
                                         />
+                                    </div>
+
+                                    {/* Link (Href) */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Link (Href)</label>
+                                        <input
+                                            type="text"
+                                            value={formData.href || ''}
+                                            onChange={(e) => setFormData({ ...formData, href: e.target.value })}
+                                            className="w-full rounded-md border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+                                        />
+                                    </div>
+
+                                    {/* Section Picker */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Section</label>
+                                        <select
+                                            value={formData.sectionKey}
+                                            onChange={(e) => setFormData({ ...formData, sectionKey: e.target.value })}
+                                            className="w-full rounded-md border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border"
+                                        >
+                                            {sections.map(s => <option key={s.key} value={s.key}>{s.title}</option>)}
+                                        </select>
                                     </div>
 
                                     {/* Icon Picker */}
@@ -798,7 +821,18 @@ export default function AdminPage() {
             setEditingItem(null);
             return;
         }
-        const newItems = { ...items, [updatedItem.id]: updatedItem };
+
+        // Handle section change if sectionKey is provided and different
+        if (updatedItem.sectionKey) {
+            const currentSectionKey = findContainer(updatedItem.id);
+            if (currentSectionKey && currentSectionKey !== updatedItem.sectionKey) {
+                handleMoveToSection(updatedItem.id, updatedItem.sectionKey);
+            }
+        }
+
+        // Save item metadata (without sectionKey, as it's managed separately)
+        const { sectionKey, ...itemToSave } = updatedItem;
+        const newItems = { ...items, [itemToSave.id]: itemToSave };
         setItems(newItems);
         localStorage.setItem('admin_items_metadata', JSON.stringify(newItems));
         setEditingItem(null);
@@ -1047,6 +1081,8 @@ export default function AdminPage() {
                         isOpen={!!editingItem}
                         onClose={() => setEditingItem(null)}
                         item={editingItem}
+                        sections={sections}
+                        currentSectionKey={findContainer(editingItem.id) || sections[0]?.key || ''}
                         onSave={handleSaveItem}
                     />
                 )}
