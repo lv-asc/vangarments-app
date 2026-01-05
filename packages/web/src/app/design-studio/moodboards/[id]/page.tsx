@@ -9,10 +9,12 @@ import {
     CheckCircleIcon
 } from '@heroicons/react/24/outline';
 
-// Direct import instead of dynamic - SSR is handled by 'use client'
-import FabricCanvas from '@/components/design-studio/FabricCanvas';
-import { CanvasToolbar, LayerPanel, PropertiesPanel } from '@/components/design-studio';
-import type { FabricCanvasRef, CanvasObject } from '@/components/design-studio/FabricCanvas';
+// Components
+import InfiniteCanvas from '@/components/design-studio/InfiniteCanvas';
+import MoodboardToolbar from '@/components/design-studio/MoodboardToolbar';
+import FilePickerPanel from '@/components/design-studio/FilePickerPanel';
+import { LayerPanel, PropertiesToolbar } from '@/components/design-studio';
+import type { InfiniteCanvasRef, CanvasObject, CanvasTool } from '@/components/design-studio/InfiniteCanvas';
 
 // API Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -36,31 +38,24 @@ interface Moodboard {
     canvasData?: object;
 }
 
-interface Mockup {
-    id: string;
-    filename: string;
-    originalFilename: string;
-    mimeType: string;
-    metadata?: {
-        name?: string;
-    };
-}
-
 export default function MoodboardEditorPage() {
     const params = useParams();
     const router = useRouter();
-    const canvasRef = useRef<FabricCanvasRef>(null);
+    const canvasRef = useRef<InfiniteCanvasRef>(null);
 
     const [moodboard, setMoodboard] = useState<Moodboard | null>(null);
-    const [mockups, setMockups] = useState<Mockup[]>([]);
     const [objects, setObjects] = useState<CanvasObject[]>([]);
     const [selectedId, setSelectedId] = useState<string | undefined>();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [zoom, setZoom] = useState(1);
+    const [activeTool, setActiveTool] = useState<CanvasTool>('select');
     const [showSettings, setShowSettings] = useState(false);
+    const [showFilePicker, setShowFilePicker] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
+    const [selectedObject, setSelectedObject] = useState<any>(null);
+    const [propsToolbarPos, setPropsToolbarPos] = useState<{ x: number; y: number } | null>(null);
 
     // Handle client-side mounting
     useEffect(() => {
@@ -74,7 +69,6 @@ export default function MoodboardEditorPage() {
                 const token = localStorage.getItem('auth_token');
                 const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
 
-                // Fetch moodboard
                 const moodboardEndpoint = isDev
                     ? `${API_BASE_URL}/moodboards/get-dev/${params.id}`
                     : `${API_BASE_URL}/moodboards/${params.id}`;
@@ -93,23 +87,6 @@ export default function MoodboardEditorPage() {
                     router.push('/design-studio');
                     return;
                 }
-
-                // Fetch mockups for image picker
-                const mockupsEndpoint = isDev
-                    ? `${API_BASE_URL}/mockups/list-dev`
-                    : `${API_BASE_URL}/mockups`;
-
-                const mockupsHeaders: HeadersInit = {};
-                if (!isDev && token) {
-                    mockupsHeaders.Authorization = `Bearer ${token}`;
-                }
-
-                const mockupsRes = await fetch(mockupsEndpoint, { headers: mockupsHeaders });
-
-                if (mockupsRes.ok) {
-                    const mockupData = await mockupsRes.json();
-                    setMockups(mockupData.mockups || []);
-                }
             } catch (error) {
                 console.error('Error fetching data:', error);
             }
@@ -124,7 +101,6 @@ export default function MoodboardEditorPage() {
     // Load canvas data when moodboard is loaded and canvas is ready
     useEffect(() => {
         if (moodboard?.canvasData && canvasRef.current && isMounted) {
-            // Small delay to ensure canvas is fully initialized
             setTimeout(() => {
                 canvasRef.current?.loadFromJSON(moodboard.canvasData!);
             }, 100);
@@ -180,12 +156,17 @@ export default function MoodboardEditorPage() {
         }
     }, []);
 
-    // Convert mockups to format for toolbar
-    const mockupsForToolbar = mockups.map(m => ({
-        id: m.id,
-        url: `${API_BASE_URL}/mockups/${m.id}/file`,
-        name: m.metadata?.name || m.originalFilename
-    }));
+    // Handle file selection from picker
+    const handleFileSelect = (url: string, fileData: { name: string; type: string; id: string }) => {
+        canvasRef.current?.addImage(url, true, fileData);
+        setShowFilePicker(false);
+    };
+
+    // Handle double-click on file card to open editor
+    const handleFileDoubleClick = (fileId: string) => {
+        // TODO: Open image editor modal
+        console.log('Open editor for file:', fileId);
+    };
 
     if (loading) {
         return (
@@ -211,12 +192,12 @@ export default function MoodboardEditorPage() {
 
     return (
         <div
-            className="min-h-screen flex flex-col"
+            className="h-screen flex flex-col overflow-hidden"
             style={{ background: `linear-gradient(135deg, ${navyPrimary} 0%, ${navySecondary} 100%)` }}
         >
             {/* Header */}
             <header
-                className="backdrop-blur-sm border-b sticky top-0 z-20"
+                className="backdrop-blur-sm border-b flex-shrink-0 z-20"
                 style={{ backgroundColor: `${navySecondary}EE`, borderColor: '#2D3A4D' }}
             >
                 <div className="max-w-full mx-auto px-4 py-3">
@@ -234,7 +215,7 @@ export default function MoodboardEditorPage() {
                                     {moodboard.title}
                                 </h1>
                                 <p className="text-xs" style={{ color: creamSecondary }}>
-                                    {moodboard.canvasWidth} × {moodboard.canvasHeight}px
+                                    Infinite Canvas • Zoom: {Math.round(zoom * 100)}%
                                 </p>
                             </div>
                         </div>
@@ -260,51 +241,93 @@ export default function MoodboardEditorPage() {
             </header>
 
             {/* Toolbar */}
-            <div className="px-4 py-3">
-                <CanvasToolbar
-                    canvasRef={canvasRef}
+            <div className="px-4 py-3 flex-shrink-0 z-10">
+                <MoodboardToolbar
+                    canvasRef={canvasRef as React.RefObject<InfiniteCanvasRef>}
                     onSave={handleSave}
-                    mockups={mockupsForToolbar}
+                    onOpenFilePicker={() => setShowFilePicker(true)}
                     zoom={zoom}
                     onZoomChange={setZoom}
+                    activeTool={activeTool}
+                    onToolChange={setActiveTool}
                 />
             </div>
 
-            {/* Main Content */}
-            <div className="flex-1 flex gap-4 px-4 pb-4 overflow-hidden">
-                {/* Layer Panel - Left */}
-                <div className="flex-shrink-0">
+            {/* Main Content - Full Height Canvas */}
+            <div className="flex-1 relative overflow-hidden">
+                {/* File Picker Panel */}
+                <FilePickerPanel
+                    isOpen={showFilePicker}
+                    onClose={() => setShowFilePicker(false)}
+                    onSelectFile={handleFileSelect}
+                />
+
+                {/* Infinite Canvas */}
+                {isMounted && (
+                    <InfiniteCanvas
+                        ref={canvasRef}
+                        backgroundColor={moodboard.backgroundColor || '#1a1a2e'}
+                        gridEnabled={moodboard.gridEnabled}
+                        onObjectsChange={handleObjectsChange}
+                        onSelectionChange={handleSelectionChange}
+                        onModified={() => setSaved(false)}
+                        onZoomChange={setZoom}
+                        onToolChange={setActiveTool}
+                        onFileDoubleClick={handleFileDoubleClick}
+                        onObjectSelected={(obj, pos) => {
+                            setSelectedObject(obj);
+                            setPropsToolbarPos(pos);
+                        }}
+                    />
+                )}
+
+                {/* Contextual Properties Toolbar */}
+                <PropertiesToolbar
+                    canvasRef={canvasRef}
+                    position={propsToolbarPos}
+                    onUpdate={() => {
+                        setSaved(false);
+                        // Refresh objects list
+                        if (canvasRef.current?.canvas) {
+                            const canvasObjs = canvasRef.current.canvas.getObjects()
+                                .filter((obj: any) => !obj.isGrid && !obj.isConnection && !obj.isPin)
+                                .map((obj: any, index: number) => ({
+                                    id: obj.id || `object_${index}`,
+                                    type: obj.type || 'object',
+                                    name: obj.name || `${obj.type || 'Object'} ${index + 1}`,
+                                    locked: obj.lockMovementX && obj.lockMovementY,
+                                    visible: obj.visible !== false,
+                                    color: obj.stickyColor
+                                })).reverse();
+                            setObjects(canvasObjs);
+                        }
+                    }}
+                />
+
+                {/* Layer Panel - Right Side */}
+                <div className="absolute right-4 top-4 z-20">
                     <LayerPanel
                         objects={objects}
                         selectedId={selectedId}
-                        canvasRef={canvasRef}
+                        canvasRef={canvasRef as any}
                         onSelectObject={setSelectedId}
-                    />
-                </div>
-
-                {/* Canvas - Center */}
-                <div className="flex-1 flex items-center justify-center overflow-auto bg-gray-900/50 rounded-xl p-8">
-                    <div style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}>
-                        {isMounted && (
-                            <FabricCanvas
-                                ref={canvasRef}
-                                width={moodboard.canvasWidth}
-                                height={moodboard.canvasHeight}
-                                backgroundColor={moodboard.backgroundColor}
-                                gridEnabled={moodboard.gridEnabled}
-                                onObjectsChange={handleObjectsChange}
-                                onSelectionChange={handleSelectionChange}
-                                onModified={() => setSaved(false)}
-                            />
-                        )}
-                    </div>
-                </div>
-
-                {/* Properties Panel - Right */}
-                <div className="flex-shrink-0">
-                    <PropertiesPanel
-                        canvasRef={canvasRef}
-                        hasSelection={!!selectedId}
+                        onObjectsChange={() => {
+                            // Refresh objects list from canvas
+                            if (canvasRef.current?.canvas) {
+                                const canvasObjs = canvasRef.current.canvas.getObjects()
+                                    .filter((obj: any) => !obj.isGrid && !obj.isConnection && !obj.isPin && !obj.isCommentMarker)
+                                    .map((obj: any, index: number) => ({
+                                        id: obj.id || `object_${index}`,
+                                        type: obj.type || 'object',
+                                        name: obj.name || `${obj.type || 'Object'} ${index + 1}`,
+                                        locked: obj.lockMovementX && obj.lockMovementY,
+                                        visible: obj.visible !== false,
+                                        color: obj.stickyColor
+                                    })).reverse();
+                                setObjects(canvasObjs);
+                                setSaved(false);
+                            }
+                        }}
                     />
                 </div>
             </div>

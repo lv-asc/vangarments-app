@@ -580,10 +580,13 @@ export default function DesignStudioPage() {
                                     <Link
                                         key={moodboard.id}
                                         href={`/design-studio/moodboards/${moodboard.id}`}
-                                        className="rounded-xl border overflow-hidden transition-all group hover:opacity-90"
+                                        className="rounded-xl border overflow-hidden transition-all group hover:border-[#4D5A6D] hover:shadow-lg"
                                         style={{ backgroundColor: `${navySecondary}80`, borderColor: '#2D3A4D' }}
                                     >
-                                        <div className="aspect-video flex items-center justify-center" style={{ backgroundColor: `${navyPrimary}80` }}>
+                                        <div
+                                            className="aspect-video flex flex-col items-center justify-center relative"
+                                            style={{ backgroundColor: moodboard.coverImage ? 'transparent' : `${navyPrimary}` }}
+                                        >
                                             {moodboard.coverImage ? (
                                                 <img
                                                     src={moodboard.coverImage}
@@ -591,11 +594,21 @@ export default function DesignStudioPage() {
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
-                                                <Squares2X2Icon className="w-12 h-12" style={{ color: '#4A5568' }} />
+                                                <>
+                                                    {/* Decorative grid pattern */}
+                                                    <div className="absolute inset-0 opacity-10" style={{
+                                                        backgroundImage: `linear-gradient(${creamSecondary}20 1px, transparent 1px), linear-gradient(90deg, ${creamSecondary}20 1px, transparent 1px)`,
+                                                        backgroundSize: '20px 20px'
+                                                    }} />
+                                                    <Squares2X2Icon className="w-10 h-10 mb-2" style={{ color: '#4A5568' }} />
+                                                    <span className="text-xs" style={{ color: '#6B7280' }}>
+                                                        Double-click to edit
+                                                    </span>
+                                                </>
                                             )}
                                         </div>
                                         <div className="p-4">
-                                            <h4 className="font-medium transition-colors" style={{ color: creamPrimary }}>
+                                            <h4 className="font-semibold text-lg transition-colors group-hover:text-white" style={{ color: creamPrimary }}>
                                                 {moodboard.title}
                                             </h4>
                                             {moodboard.description && (
@@ -605,7 +618,7 @@ export default function DesignStudioPage() {
                                             )}
                                             <div className="flex items-center gap-2 mt-3">
                                                 <span className="text-xs" style={{ color: '#6B7280' }}>
-                                                    {new Date(moodboard.updatedAt).toLocaleDateString()}
+                                                    {new Date(moodboard.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                 </span>
                                                 <span
                                                     className="text-xs px-2 py-0.5 rounded-full"
