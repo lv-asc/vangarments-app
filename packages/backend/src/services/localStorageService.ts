@@ -4,6 +4,7 @@ import { createWriteStream } from 'fs';
 import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
+import { GoogleCloudService } from './googleCloudService';
 
 export interface LocalImageUploadResult {
   id: string;
@@ -148,8 +149,12 @@ export class LocalStorageService {
         };
       }
 
-      // Get file stats
-      const stats = await fs.stat(filePath);
+      // Log compression results
+      const originalSize = buffer.length;
+      const optimizedStats = await fs.stat(filePath);
+      const compressionRatio = ((originalSize - optimizedStats.size) / originalSize * 100).toFixed(1);
+
+      console.log(`File uploaded successfully: ${filename}`);
 
       const result = {
         id: fileId,
@@ -157,12 +162,34 @@ export class LocalStorageService {
         filename,
         path: relativePath,
         url: `/storage/${relativePath.replace(/\\/g, '/')}`,
-        size: stats.size,
+        size: optimizedStats.size,
         mimetype,
         ...variants
       };
 
-      console.log(`File uploaded successfully: ${filename}`);
+      // Mirror to GCS for cross-device availability
+      try {
+        console.log(`Mirroring to GCS: ${relativePath}`);
+        // Use optimized path for GCS if available for images, otherwise use original
+        const gcsBuffer = isImage && variants.optimizedPath
+          ? await fs.readFile(path.join(this.STORAGE_ROOT, variants.optimizedPath))
+          : buffer;
+
+        await GoogleCloudService.uploadImage(gcsBuffer, relativePath, mimetype);
+
+        // Also upload variants if they exist
+        if (variants.thumbnailPath) {
+          const thumbBuffer = await fs.readFile(path.join(this.STORAGE_ROOT, variants.thumbnailPath));
+          await GoogleCloudService.uploadImage(thumbBuffer, variants.thumbnailPath, mimetype);
+        }
+        if (variants.mediumPath) {
+          const mediumBuffer = await fs.readFile(path.join(this.STORAGE_ROOT, variants.mediumPath));
+          await GoogleCloudService.uploadImage(mediumBuffer, variants.mediumPath, mimetype);
+        }
+      } catch (gcsError) {
+        console.error('GCS Mirroring failed, continuing with local only:', gcsError);
+      }
+
       return result;
     } catch (error) {
       console.error('Failed to upload file:', error);

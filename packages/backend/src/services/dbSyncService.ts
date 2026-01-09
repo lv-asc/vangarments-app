@@ -2,8 +2,13 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import { GoogleCloudService } from './googleCloudService';
 
 const execAsync = promisify(exec);
+
+// Full paths to PostgreSQL tools (Homebrew on macOS)
+const PSQL_PATH = process.env.PSQL_PATH || '/opt/homebrew/Cellar/postgresql@15/15.15_1/bin/psql';
+const PGDUMP_PATH = process.env.PGDUMP_PATH || '/opt/homebrew/Cellar/postgresql@15/15.15_1/bin/pg_dump';
 
 interface DatabaseConfig {
     host: string;
@@ -103,7 +108,7 @@ export class DbSyncService {
      */
     private async testConnection(config: DatabaseConfig): Promise<boolean> {
         const env = this.getEnvForConfig(config);
-        const cmd = `psql -h ${config.host} -U ${config.user} -d ${config.database} -c "SELECT 1" -q`;
+        const cmd = `${PSQL_PATH} -h ${config.host} -U ${config.user} -d ${config.database} -c "SELECT 1" -q`;
 
         try {
             await execAsync(cmd, { env: { ...process.env, ...env }, timeout: 5000 });
@@ -118,7 +123,7 @@ export class DbSyncService {
      */
     async pushToCloud(onProgress?: (step: number, totalSteps: number, description: string, details?: string) => void): Promise<SyncResult> {
         const progress = onProgress || (() => { });
-        const TOTAL_STEPS = 4;
+        const TOTAL_STEPS = 5;
 
         console.log('='.repeat(50));
         console.log('[DbSync] PUSH TO CLOUD - STARTED');
@@ -134,18 +139,22 @@ export class DbSyncService {
             console.log('[DbSync] Step 1/4: Dumping local database...');
 
             const localEnv = this.getEnvForConfig(this.localConfig);
-            const dumpCmd = `pg_dump -h ${this.localConfig.host} -U ${this.localConfig.user} --clean --if-exists ${this.localConfig.database} > "${dumpFile}"`;
+            const dumpCmd = `${PGDUMP_PATH} -h ${this.localConfig.host} -U ${this.localConfig.user} --clean --if-exists ${this.localConfig.database} > "${dumpFile}"`;
 
             const dumpStart = Date.now();
             await execAsync(dumpCmd, { env: { ...process.env, ...localEnv }, timeout: 300000 });
             const dumpDuration = ((Date.now() - dumpStart) / 1000).toFixed(1);
 
             const dumpStats = fs.statSync(dumpFile);
-            const dumpSizeMB = (dumpStats.size / (1024 * 1024)).toFixed(2);
-            console.log(`[DbSync]   ✓ Dump complete! Size: ${dumpSizeMB} MB, Time: ${dumpDuration}s`);
+            const dumpSizeBytes = dumpStats.size;
+            const dumpSizeMB = (dumpSizeBytes / (1024 * 1024)).toFixed(3);
+            const dumpSizeText = dumpSizeBytes < 1024 * 1024
+                ? `${(dumpSizeBytes / 1024).toFixed(2)} KB`
+                : `${dumpSizeMB} MB`;
+            console.log(`[DbSync]   ✓ Dump complete! Size: ${dumpSizeText}, Time: ${dumpDuration}s`);
 
             // Step 2: Fix ownership in dump file
-            progress(2, TOTAL_STEPS, 'Preparing dump file...', `Processing ${dumpSizeMB} MB SQL dump`);
+            progress(2, TOTAL_STEPS, 'Preparing dump file...', `Processing ${dumpSizeText} SQL dump`);
             console.log('[DbSync] Step 2/4: Preparing dump file for cloud...');
 
             let dumpContent = fs.readFileSync(dumpFile, 'utf-8');
@@ -159,16 +168,24 @@ export class DbSyncService {
             console.log('[DbSync] Step 3/4: Restoring to cloud database...');
 
             const cloudEnv = this.getEnvForConfig(this.cloudConfig);
-            const restoreCmd = `psql -h ${this.cloudConfig.host} -U ${this.cloudConfig.user} -d ${this.cloudConfig.database} < "${dumpFile}"`;
+            const restoreCmd = `${PSQL_PATH} -h ${this.cloudConfig.host} -U ${this.cloudConfig.user} -d ${this.cloudConfig.database} < "${dumpFile}"`;
 
             const restoreStart = Date.now();
             await execAsync(restoreCmd, { env: { ...process.env, ...cloudEnv }, timeout: 600000 });
             const restoreDuration = ((Date.now() - restoreStart) / 1000).toFixed(1);
             console.log(`[DbSync]   ✓ Restore complete! Time: ${restoreDuration}s`);
 
-            // Step 4: Cleanup
-            progress(4, TOTAL_STEPS, 'Cleaning up...', 'Removing old backup files');
-            console.log('[DbSync] Step 4/4: Cleanup...');
+            // Step 4: Sync Assets to Cloud
+            progress(4, TOTAL_STEPS, 'Synchronizing assets...', 'Uploading local storage to GCS');
+            console.log('[DbSync] Step 4/5: Synchronizing local assets to cloud...');
+            const assetSyncResult = await this.syncLocalAssetsToCloud((current: number, total: number, file: string) => {
+                progress(4, TOTAL_STEPS, 'Synchronizing assets...', `[${current}/${total}] ${path.basename(file)}`);
+            });
+            console.log(`[DbSync]   ✓ Asset sync complete! ${assetSyncResult.uploaded} uploaded, ${assetSyncResult.skipped} skipped.`);
+
+            // Step 5: Cleanup
+            progress(5, TOTAL_STEPS, 'Cleaning up...', 'Removing old backup files');
+            console.log('[DbSync] Step 5/5: Cleanup...');
             this.cleanupOldBackups();
 
             const totalDuration = ((Date.now() - timestamp.getTime()) / 1000).toFixed(1);
@@ -178,7 +195,7 @@ export class DbSyncService {
 
             return {
                 success: true,
-                message: `Successfully pushed ${dumpSizeMB} MB to cloud in ${totalDuration}s`,
+                message: `Pushed ${dumpSizeText} and ${assetSyncResult.uploaded} assets to cloud successfully.`,
                 timestamp
             };
         } catch (error: any) {
@@ -211,14 +228,17 @@ export class DbSyncService {
             console.log('[DbSync] Step 1/4: Dumping cloud database...');
 
             const cloudEnv = this.getEnvForConfig(this.cloudConfig);
-            const dumpCmd = `pg_dump -h ${this.cloudConfig.host} -U ${this.cloudConfig.user} --clean --if-exists ${this.cloudConfig.database} > "${dumpFile}"`;
+            const dumpCmd = `${PGDUMP_PATH} -h ${this.cloudConfig.host} -U ${this.cloudConfig.user} --clean --if-exists ${this.cloudConfig.database} > "${dumpFile}"`;
             await execAsync(dumpCmd, { env: { ...process.env, ...cloudEnv }, timeout: 300000 });
 
             const dumpStats = fs.statSync(dumpFile);
-            const dumpSizeMB = (dumpStats.size / (1024 * 1024)).toFixed(2);
+            const dumpSizeBytes = dumpStats.size;
+            const dumpSizeText = dumpSizeBytes < 1024 * 1024
+                ? `${(dumpSizeBytes / 1024).toFixed(2)} KB`
+                : `${(dumpSizeBytes / (1024 * 1024)).toFixed(3)} MB`;
 
             // Step 2: Fix ownership in dump file
-            progress(2, TOTAL_STEPS, 'Preparing dump file...', `Processing ${dumpSizeMB} MB SQL dump`);
+            progress(2, TOTAL_STEPS, 'Preparing dump file...', `Processing ${dumpSizeText} SQL dump`);
             console.log('[DbSync] Step 2/4: Preparing dump file for local...');
 
             let dumpContent = fs.readFileSync(dumpFile, 'utf-8');
@@ -230,18 +250,15 @@ export class DbSyncService {
             console.log('[DbSync] Step 3/4: Restoring to local database...');
 
             const localEnv = this.getEnvForConfig(this.localConfig);
-            const restoreCmd = `psql -h ${this.localConfig.host} -U ${this.localConfig.user} -d ${this.localConfig.database} < "${dumpFile}"`;
+            const restoreCmd = `${PSQL_PATH} -h ${this.localConfig.host} -U ${this.localConfig.user} -d ${this.localConfig.database} < "${dumpFile}"`;
             await execAsync(restoreCmd, { env: { ...process.env, ...localEnv }, timeout: 600000 });
 
             // Step 4: Cleanup
-            progress(4, TOTAL_STEPS, 'Cleaning up...', 'Removing old backup files');
-            console.log('[DbSync] Step 4/4: Cleanup...');
-            this.cleanupOldBackups();
-
+            progress(4, TOTAL_STEPS, 'Complete!', 'Note: Assets are served via proxy fallback.');
             console.log('[DbSync] Pull from cloud completed successfully.');
             return {
                 success: true,
-                message: `Successfully pulled ${dumpSizeMB} MB from cloud to local`,
+                message: `Pulled ${dumpSizeText} from cloud. Local fallback enabled for assets.`,
                 timestamp
             };
         } catch (error: any) {
@@ -312,6 +329,77 @@ export class DbSyncService {
         } catch (e) {
             console.error('[DbSync] Failed to cleanup old backups:', e);
         }
+    }
+
+    /**
+     * Synchronize all local assets from the storage directory to GCS
+     */
+    async syncLocalAssetsToCloud(onProgress?: (current: number, total: number, file: string) => void): Promise<{ uploaded: number, skipped: number }> {
+        const storageRoot = path.join(process.cwd(), 'storage');
+        if (!fs.existsSync(storageRoot)) {
+            return { uploaded: 0, skipped: 0 };
+        }
+
+        const files: string[] = [];
+        const walk = (dir: string) => {
+            const list = fs.readdirSync(dir);
+            list.forEach(file => {
+                const fullPath = path.join(dir, file);
+                const stat = fs.statSync(fullPath);
+                if (stat && stat.isDirectory()) {
+                    walk(fullPath);
+                } else {
+                    files.push(fullPath);
+                }
+            });
+        };
+
+        walk(storageRoot);
+
+        let uploaded = 0;
+        let skipped = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const fullPath = files[i];
+            const relativePath = path.relative(storageRoot, fullPath);
+
+            // Skip temp files
+            if (relativePath.startsWith('temp')) {
+                skipped++;
+                continue;
+            }
+
+            if (onProgress) {
+                onProgress(i + 1, files.length, relativePath);
+            }
+
+            try {
+                const exists = await GoogleCloudService.fileExists(relativePath);
+                if (!exists) {
+                    const buffer = fs.readFileSync(fullPath);
+                    // Determine content type from extension
+                    const ext = path.extname(fullPath).toLowerCase();
+                    let contentType = 'application/octet-stream';
+                    if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+                    else if (ext === '.png') contentType = 'image/png';
+                    else if (ext === '.webp') contentType = 'image/webp';
+                    else if (ext === '.psd') contentType = 'image/vnd.adobe.photoshop';
+                    else if (ext === '.json') contentType = 'application/json';
+                    else if (ext === '.txt') contentType = 'text/plain';
+                    else if (ext === '.pdf') contentType = 'application/pdf';
+
+                    await GoogleCloudService.uploadImage(buffer, relativePath, contentType);
+                    uploaded++;
+                } else {
+                    skipped++;
+                }
+            } catch (error) {
+                console.error(`[DbSync] Failed to sync asset ${relativePath}:`, error);
+                skipped++;
+            }
+        }
+
+        return { uploaded, skipped };
     }
 }
 

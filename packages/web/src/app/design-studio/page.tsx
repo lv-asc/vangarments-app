@@ -161,9 +161,14 @@ export default function DesignStudioPage() {
                 const newMoodboard = await res.json();
                 setMoodboards([newMoodboard, ...moodboards]);
                 setShowNewMoodboardModal(false);
+            } else {
+                const errorData = await res.json().catch(() => ({}));
+                console.error('Failed to create moodboard:', errorData);
+                alert(`Failed to create moodboard: ${errorData.error || res.statusText}`);
             }
         } catch (error) {
             console.error('Error creating moodboard:', error);
+            alert('An unexpected error occurred while creating the moodboard.');
         }
     };
 

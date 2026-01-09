@@ -15,6 +15,7 @@ import MoodboardToolbar from '@/components/design-studio/MoodboardToolbar';
 import FilePickerPanel from '@/components/design-studio/FilePickerPanel';
 import { LayerPanel, PropertiesToolbar } from '@/components/design-studio';
 import type { InfiniteCanvasRef, CanvasObject, CanvasTool } from '@/components/design-studio/InfiniteCanvas';
+import type { Layer } from '@/components/design-studio/Layer';
 
 // API Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -56,6 +57,10 @@ export default function MoodboardEditorPage() {
     const [isMounted, setIsMounted] = useState(false);
     const [selectedObject, setSelectedObject] = useState<any>(null);
     const [propsToolbarPos, setPropsToolbarPos] = useState<{ x: number; y: number } | null>(null);
+
+    // Layer system state
+    const [layers, setLayers] = useState<Layer[]>([]);
+    const [activeLayerId, setActiveLayerId] = useState<string>('');
 
     // Handle client-side mounting
     useEffect(() => {
@@ -103,6 +108,15 @@ export default function MoodboardEditorPage() {
         if (moodboard?.canvasData && canvasRef.current && isMounted) {
             setTimeout(() => {
                 canvasRef.current?.loadFromJSON(moodboard.canvasData!);
+                // Sync layer state after loading
+                setTimeout(() => {
+                    const freshLayers = canvasRef.current?.getLayers() || [];
+                    setLayers([...freshLayers]);
+                    const activeLayer = canvasRef.current?.getActiveLayer();
+                    if (activeLayer) {
+                        setActiveLayerId(activeLayer.id);
+                    }
+                }, 150);
             }, 100);
         }
     }, [moodboard?.canvasData, isMounted]);
@@ -287,49 +301,27 @@ export default function MoodboardEditorPage() {
                     position={propsToolbarPos}
                     onUpdate={() => {
                         setSaved(false);
-                        // Refresh objects list
-                        if (canvasRef.current?.canvas) {
-                            const canvasObjs = canvasRef.current.canvas.getObjects()
-                                .filter((obj: any) => !obj.isGrid && !obj.isConnection && !obj.isPin)
-                                .map((obj: any, index: number) => ({
-                                    id: obj.id || `object_${index}`,
-                                    type: obj.type || 'object',
-                                    name: obj.name || `${obj.type || 'Object'} ${index + 1}`,
-                                    locked: obj.lockMovementX && obj.lockMovementY,
-                                    visible: obj.visible !== false,
-                                    color: obj.stickyColor
-                                })).reverse();
-                            setObjects(canvasObjs);
-                        }
                     }}
                 />
 
                 {/* Layer Panel - Right Side */}
                 <div className="absolute right-4 top-4 z-20">
                     <LayerPanel
-                        objects={objects}
-                        selectedId={selectedId}
-                        canvasRef={canvasRef as any}
-                        onSelectObject={setSelectedId}
-                        onObjectsChange={() => {
-                            // Refresh objects list from canvas
-                            if (canvasRef.current?.canvas) {
-                                const canvasObjs = canvasRef.current.canvas.getObjects()
-                                    .filter((obj: any) => !obj.isGrid && !obj.isConnection && !obj.isPin && !obj.isCommentMarker)
-                                    .map((obj: any, index: number) => ({
-                                        id: obj.id || `object_${index}`,
-                                        type: obj.type || 'object',
-                                        name: obj.name || `${obj.type || 'Object'} ${index + 1}`,
-                                        locked: obj.lockMovementX && obj.lockMovementY,
-                                        visible: obj.visible !== false,
-                                        color: obj.stickyColor
-                                    })).reverse();
-                                setObjects(canvasObjs);
-                                setSaved(false);
-                            }
+                        layers={layers}
+                        activeLayerId={activeLayerId}
+                        canvasRef={canvasRef as React.RefObject<InfiniteCanvasRef>}
+                        onSelectLayer={(id) => {
+                            setActiveLayerId(id);
+                        }}
+                        onLayersChange={() => {
+                            // Refresh layers from canvas
+                            const freshLayers = canvasRef.current?.getLayers() || [];
+                            setLayers([...freshLayers]);
+                            setSaved(false);
                         }}
                     />
                 </div>
+
             </div>
 
             {/* Settings Modal */}

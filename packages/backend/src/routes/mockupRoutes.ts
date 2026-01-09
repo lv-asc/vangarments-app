@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken } from '../middleware/auth';
 import { DesignFileModel, CreateDesignFileData } from '../models/DesignFile';
+import { GoogleCloudService } from '../services/googleCloudService';
 
 // @ts-ignore - psd library doesn't have types
 import PSD from 'psd';
@@ -121,30 +122,39 @@ if (process.env.NODE_ENV === 'development') {
             const baseId = uuidv4();
 
             if (isPSD) {
-                // Save original PSD
                 uniqueFilename = `${baseId}.psd`;
                 storagePath = path.join(MOCKUP_STORAGE_DIR, uniqueFilename);
                 await fs.writeFile(storagePath, file.buffer);
 
-                // Convert to PNG for preview
                 try {
                     console.log('Converting PSD to PNG...');
                     const { pngBuffer, width, height } = await convertPsdToPng(file.buffer);
-
                     previewFilename = `${baseId}_preview.png`;
                     previewPath = path.join(MOCKUP_STORAGE_DIR, previewFilename);
                     await fs.writeFile(previewPath, pngBuffer);
-
                     psdDimensions = { width, height };
-                    console.log(`PSD converted: ${width}x${height}`);
-                } catch (conversionError) {
-                    console.error('PSD conversion failed:', conversionError);
+
+                    // Sync PSD and Preview to GCS
+                    console.log(`Uploading PSD and Preview to GCS...`);
+                    await Promise.all([
+                        GoogleCloudService.uploadImage(file.buffer, `mockups/${uniqueFilename}`, 'image/vnd.adobe.photoshop'),
+                        GoogleCloudService.uploadImage(pngBuffer, `mockups/${previewFilename}`, 'image/png')
+                    ]);
+                } catch (error) {
+                    console.error('PSD processing/upload failed:', error);
+                    // If GCS failed, we still have local files
                 }
             } else {
-                // Regular file - save as-is
                 uniqueFilename = `${baseId}${ext}`;
                 storagePath = path.join(MOCKUP_STORAGE_DIR, uniqueFilename);
                 await fs.writeFile(storagePath, file.buffer);
+
+                try {
+                    console.log(`Uploading file to GCS: mockups/${uniqueFilename}`);
+                    await GoogleCloudService.uploadImage(file.buffer, `mockups/${uniqueFilename}`, file.mimetype);
+                } catch (error) {
+                    console.error('GCS Upload failed (dev):', error);
+                }
             }
 
             // Create database record with dev user ID
@@ -400,31 +410,39 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
         const baseId = uuidv4();
 
         if (isPSD) {
-            // Save original PSD
             uniqueFilename = `${baseId}.psd`;
             storagePath = path.join(MOCKUP_STORAGE_DIR, uniqueFilename);
             await fs.writeFile(storagePath, file.buffer);
 
-            // Convert to PNG for preview
             try {
                 console.log('Converting PSD to PNG...');
                 const { pngBuffer, width, height } = await convertPsdToPng(file.buffer);
-
                 previewFilename = `${baseId}_preview.png`;
                 previewPath = path.join(MOCKUP_STORAGE_DIR, previewFilename);
                 await fs.writeFile(previewPath, pngBuffer);
-
                 psdDimensions = { width, height };
-                console.log(`PSD converted: ${width}x${height}`);
-            } catch (conversionError) {
-                console.error('PSD conversion failed:', conversionError);
-                // Continue without preview - original PSD is still saved
+
+                // Sync PSD and Preview to GCS
+                console.log(`Uploading PSD and Preview to GCS...`);
+                await Promise.all([
+                    GoogleCloudService.uploadImage(file.buffer, `mockups/${uniqueFilename}`, 'image/vnd.adobe.photoshop'),
+                    GoogleCloudService.uploadImage(pngBuffer, `mockups/${previewFilename}`, 'image/png')
+                ]);
+            } catch (error) {
+                console.error('PSD processing/upload failed:', error);
+                // If GCS failed, we still have local files
             }
         } else {
-            // Regular file - save as-is
             uniqueFilename = `${baseId}${ext}`;
             storagePath = path.join(MOCKUP_STORAGE_DIR, uniqueFilename);
             await fs.writeFile(storagePath, file.buffer);
+
+            try {
+                console.log(`Uploading file to GCS: mockups/${uniqueFilename}`);
+                await GoogleCloudService.uploadImage(file.buffer, `mockups/${uniqueFilename}`, mimeType);
+            } catch (error) {
+                console.error('GCS Upload failed:', error);
+            }
         }
 
         // Create database record

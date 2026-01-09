@@ -8,15 +8,16 @@ import {
     LockOpenIcon,
     TrashIcon,
     PhotoIcon,
-    DocumentTextIcon,
-    StopIcon,
-    SwatchIcon,
-    Square2StackIcon,
+    PaintBrushIcon,
+    PlusIcon,
     PencilSquareIcon,
     CheckIcon,
-    XMarkIcon
+    XMarkIcon,
+    DocumentIcon,
+    Square2StackIcon
 } from '@heroicons/react/24/outline';
-import type { InfiniteCanvasRef, CanvasObject } from './InfiniteCanvas';
+import type { InfiniteCanvasRef } from './InfiniteCanvas';
+import type { Layer, LayerType } from './Layer';
 
 // Theme colors
 const navyPrimary = '#0D1B2A';
@@ -25,66 +26,63 @@ const creamPrimary = '#F5F1E8';
 const creamSecondary = '#E8E0D0';
 
 interface LayerPanelProps {
-    objects: CanvasObject[];
-    selectedId?: string;
+    layers: Layer[];
+    activeLayerId?: string;
     canvasRef: React.RefObject<InfiniteCanvasRef>;
-    onSelectObject: (id: string) => void;
-    onObjectsChange?: () => void;
+    onSelectLayer: (id: string) => void;
+    onLayersChange?: () => void;
 }
 
 export default function LayerPanel({
-    objects,
-    selectedId,
+    layers,
+    activeLayerId,
     canvasRef,
-    onSelectObject,
-    onObjectsChange
+    onSelectLayer,
+    onLayersChange
 }: LayerPanelProps) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
 
-    const getObjectIcon = (type: string) => {
+    const getLayerIcon = (type: LayerType) => {
         switch (type) {
-            case 'i-text':
-            case 'text':
-            case 'textbox':
-                return DocumentTextIcon;
-            case 'rect':
-                return StopIcon;
-            case 'circle':
-            case 'polygon':
-            case 'triangle':
-                return Square2StackIcon;
+            case 'drawing':
+                return PaintBrushIcon;
             case 'image':
                 return PhotoIcon;
+            case 'text':
+                return DocumentIcon;
+            case 'shape':
+                return Square2StackIcon;
+            case 'group':
+                return Square2StackIcon;
             default:
-                return SwatchIcon;
+                return PaintBrushIcon;
         }
     };
 
     const handleToggleVisibility = (id: string) => {
-        canvasRef.current?.toggleVisibility(id);
-        onObjectsChange?.();
+        canvasRef.current?.toggleLayerVisibility(id);
+        onLayersChange?.();
     };
 
     const handleToggleLock = (id: string) => {
-        canvasRef.current?.toggleLock(id);
-        onObjectsChange?.();
+        canvasRef.current?.toggleLayerLock(id);
+        onLayersChange?.();
     };
 
-    const handleSelectObject = (id: string) => {
-        const canvas = canvasRef.current?.canvas;
-        if (!canvas) return;
-        const obj = canvasRef.current?.getObjectById(id);
-        if (obj && obj.selectable !== false) {
-            canvas.setActiveObject(obj);
-            canvas.renderAll();
-        }
-        onSelectObject(id);
+    const handleSelectLayer = (id: string) => {
+        canvasRef.current?.setActiveLayer(id);
+        onSelectLayer(id);
     };
 
-    const handleDeleteObject = (id: string) => {
-        canvasRef.current?.deleteObjectById(id);
-        onObjectsChange?.();
+    const handleDeleteLayer = (id: string) => {
+        canvasRef.current?.deleteLayer(id);
+        onLayersChange?.();
+    };
+
+    const handleAddLayer = () => {
+        canvasRef.current?.addLayer();
+        onLayersChange?.();
     };
 
     const startRename = (id: string, currentName: string) => {
@@ -93,17 +91,12 @@ export default function LayerPanel({
     };
 
     const confirmRename = (id: string) => {
-        const canvas = canvasRef.current?.canvas;
-        if (!canvas || !editName.trim()) {
+        if (!editName.trim()) {
             setEditingId(null);
             return;
         }
-        const obj = canvasRef.current?.getObjectById(id);
-        if (obj) {
-            obj.name = editName.trim();
-            canvas.renderAll();
-            onObjectsChange?.();
-        }
+        canvasRef.current?.renameLayer(id, editName.trim());
+        onLayersChange?.();
         setEditingId(null);
         setEditName('');
     };
@@ -113,49 +106,70 @@ export default function LayerPanel({
         setEditName('');
     };
 
+    // Sort layers by order (descending - top layers first in UI)
+    const sortedLayers = [...layers].sort((a, b) => b.order - a.order);
+
     return (
         <div
             className="w-64 rounded-xl shadow-lg overflow-hidden"
             style={{ backgroundColor: navySecondary }}
         >
-            <div className="px-4 py-3 border-b" style={{ borderColor: '#3D4A5D' }}>
-                <h3 className="font-medium" style={{ color: creamPrimary }}>Layers</h3>
-                <p className="text-xs mt-1" style={{ color: creamSecondary }}>
-                    {objects.length} object{objects.length !== 1 ? 's' : ''}
-                </p>
+            {/* Header with Add Button */}
+            <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#3D4A5D' }}>
+                <div>
+                    <h3 className="font-medium" style={{ color: creamPrimary }}>Layers</h3>
+                    <p className="text-xs mt-0.5" style={{ color: creamSecondary }}>
+                        {layers.length} layer{layers.length !== 1 ? 's' : ''}
+                    </p>
+                </div>
+                <button
+                    onClick={handleAddLayer}
+                    className="p-1.5 rounded-lg transition-colors hover:bg-white hover:bg-opacity-10"
+                    style={{ color: creamPrimary }}
+                    title="Add new layer"
+                >
+                    <PlusIcon className="w-5 h-5" />
+                </button>
             </div>
 
+            {/* Layer List */}
             <div className="max-h-80 overflow-y-auto">
-                {objects.length === 0 ? (
+                {sortedLayers.length === 0 ? (
                     <div className="p-4 text-center">
                         <p className="text-sm" style={{ color: creamSecondary }}>
-                            No objects on canvas
+                            No layers yet
                         </p>
                         <p className="text-xs mt-1" style={{ color: '#6B7280' }}>
-                            Add text, shapes, or images
+                            Click + to add a layer
                         </p>
                     </div>
                 ) : (
                     <ul className="divide-y" style={{ borderColor: '#3D4A5D' }}>
-                        {objects.map((obj) => {
-                            const IconComponent = getObjectIcon(obj.type);
-                            const isSelected = obj.id === selectedId;
-                            const isEditing = editingId === obj.id;
+                        {sortedLayers.map((layer) => {
+                            const IconComponent = getLayerIcon(layer.type);
+                            const isSelected = layer.id === activeLayerId;
+                            const isEditing = editingId === layer.id;
 
                             return (
                                 <li
-                                    key={obj.id}
+                                    key={layer.id}
                                     className="flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors hover:bg-opacity-50"
                                     style={{
-                                        backgroundColor: isSelected ? `${navyPrimary}` : 'transparent'
+                                        backgroundColor: isSelected ? `${navyPrimary}` : 'transparent',
+                                        opacity: layer.visible ? 1 : 0.5
                                     }}
-                                    onClick={() => !isEditing && handleSelectObject(obj.id)}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        if (!isEditing && !layer.locked) handleSelectLayer(layer.id);
+                                    }}
                                 >
+                                    {/* Layer Type Icon */}
                                     <IconComponent
                                         className="w-4 h-4 flex-shrink-0"
-                                        style={{ color: creamSecondary }}
+                                        style={{ color: layer.type === 'image' ? '#60A5FA' : creamSecondary }}
                                     />
 
+                                    {/* Layer Name (editable) */}
                                     {isEditing ? (
                                         <div className="flex-1 flex items-center gap-1">
                                             <input
@@ -163,7 +177,7 @@ export default function LayerPanel({
                                                 value={editName}
                                                 onChange={(e) => setEditName(e.target.value)}
                                                 onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') confirmRename(obj.id);
+                                                    if (e.key === 'Enter') confirmRename(layer.id);
                                                     if (e.key === 'Escape') cancelRename();
                                                 }}
                                                 autoFocus
@@ -172,7 +186,7 @@ export default function LayerPanel({
                                                 onClick={(e) => e.stopPropagation()}
                                             />
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); confirmRename(obj.id); }}
+                                                onClick={(e) => { e.stopPropagation(); confirmRename(layer.id); }}
                                                 className="p-0.5 rounded hover:opacity-80"
                                                 style={{ color: '#22C55E' }}
                                             >
@@ -188,24 +202,27 @@ export default function LayerPanel({
                                         </div>
                                     ) : (
                                         <>
-                                            <span
-                                                className="flex-1 text-sm truncate"
-                                                style={{
-                                                    color: creamPrimary,
-                                                    opacity: obj.visible ? 1 : 0.5
-                                                }}
-                                                onDoubleClick={(e) => {
-                                                    e.stopPropagation();
-                                                    startRename(obj.id, obj.name);
-                                                }}
-                                                title="Double-click to rename"
-                                            >
-                                                {obj.name}
-                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <span
+                                                    className="text-sm truncate block"
+                                                    style={{ color: creamPrimary }}
+                                                    onDoubleClick={(e) => {
+                                                        e.stopPropagation();
+                                                        startRename(layer.id, layer.name);
+                                                    }}
+                                                    title={`${layer.name} (${layer.objectIds.length} objects)`}
+                                                >
+                                                    {layer.name}
+                                                </span>
+                                                <span className="text-xs" style={{ color: '#6B7280' }}>
+                                                    {layer.objectIds.length} obj
+                                                </span>
+                                            </div>
 
+                                            {/* Layer Actions */}
                                             <div className="flex items-center gap-0.5">
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); startRename(obj.id, obj.name); }}
+                                                    onClick={(e) => { e.stopPropagation(); startRename(layer.id, layer.name); }}
                                                     className="p-1 rounded hover:bg-white hover:bg-opacity-10 transition-all"
                                                     style={{ color: creamSecondary }}
                                                     title="Rename"
@@ -213,12 +230,12 @@ export default function LayerPanel({
                                                     <PencilSquareIcon className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); handleToggleVisibility(obj.id); }}
+                                                    onClick={(e) => { e.stopPropagation(); handleToggleVisibility(layer.id); }}
                                                     className="p-1 rounded hover:bg-white hover:bg-opacity-10 transition-all"
-                                                    style={{ color: obj.visible ? creamSecondary : '#6B7280' }}
-                                                    title={obj.visible ? 'Hide' : 'Show'}
+                                                    style={{ color: layer.visible ? creamSecondary : '#6B7280' }}
+                                                    title={layer.visible ? 'Hide' : 'Show'}
                                                 >
-                                                    {obj.visible ? (
+                                                    {layer.visible ? (
                                                         <EyeIcon className="w-4 h-4" />
                                                     ) : (
                                                         <EyeSlashIcon className="w-4 h-4" />
@@ -226,12 +243,12 @@ export default function LayerPanel({
                                                 </button>
 
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); handleToggleLock(obj.id); }}
+                                                    onClick={(e) => { e.stopPropagation(); handleToggleLock(layer.id); }}
                                                     className="p-1 rounded hover:bg-white hover:bg-opacity-10 transition-all"
-                                                    style={{ color: obj.locked ? '#EAB308' : creamSecondary }}
-                                                    title={obj.locked ? 'Unlock' : 'Lock'}
+                                                    style={{ color: layer.locked ? '#EAB308' : creamSecondary }}
+                                                    title={layer.locked ? 'Unlock' : 'Lock'}
                                                 >
-                                                    {obj.locked ? (
+                                                    {layer.locked ? (
                                                         <LockClosedIcon className="w-4 h-4" />
                                                     ) : (
                                                         <LockOpenIcon className="w-4 h-4" />
@@ -239,10 +256,11 @@ export default function LayerPanel({
                                                 </button>
 
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); handleDeleteObject(obj.id); }}
-                                                    className="p-1 rounded hover:bg-red-500 hover:bg-opacity-20 transition-all"
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteLayer(layer.id); }}
+                                                    className="p-1 rounded hover:bg-red-500 hover:bg-opacity-20 transition-all disabled:opacity-30"
                                                     style={{ color: '#EF4444' }}
                                                     title="Delete"
+                                                    disabled={layers.length <= 1}
                                                 >
                                                     <TrashIcon className="w-4 h-4" />
                                                 </button>
@@ -256,18 +274,74 @@ export default function LayerPanel({
                 )}
             </div>
 
-            {/* Layer Actions */}
-            {objects.length > 0 && (
+            {/* Layer Actions Footer */}
+            {layers.length > 0 && (
                 <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: '#3D4A5D' }}>
                     <button
-                        onClick={() => canvasRef.current?.bringToFront()}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Move active layer to front (highest order)
+                            const layerToMove = layers.find(l => l.id === activeLayerId) || layers[0];
+                            if (layerToMove && canvasRef.current) {
+                                const canvas = canvasRef.current.canvas;
+                                if (canvas) {
+                                    // Move canvas objects to front
+                                    layerToMove.objectIds.forEach(objId => {
+                                        const obj = canvasRef.current?.getObjectById(objId);
+                                        if (obj) {
+                                            canvas.bringObjectToFront(obj);
+                                        }
+                                    });
+                                    canvas.renderAll();
+
+                                    // Update layer order - move this layer to highest order
+                                    const maxOrder = Math.max(...layers.map(l => l.order));
+                                    canvasRef.current.renameLayer(layerToMove.id, layerToMove.name); // Trigger update
+
+                                    // Reorder layers via the canvas API
+                                    const newOrder = layers
+                                        .filter(l => l.id !== layerToMove.id)
+                                        .sort((a, b) => a.order - b.order)
+                                        .map(l => l.id);
+                                    newOrder.push(layerToMove.id); // Add to end (top)
+                                    canvasRef.current.reorderLayers(newOrder);
+                                }
+                            }
+                            onLayersChange?.();
+                        }}
                         className="flex-1 py-1.5 text-xs rounded transition-colors hover:opacity-80"
                         style={{ backgroundColor: navyPrimary, color: creamSecondary }}
                     >
                         To Front
                     </button>
                     <button
-                        onClick={() => canvasRef.current?.sendToBack()}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Move active layer to back (lowest order)
+                            const layerToMove = layers.find(l => l.id === activeLayerId) || layers[0];
+                            if (layerToMove && canvasRef.current) {
+                                const canvas = canvasRef.current.canvas;
+                                if (canvas) {
+                                    // Move canvas objects to back
+                                    [...layerToMove.objectIds].reverse().forEach(objId => {
+                                        const obj = canvasRef.current?.getObjectById(objId);
+                                        if (obj) {
+                                            canvas.sendObjectToBack(obj);
+                                        }
+                                    });
+                                    canvas.renderAll();
+
+                                    // Update layer order - move this layer to lowest order
+                                    const newOrder = [layerToMove.id]; // Start with this layer (bottom)
+                                    layers
+                                        .filter(l => l.id !== layerToMove.id)
+                                        .sort((a, b) => a.order - b.order)
+                                        .forEach(l => newOrder.push(l.id));
+                                    canvasRef.current.reorderLayers(newOrder);
+                                }
+                            }
+                            onLayersChange?.();
+                        }}
                         className="flex-1 py-1.5 text-xs rounded transition-colors hover:opacity-80"
                         style={{ backgroundColor: navyPrimary, color: creamSecondary }}
                     >

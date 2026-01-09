@@ -237,9 +237,26 @@ export default function MoodboardToolbar({
                 </div>
 
                 {/* Eraser */}
-                <ToolButton icon={<EraserIcon className="w-5 h-5" />} label="Eraser" active={activeTool === 'eraser'} onClick={() => handleToolClick('eraser')} />
+                <div className="relative">
+                    <ToolButton icon={<EraserIcon className="w-5 h-5" />} label="Eraser" active={activeTool === 'eraser'} onClick={() => { handleToolClick('eraser'); }} />
+                    {activeTool === 'eraser' && (
+                        <div className="absolute top-12 left-0 p-4 rounded-lg shadow-xl z-50" style={{ backgroundColor: navySecondary, border: '1px solid #3D4A5D', width: 180 }}>
+                            <div className="mb-3">
+                                <label className="text-xs font-medium mb-1 block" style={{ color: creamSecondary }}>Eraser Size: {canvasRef.current?.getEraserSize() || 30}px</label>
+                                <input
+                                    type="range"
+                                    min="10"
+                                    max="100"
+                                    value={canvasRef.current?.getEraserSize() || 30}
+                                    onChange={(e) => canvasRef.current?.setEraserSize(Number(e.target.value))}
+                                    className="w-full"
+                                />
+                            </div>
+                            <p className="text-xs" style={{ color: creamSecondary }}>Click and drag over brush strokes to erase</p>
+                        </div>
+                    )}
+                </div>
 
-                {/* Highlighter */}
                 <ToolButton icon={<HighlighterIcon className="w-5 h-5" />} label="Highlighter" active={activeTool === 'highlighter'} onClick={() => handleToolClick('highlighter')} />
             </div>
 

@@ -38,6 +38,7 @@ import { errorHandlingService } from './services/errorHandlingService';
 import { performanceMonitoringService } from './services/performanceMonitoringService';
 import { healthCheckService } from './services/healthCheckService';
 import { LocalStorageService } from './services/localStorageService';
+import { gcsStorageProxy } from './middleware/gcsStorageProxy';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -95,7 +96,8 @@ app.use('/storage', cors({
   credentials: true
 }));
 
-// Serve static files from storage directory
+// Serve static files from storage directory, with GCS fallback
+app.use('/storage', gcsStorageProxy);
 app.use('/storage', express.static(path.join(__dirname, '../storage')));
 
 // Body parsing with security

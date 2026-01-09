@@ -1,16 +1,19 @@
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { Storage } from '@google-cloud/storage';
 import * as admin from 'firebase-admin';
+import * as path from 'path';
+
+const keyFilePath = path.join(__dirname, '../../gcp-key.json');
 
 export class GoogleCloudService {
-    private static visionClient = new ImageAnnotatorClient();
-    private static storage = new Storage();
+    private static visionClient = new ImageAnnotatorClient({ keyFilename: keyFilePath });
+    private static storage = new Storage({ keyFilename: keyFilePath });
     private static bucketName = process.env.GCS_BUCKET_NAME || 'vangarments-storage';
 
     /**
-     * Upload image to Google Cloud Storage
+     * Upload file to Google Cloud Storage
      */
-    static async uploadImage(buffer: Buffer, key: string, contentType: string = 'image/jpeg'): Promise<string> {
+    static async uploadImage(buffer: Buffer, key: string, contentType: string = 'application/octet-stream'): Promise<string> {
         const bucket = this.storage.bucket(this.bucketName);
         const file = bucket.file(key);
 
@@ -19,9 +22,17 @@ export class GoogleCloudService {
             resumable: false,
         });
 
-        // Generate public URL (assuming public access or configured signed URLs)
-        // For Cloud Run, usually we use signed URLs or a CDN fronting the bucket
         return `https://storage.googleapis.com/${this.bucketName}/${key}`;
+    }
+
+    /**
+     * Check if file exists in GCS
+     */
+    static async fileExists(key: string): Promise<boolean> {
+        const bucket = this.storage.bucket(this.bucketName);
+        const file = bucket.file(key);
+        const [exists] = await file.exists();
+        return exists;
     }
 
     /**

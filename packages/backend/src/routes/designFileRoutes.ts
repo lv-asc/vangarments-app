@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { DesignFileModel, CreateDesignFileData, UpdateDesignFileData } from '../models/DesignFile';
 import { db } from '../database/connection';
+import { GoogleCloudService } from '../services/googleCloudService';
 
 const router = Router();
 
@@ -113,6 +114,14 @@ if (process.env.NODE_ENV === 'development') {
                     gcsPath: `/storage/design-files/${filename}`,
                     metadata: { name, description: req.body.description || '' }
                 });
+
+                // Sync to GCS
+                try {
+                    console.log(`Uploading design file to GCS: design-files/${filename}`);
+                    await GoogleCloudService.uploadImage(file.buffer, `design-files/${filename}`, file.mimetype);
+                } catch (gcsError) {
+                    console.error('GCS Upload failed (design-file dev):', gcsError);
+                }
 
                 res.status(201).json(designFile);
             } catch (error) {
