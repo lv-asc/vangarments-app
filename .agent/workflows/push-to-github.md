@@ -9,8 +9,8 @@ description: Upload all current changes to GitHub
 2. Add all changes
    git add .
 
-3. Commit changes
-   git commit -m "Sync: Upload current app state"
+3. Commit changes (Replace message with a specific summary of work done)
+   git commit -m "feat/fix/chore: [Detailed description of changes]"
 
 4. Push to remote
    git push origin main
