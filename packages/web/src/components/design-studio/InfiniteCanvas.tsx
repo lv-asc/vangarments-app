@@ -23,51 +23,7 @@ export interface ConnectionData {
 
 export type CanvasTool = 'select' | 'pan' | 'text' | 'brush' | 'eraser' | 'sticky' | 'connect' | 'image' | 'shape' | 'comment' | 'highlighter';
 
-export interface InfiniteCanvasRef {
-    canvas: fabric.Canvas | null;
-    addText: (text?: string, color?: string, fontFamily?: string) => void;
-    addStickyNote: (color?: string) => void;
-    addShape: (shapeType: 'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line', color?: string) => void;
-    addImage: (url: string, isFileCard?: boolean, fileData?: { name: string; type: string; id: string }) => void;
-    addConnection: (fromId: string, toId: string, color?: string) => void;
-    deleteSelected: () => void;
-    deleteObjectById: (id: string) => void;
-    toggleVisibility: (id: string) => void;
-    toggleLock: (id: string) => void;
-    bringForward: () => void;
-    sendBackward: () => void;
-    bringToFront: () => void;
-    sendToBack: () => void;
-    setZoom: (zoom: number) => void;
-    getZoom: () => number;
-    resetView: () => void;
-    exportToPNG: () => string | null;
-    exportToJSON: () => object;
-    loadFromJSON: (json: object) => void;
-    clear: () => void;
-    undo: () => void;
-    redo: () => void;
-    setActiveTool: (tool: CanvasTool) => void;
-    setBrushColor: (color: string) => void;
-    setBrushWidth: (width: number) => void;
-    setTextColor: (color: string) => void;
-    setShapeColor: (color: string) => void;
-    panBy: (dx: number, dy: number) => void;
-    getConnections: () => ConnectionData[];
-    getObjectById: (id: string) => any;
-    setEraserSize: (size: number) => void;
-    getEraserSize: () => number;
-    // Layer management methods
-    getLayers: () => Layer[];
-    getActiveLayer: () => Layer | null;
-    setActiveLayer: (id: string) => void;
-    addLayer: (name?: string, type?: LayerType) => Layer;
-    deleteLayer: (id: string) => void;
-    toggleLayerVisibility: (id: string) => void;
-    toggleLayerLock: (id: string) => void;
-    renameLayer: (id: string, name: string) => void;
-    reorderLayers: (layerIds: string[]) => void;
-}
+
 
 interface InfiniteCanvasProps {
     backgroundColor?: string;
@@ -79,6 +35,56 @@ interface InfiniteCanvasProps {
     onToolChange?: (tool: CanvasTool) => void;
     onFileDoubleClick?: (fileId: string) => void;
     onObjectSelected?: (obj: any, position: { x: number; y: number } | null) => void;
+}
+
+export interface InfiniteCanvasRef {
+    canvas: fabric.Canvas | null;
+    addText: (text: string, color?: string, font?: string) => void;
+    addImage: (url: string, isFileCard?: boolean, fileData?: { name: string; type: string; id: string }) => void;
+    addStickyNote: (color: string) => void;
+    addShape: (type: 'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line', color?: string) => void;
+    setBrushColor: (color: string) => void;
+    setBrushWidth: (width: number) => void;
+    setTextColor: (color: string) => void;
+    setShapeColor: (color: string) => void;
+    setEraserSize: (size: number) => void;
+    getEraserSize: () => number;
+    setActiveTool: (tool: CanvasTool) => void;
+    deleteSelected: () => void;
+    deleteObjectById: (id: string) => void;
+    undo: () => void;
+    redo: () => void;
+    resetView: () => void;
+    setZoom: (zoom: number) => void;
+    getZoom: () => number;
+    exportToPNG: () => string | null;
+    exportToJSON: () => any;
+    loadFromJSON: (json: any) => void;
+    clear: () => void;
+    panBy: (dx: number, dy: number) => void;
+    getConnections: () => ConnectionData[];
+    addConnection: (fromId: string, toId: string, color?: string) => void;
+    getObjectById: (id: string) => any;
+    toggleVisibility: (id: string) => void;
+    toggleLock: (id: string) => void;
+    bringForward: () => void;
+    sendBackward: () => void;
+    bringToFront: () => void;
+    sendToBack: () => void;
+
+    // Layer management methods
+    getLayers: () => Layer[];
+    getActiveLayer: () => Layer | null;
+    setActiveLayer: (id: string) => void;
+    addLayer: (name?: string, type?: LayerType) => Layer;
+    deleteLayer: (id: string) => void;
+    toggleLayerVisibility: (id: string) => void;
+    toggleLayerLock: (id: string) => void;
+    renameLayer: (id: string, name: string) => void;
+    reorderLayers: (layerIds: string[]) => void;
+
+    // File Card
+    toggleFileCardFrame: () => void;
 }
 
 // Theme colors
@@ -1052,35 +1058,180 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
 
             fabric.FabricImage.fromURL(url, { crossOrigin: 'anonymous' }).then((img) => {
                 if (!fabricRef.current) return;
-                const maxSize = isFileCard ? 200 : 400;
-                if (img.width && img.height) {
-                    const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
-                    img.scale(scale);
+
+                if (isFileCard && fileData) {
+                    // === GOOGLE DRIVE STYLE FILE CARD ===
+                    const cardPadding = 12;
+                    const headerHeight = 48; // Space for icon and name
+                    const bottomPadding = 12;
+                    const cardRounding = 12;
+
+                    // Thumbnail dimensions
+                    const thumbMaxW = 260;
+                    const thumbMaxH = 200;
+
+                    // 1. Calculate Image Scale & Dimensions
+                    let scale = 1;
+                    if (img.width && img.height) {
+                        scale = Math.min(thumbMaxW / img.width, thumbMaxH / img.height, 1);
+                    }
+                    const imgW = (img.width || 200) * scale;
+                    const imgH = (img.height || 200) * scale;
+
+                    // 2. Calculate Final Card Dimensions based on content
+                    const cardW = Math.max(imgW + cardPadding * 2, 240); // Min width 240
+                    const cardH = headerHeight + imgH + bottomPadding;
+
+                    // 3. Create Elements (All positioned relative to 0,0 top-left)
+
+                    // Background
+                    const background = new fabric.Rect({
+                        left: 0,
+                        top: 0,
+                        width: cardW,
+                        height: cardH,
+                        fill: '#1F1F1F', // Dark grey like Google Drive dark mode reference
+                        rx: cardRounding,
+                        ry: cardRounding,
+                        originX: 'left',
+                        originY: 'top',
+                        stroke: '#333333',
+                        strokeWidth: 1
+                    });
+
+                    // Icon (Folder/File style)
+                    // Visual simplified folder icon
+                    const iconSize = 24;
+                    const iconX = cardPadding;
+                    const iconY = (headerHeight - iconSize) / 2;
+
+                    const iconBase = new fabric.Rect({
+                        left: iconX,
+                        top: iconY + 2,
+                        width: iconSize,
+                        height: iconSize - 2,
+                        fill: '#E07777', // The reddish color user liked
+                        rx: 3,
+                        ry: 3,
+                        originX: 'left',
+                        originY: 'top'
+                    });
+                    const iconTab = new fabric.Rect({
+                        left: iconX,
+                        top: iconY - 2,
+                        width: iconSize * 0.4,
+                        height: 6,
+                        fill: '#E07777',
+                        rx: 2,
+                        ry: 2,
+                        originX: 'left',
+                        originY: 'top'
+                    });
+
+                    // Filename
+                    let displayName = fileData.name;
+                    if (displayName.length > 25) displayName = displayName.substring(0, 22) + '...';
+
+                    const nameText = new fabric.Text(displayName, {
+                        left: iconX + iconSize + 10,
+                        top: headerHeight / 2, // Centered vertically in header
+                        fontSize: 14,
+                        fontFamily: 'Inter, Arial, sans-serif',
+                        fill: '#E3E3E3',
+                        originY: 'center',
+                        originX: 'left'
+                    });
+
+                    // Menu Dots (Three vertical dots)
+                    const menuText = new fabric.Text('⋮', {
+                        left: cardW - cardPadding,
+                        top: headerHeight / 2,
+                        fontSize: 20,
+                        fontFamily: 'Arial',
+                        fill: '#9CA3AF',
+                        originX: 'right', // Align to right
+                        originY: 'center'
+                    });
+
+                    // Thumbnail Logic - Position image correctly relative to 0,0
+                    img.set({
+                        scaleX: scale,
+                        scaleY: scale,
+                        left: cardW / 2, // Center horizontally in card
+                        top: headerHeight + (imgH / 2), // Position below header
+                        originX: 'center',
+                        originY: 'center',
+                        strokeWidth: 0
+                    });
+
+                    // 4. Create Group
+                    const group = new fabric.Group([background, iconBase, iconTab, nameText, menuText, img], {
+                        left: centerX,
+                        top: centerY,
+                        originX: 'center',
+                        originY: 'center',
+                        subTargetCheck: false, // Ensure it acts as a single entity
+                        interactive: true,
+                        shadow: new fabric.Shadow({
+                            color: 'rgba(0,0,0,0.3)',
+                            blur: 15,
+                            offsetX: 0,
+                            offsetY: 5
+                        })
+                    });
+
+                    // Metadata
+                    const groupId = generateId();
+                    (group as any).id = groupId;
+                    (group as any).name = fileData.name;
+                    (group as any).isFileCard = true;
+                    (group as any).fileData = fileData;
+                    (group as any).isImageLayer = true;
+                    (group as any).erasable = false;
+
+                    // Layer Logic
+                    const newOrder = layersRef.current.length;
+                    const imageLayer = createLayer(fileData.name, 'image', newOrder);
+                    imageLayer.objectIds = [groupId];
+                    layersRef.current = [...layersRef.current, imageLayer];
+                    setLayers([...layersRef.current]);
+
+                    fabricRef.current.add(group);
+                    fabricRef.current.setActiveObject(group);
+                    fabricRef.current.renderAll();
+                    saveState();
+                } else {
+                    // Imagem simples
+                    const maxSize = 400;
+                    if (img.width && img.height) {
+                        const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
+                        img.scale(scale);
+                    }
+                    img.set({
+                        left: centerX, top: centerY, originX: 'center', originY: 'center',
+                        shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.2)', blur: 10, offsetX: 0, offsetY: 4 }),
+                        erasable: false
+                    } as any);
+
+                    const imgId = generateId();
+                    (img as any).id = imgId;
+                    (img as any).name = fileData?.name || 'Image';
+                    (img as any).isFileCard = isFileCard;
+                    (img as any).fileData = fileData;
+                    (img as any).isImageLayer = true;
+
+                    const layerName = fileData?.name || 'Image';
+                    const newOrder = layersRef.current.length;
+                    const imageLayer = createLayer(layerName, 'image', newOrder);
+                    imageLayer.objectIds = [imgId];
+                    layersRef.current = [...layersRef.current, imageLayer];
+                    setLayers([...layersRef.current]);
+
+                    fabricRef.current.add(img);
+                    fabricRef.current.setActiveObject(img);
+                    fabricRef.current.renderAll();
+                    saveState();
                 }
-                img.set({
-                    left: centerX, top: centerY, originX: 'center', originY: 'center',
-                    shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.2)', blur: 10, offsetX: 0, offsetY: 4 }),
-                    erasable: false
-                } as any);
-                const imgId = generateId();
-                (img as any).id = imgId;
-                (img as any).name = fileData?.name || 'Image';
-                (img as any).isFileCard = isFileCard;
-                (img as any).fileData = fileData;
-                (img as any).isImageLayer = true; // Mark as image layer object
-
-                // Create a new layer for this image
-                const layerName = fileData?.name || 'Image';
-                const newOrder = layersRef.current.length;
-                const imageLayer = createLayer(layerName, 'image', newOrder);
-                imageLayer.objectIds = [imgId];
-                layersRef.current = [...layersRef.current, imageLayer];
-                setLayers([...layersRef.current]);
-
-                fabricRef.current.add(img);
-                fabricRef.current.setActiveObject(img);
-                fabricRef.current.renderAll();
-                saveState();
             }).catch(err => console.error('Failed to load image:', err));
         },
 
@@ -1093,6 +1244,39 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
         deleteObjectById,
         toggleVisibility,
         toggleLock,
+
+        toggleFileCardFrame: () => {
+            const activeObj = fabricRef.current?.getActiveObject();
+            if (activeObj && activeObj.type === 'group' && (activeObj as any).isFileCard) {
+                const group = activeObj as fabric.Group;
+                const objects = group.getObjects();
+                // Assumindo a ordem: background(0), iconBase(1), iconTab(2), nameText(3), menuDots(4), img(5)
+                // Queremos esconder/mostrar tudo MENOS a imagem
+                // O estado atual pode ser inferido pelo background
+
+                // Melhor: usar a propriedade 'opacity' para toggle. 
+                // Se o background está visível, setar opacity 0 para o frame.
+
+                const frameElements = objects.slice(0, 5);
+                const isFrameVisible = frameElements[0].opacity !== 0;
+                const newOpacity = isFrameVisible ? 0 : 1;
+
+                frameElements.forEach(obj => {
+                    obj.set('opacity', newOpacity);
+                });
+
+                // Se esconder o frame, remover sombra
+                group.set('shadow', newOpacity === 0 ? null : new fabric.Shadow({
+                    color: 'rgba(0,0,0,0.3)',
+                    blur: 15,
+                    offsetX: 0,
+                    offsetY: 5
+                }));
+
+                fabricRef.current?.renderAll();
+                saveState();
+            }
+        },
 
         bringForward: () => { const a = fabricRef.current?.getActiveObject(); if (a) { fabricRef.current?.bringObjectForward(a); fabricRef.current?.renderAll(); } },
         sendBackward: () => { const a = fabricRef.current?.getActiveObject(); if (a) { fabricRef.current?.sendObjectBackwards(a); fabricRef.current?.renderAll(); } },
