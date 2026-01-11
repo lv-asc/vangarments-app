@@ -526,8 +526,10 @@ export class BrandAccountModel {
       if (checkResult.rows.length === 0) {
         try {
           // Create new brand account
+          const { slugify } = require('../utils/slugify');
           const brandInfo: BrandInfo = {
             name: vBrand.name,
+            slug: slugify(vBrand.name),
             description: `Official ${vBrand.name} brand account`,
             businessType: 'brand', // Explicitly set type to brand
             // Add default styling or placeholders if needed

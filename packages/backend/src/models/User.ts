@@ -1,4 +1,5 @@
 import { db } from '../database/connection';
+import { AuthUtils } from '../utils/auth';
 import { UserProfile, UserMeasurements, FashionPreferences, Location, SocialLink } from '@vangarments/shared';
 
 export interface CreateUserData {
@@ -24,6 +25,7 @@ export interface UpdateUserData {
   preferences?: FashionPreferences;
   profile?: any;
   socialLinks?: SocialLink[];
+  password?: string;
   privacySettings?: {
     height: boolean;
     weight: boolean;
@@ -178,6 +180,13 @@ export class UserModel {
     // Fetch current user once for merging
     const currentUser = await this.findById(userId);
     if (!currentUser) return null;
+
+    if (updateData.password) {
+      const passwordHash = await AuthUtils.hashPassword(updateData.password);
+      updates.push(`password_hash = $${paramCount}`);
+      values.push(passwordHash);
+      paramCount++;
+    }
 
     if (updateData.name || updateData.location || updateData.profile || updateData.socialLinks) {
       console.log('DEBUG: UserModel.update updateData', JSON.stringify(updateData, null, 2));

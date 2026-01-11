@@ -1079,7 +1079,7 @@ export class UserController {
   static async adminUpdateUser(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { name, bio, roles, username, socialLinks, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType, contactEmail, telephone } = req.body;
+      const { name, bio, roles, username, password, socialLinks, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType, contactEmail, telephone } = req.body;
 
       if (!req.user?.roles.includes('admin')) {
         return res.status(403).json({
@@ -1146,6 +1146,7 @@ export class UserController {
       if (measurements) updateData.measurements = measurements;
       if (privacySettings) updateData.privacySettings = privacySettings;
       if (socialLinks) updateData.socialLinks = socialLinks;
+      if (password) updateData.password = password;
 
       // Update roles if provided
       if (roles && Array.isArray(roles)) {

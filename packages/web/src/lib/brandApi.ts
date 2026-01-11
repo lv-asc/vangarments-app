@@ -1,4 +1,4 @@
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/?$/, '');
+import { apiClient } from './api';
 
 interface BrandAccount {
   id: string;
@@ -106,34 +106,17 @@ interface CatalogItem {
 }
 
 class BrandApi {
-  private getAuthHeaders() {
-    // Only access localStorage in client-side environment
-    if (typeof window === 'undefined') {
-      return { 'Content-Type': 'application/json' };
-    }
-
-    const token = localStorage.getItem('auth_token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` })
-    };
-  }
-
   // Brand Account Management
   async getBrandAccount(): Promise<{ brandAccount: BrandAccount | null }> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/account`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (response.status === 404) {
-      return { brandAccount: null };
+    try {
+      const response = await apiClient.get<{ brandAccount: BrandAccount }>('/brands/account');
+      return response;
+    } catch (error: any) {
+      if (error.status === 404) {
+        return { brandAccount: null };
+      }
+      throw error;
     }
-
-    if (!response.ok) {
-      throw new Error(`Failed to get brand account: ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
   async getBrands(params?: { limit?: number; page?: number; search?: string; businessType?: string }): Promise<any[]> {
@@ -143,61 +126,21 @@ class BrandApi {
     if (params?.search) queryParams.append('q', params.search);
     if (params?.businessType) queryParams.append('businessType', params.businessType);
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/search?${queryParams.toString()}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get brands: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.data?.brands || [];
+    const response = await apiClient.get<any>(`/brands/search?${queryParams.toString()}`);
+    return response.brands || [];
   }
 
   async getBrand(brandId: string): Promise<BrandAccount> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get brand: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data.brand; // Wrapper returns { success: true, data: { brand: ... } } see BrandController.getBrandProfile
-    // Actually BrandController.getBrandProfile returns { data: profile } where profile = { brand, featuredItems... }
-    // So it should be result.data.brand
+    const result = await apiClient.get<any>(`/brands/${brandId}`);
+    return result.brand;
   }
 
   async createBrandAccount(data: CreateBrandAccountData): Promise<BrandAccount> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/account`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to create brand account');
-    }
-
-    return response.json();
+    return apiClient.post<BrandAccount>('/brands/account', data);
   }
 
   async updateBrandAccount(updates: Partial<CreateBrandAccountData>): Promise<BrandAccount> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/account`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(updates)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to update brand account');
-    }
-
-    return response.json();
+    return apiClient.put<BrandAccount>('/brands/account', updates);
   }
 
   // Admin Methods
@@ -217,85 +160,30 @@ class BrandApi {
       skuRef: data.brandInfo.skuRef
     };
 
-    const response = await fetch(`${API_BASE_URL}/api/brands`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to create brand account');
-    }
-
-    // Response wrapper handling might differ, let's assume standard { success: true, data: { brand } }
-    const result = await response.json();
-    return result.data?.brand || result;
+    const result = await apiClient.post<any>('/brands', payload);
+    return result.brand || result;
   }
 
   async updateBrand(brandId: string, updates: Partial<CreateBrandAccountData>): Promise<BrandAccount> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(updates)
-    });
-    // Use admin update page endpoint or creating a new admin update endpoint might be better
-    // For now, assuming we use the profile update or page update endpoints
-    // But wait, there isn't a generic admin-update-brand-details endpoint in the backend code I saw.
-    // I saw updateBrandPage (customization) and updateProfileData (bio etc).
-    // I should create one or reuse existings. 
-    // The previous code for `admin/brands/new` used `adminCreateBrand`.
-    // I'll stick to delete/trash first.
-    return response.json();
+    const result = await apiClient.put<any>(`/brands/${brandId}`, updates);
+    return result.brand || result;
   }
 
   async deleteBrand(brandId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to delete brand');
-    }
+    await apiClient.delete(`/brands/${brandId}`);
   }
 
   async restoreBrand(brandId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/restore`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to restore brand');
-    }
+    await apiClient.put(`/brands/${brandId}/restore`, {});
   }
 
   async permanentDeleteBrand(brandId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/permanent`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to permanently delete brand');
-    }
+    await apiClient.delete(`/brands/${brandId}/permanent`);
   }
 
   async getTrashBrands(): Promise<BrandAccount[]> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/trash`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get trash brands: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.data?.brands || [];
+    const response = await apiClient.get<any>('/brands/trash');
+    return response.brands || [];
   }
 
   // Catalog Management
@@ -313,15 +201,7 @@ class BrandApi {
     if (filters?.limit) params.append('limit', filters.limit.toString());
     if (filters?.offset) params.append('offset', filters.offset.toString());
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/catalog?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get catalog items: ${response.statusText}`);
-    }
-
-    return response.json();
+    return apiClient.get(`/brands/catalog?${params}`);
   }
 
   async getBrandCatalog(brandId: string, filters?: any): Promise<{ items: any[]; total: number; hasMore: boolean }> {
@@ -331,107 +211,37 @@ class BrandApi {
     if (filters?.limit) params.append('limit', filters.limit.toString());
     if (filters?.collection) params.append('collection', filters.collection);
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/catalog?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get brand catalog: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data;
+    const result = await apiClient.get<any>(`/brands/${brandId}/catalog?${params}`);
+    return result;
   }
 
   async addCatalogItem(item: Omit<CatalogItem, 'id' | 'vufsCode'>): Promise<CatalogItem> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/catalog`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(item)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to add catalog item');
-    }
-
-    return response.json();
+    return apiClient.post('/brands/catalog', item);
   }
 
   async updateCatalogItem(itemId: string, updates: Partial<CatalogItem>): Promise<CatalogItem> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/catalog/${itemId}`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(updates)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to update catalog item');
-    }
-
-    return response.json();
+    return apiClient.put(`/brands/catalog/${itemId}`, updates);
   }
 
   async deleteCatalogItem(itemId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/catalog/${itemId}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to delete catalog item');
-    }
+    await apiClient.delete(`/brands/catalog/${itemId}`);
   }
 
   // Partnership Management
   async getPartnerships(): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/partnerships`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get partnerships: ${response.statusText}`);
-    }
-
-    return response.json();
+    return apiClient.get('/brands/partnerships');
   }
 
   async getPartnershipRequests(): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/partnership-requests`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get partnership requests: ${response.statusText}`);
-    }
-
-    return response.json();
+    return apiClient.get('/brands/partnership-requests');
   }
 
   async approvePartnershipRequest(requestId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/partnership-requests/${requestId}/approve`, {
-      method: 'POST',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to approve partnership request');
-    }
+    await apiClient.post(`/brands/partnership-requests/${requestId}/approve`, {});
   }
 
   async rejectPartnershipRequest(requestId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/partnership-requests/${requestId}/reject`, {
-      method: 'POST',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to reject partnership request');
-    }
+    await apiClient.post(`/brands/partnership-requests/${requestId}/reject`, {});
   }
 
   // Analytics and Commission Tracking
@@ -439,30 +249,14 @@ class BrandApi {
     const params = new URLSearchParams();
     if (dateRange) params.append('range', dateRange);
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/analytics?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get analytics: ${response.statusText}`);
-    }
-
-    return response.json();
+    return apiClient.get(`/brands/analytics?${params}`);
   }
 
   async getCommissionData(dateRange?: string): Promise<any> {
     const params = new URLSearchParams();
     if (dateRange) params.append('range', dateRange);
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/commissions?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get commission data: ${response.statusText}`);
-    }
-
-    return response.json();
+    return apiClient.get(`/brands/commissions?${params}`);
   }
 
   async getTransactions(filters?: {
@@ -477,46 +271,19 @@ class BrandApi {
     if (filters?.limit) params.append('limit', filters.limit.toString());
     if (filters?.offset) params.append('offset', filters.offset.toString());
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/transactions?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get transactions: ${response.statusText}`);
-    }
-
-    return response.json();
+    return apiClient.get(`/brands/transactions?${params}`);
   }
 
   // ============ BRAND PROFILE ============
 
   async getFullProfile(brandId: string): Promise<BrandFullProfile> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/profile`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get brand profile: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data;
+    const result = await apiClient.get<any>(`/brands/${brandId}/profile`);
+    return result;
   }
 
   async updateProfileData(brandId: string, data: BrandProfileData): Promise<BrandAccount> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/profile`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to update profile');
-    }
-
-    const result = await response.json();
-    return result.data.brand;
+    const result = await apiClient.put<any>(`/brands/${brandId}/profile`, data);
+    return result.brand;
   }
 
   // ============ TEAM MANAGEMENT ============
@@ -525,60 +292,22 @@ class BrandApi {
     const params = new URLSearchParams();
     params.append('publicOnly', publicOnly.toString());
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get team members: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data.team;
+    const result = await apiClient.get<any>(`/brands/${brandId}/team?${params}`);
+    return result.team;
   }
 
   async addTeamMember(brandId: string, data: { userId: string; roles: BrandRole[]; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to add team member');
-    }
-
-    const result = await response.json();
-    return result.data.member;
+    const result = await apiClient.post<any>(`/brands/${brandId}/team`, data);
+    return result.member;
   }
 
   async updateTeamMember(brandId: string, memberId: string, data: { roles?: BrandRole[]; title?: string; isPublic?: boolean }): Promise<BrandTeamMember> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team/${memberId}`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to update team member');
-    }
-
-    const result = await response.json();
-    return result.data.member;
+    const result = await apiClient.put<any>(`/brands/${brandId}/team/${memberId}`, data);
+    return result.member;
   }
 
   async removeTeamMember(brandId: string, memberId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/team/${memberId}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to remove team member');
-    }
+    await apiClient.delete(`/brands/${brandId}/team/${memberId}`);
   }
 
   // ============ LOOKBOOK MANAGEMENT ============
@@ -587,89 +316,32 @@ class BrandApi {
     const params = new URLSearchParams();
     params.append('publishedOnly', publishedOnly.toString());
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get lookbooks: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data.lookbooks;
+    const result = await apiClient.get<any>(`/brands/${brandId}/lookbooks?${params}`);
+    return result.lookbooks;
   }
 
   async getLookbook(brandId: string, lookbookId: string): Promise<{ lookbook: BrandLookbook; items: any[] }> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get lookbook: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data;
+    const result = await apiClient.get<any>(`/brands/${brandId}/lookbooks/${lookbookId}`);
+    return result;
   }
 
   async createLookbook(brandId: string, data: CreateLookbookData): Promise<BrandLookbook> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to create lookbook');
-    }
-
-    const result = await response.json();
-    return result.data.lookbook;
+    const result = await apiClient.post<any>(`/brands/${brandId}/lookbooks`, data);
+    return result.lookbook;
   }
 
   async updateLookbook(brandId: string, lookbookId: string, data: Partial<CreateLookbookData> & { isPublished?: boolean }): Promise<BrandLookbook> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to update lookbook');
-    }
-
-    const result = await response.json();
-    return result.data.lookbook;
+    const result = await apiClient.put<any>(`/brands/${brandId}/lookbooks/${lookbookId}`, data);
+    return result.lookbook;
   }
 
   async deleteLookbook(brandId: string, lookbookId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to delete lookbook');
-    }
+    await apiClient.delete(`/brands/${brandId}/lookbooks/${lookbookId}`);
   }
 
   async addLookbookItems(brandId: string, lookbookId: string, items: Array<{ itemId: string; sortOrder?: number }>): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/lookbooks/${lookbookId}/items`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ items })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to add items to lookbook');
-    }
-
-    const result = await response.json();
-    return result.data.items;
+    const result = await apiClient.post<any>(`/brands/${brandId}/lookbooks/${lookbookId}/items`, { items });
+    return result.items;
   }
 
   // ============ COLLECTION MANAGEMENT ============
@@ -678,107 +350,39 @@ class BrandApi {
     const params = new URLSearchParams();
     params.append('publishedOnly', publishedOnly.toString());
 
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get collections: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data.collections;
+    const result = await apiClient.get<any>(`/brands/${brandId}/collections?${params}`);
+    return result.collections;
   }
 
   async getCollection(brandId: string, collectionId: string): Promise<{ collection: BrandCollection; items: any[] }> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get collection: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-    return result.data;
+    const result = await apiClient.get<any>(`/brands/${brandId}/collections/${collectionId}`);
+    return result;
   }
 
   async createCollection(brandId: string, data: CreateCollectionData): Promise<BrandCollection> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to create collection');
-    }
-
-    const result = await response.json();
-    return result.data.collection;
+    const result = await apiClient.post<any>(`/brands/${brandId}/collections`, data);
+    return result.collection;
   }
 
   async updateCollection(brandId: string, collectionId: string, data: Partial<CreateCollectionData> & { isPublished?: boolean }): Promise<BrandCollection> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to update collection');
-    }
-
-    const result = await response.json();
-    return result.data.collection;
+    const result = await apiClient.put<any>(`/brands/${brandId}/collections/${collectionId}`, data);
+    return result.collection;
   }
 
   async deleteCollection(brandId: string, collectionId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to delete collection');
-    }
+    await apiClient.delete(`/brands/${brandId}/collections/${collectionId}`);
   }
 
   async addCollectionItems(brandId: string, collectionId: string, items: Array<{ itemId: string; sortOrder?: number }>): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/collections/${collectionId}/items`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ items })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || 'Failed to add items to collection');
-    }
-
-    const result = await response.json();
-    return result.data.items;
+    const result = await apiClient.post<any>(`/brands/${brandId}/collections/${collectionId}/items`, { items });
+    return result.items;
   }
 
   // ============ VERIFICATION ============
 
   async verifyBrand(brandId: string, status: 'verified' | 'rejected', reason?: string): Promise<BrandAccount> {
-    const response = await fetch(`${API_BASE_URL}/api/brands/${brandId}/verify`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ status, notes: reason })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || `Failed to ${status} brand`);
-    }
-
-    const result = await response.json();
-    return result.data?.brand || result;
+    const result = await apiClient.put<any>(`/brands/${brandId}/verify`, { status, notes: reason });
+    return result.brand || result;
   }
 }
 

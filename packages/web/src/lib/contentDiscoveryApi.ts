@@ -1,6 +1,6 @@
 import { SocialPost, ContentCategory, TrendingTag, StyleRecommendation } from '@vangarments/shared';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/api\/?$/, '') + '/api/v1';
 
 export interface DiscoveryFeedResponse {
   posts: SocialPost[];
@@ -48,8 +48,8 @@ class ContentDiscoveryAPI {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = localStorage.getItem('authToken');
-    
+    const token = localStorage.getItem('auth_token');
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ class ContentDiscoveryAPI {
     limit?: number;
   } = {}): Promise<DiscoveryFeedResponse> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.category) searchParams.append('category', params.category);
     if (params.tags) params.tags.forEach(tag => searchParams.append('tags', tag));
     if (params.contentType) searchParams.append('contentType', params.contentType);
@@ -87,7 +87,7 @@ class ContentDiscoveryAPI {
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
     return this.request<DiscoveryFeedResponse>(
-      `/api/content-discovery/feed?${searchParams.toString()}`
+      `/content-discovery/feed?${searchParams.toString()}`
     );
   }
 
@@ -99,12 +99,12 @@ class ContentDiscoveryAPI {
     limit?: number;
   } = {}): Promise<{ posts: SocialPost[]; tags: TrendingTag[] }> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.timeframe) searchParams.append('timeframe', params.timeframe);
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
     return this.request<{ posts: SocialPost[]; tags: TrendingTag[] }>(
-      `/api/content-discovery/trending?${searchParams.toString()}`
+      `/content-discovery/trending?${searchParams.toString()}`
     );
   }
 
@@ -113,7 +113,7 @@ class ContentDiscoveryAPI {
    */
   async getContentCategories(): Promise<{ categories: ContentCategory[] }> {
     return this.request<{ categories: ContentCategory[] }>(
-      '/api/content-discovery/categories'
+      '/content-discovery/categories'
     );
   }
 
@@ -125,12 +125,12 @@ class ContentDiscoveryAPI {
     limit?: number;
   } = {}): Promise<{ recommendations: StyleRecommendation[] }> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.type) searchParams.append('type', params.type);
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
     return this.request<{ recommendations: StyleRecommendation[] }>(
-      `/api/content-discovery/recommendations?${searchParams.toString()}`
+      `/content-discovery/recommendations?${searchParams.toString()}`
     );
   }
 
@@ -148,7 +148,7 @@ class ContentDiscoveryAPI {
     limit?: number;
   } = {}): Promise<SearchResponse> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.q) searchParams.append('q', params.q);
     if (params.contentType) searchParams.append('contentType', params.contentType);
     if (params.tags) params.tags.forEach(tag => searchParams.append('tags', tag));
@@ -159,7 +159,7 @@ class ContentDiscoveryAPI {
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
     return this.request<SearchResponse>(
-      `/api/content-discovery/search?${searchParams.toString()}`
+      `/content-discovery/search?${searchParams.toString()}`
     );
   }
 
@@ -175,13 +175,13 @@ class ContentDiscoveryAPI {
     } = {}
   ): Promise<TagContentResponse> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.sortBy) searchParams.append('sortBy', params.sortBy);
     if (params.page) searchParams.append('page', params.page.toString());
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
     return this.request<TagContentResponse>(
-      `/api/content-discovery/tags/${encodeURIComponent(tag)}?${searchParams.toString()}`
+      `/content-discovery/tags/${encodeURIComponent(tag)}?${searchParams.toString()}`
     );
   }
 
@@ -192,11 +192,11 @@ class ContentDiscoveryAPI {
     limit?: number;
   } = {}): Promise<{ posts: SocialPost[] }> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
     return this.request<{ posts: SocialPost[] }>(
-      `/api/content-discovery/featured?${searchParams.toString()}`
+      `/content-discovery/featured?${searchParams.toString()}`
     );
   }
 
@@ -208,11 +208,11 @@ class ContentDiscoveryAPI {
     params: { limit?: number } = {}
   ): Promise<{ posts: SocialPost[] }> {
     const searchParams = new URLSearchParams();
-    
+
     if (params.limit) searchParams.append('limit', params.limit.toString());
 
     return this.request<{ posts: SocialPost[] }>(
-      `/api/content-discovery/similar/${postId}?${searchParams.toString()}`
+      `/content-discovery/similar/${postId}?${searchParams.toString()}`
     );
   }
 
@@ -220,7 +220,7 @@ class ContentDiscoveryAPI {
    * Report content
    */
   async reportContent(reportData: ReportContentData): Promise<{ report: any }> {
-    return this.request<{ report: any }>('/api/content-discovery/report', {
+    return this.request<{ report: any }>('/content-discovery/report', {
       method: 'POST',
       body: JSON.stringify(reportData),
     });
@@ -231,7 +231,7 @@ class ContentDiscoveryAPI {
    */
   async getFeedPreferences(): Promise<{ preferences: FeedPreferences }> {
     return this.request<{ preferences: FeedPreferences }>(
-      '/api/content-discovery/preferences'
+      '/content-discovery/preferences'
     );
   }
 
@@ -242,7 +242,7 @@ class ContentDiscoveryAPI {
     preferences: Partial<FeedPreferences>
   ): Promise<{ preferences: FeedPreferences }> {
     return this.request<{ preferences: FeedPreferences }>(
-      '/api/content-discovery/preferences',
+      '/content-discovery/preferences',
       {
         method: 'PUT',
         body: JSON.stringify(preferences),
@@ -271,12 +271,12 @@ class ContentDiscoveryAPI {
   }): Promise<{ post: SocialPost }> {
     // Create FormData for file upload
     const formData = new FormData();
-    
+
     // Add images
     shareData.images.forEach((image, index) => {
       formData.append(`images`, image);
     });
-    
+
     // Add other data
     formData.append('postType', 'outfit');
     formData.append('content', JSON.stringify({
@@ -289,9 +289,9 @@ class ContentDiscoveryAPI {
     formData.append('wardrobeItemIds', JSON.stringify(shareData.wardrobeItemIds));
     formData.append('visibility', shareData.visibility);
 
-    const token = localStorage.getItem('authToken');
-    
-    const response = await fetch(`${API_BASE_URL}/api/social/posts`, {
+    const token = localStorage.getItem('auth_token');
+
+    const response = await fetch(`${API_BASE_URL}/social/posts`, {
       method: 'POST',
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),

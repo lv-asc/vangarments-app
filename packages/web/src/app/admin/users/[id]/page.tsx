@@ -107,6 +107,7 @@ export default function AdminEditUserPage() {
         bodyType: '',
         contactEmail: '',
         telephone: '',
+        password: '',
         status: 'active',
         banExpiresAt: undefined as Date | undefined
     });
@@ -261,7 +262,8 @@ export default function AdminEditUserPage() {
                     genderOther: user.personalInfo?.genderOther || '',
                     bodyType: user.personalInfo?.bodyType || '',
                     contactEmail: user.personalInfo?.contactEmail || '',
-                    telephone: user.personalInfo?.telephone || ''
+                    telephone: user.personalInfo?.telephone || '',
+                    password: ''
                 });
 
                 // Load Linked Entities
@@ -403,7 +405,8 @@ export default function AdminEditUserPage() {
                 genderOther: userData.genderOther,
                 bodyType: userData.bodyType,
                 contactEmail: userData.contactEmail,
-                telephone: userData.telephone
+                telephone: userData.telephone,
+                password: userData.password.trim() !== '' ? userData.password : undefined
             };
 
             await apiClient.put(`/users/${id}`, payload);
@@ -867,6 +870,30 @@ export default function AdminEditUserPage() {
                             </div>
                         </div>
 
+
+                        {/* Security */}
+                        <div className="pt-6 border-t border-gray-100">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Security</h3>
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <div className="max-w-xs">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Change Password</label>
+                                    <div className="relative">
+                                        <input
+                                            type="password"
+                                            value={userData.password}
+                                            onChange={(e) => setUserData({ ...userData, password: e.target.value })}
+                                            className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm pr-10"
+                                            placeholder="Enter new password"
+                                            autoComplete="new-password"
+                                        />
+                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                            <LockClosedIcon className="h-4 w-4 text-gray-400" />
+                                        </div>
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-500">Leave blank to keep current password.</p>
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Save Actions */}
                         <div className="pt-6 border-t border-gray-200 flex justify-end gap-3">

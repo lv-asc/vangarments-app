@@ -7,8 +7,8 @@ import { GoogleCloudService } from './googleCloudService';
 const execAsync = promisify(exec);
 
 // Full paths to PostgreSQL tools (Homebrew on macOS)
-const PSQL_PATH = process.env.PSQL_PATH || '/opt/homebrew/Cellar/postgresql@15/15.15_1/bin/psql';
-const PGDUMP_PATH = process.env.PGDUMP_PATH || '/opt/homebrew/Cellar/postgresql@15/15.15_1/bin/pg_dump';
+const PSQL_PATH = process.env.PSQL_PATH || '/opt/homebrew/opt/postgresql@15/bin/psql';
+const PGDUMP_PATH = process.env.PGDUMP_PATH || '/opt/homebrew/opt/postgresql@15/bin/pg_dump';
 
 interface DatabaseConfig {
     host: string;
