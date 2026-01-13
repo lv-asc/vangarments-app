@@ -1232,7 +1232,84 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                     fabricRef.current.renderAll();
                     saveState();
                 }
-            }).catch(err => console.error('Failed to load image:', err));
+            }).catch(err => {
+                console.error('Failed to load image:', err);
+                // Fallback: Create a file card without image preview for non-image files
+                if (isFileCard && fileData && fabricRef.current) {
+                    const cardPadding = 12;
+                    const headerHeight = 48;
+                    const cardRounding = 12;
+                    const cardW = 240;
+                    const cardH = headerHeight + 80;
+
+                    const background = new fabric.Rect({
+                        left: 0, top: 0, width: cardW, height: cardH,
+                        fill: '#1F1F1F', rx: cardRounding, ry: cardRounding,
+                        originX: 'left', originY: 'top', stroke: '#333333', strokeWidth: 1
+                    });
+
+                    const iconSize = 24;
+                    const iconX = cardPadding;
+                    const iconY = (headerHeight - iconSize) / 2;
+
+                    const iconBase = new fabric.Rect({
+                        left: iconX, top: iconY + 2, width: iconSize, height: iconSize - 2,
+                        fill: '#6366F1', rx: 3, ry: 3, originX: 'left', originY: 'top'
+                    });
+                    const iconTab = new fabric.Rect({
+                        left: iconX, top: iconY - 2, width: iconSize * 0.4, height: 6,
+                        fill: '#6366F1', rx: 2, ry: 2, originX: 'left', originY: 'top'
+                    });
+
+                    let displayName = fileData.name;
+                    if (displayName.length > 25) displayName = displayName.substring(0, 22) + '...';
+
+                    const nameText = new fabric.Text(displayName, {
+                        left: iconX + iconSize + 10, top: headerHeight / 2,
+                        fontSize: 14, fontFamily: 'Inter, Arial, sans-serif',
+                        fill: '#E3E3E3', originY: 'center', originX: 'left'
+                    });
+
+                    const menuText = new fabric.Text('⋮', {
+                        left: cardW - cardPadding, top: headerHeight / 2,
+                        fontSize: 20, fontFamily: 'Arial', fill: '#9CA3AF',
+                        originX: 'right', originY: 'center'
+                    });
+
+                    // File type placeholder
+                    const ext = fileData.name.split('.').pop()?.toUpperCase() || 'FILE';
+                    const placeholder = new fabric.Text(ext, {
+                        left: cardW / 2, top: headerHeight + 30,
+                        fontSize: 18, fontFamily: 'Inter, Arial, sans-serif',
+                        fill: '#6B7280', originX: 'center', originY: 'center'
+                    });
+
+                    const group = new fabric.Group([background, iconBase, iconTab, nameText, menuText, placeholder], {
+                        left: centerX, top: centerY, originX: 'center', originY: 'center',
+                        subTargetCheck: false, interactive: true,
+                        shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.3)', blur: 15, offsetX: 0, offsetY: 5 })
+                    });
+
+                    const groupId = generateId();
+                    (group as any).id = groupId;
+                    (group as any).name = fileData.name;
+                    (group as any).isFileCard = true;
+                    (group as any).fileData = fileData;
+                    (group as any).isImageLayer = true;
+                    (group as any).erasable = false;
+
+                    const newOrder = layersRef.current.length;
+                    const imageLayer = createLayer(fileData.name, 'image', newOrder);
+                    imageLayer.objectIds = [groupId];
+                    layersRef.current = [...layersRef.current, imageLayer];
+                    setLayers([...layersRef.current]);
+
+                    fabricRef.current.add(group);
+                    fabricRef.current.setActiveObject(group);
+                    fabricRef.current.renderAll();
+                    saveState();
+                }
+            });
         },
 
         addConnection: (fromId: string, toId: string, color = '#DC2626') => {

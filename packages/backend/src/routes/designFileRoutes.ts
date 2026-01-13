@@ -147,6 +147,76 @@ if (process.env.NODE_ENV === 'development') {
             res.status(500).json({ error: 'Failed to delete file' });
         }
     });
+
+    // Dev route for serving file preview without auth
+    router.get('/:id/preview-dev', async (req: Request, res: Response) => {
+        const path = require('path');
+        const fs = require('fs/promises');
+        const STORAGE_DIR = path.join(process.cwd(), 'storage', 'design-files');
+
+        try {
+            const { id } = req.params;
+            const file = await DesignFileModel.findById(id);
+
+            if (!file) {
+                return res.status(404).json({ error: 'File not found' });
+            }
+
+            const filePath = path.join(STORAGE_DIR, file.filename);
+
+            try {
+                await fs.access(filePath);
+            } catch {
+                return res.status(404).json({ error: 'File not found on disk' });
+            }
+
+            res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+
+            const fileBuffer = await fs.readFile(filePath);
+            res.send(fileBuffer);
+        } catch (error) {
+            console.error('Error serving design file preview (dev):', error);
+            res.status(500).json({ error: 'Failed to serve file' });
+        }
+    });
+
+    // Also add file-dev alias just in case
+    router.get('/:id/file-dev', async (req: Request, res: Response) => {
+        const path = require('path');
+        const fs = require('fs/promises');
+        const STORAGE_DIR = path.join(process.cwd(), 'storage', 'design-files');
+
+        try {
+            const { id } = req.params;
+            const file = await DesignFileModel.findById(id);
+
+            if (!file) {
+                return res.status(404).json({ error: 'File not found' });
+            }
+
+            const filePath = path.join(STORAGE_DIR, file.filename);
+
+            try {
+                await fs.access(filePath);
+            } catch {
+                return res.status(404).json({ error: 'File not found on disk' });
+            }
+
+            res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+
+            const fileBuffer = await fs.readFile(filePath);
+            res.send(fileBuffer);
+        } catch (error) {
+            console.error('Error serving design file (dev):', error);
+            res.status(500).json({ error: 'Failed to serve file' });
+        }
+    });
 }
 
 // All routes require authentication
