@@ -1,7 +1,9 @@
 'use client';
 
 import React, { createContext, useContext } from 'react';
-import { AuthProvider, useAuth as useRealAuth } from './AuthContext';
+import { AuthProvider, useAuth as useRealAuth, ActiveAccount } from './AuthContext';
+
+export type { ActiveAccount };
 
 // Create a context for the unified auth (now just mirrors real auth)
 const UnifiedAuthContext = createContext<any>(null);

@@ -346,6 +346,105 @@ export class BrandCatalogModel {
     }));
   }
 
+  /**
+   * Find items from vufs_items by matching brand name in brand_hierarchy field.
+   * This allows displaying items on brand profiles even without explicit linking in brand_catalog_items.
+   */
+  static async findByBrandName(
+    brandName: string,
+    filters: Omit<BrandCatalogFilters, 'brandId'> = {},
+    limit = 20,
+    offset = 0
+  ): Promise<{ items: any[]; total: number }> {
+    const { slugify } = require('../utils/slugify');
+    const brandSlug = slugify(brandName);
+
+    const whereConditions: string[] = [
+      `(vi.brand_hierarchy->>'brand' ILIKE $1 OR vi.brand_hierarchy->>'brand' ILIKE $2)`
+    ];
+    const values: any[] = [brandName, `%${brandSlug.replace(/-/g, ' ')}%`];
+    let paramIndex = 3;
+
+    // Exclude deleted items
+    whereConditions.push('vi.deleted_at IS NULL');
+
+    if (filters.search) {
+      whereConditions.push(`(
+        vi.metadata->>'name' ILIKE $${paramIndex} OR
+        vi.brand_hierarchy->>'brand' ILIKE $${paramIndex} OR
+        vi.brand_hierarchy->>'line' ILIKE $${paramIndex}
+      )`);
+      values.push(`%${filters.search}%`);
+      paramIndex++;
+    }
+
+    if (filters.collection) {
+      whereConditions.push(`vi.brand_hierarchy->>'collection' ILIKE $${paramIndex}`);
+      values.push(`%${filters.collection}%`);
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.join(' AND ');
+
+    const query = `
+      SELECT vi.id, vi.vufs_code, vi.category_hierarchy, vi.brand_hierarchy, vi.metadata,
+             vi.condition_info, vi.ownership_info, vi.created_at, vi.updated_at,
+             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image,
+             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as all_images,
+             COUNT(*) OVER() as total
+      FROM vufs_items vi
+      WHERE ${whereClause}
+      ORDER BY vi.created_at DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
+
+    values.push(limit, offset);
+
+    const result = await db.query(query, values);
+
+    return {
+      items: result.rows.map(row => this.mapVufsRowToItem(row)),
+      total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
+    };
+  }
+
+  /**
+   * Map a vufs_items row to a catalog item-like structure for display
+   */
+  private static mapVufsRowToItem(row: any): any {
+    const { slugify } = require('../utils/slugify');
+
+    const brandHierarchy = row.brand_hierarchy ?
+      (typeof row.brand_hierarchy === 'string' ? JSON.parse(row.brand_hierarchy) : row.brand_hierarchy) : {};
+    const metadata = row.metadata ?
+      (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : {};
+    const categoryHierarchy = row.category_hierarchy ?
+      (typeof row.category_hierarchy === 'string' ? JSON.parse(row.category_hierarchy) : row.category_hierarchy) : {};
+
+    return {
+      id: row.id,
+      vufsItemId: row.id,
+      availabilityStatus: 'available',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      brand: {
+        name: brandHierarchy.brand || 'Unknown',
+        slug: slugify(brandHierarchy.brand || 'unknown'),
+        line: brandHierarchy.line,
+        collection: brandHierarchy.collection
+      },
+      item: {
+        id: row.id,
+        name: metadata.name || 'Untitled Item',
+        description: metadata.description || '',
+        images: row.all_images && row.all_images.length > 0 ? row.all_images : (row.primary_image ? [row.primary_image] : []),
+        metadata: metadata,
+        category: categoryHierarchy,
+        retailPriceBrl: metadata.retailPriceBrl
+      }
+    };
+  }
+
   private static mapRowToBrandCatalogItem(row: any): BrandCatalogItem & { brand?: any; item?: any } {
     const brandInfo = row.brand_info ? (typeof row.brand_info === 'string' ? JSON.parse(row.brand_info) : row.brand_info) : null;
     const vufsMetadata = row.vufs_metadata ? (typeof row.vufs_metadata === 'string' ? JSON.parse(row.vufs_metadata) : row.vufs_metadata) : null;

@@ -651,12 +651,12 @@ export class VUFSManagementController {
 
   static async addMaterial(req: Request, res: Response): Promise<void> {
     try {
-      const { name, category, skuRef, compositions } = req.body;
+      const { name, category, skuRef, compositions, careInstructions } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const material = await VUFSManagementService.addMaterial(name, category, skuRef);
+      const material = await VUFSManagementService.addMaterial(name, category, skuRef, careInstructions);
 
       if (compositions && Array.isArray(compositions) && compositions.length > 0) {
         await VUFSManagementService.updateMaterialCompositions(material.id, compositions);
@@ -676,12 +676,12 @@ export class VUFSManagementController {
   static async updateMaterial(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name, skuRef, compositions } = req.body;
+      const { name, skuRef, compositions, careInstructions } = req.body;
       if (!name) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name is required' } });
         return;
       }
-      const material = await VUFSManagementService.updateMaterial(id, name, skuRef);
+      const material = await VUFSManagementService.updateMaterial(id, name, skuRef, careInstructions);
 
       if (compositions && Array.isArray(compositions)) {
         await VUFSManagementService.updateMaterialCompositions(id, compositions);

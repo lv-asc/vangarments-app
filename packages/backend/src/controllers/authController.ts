@@ -8,6 +8,7 @@ import { BrandAccountModel } from '../models/BrandAccount';
 import { SupplierModel } from '../models/Supplier';
 import { PageModel } from '../models/Page';
 import { SocialPostModel } from '../models/SocialPost';
+import { BrandTeamModel } from '../models/BrandTeam';
 
 export class AuthController {
     static async register(req: Request, res: Response) {
@@ -236,29 +237,70 @@ export class AuthController {
             };
 
             // Fetch linked entities
-            const [brandAccounts, suppliers, pages, posts] = await Promise.all([
+            const [brandAccounts, memberships, suppliers, pages, posts] = await Promise.all([
                 BrandAccountModel.findAllByUserId(user.id),
+                BrandTeamModel.getUserMembershipsWithDetails(user.id),
                 SupplierModel.findAllByUserId(user.id),
                 PageModel.findAllByUserId(user.id),
                 SocialPostModel.findMany({ userId: user.id }, 1) // Just need to check existence
             ]);
 
-            const brands = brandAccounts.filter(ba => !ba.brandInfo.businessType || ba.brandInfo.businessType === 'brand' || ba.brandInfo.businessType === 'designer' || ba.brandInfo.businessType === 'manufacturer');
-            // Assuming suppliers might also be businessType='manufacturer' in BrandAccount, but we also have SupplierModel.
-            // User requested "My Suppliers". If SupplierModel is used, we use that.
-            // If manufacturer is a BrandAccount type, we count it as a Brand? Or Supplier?
-            // "My Brands" usually implies Brand/Designer.
-            // "My Stores" -> businessType === 'store'.
-            // "My Suppliers" -> SupplierModel (or manufacturer BrandAccount?)
-            // Let's stick to explicit SupplierModel for now, and 'store' type for Stores.
+            // Merge owned brands and memberships
+            const allBrandEntities = new Map();
 
-            const stores = brandAccounts.filter(ba => ba.brandInfo.businessType === 'store');
+            // Add owned brands
+            brandAccounts.forEach(ba => {
+                allBrandEntities.set(ba.id, {
+                    id: ba.id,
+                    name: ba.brandInfo.name,
+                    slug: ba.brandInfo.slug,
+                    logo: ba.brandInfo.logo,
+                    businessType: ba.brandInfo.businessType
+                });
+            });
+
+            // Add memberships
+            memberships.forEach(m => {
+                if (!allBrandEntities.has(m.brandId)) {
+                    allBrandEntities.set(m.brandId, {
+                        id: m.brandId,
+                        name: m.brandName,
+                        slug: m.brandSlug,
+                        logo: m.brandLogo,
+                        businessType: m.businessType
+                    });
+                }
+            });
+
+            const mergedBrands = Array.from(allBrandEntities.values());
+
+            const brands = mergedBrands.filter(b => !b.businessType || b.businessType === 'brand' || b.businessType === 'designer' || b.businessType === 'manufacturer');
+            const stores = mergedBrands.filter(b => b.businessType === 'store');
 
             (userResponse as any).linkedEntities = {
-                hasBrand: brands.length > 0,
-                hasStore: stores.length > 0,
-                hasSupplier: suppliers.length > 0,
-                hasPage: pages.length > 0,
+                brands: brands.map(b => ({
+                    id: b.id,
+                    name: b.name,
+                    slug: b.slug,
+                    logo: b.logo
+                })),
+                stores: stores.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    slug: s.slug,
+                    logo: s.logo
+                })),
+                suppliers: suppliers.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    slug: s.slug
+                })),
+                pages: pages.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    slug: p.slug,
+                    logo: p.logoUrl
+                })),
                 hasPost: posts.total > 0
             };
 

@@ -89,8 +89,24 @@ export class BrandCollectionModel {
 
         // Find by slug within the brand
         const query = `
+      WITH unified_skus AS (
+        SELECT id, parent_sku_id, name, collection
+        FROM sku_items
+        WHERE brand_id = $1 AND deleted_at IS NULL
+      ),
+      grouped_skus AS (
+        -- Parents or standalone items
+        SELECT id FROM unified_skus WHERE parent_sku_id IS NULL AND collection = (SELECT name FROM brand_collections WHERE brand_id = $1 AND slug = $2 LIMIT 1)
+        UNION
+        -- Cross-ref items are always treated as "parents" for the sake of count if they are not children
+        SELECT item_id FROM brand_collection_items WHERE collection_id = (SELECT id FROM brand_collections WHERE brand_id = $1 AND slug = $2 LIMIT 1)
+      )
       SELECT bc.*, 
-             (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
+             (SELECT COUNT(*) FROM (
+               SELECT item_id FROM brand_collection_items WHERE collection_id = bc.id
+               UNION
+               SELECT id FROM sku_items WHERE brand_id = bc.brand_id AND collection = bc.name AND parent_sku_id IS NULL AND deleted_at IS NULL
+             ) as distinct_parents) as item_count
       FROM brand_collections bc
       WHERE bc.brand_id = $1 AND bc.slug = $2
     `;
@@ -216,88 +232,107 @@ export class BrandCollectionModel {
         return (result.rowCount || 0) > 0;
     }
 
-    static async getItems(collectionId: string): Promise<BrandCollectionItem[]> {
+    static async getItems(collectionId: string): Promise<any[]> {
+        // First get the collection name and brand info to find tagged items
+        const collResult = await db.query(`
+            SELECT bc.name, bc.brand_id, ba.brand_info 
+            FROM brand_collections bc
+            JOIN brand_accounts ba ON bc.brand_id = ba.id
+            WHERE bc.id = $1
+        `, [collectionId]);
+
+        if (collResult.rows.length === 0) return [];
+        const collectionName = collResult.rows[0].name;
+        const brandId = collResult.rows[0].brand_id;
+        const brandInfo = typeof collResult.rows[0].brand_info === 'string'
+            ? JSON.parse(collResult.rows[0].brand_info)
+            : collResult.rows[0].brand_info;
+
+        // Fetch all SKUs for this brand that might be in this collection
+        // We fetch ALL variants so we can group them correctly
         const query = `
-      SELECT bci.*, 
-             -- Direct VUFS Link
-             vi.id as vufs_id,
-             vi.metadata as vufs_metadata, 
-             vi.category_hierarchy, 
-             vi.brand_hierarchy,
-             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image,
-             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as all_images,
-             
-             -- Catalog Item Link
-             bcat.id as cat_id,
-             bcat.official_price,
-             bcat.brand_specific_data,
-             
-             -- VUFS linked via Catalog
-             vi_cat.id as cat_vufs_id,
-             vi_cat.metadata as cat_vufs_metadata,
-             vi_cat.category_hierarchy as cat_category_hierarchy,
-             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi_cat.id AND ii.is_primary = true LIMIT 1) as cat_primary_image,
-             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi_cat.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as cat_all_images
+            SELECT 
+                si.id, si.parent_sku_id, si.name, si.code, si.collection, si.metadata, 
+                si.retail_price_brl, si.retail_price_usd, si.retail_price_eur,
+                si.images, si.category, si.line, si.line_id,
+                bl.name as line_name, bl.logo as line_logo,
+                EXISTS(SELECT 1 FROM brand_collection_items bci WHERE bci.collection_id = $1 AND bci.item_id = si.id) as in_collection_items
+            FROM sku_items si
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            WHERE si.brand_id = $2 AND si.deleted_at IS NULL
+            AND (
+                si.collection = $3 
+                OR si.id IN (SELECT item_id FROM brand_collection_items WHERE collection_id = $1)
+                OR si.parent_sku_id IN (SELECT item_id FROM brand_collection_items WHERE collection_id = $1)
+                OR si.parent_sku_id IN (SELECT id FROM sku_items WHERE brand_id = $2 AND collection = $3)
+            )
+            ORDER BY si.created_at DESC
+        `;
 
-      FROM brand_collection_items bci
-      LEFT JOIN vufs_items vi ON bci.item_id = vi.id
-      LEFT JOIN brand_catalog_items bcat ON bci.item_id = bcat.id
-      LEFT JOIN vufs_items vi_cat ON bcat.vufs_item_id = vi_cat.id
-      WHERE bci.collection_id = $1
-      ORDER BY bci.sort_order ASC
-    `;
+        const result = await db.query(query, [collectionId, brandId, collectionName]);
+        const allSkus = result.rows;
 
-        const result = await db.query(query, [collectionId]);
-        return result.rows.map(row => {
-            const metadata = row.vufs_metadata ? (typeof row.vufs_metadata === 'string' ? JSON.parse(row.vufs_metadata) : row.vufs_metadata) : null;
-            const catMetadata = row.cat_vufs_metadata ? (typeof row.cat_vufs_metadata === 'string' ? JSON.parse(row.cat_vufs_metadata) : row.cat_vufs_metadata) : null;
+        // Group by parent_sku_id
+        const childrenByParentId: Record<string, any[]> = {};
+        const childSkuIds = new Set<string>();
 
-            // Construct Item object (from direct link)
-            const item = metadata ? {
-                id: row.vufs_id,
-                name: metadata.name || 'Untitled Item',
-                description: metadata.description || '',
-                images: row.all_images && row.all_images.length > 0 ? row.all_images : (row.primary_image ? [row.primary_image] : []),
-                metadata: metadata,
-                categoryHierarchy: row.category_hierarchy,
-                brandHierarchy: row.brand_hierarchy,
-                primaryImage: row.primary_image
-            } : undefined;
-
-            // Construct Catalog Item object
-            const catalogItem = row.cat_id ? {
-                id: row.cat_id,
-                vufsItemId: row.cat_vufs_id,
-                name: catMetadata?.name || 'Untitled Item',
-                description: catMetadata?.description || '',
-                officialPrice: row.official_price,
-                brandSpecificData: row.brand_specific_data,
-                images: row.cat_all_images && row.cat_all_images.length > 0 ? row.cat_all_images : (row.cat_primary_image ? [row.cat_primary_image] : []),
-                metadata: catMetadata,
-                categoryHierarchy: row.cat_category_hierarchy,
-                primaryImage: row.cat_primary_image
-            } : undefined;
-
-            // Use the catalog item's underlying item as fallback for 'item' property if direct item is missing but catalog item exists
-            // This ensures frontend code using item.item works even if it's a catalog item link
-            const effectiveItem = item || (catalogItem ? {
-                id: catalogItem.vufsItemId,
-                name: catalogItem.name,
-                description: catalogItem.description,
-                images: catalogItem.images,
-                metadata: catalogItem.metadata,
-                categoryHierarchy: catalogItem.categoryHierarchy,
-                primaryImage: catalogItem.primaryImage
-            } : undefined);
-
-            return {
-                collectionId: row.collection_id,
-                itemId: row.item_id,
-                sortOrder: row.sort_order,
-                item: effectiveItem,
-                catalogItem: catalogItem // Add this property to the interface below
-            };
+        allSkus.forEach((sku: any) => {
+            if (sku.parent_sku_id) {
+                childSkuIds.add(sku.id);
+                if (!childrenByParentId[sku.parent_sku_id]) {
+                    childrenByParentId[sku.parent_sku_id] = [];
+                }
+                childrenByParentId[sku.parent_sku_id].push(sku);
+            }
         });
+
+        // Construct parent items
+        const groupedItems = allSkus
+            .filter((sku: any) => !childSkuIds.has(sku.id))
+            .map((sku: any) => {
+                const rawVariants = childrenByParentId[sku.id] || [];
+                const variants = rawVariants.map((v: any) => {
+                    const vMetadata = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata;
+                    return {
+                        id: v.id,
+                        name: v.name,
+                        code: v.code,
+                        size: vMetadata?.sizeName || vMetadata?.size || '',
+                        sizeId: vMetadata?.sizeId,
+                        color: vMetadata?.colorName || vMetadata?.color,
+                        retailPriceBrl: v.retail_price_brl,
+                        images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || []
+                    };
+                });
+
+                const skuMetadata = typeof sku.metadata === 'string' ? JSON.parse(sku.metadata) : sku.metadata;
+
+                return {
+                    id: sku.id,
+                    itemId: sku.id,
+                    name: sku.name,
+                    code: sku.code,
+                    collection: sku.collection,
+                    retailPriceBrl: sku.retail_price_brl,
+                    description: skuMetadata?.description || '',
+                    images: typeof sku.images === 'string' ? JSON.parse(sku.images) : sku.images || [],
+                    category: typeof sku.category === 'string' ? JSON.parse(sku.category) : sku.category,
+                    brand: {
+                        id: brandId,
+                        name: brandInfo?.name || 'Unknown',
+                        slug: brandInfo?.slug,
+                        logo: brandInfo?.logo
+                    },
+                    lineInfo: sku.line_id ? {
+                        id: sku.line_id,
+                        name: sku.line_name,
+                        logo: sku.line_logo
+                    } : (sku.line ? { name: sku.line } : undefined),
+                    variants
+                };
+            });
+
+        return groupedItems;
     }
 
     static async updateItemOrder(collectionId: string, items: Array<{ itemId: string; sortOrder: number }>): Promise<void> {

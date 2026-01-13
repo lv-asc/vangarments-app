@@ -26,7 +26,7 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Vangs - Home',
+    default: 'Vangs | Home',
     template: '%s',
   },
   description: 'Organize seu guarda-roupa, descubra tendências e conecte-se com a comunidade da moda brasileira.',
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'pt_BR',
     url: '/',
-    title: 'Vangarments - Sua Plataforma de Moda Digital',
+    title: 'Vangarments | Sua Plataforma de Moda Digital',
     description: 'Organize seu guarda-roupa, descubra tendências e conecte-se com a comunidade da moda brasileira.',
     siteName: 'Vangarments',
     images: [
@@ -72,7 +72,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Vangarments - Sua Plataforma de Moda Digital',
+    title: 'Vangarments | Sua Plataforma de Moda Digital',
     description: 'Organize seu guarda-roupa, descubra tendências e conecte-se com a comunidade da moda brasileira.',
     images: ['/og-image.jpg'],
     creator: '@vangarments',

@@ -7,6 +7,8 @@ export interface Supplier {
     slug?: string;
     contactInfo?: string;
     userId?: string;
+    email?: string;
+    telephone?: string;
     socialLinks?: Array<{ platform: string; url: string }>;
     createdAt: Date;
     updatedAt: Date;
@@ -46,20 +48,20 @@ export class SupplierModel {
         return result.rows.length > 0 ? this.mapRowToSupplier(result.rows[0]) : null;
     }
 
-    static async create(data: { name: string; slug?: string; contactInfo?: string; userId?: string; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Supplier> {
+    static async create(data: { name: string; slug?: string; contactInfo?: string; userId?: string; email?: string; telephone?: string; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Supplier> {
         // Auto-generate slug from name if not provided
         const slug = data.slug || slugify(data.name);
 
         const query = `
-      INSERT INTO suppliers (name, slug, contact_info, user_id, social_links)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO suppliers (name, slug, contact_info, user_id, email, telephone, social_links)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
-        const result = await db.query(query, [data.name, slug, data.contactInfo || null, data.userId || null, JSON.stringify(data.socialLinks || [])]);
+        const result = await db.query(query, [data.name, slug, data.contactInfo || null, data.userId || null, data.email || null, data.telephone || null, JSON.stringify(data.socialLinks || [])]);
         return this.mapRowToSupplier(result.rows[0]);
     }
 
-    static async update(id: string, data: { name?: string; contactInfo?: string; userId?: string | null; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Supplier | null> {
+    static async update(id: string, data: { name?: string; contactInfo?: string; userId?: string | null; email?: string; telephone?: string; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Supplier | null> {
         const setClause: string[] = [];
         const values: any[] = [];
         let paramIndex = 1;
@@ -67,6 +69,8 @@ export class SupplierModel {
         if (data.name !== undefined) { setClause.push(`name = $${paramIndex++}`); values.push(data.name); }
         if (data.contactInfo !== undefined) { setClause.push(`contact_info = $${paramIndex++}`); values.push(data.contactInfo); }
         if (data.userId !== undefined) { setClause.push(`user_id = $${paramIndex++}`); values.push(data.userId); }
+        if (data.email !== undefined) { setClause.push(`email = $${paramIndex++}`); values.push(data.email); }
+        if (data.telephone !== undefined) { setClause.push(`telephone = $${paramIndex++}`); values.push(data.telephone); }
         if (data.socialLinks !== undefined) { setClause.push(`social_links = $${paramIndex++}`); values.push(JSON.stringify(data.socialLinks)); }
 
         if (setClause.length === 0) return this.findById(id);
@@ -98,6 +102,8 @@ export class SupplierModel {
             slug: row.slug || undefined,
             contactInfo: row.contact_info,
             userId: row.user_id,
+            email: row.email || undefined,
+            telephone: row.telephone || undefined,
             socialLinks: row.social_links || [],
             createdAt: row.created_at,
             updatedAt: row.updated_at,

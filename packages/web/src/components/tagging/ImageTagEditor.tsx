@@ -61,9 +61,12 @@ export default function ImageTagEditor({
         [readOnly, isEditing]
     );
 
-    // Handle entity/item selection from search modal
+    // Handle entity tag selection
     const handleEntitySelect = async (result: TagSearchResult) => {
         if (!pendingTag) return;
+
+        // Prompt for optional description
+        const description = prompt(`Add an optional description for ${result.name}:\n(e.g., "Designer", "Model", "Photographer")\n\nLeave empty if not needed:`);
 
         setIsLoading(true);
         try {
@@ -74,19 +77,16 @@ export default function ImageTagEditor({
                 positionX: pendingTag.positionX,
                 positionY: pendingTag.positionY,
                 tagType: result.type,
-                ...(result.type === 'item'
-                    ? { taggedItemId: result.id }
-                    : result.type === 'location'
-                        ? { locationName: result.name, locationAddress: result.subtitle }
-                        : { taggedEntityId: result.id }
-                ),
+                taggedEntityId: result.type === 'item' ? undefined : result.id,
+                taggedItemId: result.type === 'item' ? result.id : undefined,
+                description: description?.trim() || undefined,
             };
 
             const newTag = await tagApi.addTag(tagRequest);
             const updatedTags = [...tags, newTag];
             setTags(updatedTags);
             onTagsChange?.(updatedTags);
-            toast.success(`Tagged ${result.name}`);
+            toast.success(`Tagged ${result.name}${description ? ` as "${description}"` : ''}`);
         } catch (error: any) {
             toast.error(error.message || 'Failed to add tag');
         } finally {

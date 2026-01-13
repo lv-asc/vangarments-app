@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthWrapper';
+import { useAuth, ActiveAccount } from '@/contexts/AuthWrapper';
 import { apiClient } from '@/lib/api';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useToast } from '@/components/ui/Toast';
@@ -39,6 +39,7 @@ import { AVAILABLE_ROLES } from '@/constants/roles';
 import { MeasurementsSection } from '@/components/profile/MeasurementsSection';
 import { MeasurementManager } from '@/components/profile/MeasurementManager';
 import VerificationRequestModal from '@/components/verification/VerificationRequestModal';
+import SwitchAccountModal from '@/components/profile/SwitchAccountModal';
 import {
   DndContext,
   closestCenter,
@@ -208,7 +209,7 @@ function SortableSocialLinkItem({ id, platform, url, index, onChange, onRemove, 
 
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, refreshAuth, logout: userLogout } = useAuth();
+  const { user, isAuthenticated, refreshAuth, logout: userLogout, activeAccount, setActiveAccount, isSwitchAccountModalOpen, setIsSwitchAccountModalOpen } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1703,7 +1704,7 @@ export default function ProfilePage() {
                   <div className="flex items-center space-x-3 mb-2">
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                       {userProfile.name}
-                      {userProfile.verificationStatus === 'verified' && <VerifiedBadge size="md" />}
+                      {userProfile.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
                     </h1>
                     <button
                       onClick={handleEditProfile}
@@ -1815,15 +1816,27 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Settings Button */}
+            {/* Action Buttons */}
             {!isEditing && (
-              <button
-                onClick={() => window.location.href = '/settings'}
-                className="bg-[#fff7d7] text-[#00132d] px-4 py-2 rounded-lg hover:bg-[#fff7d7]/70 transition-colors flex items-center space-x-2"
-              >
-                <CogIcon className="h-5 w-5" />
-                <span>Settings</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Switch Account Button */}
+                <button
+                  onClick={() => setIsSwitchAccountModalOpen(true)}
+                  className="bg-white text-[#00132d] px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center space-x-2"
+                >
+                  <ArrowRightOnRectangleIcon className="h-5 w-5" />
+                  <span>Switch Account</span>
+                </button>
+
+                {/* Settings Button */}
+                <button
+                  onClick={() => window.location.href = '/settings'}
+                  className="bg-[#fff7d7] text-[#00132d] px-4 py-2 rounded-lg hover:bg-[#fff7d7]/70 transition-colors flex items-center space-x-2"
+                >
+                  <CogIcon className="h-5 w-5" />
+                  <span>Settings</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -1902,7 +1915,7 @@ export default function ProfilePage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 className="font-semibold text-gray-900 truncate">{entity.brandName}</h4>
-                        {entity.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                        {entity.verificationStatus === 'verified' && <VerifiedBadge size="xs" />}
                         <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
                           {businessTypeLabels[entity.businessType] || entity.businessType}
                         </span>

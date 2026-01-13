@@ -481,6 +481,7 @@ export class VUFSManagementService {
       })),
       isActive: row.is_active,
       skuRef: row.sku_ref,
+      careInstructions: row.care_instructions || null,
       isDeleted: row.is_deleted || false
     }));
   }
@@ -499,8 +500,8 @@ export class VUFSManagementService {
     }));
   }
 
-  static async addMaterial(name: string, category: string = 'natural', skuRef?: string): Promise<VUFSMaterialOption> {
-    return this.addItem('vufs_materials', name, { category, sku_ref: skuRef });
+  static async addMaterial(name: string, category: string = 'natural', skuRef?: string, careInstructions?: string): Promise<VUFSMaterialOption> {
+    return this.addItem('vufs_materials', name, { category, sku_ref: skuRef, care_instructions: careInstructions });
   }
 
   static async deleteMaterial(id: string): Promise<void> {
@@ -515,8 +516,11 @@ export class VUFSManagementService {
     await this.deleteItem('vufs_materials', id);
   }
 
-  static async updateMaterial(id: string, name: string, skuRef?: string): Promise<any> {
-    return this.updateItem('vufs_materials', id, name, skuRef ? { sku_ref: skuRef } : {});
+  static async updateMaterial(id: string, name: string, skuRef?: string, careInstructions?: string): Promise<any> {
+    const extras: Record<string, any> = {};
+    if (skuRef !== undefined) extras.sku_ref = skuRef;
+    if (careInstructions !== undefined) extras.care_instructions = careInstructions;
+    return this.updateItem('vufs_materials', id, name, extras);
   }
 
 

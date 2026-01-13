@@ -8,6 +8,8 @@ export interface Store {
     description?: string;
     location?: string;
     userId?: string;
+    email?: string;
+    telephone?: string;
     socialLinks?: Array<{ platform: string; url: string }>;
     createdAt: Date;
     updatedAt: Date;
@@ -47,20 +49,20 @@ export class StoreModel {
         return result.rows.length > 0 ? this.mapRowToStore(result.rows[0]) : null;
     }
 
-    static async create(data: { name: string; slug?: string; description?: string; location?: string; userId?: string; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Store> {
+    static async create(data: { name: string; slug?: string; description?: string; location?: string; userId?: string; email?: string; telephone?: string; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Store> {
         // Auto-generate slug from name if not provided
         const slug = data.slug || slugify(data.name);
 
         const query = `
-      INSERT INTO stores (name, slug, description, location, user_id, social_links)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO stores (name, slug, description, location, user_id, email, telephone, social_links)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
-        const result = await db.query(query, [data.name, slug, data.description || null, data.location || null, data.userId || null, JSON.stringify(data.socialLinks || [])]);
+        const result = await db.query(query, [data.name, slug, data.description || null, data.location || null, data.userId || null, data.email || null, data.telephone || null, JSON.stringify(data.socialLinks || [])]);
         return this.mapRowToStore(result.rows[0]);
     }
 
-    static async update(id: string, data: { name?: string; description?: string; location?: string; userId?: string | null; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Store | null> {
+    static async update(id: string, data: { name?: string; description?: string; location?: string; userId?: string | null; email?: string; telephone?: string; socialLinks?: Array<{ platform: string; url: string }> }): Promise<Store | null> {
         const setClause: string[] = [];
         const values: any[] = [];
         let paramIndex = 1;
@@ -69,6 +71,8 @@ export class StoreModel {
         if (data.description !== undefined) { setClause.push(`description = $${paramIndex++}`); values.push(data.description); }
         if (data.location !== undefined) { setClause.push(`location = $${paramIndex++}`); values.push(data.location); }
         if (data.userId !== undefined) { setClause.push(`user_id = $${paramIndex++}`); values.push(data.userId); }
+        if (data.email !== undefined) { setClause.push(`email = $${paramIndex++}`); values.push(data.email); }
+        if (data.telephone !== undefined) { setClause.push(`telephone = $${paramIndex++}`); values.push(data.telephone); }
         if (data.socialLinks !== undefined) { setClause.push(`social_links = $${paramIndex++}`); values.push(JSON.stringify(data.socialLinks)); }
 
         if (setClause.length === 0) return this.findById(id);
@@ -101,6 +105,8 @@ export class StoreModel {
             description: row.description,
             location: row.location,
             userId: row.user_id,
+            email: row.email || undefined,
+            telephone: row.telephone || undefined,
             socialLinks: row.social_links || [],
             createdAt: row.created_at,
             updatedAt: row.updated_at,

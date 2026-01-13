@@ -1,7 +1,7 @@
 // Media Tagging types for Vangarments
 // Supports tagging users, brands, stores, pages, suppliers, items, and locations on images
 
-export type TagSourceType = 'lookbook_image' | 'post_image' | 'wardrobe_image';
+export type TagSourceType = 'lookbook_image' | 'post_image' | 'wardrobe_image' | 'sku_image';
 export type TagType = 'user' | 'brand' | 'store' | 'page' | 'supplier' | 'item' | 'location';
 
 export interface MediaTag {
@@ -18,6 +18,7 @@ export interface MediaTag {
     locationAddress?: string;
     locationLat?: number;
     locationLng?: number;
+    description?: string;  // Optional description like "Designer", "Model", etc.
     createdBy: string;
     isApproved: boolean;
     createdAt: string;
@@ -56,6 +57,7 @@ export interface CreateMediaTagRequest {
     locationAddress?: string;
     locationLat?: number;
     locationLng?: number;
+    description?: string;
 }
 
 export interface UpdateMediaTagRequest {

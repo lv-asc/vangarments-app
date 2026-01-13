@@ -27,9 +27,10 @@ export class MediaTagModel {
         position_x, position_y,
         tag_type, tagged_entity_id, tagged_item_id,
         location_name, location_address, location_lat, location_lng,
+        description,
         created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
 
@@ -46,6 +47,7 @@ export class MediaTagModel {
             data.locationAddress || null,
             data.locationLat || null,
             data.locationLng || null,
+            data.description || null,
             data.createdBy,
         ];
 
@@ -354,12 +356,17 @@ export class MediaTagModel {
             const userResult = await db.query(userQuery, [searchPattern, query.toLowerCase(), `${query.toLowerCase()}%`, limit]);
             for (const row of userResult.rows) {
                 const profile = row.profile || {};
+                // Convert storage path to URL if needed
+                let profilePicUrl = profile.profilePicture;
+                if (profilePicUrl && !profilePicUrl.startsWith('http') && !profilePicUrl.startsWith('/api')) {
+                    profilePicUrl = `/api/storage/${profilePicUrl.startsWith('/') ? profilePicUrl.substring(1) : profilePicUrl}`;
+                }
                 results.push({
                     id: row.id,
                     type: 'user',
                     name: profile.name || row.username,
                     slug: row.username,
-                    imageUrl: profile.profilePicture,
+                    imageUrl: profilePicUrl,
                     subtitle: `@${row.username}`,
                 });
             }
@@ -622,6 +629,7 @@ export class MediaTagModel {
             locationAddress: row.location_address || undefined,
             locationLat: row.location_lat ? parseFloat(row.location_lat) : undefined,
             locationLng: row.location_lng ? parseFloat(row.location_lng) : undefined,
+            description: row.description || undefined,
             createdBy: row.created_by,
             isApproved: row.is_approved,
             createdAt: row.created_at,

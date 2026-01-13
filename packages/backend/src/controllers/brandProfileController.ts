@@ -76,7 +76,13 @@ export class BrandProfileController {
             const { brandId } = req.params;
             const publicOnly = req.query.publicOnly !== 'false';
 
-            const team = await BrandTeamModel.getTeamMembers(brandId, publicOnly);
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
+                return;
+            }
+
+            const team = await BrandTeamModel.getTeamMembers(brand.id, publicOnly);
             res.json({ success: true, data: { team } });
         } catch (error: any) {
             res.status(500).json({
@@ -93,6 +99,12 @@ export class BrandProfileController {
             const { brandId } = req.params;
             const { userId, roles, title, isPublic } = req.body;
 
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
+                return;
+            }
+
             if (!userId || !roles) {
                 res.status(400).json({
                     error: { code: 'INVALID_INPUT', message: 'userId and roles are required' }
@@ -101,7 +113,7 @@ export class BrandProfileController {
             }
 
             const member = await BrandTeamModel.addMember({
-                brandId,
+                brandId: brand.id,
                 userId,
                 roles: roles as BrandRole[],
                 title,
@@ -174,7 +186,13 @@ export class BrandProfileController {
             const { brandId } = req.params;
             const publishedOnly = req.query.publishedOnly !== 'false';
 
-            const lookbooks = await BrandLookbookModel.findByBrand(brandId, publishedOnly);
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
+                return;
+            }
+
+            const lookbooks = await BrandLookbookModel.findByBrand(brand.id, publishedOnly);
             res.json({ success: true, data: { lookbooks } });
         } catch (error: any) {
             res.status(500).json({
@@ -214,7 +232,12 @@ export class BrandProfileController {
         try {
             const { brandId } = req.params;
             const { name, description, coverImageUrl, season, year, collectionId, images } = req.body;
-            console.log('Create Lookbook Body:', JSON.stringify(req.body, null, 2));
+
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
+                return;
+            }
 
             if (!name) {
                 res.status(400).json({
@@ -224,7 +247,7 @@ export class BrandProfileController {
             }
 
             const lookbook = await BrandLookbookModel.create({
-                brandId,
+                brandId: brand.id,
                 collectionId,
                 name,
                 description,
@@ -331,8 +354,14 @@ export class BrandProfileController {
             const { brandId } = req.params;
             const publishedOnly = req.query.publishedOnly !== 'false';
 
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
+                return;
+            }
+
             // First try direct lookup by brand_accounts.id
-            let collections = await BrandCollectionModel.findByBrand(brandId, publishedOnly);
+            let collections = await BrandCollectionModel.findByBrand(brand.id, publishedOnly);
 
             // If no collections found, try looking up by vufs_brand_id
             // This supports the case where frontend sends a vufs_brands.id
@@ -394,6 +423,12 @@ export class BrandProfileController {
             const { brandId } = req.params;
             const { name, description, coverImageUrl, collectionType, season, year, isPublished } = req.body;
 
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
+                return;
+            }
+
             if (!name) {
                 res.status(400).json({
                     error: { code: 'INVALID_INPUT', message: 'name is required' }
@@ -402,7 +437,7 @@ export class BrandProfileController {
             }
 
             const collection = await BrandCollectionModel.create({
-                brandId,
+                brandId: brand.id,
                 name,
                 description,
                 coverImageUrl,

@@ -23,7 +23,13 @@ import {
   ClipboardDocumentCheckIcon,
   SwatchIcon,
   BellIcon,
-  HeartIcon
+  HeartIcon,
+  CalendarDaysIcon,
+  ArrowPathIcon,
+  ArrowRightOnRectangleIcon,
+  FireIcon,
+  UsersIcon,
+  RectangleStackIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -35,13 +41,15 @@ import { useTranslation } from '@/utils/translations';
 import { NotificationBadge } from '@/components/ui/NotificationBadge';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
+import SwitchAccountModal from '@/components/profile/SwitchAccountModal';
 // import { useRecentPages } from '@/components/providers/RecentPagesProvider'; // Removed unused import
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isManagementOpen, setIsManagementOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { user, isAuthenticated, logout } = useAuth();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const { user, isAuthenticated, logout, activeAccount, setActiveAccount, isSwitchAccountModalOpen, setIsSwitchAccountModalOpen } = useAuth();
   const { navigate, currentPath, isNavigating } = useNavigation();
   const { t } = useTranslation();
   const {
@@ -75,6 +83,7 @@ export function Header() {
     { name: 'Design Studio', href: '/design-studio', icon: SwatchIcon },
     { name: t('marketplace'), href: '/marketplace', icon: ShoppingBagIcon },
     { name: 'DMs', href: '/messages', icon: ChatBubbleLeftRightIcon },
+    { name: 'Calendar', href: '/calendar', icon: CalendarDaysIcon },
   ];
 
   if (user?.roles?.includes('admin')) {
@@ -83,32 +92,64 @@ export function Header() {
 
   const entityNavigation = [];
   if (user?.linkedEntities) {
-    if (user.linkedEntities.hasBrand) {
-      entityNavigation.push({ name: 'My Brands', href: '/admin?tab=brands', icon: BuildingStorefrontIcon });
-    }
-    if (user.linkedEntities.hasStore) {
-      entityNavigation.push({ name: 'My Stores', href: '/admin/stores', icon: ArchiveBoxIcon });
-    }
-    if (user.linkedEntities.hasPage) {
-      entityNavigation.push({ name: 'My Pages', href: '/admin/pages', icon: DocumentTextIcon });
-    }
-    if (user.linkedEntities.hasSupplier) {
-      entityNavigation.push({ name: 'My Suppliers', href: '/admin/suppliers', icon: ClipboardDocumentCheckIcon });
-    }
+    // Brands
+    user.linkedEntities.brands?.forEach((brand: any) => {
+      entityNavigation.push({
+        name: brand.name,
+        href: `/admin/brands/${brand.id}`,
+        icon: BuildingStorefrontIcon,
+        logo: brand.logo
+      });
+    });
+
+    // Stores
+    user.linkedEntities.stores?.forEach((store: any) => {
+      entityNavigation.push({
+        name: store.name,
+        href: `/admin/stores/${store.id}`,
+        icon: ArchiveBoxIcon,
+        logo: store.logo
+      });
+    });
+
+    // Pages
+    user.linkedEntities.pages?.forEach((page: any) => {
+      entityNavigation.push({
+        name: page.name,
+        href: `/admin/pages/${page.id}`,
+        icon: DocumentTextIcon,
+        logo: page.logo
+      });
+    });
+
+    // Suppliers
+    user.linkedEntities.suppliers?.forEach((supplier: any) => {
+      entityNavigation.push({
+        name: supplier.name,
+        href: `/admin/suppliers/${supplier.id}`,
+        icon: ClipboardDocumentCheckIcon
+      });
+    });
+
+    // Posts
     if (user.linkedEntities.hasPost) {
       entityNavigation.push({
         name: 'My Posts',
         href: `/u/${user.username || user.email?.split('@')[0] || 'user'}?tab=posts`,
+        icon: DocumentTextIcon
       });
     }
   }
 
   const searchEntities = [
-    { name: 'Brands', href: '/brands', icon: BuildingStorefrontIcon },
-    { name: 'Stores', href: '/stores', icon: ArchiveBoxIcon },
-    { name: 'Suppliers', href: '/suppliers', icon: ClipboardDocumentCheckIcon },
+    { name: 'Items', href: '/search?tab=item', icon: ShoppingBagIcon },
+    { name: 'Brands', href: '/brands', icon: FireIcon },
+    { name: 'Stores', href: '/stores', icon: BuildingStorefrontIcon },
+    { name: 'Users', href: '/search?tab=user', icon: UsersIcon },
+    { name: 'Posts', href: '/search?tab=post', icon: ChatBubbleLeftRightIcon },
+    { name: 'Pages', href: '/pages', icon: RectangleStackIcon },
     { name: 'Non Profits', href: '/non-profits', icon: HeartIcon },
-    { name: 'Pages', href: '/pages', icon: DocumentTextIcon },
+    { name: 'Suppliers', href: '/suppliers', icon: ClipboardDocumentCheckIcon },
   ];
 
   /* const handleLogout = async () => {
@@ -124,28 +165,29 @@ export function Header() {
     <header className="bg-background/80 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-border">
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Top">
         <div className="flex w-full items-center justify-between py-3">
-          <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-3">
+          <div className="flex items-center shrink-0">
+            <Link href="/" className="flex items-center">
               <img
                 src="/assets/images/logo-header.svg"
-                alt="Vangarments Logo"
-                className="h-10 w-auto"
+                alt="Vangarments"
+                className="h-10 w-auto object-contain"
+                style={{ filter: 'brightness(0)' }}
               />
             </Link>
           </div>
 
-          <div className="ml-10 hidden space-x-6 lg:flex items-center">
+          <div className="ml-6 hidden space-x-4 lg:flex items-center">
             {navigation.map((link) => {
               const isActive = currentPath === link.href;
               const isSearch = link.name === 'Search';
 
               const content = (
-                <div className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors ${isActive
+                <div className={`flex flex-col items-center justify-center space-y-1 p-1.5 rounded-lg transition-colors min-w-[64px] ${isActive
                   ? 'text-primary bg-primary/10'
                   : 'text-muted-foreground hover:text-primary hover:bg-muted'
                   } ${isSearch && isSearchOpen ? 'text-primary bg-primary/10' : ''}`}>
-                  <div className="relative">
-                    <link.icon className="h-5 w-5" />
+                  <div className="relative flex items-center justify-center h-5 w-5">
+                    <link.icon className="h-5 w-5 shrink-0" />
                     {link.href === '/messages' && notificationPreferences.showMessageBadge && unreadMessageCount > 0 && (
                       <NotificationBadge
                         count={unreadMessageCount}
@@ -154,7 +196,7 @@ export function Header() {
                       />
                     )}
                   </div>
-                  <span className="text-xs font-medium">{link.name}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-tight whitespace-nowrap">{link.name}</span>
                 </div>
               );
 
@@ -215,7 +257,7 @@ export function Header() {
           </div>
 
           {/* Desktop User Menu or Auth Buttons */}
-          <div className="ml-10 hidden lg:flex items-center space-x-4">
+          <div className="ml-6 hidden lg:flex items-center space-x-3">
             {/* Recent Pages Dropdown Removed */}
 
             {/* LanguageSelector Removed */}
@@ -227,10 +269,12 @@ export function Header() {
                     <button
                       onMouseEnter={() => setIsManagementOpen(true)}
                       onMouseLeave={() => setIsManagementOpen(false)}
-                      className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors text-muted-foreground hover:text-primary hover:bg-muted ${isManagementOpen ? 'text-primary bg-primary/10' : ''}`}
+                      className={`flex flex-col items-center justify-center space-y-1 p-2 rounded-lg transition-colors min-w-[72px] text-muted-foreground hover:text-primary hover:bg-muted ${isManagementOpen ? 'text-primary bg-primary/10' : ''}`}
                     >
-                      <Square3Stack3DIcon className="h-5 w-5" />
-                      <span className="text-xs font-medium">Manage</span>
+                      <div className="relative flex items-center justify-center h-5 w-5">
+                        <Square3Stack3DIcon className="h-5 w-5 shrink-0" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-tight whitespace-nowrap">Manage</span>
 
                       <AnimatePresence>
                         {isManagementOpen && (
@@ -249,8 +293,16 @@ export function Header() {
                                 href={link.href}
                                 className="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors group"
                               >
-                                <link.icon className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
-                                <span>{link.name}</span>
+                                {link.logo ? (
+                                  <img
+                                    src={link.logo}
+                                    alt={link.name}
+                                    className="h-4 w-4 rounded-full object-cover shrink-0 border border-border"
+                                  />
+                                ) : (
+                                  link.icon && <link.icon className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors shrink-0" />
+                                )}
+                                <span className="truncate">{link.name}</span>
                               </Link>
                             ))}
                           </motion.div>
@@ -274,18 +326,71 @@ export function Header() {
                     />
                   </Link>
 
-                  {/* Profile Link */}
-                  <Link
-                    href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
-                    className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors"
+                  {/* Profile & User Menu */}
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setIsUserMenuOpen(true)}
+                    onMouseLeave={() => setIsUserMenuOpen(false)}
                   >
-                    <UserAvatar user={user} size="sm" />
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium">{user.name}</span>
-                      {user.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
-                    </div>
-                    <span className="text-sm text-muted-foreground">@{user.username || user.email?.split('@')[0] || 'user'}</span>
-                  </Link>
+                    <Link
+                      href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
+                      className={`flex items-center space-x-2 p-1.5 rounded-lg transition-colors ${isUserMenuOpen ? 'bg-muted text-primary' : 'text-muted-foreground hover:text-primary'}`}
+                    >
+                      <UserAvatar user={user} size="sm" />
+                      <div className="hidden xl:flex flex-col items-start leading-tight">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-sm">{user.name}</span>
+                          {user.verificationStatus === 'verified' && <VerifiedBadge size="xxs" />}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">@{user.username || user.email?.split('@')[0] || 'user'}</span>
+                      </div>
+                    </Link>
+
+                    <AnimatePresence>
+                      {isUserMenuOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute top-full right-0 mt-2 w-56 bg-background border border-border rounded-xl shadow-xl py-2 z-50 overflow-hidden"
+                        >
+                          {/* User Info Header in Dropdown */}
+                          <div className="px-4 py-3 border-b border-border/50 bg-muted/30 mb-1">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Personal Account</p>
+                            <p className="text-sm font-semibold truncate flex items-center gap-1">
+                              {user.name}
+                              {user.verificationStatus === 'verified' && <VerifiedBadge size="xs" />}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">@{user.username || user.email?.split('@')[0] || 'user'}</p>
+                          </div>
+
+                          {/* Switch Account Option */}
+                          <button
+                            onClick={() => {
+                              setIsSwitchAccountModalOpen(true);
+                              setIsUserMenuOpen(false);
+                            }}
+                            className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors group"
+                          >
+                            <ArrowPathIcon className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                            <span>Switch Account</span>
+                          </button>
+
+                          {/* Sign Out Option */}
+                          <button
+                            onClick={async () => {
+                              await logout();
+                              setIsUserMenuOpen(false);
+                            }}
+                            className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-red-500 hover:bg-red-500/5 transition-colors group border-t border-border/10 mt-1"
+                          >
+                            <ArrowRightOnRectangleIcon className="h-4 w-4 text-red-500/60 group-hover:text-red-500 transition-colors" />
+                            <span>Sign Out</span>
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </>
             ) : (
@@ -377,7 +482,7 @@ export function Header() {
                         <div>
                           <div className="flex items-center gap-1">
                             <div className="text-base font-medium text-[#00132d]">{user.name}</div>
-                            {user.verificationStatus === 'verified' && <VerifiedBadge size="xs" />}
+                            {user.verificationStatus === 'verified' && <VerifiedBadge size="xxs" />}
                           </div>
                           <div className="text-sm text-[#00132d]/60">@{user.username || user.email?.split('@')[0] || 'user'}</div>
                           <div className="text-xs text-[#00132d]/40">{user.email}</div>
@@ -399,7 +504,15 @@ export function Header() {
                           onClick={closeMenu}
                           className="flex items-center space-x-3 pl-3 pr-4 py-2 text-base font-medium text-[#00132d]/80 hover:text-[#00132d] hover:bg-[#00132d]/5 transition-colors"
                         >
-                          <link.icon className="h-5 w-5" />
+                          {link.logo ? (
+                            <img
+                              src={link.logo}
+                              alt={link.name}
+                              className="h-5 w-5 rounded-full object-cover shrink-0"
+                            />
+                          ) : (
+                            link.icon && <link.icon className="h-5 w-5" />
+                          )}
                           <span>{link.name}</span>
                         </Link>
                       ))}
@@ -437,6 +550,14 @@ export function Header() {
           )}
         </AnimatePresence>
       </nav>
+
+      {/* Global Modals */}
+      <SwitchAccountModal
+        isOpen={isSwitchAccountModalOpen}
+        onClose={() => setIsSwitchAccountModalOpen(false)}
+        currentAccount={activeAccount}
+        onSwitchAccount={setActiveAccount}
+      />
     </header>
   );
 }

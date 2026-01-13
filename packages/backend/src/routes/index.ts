@@ -46,6 +46,8 @@ import verificationRoutes from './verification';
 import notificationRoutes from './notifications';
 import pomRoutes from './pom';
 import tagRoutes from './tags';
+import calendarRoutes from './calendarRoutes';
+import accountRoutes from './accounts';
 
 const router = Router();
 
@@ -95,6 +97,8 @@ router.use('/verification', verificationRoutes); // Verification system
 router.use('/notifications', notificationRoutes); // Notification system
 router.use('/pom', pomRoutes); // Point of Measurement system
 router.use('/tags', tagRoutes); // Media tagging system
+router.use('/calendar', calendarRoutes); // Calendar events system
+router.use('/accounts', accountRoutes); // Account switching system
 
 // Health check for API
 router.get('/health', (req, res) => {

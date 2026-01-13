@@ -395,6 +395,70 @@ export default function ProductPageClient() {
                                         </div>
                                     )}
 
+                                    {/* Measurements Section */}
+                                    {measurements.length > 0 && (
+                                        <div className="border-t border-gray-200 pt-6">
+                                            <button
+                                                onClick={() => setShowMeasurements(!showMeasurements)}
+                                                className="flex items-center justify-between w-full text-left"
+                                            >
+                                                <h3 className="text-sm font-medium text-gray-900">Measurements</h3>
+                                                {showMeasurements ? (
+                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                                )}
+                                            </button>
+
+                                            {showMeasurements && (
+                                                <div className="mt-4 overflow-x-auto">
+                                                    <table className="min-w-full text-sm">
+                                                        <thead>
+                                                            <tr className="border-b border-gray-200">
+                                                                <th className="text-left py-2 pr-4 font-medium text-gray-700">POM</th>
+                                                                {uniqueSizes.map(size => {
+                                                                    const isSelected = size.id === selectedSizeId || size.name === selectedSizeName;
+                                                                    return (
+                                                                        <th
+                                                                            key={size.id}
+                                                                            className={`text-center py-2 px-3 ${isSelected ? 'font-bold text-gray-900 text-base' : 'font-medium text-gray-600'}`}
+                                                                        >
+                                                                            {size.name}
+                                                                        </th>
+                                                                    );
+                                                                })}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {uniquePOMs.map(pom => (
+                                                                <tr key={pom.id} className="border-b border-gray-100">
+                                                                    <td className="py-2 pr-4 text-gray-700">
+                                                                        {pom.name}
+                                                                        <span className="text-gray-400 text-xs ml-1">({pom.unit})</span>
+                                                                    </td>
+                                                                    {uniqueSizes.map(size => {
+                                                                        const measurement = measurements.find(
+                                                                            m => m.pom_id === pom.id && m.size_id === size.id
+                                                                        );
+                                                                        const isSelected = size.id === selectedSizeId || size.name === selectedSizeName;
+                                                                        return (
+                                                                            <td
+                                                                                key={size.id}
+                                                                                className={`text-center py-2 px-3 ${isSelected ? 'font-bold text-gray-900 text-base bg-gray-50' : 'text-gray-600'}`}
+                                                                            >
+                                                                                {measurement ? measurement.value : '-'}
+                                                                            </td>
+                                                                        );
+                                                                    })}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {product.code && (
                                         <div className="border-t border-gray-200 pt-6">
                                             <button
@@ -466,70 +530,6 @@ export default function ProductPageClient() {
                                         </div>
                                     )}
                                 </div>
-
-                                {/* Measurements Section */}
-                                {measurements.length > 0 && (
-                                    <div className="border-t border-gray-200 pt-6">
-                                        <button
-                                            onClick={() => setShowMeasurements(!showMeasurements)}
-                                            className="flex items-center justify-between w-full text-left"
-                                        >
-                                            <h3 className="text-sm font-medium text-gray-900">Measurements</h3>
-                                            {showMeasurements ? (
-                                                <ChevronUpIcon className="h-5 w-5 text-gray-400" />
-                                            ) : (
-                                                <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                                            )}
-                                        </button>
-
-                                        {showMeasurements && (
-                                            <div className="mt-4 overflow-x-auto">
-                                                <table className="min-w-full text-sm">
-                                                    <thead>
-                                                        <tr className="border-b border-gray-200">
-                                                            <th className="text-left py-2 pr-4 font-medium text-gray-700">POM</th>
-                                                            {uniqueSizes.map(size => {
-                                                                const isSelected = size.id === selectedSizeId || size.name === selectedSizeName;
-                                                                return (
-                                                                    <th
-                                                                        key={size.id}
-                                                                        className={`text-center py-2 px-3 ${isSelected ? 'font-bold text-gray-900 text-base' : 'font-medium text-gray-600'}`}
-                                                                    >
-                                                                        {size.name}
-                                                                    </th>
-                                                                );
-                                                            })}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {uniquePOMs.map(pom => (
-                                                            <tr key={pom.id} className="border-b border-gray-100">
-                                                                <td className="py-2 pr-4 text-gray-700">
-                                                                    {pom.name}
-                                                                    <span className="text-gray-400 text-xs ml-1">({pom.unit})</span>
-                                                                </td>
-                                                                {uniqueSizes.map(size => {
-                                                                    const measurement = measurements.find(
-                                                                        m => m.pom_id === pom.id && m.size_id === size.id
-                                                                    );
-                                                                    const isSelected = size.id === selectedSizeId || size.name === selectedSizeName;
-                                                                    return (
-                                                                        <td
-                                                                            key={size.id}
-                                                                            className={`text-center py-2 px-3 ${isSelected ? 'font-bold text-gray-900 text-base bg-gray-50' : 'text-gray-600'}`}
-                                                                        >
-                                                                            {measurement ? measurement.value : '-'}
-                                                                        </td>
-                                                                    );
-                                                                })}
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>

@@ -132,9 +132,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (
-               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
-             ) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.id = $1 AND ba.deleted_at IS NULL
@@ -162,9 +160,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (
-               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
-             ) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE (
@@ -184,9 +180,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (
-               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
-             ) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.user_id = $1 AND ba.deleted_at IS NULL
@@ -201,9 +195,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (
-               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
-             ) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.user_id = $1 AND ba.deleted_at IS NULL
@@ -260,9 +252,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (
-               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
-             ) as catalog_items_count,
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count,
              COUNT(*) OVER() as total
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
@@ -295,6 +285,12 @@ export class BrandAccountModel {
         ...current.brandInfo,
         ...updateData.brandInfo,
       };
+
+      // Ensure slug exists if we have a name
+      if (!updatedBrandInfo.slug && updatedBrandInfo.name) {
+        const { slugify } = await import('../utils/slugify');
+        updatedBrandInfo.slug = slugify(updatedBrandInfo.name);
+      }
 
       setClause.push(`brand_info = $${paramIndex++}`);
       values.push(JSON.stringify(updatedBrandInfo));
@@ -360,9 +356,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (
-               SELECT COUNT(*)::int FROM brand_catalog_items bci WHERE bci.brand_id = ba.id
-             ) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.deleted_at IS NOT NULL
@@ -431,10 +425,12 @@ export class BrandAccountModel {
     topSellingItems: any[];
     revenueByMonth: Array<{ month: string; revenue: number; commission: number }>;
   }> {
-    // Get catalog items count
-    const catalogQuery = 'SELECT COUNT(*)::int as count FROM brand_catalog_items WHERE brand_id = $1';
+    // Get catalog items count from sku_items table
+    const catalogQuery = `
+      SELECT COUNT(*)::int as count FROM sku_items WHERE brand_id = $1 AND deleted_at IS NULL
+    `;
     const catalogResult = await db.query(catalogQuery, [brandId]);
-    const catalogItems = catalogResult.rows[0].count;
+    const catalogItems = catalogResult.rows[0]?.count || 0;
 
     // Get sales and commission data (simplified for now)
     // In a real implementation, this would query actual transaction data

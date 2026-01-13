@@ -10,6 +10,7 @@ import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XM
 import SearchableCombobox from '../ui/Combobox';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
+import { ImageTagEditor } from '@/components/tagging';
 
 interface GlobalSKUManagementProps {
 }
@@ -85,6 +86,13 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [measurements, setMeasurements] = useState<Record<string, Record<string, { value: number; tolerance?: number }>>>({});
     const [showAsCircumference, setShowAsCircumference] = useState<Set<string>>(new Set());
     const [selectedPomIds, setSelectedPomIds] = useState<string[]>([]);
+
+    // Image Tagging State
+    const [taggingModal, setTaggingModal] = useState<{ isOpen: boolean; imageUrl: string; skuId: string }>({
+        isOpen: false,
+        imageUrl: '',
+        skuId: ''
+    });
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -2244,6 +2252,22 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                 onChange={(images) => setFormData({ ...formData, images })}
                                                 label="Product Images"
                                                 helperText="Upload high-quality images of the product."
+                                                onTagImage={(imageUrl) => {
+                                                    if (editingSku?.id) {
+                                                        // Convert URL using same logic as MediaUploader's getUrl
+                                                        let convertedUrl = imageUrl;
+                                                        if (!imageUrl.startsWith('http') && !imageUrl.startsWith('data:') && !imageUrl.startsWith('/api')) {
+                                                            let path = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
+                                                            if (path.startsWith('storage/')) {
+                                                                path = path.substring('storage/'.length);
+                                                            }
+                                                            convertedUrl = `/api/storage/${path}`;
+                                                        }
+                                                        setTaggingModal({ isOpen: true, imageUrl: convertedUrl, skuId: editingSku.id });
+                                                    } else {
+                                                        toast.error('Please save the SKU first before tagging images');
+                                                    }
+                                                }}
                                             />
 
                                             <MediaUploader
@@ -2274,6 +2298,39 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Image Tagging Modal */}
+            {taggingModal.isOpen && (
+                <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="tagging-modal-title" role="dialog" aria-modal="true">
+                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })} />
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-medium text-gray-900" id="tagging-modal-title">
+                                        Tag People & Entities
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })}
+                                        className="text-gray-400 hover:text-gray-500"
+                                    >
+                                        <XMarkIcon className="h-6 w-6" />
+                                    </button>
+                                </div>
+                                <p className="text-sm text-gray-500 mb-4">Click on the image to add tags. Click the + button to enter edit mode.</p>
+                                <ImageTagEditor
+                                    imageUrl={taggingModal.imageUrl}
+                                    sourceType="sku_image"
+                                    sourceId={taggingModal.skuId}
+                                    className="max-h-[60vh] overflow-auto"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

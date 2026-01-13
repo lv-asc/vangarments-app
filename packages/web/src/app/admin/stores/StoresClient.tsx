@@ -263,7 +263,7 @@ export default function AdminStoresPage() {
                                 </div>
                                 <div className="ml-5 flex-shrink-0 flex gap-2">
                                     <Link
-                                        href={`/admin/stores/${brand.id}`}
+                                        href={`/admin/stores/${brand.brandInfo?.slug || brand.id}`}
                                         className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
                                     >
                                         <PencilSquareIcon className="h-5 w-5" aria-hidden="true" />

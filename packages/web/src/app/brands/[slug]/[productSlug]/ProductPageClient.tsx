@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { skuApi } from '@/lib/skuApi';
 import { apiClient } from '@/lib/api';
+import { tagApi } from '@/lib/tagApi';
 import { getImageUrl } from '@/lib/utils';
-import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
@@ -46,6 +47,8 @@ export default function ProductPageClient() {
     const [showMeasurements, setShowMeasurements] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [imageTags, setImageTags] = useState<any[]>([]);
+    const [showTagsList, setShowTagsList] = useState(false);
     const { addVisit } = useRecentVisits();
 
     useEffect(() => {
@@ -148,6 +151,20 @@ export default function ProductPageClient() {
 
         fetchProduct();
     }, [brandSlug, productSlug, variantId, router]);
+
+    // Fetch tags for the current product/image
+    useEffect(() => {
+        const fetchTags = async () => {
+            if (!product?.id) return;
+            try {
+                const tags = await tagApi.getTagsBySource('sku_image', product.id);
+                setImageTags(tags);
+            } catch (error) {
+                console.error('Failed to fetch tags:', error);
+            }
+        };
+        fetchTags();
+    }, [product?.id]);
 
     if (loading) {
         return (
@@ -252,6 +269,74 @@ export default function ProductPageClient() {
                                                         />
                                                     ))}
                                                 </div>
+
+                                                {/* Tag Icon - Bottom Left */}
+                                                {imageTags.length > 0 && (
+                                                    <div className="absolute bottom-4 left-4">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setShowTagsList(!showTagsList); }}
+                                                            className="p-2 rounded-full bg-black/60 hover:bg-black/80 text-white shadow-sm transition-all"
+                                                            title="View tagged people & entities"
+                                                        >
+                                                            <TagIcon className="h-5 w-5" />
+                                                        </button>
+
+                                                        {/* Tagged Entities Popup */}
+                                                        {showTagsList && (
+                                                            <div className="absolute bottom-12 left-0 bg-white rounded-lg shadow-xl border border-gray-200 min-w-[200px] max-w-[280px] max-h-[300px] overflow-y-auto z-20">
+                                                                <div className="p-3 border-b border-gray-100">
+                                                                    <p className="text-xs font-semibold text-gray-500 uppercase">Tagged in this photo</p>
+                                                                </div>
+                                                                <div className="divide-y divide-gray-100">
+                                                                    {imageTags.map((tag: any) => {
+                                                                        const entity = tag.taggedEntity;
+                                                                        const link = entity?.type === 'user'
+                                                                            ? `/profile/${entity.slug || entity.id}`
+                                                                            : entity?.type === 'brand'
+                                                                                ? `/brands/${entity.slug || entity.id}`
+                                                                                : entity?.type === 'store'
+                                                                                    ? `/stores/${entity.slug || entity.id}`
+                                                                                    : null;
+
+                                                                        return (
+                                                                            <Link
+                                                                                key={tag.id}
+                                                                                href={link || '#'}
+                                                                                className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                            >
+                                                                                {entity?.imageUrl ? (
+                                                                                    <img
+                                                                                        src={getImageUrl(entity.imageUrl)}
+                                                                                        alt={entity.name}
+                                                                                        className="w-8 h-8 rounded-full object-cover"
+                                                                                    />
+                                                                                ) : (
+                                                                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                                                                        <TagIcon className="w-4 h-4 text-gray-400" />
+                                                                                    </div>
+                                                                                )}
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                                                                        {entity?.name || 'Unknown'}
+                                                                                    </p>
+                                                                                    {tag.description && (
+                                                                                        <p className="text-xs text-blue-600 font-medium">
+                                                                                            {tag.description}
+                                                                                        </p>
+                                                                                    )}
+                                                                                    <p className="text-xs text-gray-500 capitalize">
+                                                                                        {entity?.type || tag.tagType}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </Link>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </>
                                         )}
                                     </>
@@ -392,77 +477,6 @@ export default function ProductPageClient() {
                                             <p className="text-sm text-gray-600">{product.description}</p>
                                         </div>
                                     )}
-
-                                    {product.code && (
-                                        <div className="border-t border-gray-200 pt-6">
-                                            <button
-                                                onClick={() => setShowDetails(!showDetails)}
-                                                className="flex items-center justify-between w-full text-left"
-                                            >
-                                                <h3 className="text-sm font-medium text-gray-900">See More</h3>
-                                                {showDetails ? (
-                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400" />
-                                                ) : (
-                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                                                )}
-                                            </button>
-
-                                            {showDetails && (
-                                                <div className="mt-4 space-y-3">
-                                                    {product.code && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Product Code</span>
-                                                            <span className="text-sm text-gray-900 font-mono">{product.code}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {product.category && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Apparel</span>
-                                                            <span className="text-sm text-gray-900">
-                                                                {typeof product.category === 'string' ? product.category : (product.category.page || product.category.level3 || product.category.level2)}
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    {product.materials && product.materials.length > 0 && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Material</span>
-                                                            <span className="text-sm text-gray-900">{product.materials.join(', ')}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {product.style && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Style</span>
-                                                            <span className="text-sm text-gray-900">{product.style}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {product.pattern && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Pattern</span>
-                                                            <span className="text-sm text-gray-900">{product.pattern}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {product.fit && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Fit</span>
-                                                            <span className="text-sm text-gray-900">{product.fit}</span>
-                                                        </div>
-                                                    )}
-
-                                                    {product.gender && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Gender</span>
-                                                            <span className="text-sm text-gray-900 capitalize">{product.gender}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Measurements Section */}
@@ -524,6 +538,77 @@ export default function ProductPageClient() {
                                                         ))}
                                                     </tbody>
                                                 </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {product.code && (
+                                    <div className="border-t border-gray-200 pt-6">
+                                        <button
+                                            onClick={() => setShowDetails(!showDetails)}
+                                            className="flex items-center justify-between w-full text-left"
+                                        >
+                                            <h3 className="text-sm font-medium text-gray-900">See More</h3>
+                                            {showDetails ? (
+                                                <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                                            ) : (
+                                                <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                            )}
+                                        </button>
+
+                                        {showDetails && (
+                                            <div className="mt-4 space-y-3">
+                                                {product.code && (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <span className="text-sm text-gray-500">Product Code</span>
+                                                        <span className="text-sm text-gray-900 font-mono">{product.code}</span>
+                                                    </div>
+                                                )}
+
+                                                {product.category && (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <span className="text-sm text-gray-500">Apparel</span>
+                                                        <span className="text-sm text-gray-900">
+                                                            {typeof product.category === 'string' ? product.category : (product.category.page || product.category.level3 || product.category.level2)}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {product.materials && product.materials.length > 0 && (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <span className="text-sm text-gray-500">Material</span>
+                                                        <span className="text-sm text-gray-900">{product.materials.join(', ')}</span>
+                                                    </div>
+                                                )}
+
+                                                {product.style && (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <span className="text-sm text-gray-500">Style</span>
+                                                        <span className="text-sm text-gray-900">{product.style}</span>
+                                                    </div>
+                                                )}
+
+                                                {product.pattern && (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <span className="text-sm text-gray-500">Pattern</span>
+                                                        <span className="text-sm text-gray-900">{product.pattern}</span>
+                                                    </div>
+                                                )}
+
+                                                {product.fit && (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <span className="text-sm text-gray-500">Fit</span>
+                                                        <span className="text-sm text-gray-900">{product.fit}</span>
+                                                    </div>
+                                                )}
+
+                                                {product.gender && (
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <span className="text-sm text-gray-500">Gender</span>
+                                                        <span className="text-sm text-gray-900 capitalize">{product.gender}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>

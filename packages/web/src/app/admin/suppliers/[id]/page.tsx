@@ -67,7 +67,7 @@ export default function AdminEditSupplierPage() {
     // Update document title when supplier is loaded
     useEffect(() => {
         if (supplier?.brandInfo?.name) {
-            document.title = `Admin - Supplier @${supplier.brandInfo.name}`;
+            document.title = `Admin | Supplier @${supplier.brandInfo.name}`;
         }
     }, [supplier]);
 

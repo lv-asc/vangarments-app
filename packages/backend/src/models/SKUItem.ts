@@ -30,6 +30,8 @@ export interface SKUItem {
     createdAt: Date;
     updatedAt: Date;
     deletedAt?: Date | null;
+    parentSkuId?: string;
+    releaseDate?: Date | null;
 }
 
 export interface CreateSKUItemData {
@@ -57,6 +59,7 @@ export interface CreateSKUItemData {
     retailPriceUsd?: number;
     retailPriceEur?: number;
     parentSkuId?: string;
+    releaseDate?: Date;
 }
 
 export interface UpdateSKUItemData {
@@ -82,6 +85,7 @@ export interface UpdateSKUItemData {
     retailPriceBrl?: number;
     retailPriceUsd?: number;
     retailPriceEur?: number;
+    releaseDate?: Date | null;
 }
 
 export class SKUItemModel {
@@ -90,9 +94,9 @@ export class SKUItemModel {
             INSERT INTO sku_items(
                 brand_id, name, code, collection, line, line_id,
                 category, description, materials, images, videos, metadata,
-                retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id
+                retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id, release_date
             )
-            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
         `;
 
@@ -112,7 +116,8 @@ export class SKUItemModel {
             data.retailPriceBrl,
             data.retailPriceUsd,
             data.retailPriceEur,
-            data.parentSkuId || null
+            data.parentSkuId || null,
+            data.releaseDate || null
         ];
 
         const result = await db.query(query, values);
@@ -230,6 +235,7 @@ export class SKUItemModel {
         if (data.retailPriceBrl !== undefined) { updates.push(`retail_price_brl = $${paramIndex++} `); values.push(data.retailPriceBrl); }
         if (data.retailPriceUsd !== undefined) { updates.push(`retail_price_usd = $${paramIndex++} `); values.push(data.retailPriceUsd); }
         if (data.retailPriceEur !== undefined) { updates.push(`retail_price_eur = $${paramIndex++} `); values.push(data.retailPriceEur); }
+        if (data.releaseDate !== undefined) { updates.push(`release_date = $${paramIndex++} `); values.push(data.releaseDate); }
 
         if (updates.length === 0) return this.findById(id);
 
@@ -335,7 +341,9 @@ export class SKUItemModel {
             retailPriceEur: row.retail_price_eur,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
-            deletedAt: row.deleted_at
+            deletedAt: row.deleted_at,
+            parentSkuId: row.parent_sku_id,
+            releaseDate: row.release_date
         };
 
         if (row.line_name || row.line_logo || row.line_id) {

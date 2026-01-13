@@ -19,6 +19,8 @@ export interface Page {
     foundedDate?: string;
     foundedDatePrecision?: 'year' | 'month' | 'day';
     socialLinks?: Array<{ platform: string; url: string }>;
+    email?: string;
+    telephone?: string;
     isVerified: boolean;
     verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
     isActive: boolean;
@@ -75,6 +77,8 @@ export class PageModel {
         foundedDate?: string;
         foundedDatePrecision?: 'year' | 'month' | 'day';
         socialLinks?: Array<{ platform: string; url: string }>;
+        email?: string;
+        telephone?: string;
         isVerified?: boolean;
         verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
         isActive?: boolean;
@@ -90,10 +94,10 @@ export class PageModel {
           logo_url, banner_url, website_url, 
           instagram_url, twitter_url, facebook_url, 
           founded_by, founded_date, founded_date_precision,
-          social_links, is_verified, is_active,
+          social_links, email, telephone, is_verified, is_active,
           logo_metadata, banner_metadata, verification_status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
     `;
         const result = await db.query(query, [
@@ -111,6 +115,8 @@ export class PageModel {
             data.foundedDate || null,
             data.foundedDatePrecision || null,
             JSON.stringify(data.socialLinks || []),
+            data.email || null,
+            data.telephone || null,
             data.isVerified ?? false,
             data.isActive ?? true,
             JSON.stringify(data.logoMetadata || []),
@@ -158,6 +164,8 @@ export class PageModel {
         foundedDate?: string;
         foundedDatePrecision?: 'year' | 'month' | 'day';
         socialLinks?: Array<{ platform: string; url: string }>;
+        email?: string;
+        telephone?: string;
         isVerified?: boolean;
         verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
         isActive?: boolean;
@@ -182,6 +190,8 @@ export class PageModel {
         if (data.foundedDate !== undefined) { setClause.push(`founded_date = $${paramIndex++}`); values.push(data.foundedDate); }
         if (data.foundedDatePrecision !== undefined) { setClause.push(`founded_date_precision = $${paramIndex++}`); values.push(data.foundedDatePrecision); }
         if (data.socialLinks !== undefined) { setClause.push(`social_links = $${paramIndex++}`); values.push(JSON.stringify(data.socialLinks)); }
+        if (data.email !== undefined) { setClause.push(`email = $${paramIndex++}`); values.push(data.email); }
+        if (data.telephone !== undefined) { setClause.push(`telephone = $${paramIndex++}`); values.push(data.telephone); }
         if (data.isVerified !== undefined) { setClause.push(`is_verified = $${paramIndex++}`); values.push(data.isVerified); }
         if (data.verificationStatus !== undefined) { setClause.push(`verification_status = $${paramIndex++}`); values.push(data.verificationStatus); }
         if (data.isActive !== undefined) { setClause.push(`is_active = $${paramIndex++}`); values.push(data.isActive); }
@@ -227,6 +237,8 @@ export class PageModel {
             foundedDate: row.founded_date,
             foundedDatePrecision: row.founded_date_precision,
             socialLinks: row.social_links || [],
+            email: row.email || undefined,
+            telephone: row.telephone || undefined,
             isVerified: row.is_verified,
             verificationStatus: row.verification_status || (row.is_verified ? 'verified' : 'unverified'),
             isActive: row.is_active,

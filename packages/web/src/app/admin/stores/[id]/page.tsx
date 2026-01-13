@@ -72,7 +72,7 @@ export default function AdminEditStorePage() {
     // Update document title when store is loaded
     useEffect(() => {
         if (store?.brandInfo?.name) {
-            document.title = `Admin - Store @${store.brandInfo.name}`;
+            document.title = `Admin | Store @${store.brandInfo.name}`;
         }
     }, [store]);
 

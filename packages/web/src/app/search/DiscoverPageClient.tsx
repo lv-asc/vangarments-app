@@ -26,11 +26,11 @@ import {
   ClockIcon
 } from '@heroicons/react/24/outline';
 import { getImageUrl, debounce } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
-type FilterType = 'all' | 'brand' | 'store' | 'supplier' | 'non_profit' | 'user' | 'item' | 'post' | 'page' | 'editorial';
+type FilterType = 'all' | 'item' | 'brand' | 'store' | 'user' | 'post' | 'page' | 'non_profit' | 'supplier';
 
 const ResultSection = ({ title, items, renderItem, icon: Icon }: { title: string, items: any[], renderItem: (item: any) => React.ReactNode, icon: any }) => {
   if (!items || items.length === 0) return null;
@@ -327,13 +327,32 @@ const PageCard = ({ page }: { page: IPage }) => (
 
 export default function DiscoverPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get('tab') as FilterType) || 'all';
   const { recents } = useRecentVisits();
-  console.log('DiscoverPage: recents count:', recents.length);
-  console.log('DiscoverPage: recents data:', recents);
 
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<FilterType>('all');
+  const [filterType, setFilterType] = useState<FilterType>(initialTab);
+
+  // Sync with URL
+  useEffect(() => {
+    const tab = searchParams.get('tab') as FilterType;
+    if (tab && tab !== filterType) {
+      setFilterType(tab);
+    }
+  }, [searchParams]);
+
+  const handleFilterChange = (type: FilterType) => {
+    setFilterType(type);
+    const params = new URLSearchParams(searchParams.toString());
+    if (type === 'all') {
+      params.delete('tab');
+    } else {
+      params.set('tab', type);
+    }
+    router.replace(`/search?${params.toString()}`, { scroll: false });
+  };
   const [isSearching, setIsSearching] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
 
@@ -550,7 +569,7 @@ export default function DiscoverPage() {
             <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search brands, stores, editorial, people..."
+              placeholder="Search items, brands, stores, people..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-gray-100 border-none rounded-full py-3 pl-12 pr-10 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-inner"
@@ -568,19 +587,18 @@ export default function DiscoverPage() {
           <div className="flex items-center space-x-2 mt-4 overflow-x-auto scrollbar-hide pb-1">
             {[
               { id: 'all', label: 'All' },
+              { id: 'item', label: 'Items' },
               { id: 'brand', label: 'Brands' },
               { id: 'store', label: 'Stores' },
-              { id: 'supplier', label: 'Suppliers' },
-              { id: 'non_profit', label: 'Non-Profits' },
               { id: 'user', label: 'Users' },
-              { id: 'item', label: 'Items' },
               { id: 'post', label: 'Posts' },
               { id: 'page', label: 'Pages' },
-              { id: 'editorial', label: 'Editorial' }
+              { id: 'non_profit', label: 'Non-Profits' },
+              { id: 'supplier', label: 'Suppliers' }
             ].map((filter) => (
               <button
                 key={filter.id}
-                onClick={() => setFilterType(filter.id as FilterType)}
+                onClick={() => handleFilterChange(filter.id as FilterType)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${filterType === filter.id
                   ? 'bg-gray-900 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -603,23 +621,17 @@ export default function DiscoverPage() {
               </div>
             ) : (
               <>
+                {(filterType === 'all' || filterType === 'item') && (
+                  <ResultSection title="Items" items={results.items} icon={ShoppingBagIcon} renderItem={item => <SKUCard item={item} />} />
+                )}
                 {(filterType === 'all' || filterType === 'brand') && (
                   <ResultSection title="Brands" items={results.brands} icon={FireIcon} renderItem={item => <BrandCard brand={item} />} />
                 )}
                 {(filterType === 'all' || filterType === 'store') && (
                   <ResultSection title="Stores" items={results.stores} icon={BuildingStorefrontIcon} renderItem={item => <BrandCard brand={item} />} />
                 )}
-                {(filterType === 'all' || filterType === 'supplier') && (
-                  <ResultSection title="Suppliers" items={results.suppliers} icon={BuildingStorefrontIcon} renderItem={item => <BrandCard brand={item} />} />
-                )}
-                {(filterType === 'all' || filterType === 'non_profit') && (
-                  <ResultSection title="Non-Profits" items={results.nonProfits} icon={BuildingStorefrontIcon} renderItem={item => <BrandCard brand={item} />} />
-                )}
                 {(filterType === 'all' || filterType === 'user') && (
                   <ResultSection title="Users" items={results.users} icon={UsersIcon} renderItem={item => <UserCard user={item} />} />
-                )}
-                {(filterType === 'all' || filterType === 'item') && (
-                  <ResultSection title="Items" items={results.items} icon={ShoppingBagIcon} renderItem={item => <SKUCard item={item} />} />
                 )}
                 {(filterType === 'all' || filterType === 'post') && (
                   <ResultSection title="Posts" items={results.posts} icon={ChatBubbleLeftRightIcon} renderItem={item => <PostCard post={item} />} />
@@ -627,8 +639,11 @@ export default function DiscoverPage() {
                 {(filterType === 'all' || filterType === 'page') && (
                   <ResultSection title="Pages" items={results.pages} icon={RectangleStackIcon} renderItem={item => <PageCard page={item} />} />
                 )}
-                {(filterType === 'all' || filterType === 'editorial') && (
-                  <ResultSection title="Editorial" items={results.editorial} icon={NewspaperIcon} renderItem={item => <StoryCard story={item} />} />
+                {(filterType === 'all' || filterType === 'non_profit') && (
+                  <ResultSection title="Non-Profits" items={results.nonProfits} icon={HeartIcon} renderItem={item => <BrandCard brand={item} />} />
+                )}
+                {(filterType === 'all' || filterType === 'supplier') && (
+                  <ResultSection title="Suppliers" items={results.suppliers} icon={BuildingStorefrontIcon} renderItem={item => <BrandCard brand={item} />} />
                 )}
               </>
             )}

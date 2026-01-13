@@ -217,7 +217,7 @@ export default function AdminEditUserPage() {
     // Update document title when user profile is loaded
     useEffect(() => {
         if (userProfile?.username) {
-            document.title = `Admin - User @${userProfile.username}`;
+            document.title = `Admin | User @${userProfile.username}`;
         }
     }, [userProfile]);
 

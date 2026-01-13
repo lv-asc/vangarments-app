@@ -64,7 +64,7 @@ export default function AdminEditPagePage() {
     // Update document title when page is loaded
     useEffect(() => {
         if (page?.name) {
-            document.title = `Admin - Page @${page.name}`;
+            document.title = `Admin | Page @${page.name}`;
         }
     }, [page]);
 

@@ -159,6 +159,9 @@ export default function TagMarker({ tag, onDelete, onClick }: TagMarkerProps) {
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                             <p className="font-medium text-gray-900 truncate">{displayName}</p>
+                            {tag.description && (
+                                <p className="text-xs text-blue-600 font-medium truncate">{tag.description}</p>
+                            )}
                             {subtitle && (
                                 <p className="text-sm text-gray-500 truncate">{subtitle}</p>
                             )}

@@ -89,7 +89,13 @@ export class BrandLookbookModel {
         // Find by slug within the brand
         const query = `
       SELECT lb.*, 
-             (SELECT COUNT(*) FROM brand_lookbook_items bli WHERE bli.lookbook_id = lb.id) as item_count
+             (SELECT COUNT(*) FROM (
+               SELECT bli.item_id FROM brand_lookbook_items bli WHERE bli.lookbook_id = lb.id
+               UNION
+               SELECT si.id FROM sku_items si 
+               JOIN brand_collections bc ON si.collection = bc.name 
+               WHERE si.brand_id = lb.brand_id AND bc.id = lb.collection_id AND si.parent_sku_id IS NULL AND si.deleted_at IS NULL
+             ) as distinct_parents) as item_count
       FROM brand_lookbooks lb
       WHERE lb.brand_id = $1 AND lb.slug = $2
     `;
@@ -209,37 +215,96 @@ export class BrandLookbookModel {
         return (result.rowCount || 0) > 0;
     }
 
-    static async getItems(lookbookId: string): Promise<BrandLookbookItem[]> {
+    static async getItems(lookbookId: string): Promise<any[]> {
+        // First get the collection name and brand info
+        const lbResult = await db.query(`
+            SELECT lb.brand_id, bc.name as collection_name, lb.collection_id, ba.brand_info 
+            FROM brand_lookbooks lb
+            LEFT JOIN brand_collections bc ON lb.collection_id = bc.id
+            JOIN brand_accounts ba ON lb.brand_id = ba.id
+            WHERE lb.id = $1
+        `, [lookbookId]);
+
+        if (lbResult.rows.length === 0) return [];
+        const { brand_id: brandId, collection_name: collectionName, brand_info: brandInfoRaw } = lbResult.rows[0];
+        const brandInfo = typeof brandInfoRaw === 'string' ? JSON.parse(brandInfoRaw) : brandInfoRaw;
+
+        // Fetch all SKUs that might be in this lookbook
         const query = `
-      SELECT bli.*, vi.metadata as vufs_metadata, vi.category_hierarchy, vi.brand_hierarchy,
-             (SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id AND ii.is_primary = true LIMIT 1) as primary_image,
-             ARRAY(SELECT image_url FROM item_images ii WHERE ii.item_id = vi.id ORDER BY ii.is_primary DESC, ii.created_at ASC) as all_images
-      FROM brand_lookbook_items bli
-      LEFT JOIN vufs_items vi ON bli.item_id = vi.id
-      WHERE bli.lookbook_id = $1
-      ORDER BY bli.sort_order ASC
-    `;
+            SELECT 
+                si.id, si.parent_sku_id, si.name, si.code, si.collection, si.metadata, 
+                si.retail_price_brl, si.retail_price_usd, si.retail_price_eur,
+                si.images, si.category, si.line, si.line_id,
+                bl.name as line_name, bl.logo as line_logo
+            FROM sku_items si
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            WHERE si.brand_id = $2 AND si.deleted_at IS NULL
+            AND (
+                (si.collection = $3 AND $3 IS NOT NULL)
+                OR si.id IN (SELECT item_id FROM brand_lookbook_items WHERE lookbook_id = $1)
+                OR si.parent_sku_id IN (SELECT item_id FROM brand_lookbook_items WHERE lookbook_id = $1)
+            )
+            ORDER BY si.created_at DESC
+        `;
 
-        const result = await db.query(query, [lookbookId]);
-        return result.rows.map(row => {
-            const metadata = typeof row.vufs_metadata === 'string' ? JSON.parse(row.vufs_metadata) : row.vufs_metadata;
+        const result = await db.query(query, [lookbookId, brandId, collectionName]);
+        const allSkus = result.rows;
 
-            return {
-                lookbookId: row.lookbook_id,
-                itemId: row.item_id,
-                sortOrder: row.sort_order,
-                item: row.vufs_metadata ? {
-                    id: row.item_id,
-                    name: metadata?.name || 'Untitled Item',
-                    description: metadata?.description || '',
-                    images: row.all_images && row.all_images.length > 0 ? row.all_images : (row.primary_image ? [row.primary_image] : []),
-                    metadata: metadata,
-                    categoryHierarchy: row.category_hierarchy,
-                    brandHierarchy: row.brand_hierarchy,
-                    primaryImage: row.primary_image
-                } : undefined
-            };
+        // Grouping logic (same as collection)
+        const childrenByParentId: Record<string, any[]> = {};
+        const childSkuIds = new Set<string>();
+
+        allSkus.forEach((sku: any) => {
+            if (sku.parent_sku_id) {
+                childSkuIds.add(sku.id);
+                if (!childrenByParentId[sku.parent_sku_id]) {
+                    childrenByParentId[sku.parent_sku_id] = [];
+                }
+                childrenByParentId[sku.parent_sku_id].push(sku);
+            }
         });
+
+        return allSkus
+            .filter((sku: any) => !childSkuIds.has(sku.id))
+            .map((sku: any) => {
+                const rawVariants = childrenByParentId[sku.id] || [];
+                const variants = rawVariants.map((v: any) => {
+                    const vMetadata = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata;
+                    return {
+                        id: v.id,
+                        name: v.name,
+                        code: v.code,
+                        size: vMetadata?.sizeName || vMetadata?.size || '',
+                        retailPriceBrl: v.retail_price_brl,
+                        images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || []
+                    };
+                });
+
+                const skuMetadata = typeof sku.metadata === 'string' ? JSON.parse(sku.metadata) : sku.metadata;
+
+                return {
+                    id: sku.id,
+                    name: sku.name,
+                    code: sku.code,
+                    collection: sku.collection,
+                    retailPriceBrl: sku.retail_price_brl,
+                    description: skuMetadata?.description || '',
+                    images: typeof sku.images === 'string' ? JSON.parse(sku.images) : sku.images || [],
+                    category: typeof sku.category === 'string' ? JSON.parse(sku.category) : sku.category,
+                    brand: {
+                        id: brandId,
+                        name: brandInfo?.name || 'Unknown',
+                        slug: brandInfo?.slug,
+                        logo: brandInfo?.logo
+                    },
+                    lineInfo: sku.line_id ? {
+                        id: sku.line_id,
+                        name: sku.line_name,
+                        logo: sku.line_logo
+                    } : (sku.line ? { name: sku.line } : undefined),
+                    variants
+                };
+            });
     }
 
     static async updateItemOrder(lookbookId: string, items: Array<{ itemId: string; sortOrder: number }>): Promise<void> {

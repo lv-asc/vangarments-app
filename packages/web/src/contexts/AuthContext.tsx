@@ -42,10 +42,10 @@ interface User {
   createdAt: Date;
   updatedAt: Date;
   linkedEntities?: {
-    hasBrand: boolean;
-    hasStore: boolean;
-    hasSupplier: boolean;
-    hasPage: boolean;
+    brands: Array<{ id: string; name: string; slug?: string; logo?: string }>;
+    stores: Array<{ id: string; name: string; slug?: string; logo?: string }>;
+    suppliers: Array<{ id: string; name: string; slug?: string }>;
+    pages: Array<{ id: string; name: string; slug?: string; logo?: string }>;
     hasPost: boolean;
   };
 }
@@ -61,6 +61,19 @@ interface AuthContextType {
   refreshAuth: () => Promise<void>;
   activeRole: string | null;
   setActiveRole: (role: string) => void;
+  activeAccount: ActiveAccount | null;
+  setActiveAccount: (account: ActiveAccount | null) => void;
+  isSwitchAccountModalOpen: boolean;
+  setIsSwitchAccountModalOpen: (isOpen: boolean) => void;
+}
+
+export interface ActiveAccount {
+  type: 'user' | 'brand' | 'store' | 'supplier' | 'non_profit' | 'page';
+  id: string;
+  name: string;
+  username?: string;
+  slug?: string;
+  avatar?: string;
 }
 
 interface RegisterData {
@@ -82,6 +95,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeRole, setActiveRoleState] = useState<string | null>(null);
+  const [activeAccount, setActiveAccountState] = useState<ActiveAccount | null>(null);
+  const [isSwitchAccountModalOpen, setIsSwitchAccountModalOpen] = useState(false);
   const router = useRouter();
 
   const setActiveRole = (role: string) => {
@@ -89,10 +104,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('activeRole', role);
   };
 
+  const setActiveAccount = (account: ActiveAccount | null) => {
+    setActiveAccountState(account);
+    if (account) {
+      localStorage.setItem('activeAccount', JSON.stringify(account));
+    } else {
+      localStorage.removeItem('activeAccount');
+    }
+  };
+
   useEffect(() => {
     const storedRole = localStorage.getItem('activeRole');
     if (storedRole) {
       setActiveRoleState(storedRole);
+    }
+    // Restore active account from localStorage
+    const storedAccount = localStorage.getItem('activeAccount');
+    if (storedAccount) {
+      try {
+        setActiveAccountState(JSON.parse(storedAccount));
+      } catch {
+        localStorage.removeItem('activeAccount');
+      }
     }
   }, []);
 
@@ -225,6 +258,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshAuth,
     activeRole,
     setActiveRole,
+    activeAccount,
+    setActiveAccount,
+    isSwitchAccountModalOpen,
+    setIsSwitchAccountModalOpen,
   };
 
   return (

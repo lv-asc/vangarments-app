@@ -2,6 +2,8 @@ import { BrandAccountModel, CreateBrandAccountData, UpdateBrandAccountData, Bran
 import { BrandCatalogModel, CreateBrandCatalogItemData, UpdateBrandCatalogItemData, BrandCatalogItem } from '../models/BrandCatalog';
 import { CommissionTrackingModel, CreateCommissionData } from '../models/CommissionTracking';
 import { UserModel } from '../models/User';
+import { SKUItemModel } from '../models/SKUItem';
+import { db } from '../database/connection';
 
 export interface BrandRegistrationRequest {
   brandName: string;
@@ -76,7 +78,7 @@ export class BrandService {
    * Update brand page customization
    */
   async updateBrandPage(brandId: string, customization: BrandPageCustomization): Promise<BrandAccount> {
-    const brand = await BrandAccountModel.findById(brandId);
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
     if (!brand) {
       throw new Error('Brand not found');
     }
@@ -114,7 +116,6 @@ export class BrandService {
     if (updates.userId !== undefined) updateData.userId = updates.userId;
     // Add other fields as needed
 
-    console.log('BrandService.updateBrand updateData:', JSON.stringify(updateData));
     const updatedBrand = await BrandAccountModel.update(brand.id, updateData);
     if (!updatedBrand) throw new Error('Failed to update brand');
 
@@ -126,7 +127,7 @@ export class BrandService {
    */
   async addToCatalog(brandId: string, catalogData: CreateBrandCatalogItemData): Promise<BrandCatalogItem> {
     // Verify brand exists and is verified
-    const brand = await BrandAccountModel.findById(brandId);
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
     if (!brand) {
       throw new Error('Brand not found');
     }
@@ -176,14 +177,134 @@ export class BrandService {
     } = {},
     page = 1,
     limit = 20
-  ): Promise<{ items: BrandCatalogItem[]; total: number; hasMore: boolean }> {
+  ): Promise<{ items: any[]; total: number; hasMore: boolean }> {
     const offset = (page - 1) * limit;
-    const { items, total } = await BrandCatalogModel.findByBrandId(brandId, filters, limit + 1, offset);
 
-    const hasMore = items.length > limit;
-    if (hasMore) {
-      items.pop();
+    // Resolve brand by slug or id first
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
+    if (!brand) {
+      return { items: [], total: 0, hasMore: false };
     }
+
+    // Fetch ALL SKU items for this brand (to enable parent-child grouping)
+    const allSkus = await SKUItemModel.findByBrandId(brand.id, {
+      collection: filters.collection,
+      search: filters.search,
+    });
+
+    // Group by parent_sku_id
+    const childrenByParentId: Record<string, any[]> = {};
+    const childSkuIds = new Set<string>();
+
+    // First pass: identify children and group them by parent
+    allSkus.forEach((sku: any) => {
+      if (sku.parentSkuId) {
+        childSkuIds.add(sku.id);
+        if (!childrenByParentId[sku.parentSkuId]) {
+          childrenByParentId[sku.parentSkuId] = [];
+        }
+        childrenByParentId[sku.parentSkuId].push(sku);
+      }
+    });
+
+    const groupedResults: any[] = [];
+
+    // Second pass: add parent SKUs with their variants, and standalone SKUs
+    allSkus.forEach((sku: any) => {
+      // Skip child SKUs (they're included in their parent's variants)
+      if (childSkuIds.has(sku.id)) return;
+
+      const children = childrenByParentId[sku.id] || [];
+      groupedResults.push({
+        ...sku,
+        _variants: children
+      });
+    });
+
+    // Fetch size sort orders for all variants
+    const allSizeIds = new Set<string>();
+    groupedResults.forEach(result => {
+      (result._variants || []).forEach((v: any) => {
+        if (v.metadata?.sizeId) allSizeIds.add(v.metadata.sizeId);
+      });
+    });
+
+    let sizeOrderMap: Record<string, number> = {};
+    if (allSizeIds.size > 0) {
+      const sizeOrderQuery = `
+        SELECT id, sort_order 
+        FROM vufs_sizes 
+        WHERE id = ANY($1)
+      `;
+      const sizeOrderResult = await db.query(sizeOrderQuery, [Array.from(allSizeIds)]);
+      sizeOrderResult.rows.forEach((row: any) => {
+        sizeOrderMap[row.id] = row.sort_order || 999;
+      });
+    }
+
+    // Apply pagination to grouped results
+    const total = groupedResults.length;
+    const paginatedResults = groupedResults.slice(offset, offset + limit + 1);
+    const hasMore = paginatedResults.length > limit;
+    if (hasMore) {
+      paginatedResults.pop();
+    }
+
+    // Transform to catalog item format with variants
+    const items = paginatedResults.map(sku => {
+      const variants = (sku._variants || []).map((v: any) => ({
+        id: v.id,
+        name: v.name,
+        code: v.code,
+        size: v.metadata?.sizeName || v.metadata?.size || '',
+        sizeId: v.metadata?.sizeId,
+        color: v.metadata?.colorName || v.metadata?.color,
+        retailPriceBrl: v.retailPriceBrl,
+        retailPriceUsd: v.retailPriceUsd,
+        retailPriceEur: v.retailPriceEur,
+        images: v.images || [],
+        _sizeOrder: v.metadata?.sizeId ? (sizeOrderMap[v.metadata.sizeId] || 999) : 999
+      }));
+
+      // Sort variants by size order
+      variants.sort((a: any, b: any) => a._sizeOrder - b._sizeOrder);
+      // Remove the temporary _sizeOrder field
+      variants.forEach((v: any) => delete v._sizeOrder);
+
+      // If this parent has variants, strip the size suffix from the parent name
+      let parentName = sku.name;
+      if (variants.length > 0) {
+        parentName = sku.name.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim();
+      }
+
+      return {
+        id: sku.id,
+        vufsItemId: sku.id,
+        availabilityStatus: 'available',
+        createdAt: sku.createdAt,
+        updatedAt: sku.updatedAt,
+        brand: {
+          id: brand.id,
+          name: brand.brandInfo?.name || 'Unknown',
+          slug: brand.brandInfo?.slug,
+          logo: brand.brandInfo?.logo
+        },
+        item: {
+          id: sku.id,
+          name: parentName,
+          description: sku.description || '',
+          images: sku.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
+          metadata: sku.metadata || {},
+          category: sku.category,
+          retailPriceBrl: sku.retailPriceBrl,
+          lineInfo: sku.lineInfo,
+          lineId: sku.lineId,
+          line: sku.line,
+          collection: sku.collection,
+          variants
+        }
+      };
+    });
 
     return { items, total, hasMore };
   }
@@ -263,7 +384,7 @@ export class BrandService {
    * Verify brand account
    */
   async verifyBrand(brandId: string, status: 'verified' | 'rejected', notes?: string): Promise<BrandAccount> {
-    const brand = await BrandAccountModel.findById(brandId);
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
     if (!brand) {
       throw new Error('Brand not found');
     }
@@ -292,7 +413,7 @@ export class BrandService {
     brandId: string,
     newTier: 'basic' | 'premium' | 'enterprise'
   ): Promise<BrandAccount> {
-    const brand = await BrandAccountModel.findById(brandId);
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
     if (!brand) {
       throw new Error('Brand not found');
     }
@@ -456,7 +577,7 @@ export class BrandService {
    * Soft delete a brand
    */
   async softDeleteBrand(brandId: string): Promise<void> {
-    const brand = await BrandAccountModel.findById(brandId);
+    const brand = await BrandAccountModel.findBySlugOrId(brandId);
     if (!brand) throw new Error('Brand not found');
 
     const success = await BrandAccountModel.softDelete(brandId);

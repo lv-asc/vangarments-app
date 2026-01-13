@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
     title: {
-        default: 'Admin - Dashboard',
-        template: 'Admin - %s',
+        default: 'Admin | Dashboard',
+        template: 'Admin | %s',
     },
     description: 'Administrative dashboard',
 };

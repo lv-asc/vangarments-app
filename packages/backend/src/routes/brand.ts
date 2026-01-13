@@ -42,8 +42,9 @@ const registerBrandValidation = [
 
 const updateBrandPageValidation = [
   param('brandId')
-    .isUUID()
-    .withMessage('Brand ID must be a valid UUID'),
+    .isString()
+    .isLength({ min: 1 })
+    .withMessage('Brand ID or Slug is required'),
   body('logo')
     .optional()
     .isString()
@@ -81,8 +82,9 @@ const updateBrandPageValidation = [
 
 const addToCatalogValidation = [
   param('brandId')
-    .isUUID()
-    .withMessage('Brand ID must be a valid UUID'),
+    .isString()
+    .isLength({ min: 1 })
+    .withMessage('Brand ID or Slug is required'),
   body('vufsItemId')
     .isUUID()
     .withMessage('VUFS item ID must be a valid UUID'),
@@ -102,8 +104,9 @@ const addToCatalogValidation = [
 
 const updateCatalogItemValidation = [
   param('brandId')
-    .isUUID()
-    .withMessage('Brand ID must be a valid UUID'),
+    .isString()
+    .isLength({ min: 1 })
+    .withMessage('Brand ID or Slug is required'),
   param('itemId')
     .isUUID()
     .withMessage('Item ID must be a valid UUID'),
@@ -168,8 +171,9 @@ const catalogFiltersValidation = [
 
 const verifyBrandValidation = [
   param('brandId')
-    .isUUID()
-    .withMessage('Brand ID must be a valid UUID'),
+    .isString()
+    .isLength({ min: 1 })
+    .withMessage('Brand ID or Slug is required'),
   body('status')
     .isIn(['verified', 'rejected'])
     .withMessage('Status must be verified or rejected'),
@@ -181,8 +185,9 @@ const verifyBrandValidation = [
 
 const upgradeTierValidation = [
   param('brandId')
-    .isUUID()
-    .withMessage('Brand ID must be a valid UUID'),
+    .isString()
+    .isLength({ min: 1 })
+    .withMessage('Brand ID or Slug is required'),
   body('tier')
     .isIn(['basic', 'premium', 'enterprise'])
     .withMessage('Tier must be basic, premium, or enterprise'),

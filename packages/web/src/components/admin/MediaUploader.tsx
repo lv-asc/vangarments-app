@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { TrashIcon, StarIcon, VideoCameraIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, StarIcon, VideoCameraIcon, PhotoIcon, TagIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon, Bars3Icon } from '@heroicons/react/24/solid';
 import toast from 'react-hot-toast';
 import { api, apiClient } from '@/lib/api';
@@ -45,6 +45,7 @@ interface MediaUploaderProps {
     type: 'image' | 'video';
     label?: string;
     helperText?: string;
+    onTagImage?: (imageUrl: string, index: number) => void;
 }
 
 interface SortableMediaItemProps {
@@ -56,6 +57,7 @@ interface SortableMediaItemProps {
     onMakePrimary: (index: number) => void;
     onLabelChange: (index: number, labelId: string) => void;
     mediaLabels: MediaLabel[];
+    onTagImage?: (imageUrl: string, index: number) => void;
 }
 
 function SortableMediaItem({
@@ -66,7 +68,8 @@ function SortableMediaItem({
     onRemove,
     onMakePrimary,
     onLabelChange,
-    mediaLabels
+    mediaLabels,
+    onTagImage
 }: SortableMediaItemProps) {
     const {
         attributes,
@@ -158,6 +161,16 @@ function SortableMediaItem({
                 >
                     <TrashIcon className="h-4 w-4" />
                 </button>
+                {type === 'image' && onTagImage && (
+                    <button
+                        type="button"
+                        onClick={() => onTagImage(item.url, index)}
+                        className="text-gray-400 hover:text-blue-500"
+                        title="Tag people & entities"
+                    >
+                        <TagIcon className="h-4 w-4" />
+                    </button>
+                )}
             </div>
 
             {/* Media Label Selection */}
@@ -254,7 +267,8 @@ export default function MediaUploader({
     onChange,
     type,
     label,
-    helperText
+    helperText,
+    onTagImage
 }: MediaUploaderProps) {
     const [uploading, setUploading] = useState(false);
     const [mediaLabels, setMediaLabels] = useState<MediaLabel[]>([]);
@@ -458,6 +472,7 @@ export default function MediaUploader({
                                     onMakePrimary={handleMakePrimary}
                                     onLabelChange={handleLabelChange}
                                     mediaLabels={mediaLabels}
+                                    onTagImage={onTagImage}
                                 />
                             ))}
                         </div>

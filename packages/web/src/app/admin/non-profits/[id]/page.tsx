@@ -67,7 +67,7 @@ export default function AdminEditNonProfitPage() {
     // Update document title when brand is loaded
     useEffect(() => {
         if (brand?.brandInfo?.name) {
-            document.title = `Admin - Non-Profit @${brand.brandInfo.name}`;
+            document.title = `Admin | Non-Profit @${brand.brandInfo.name}`;
         }
     }, [brand]);
 

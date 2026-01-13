@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { brandApi, BrandLookbook } from '@/lib/brandApi';
 import { getImageUrl } from '@/lib/utils';
+import SKUCard from '@/components/ui/SKUCard';
 
 
 export default function BrandLookbookPage() {
@@ -130,18 +131,13 @@ export default function BrandLookbookPage() {
                     )}
                 </div>
 
-                {/* Lookbook Items Section (if we want to show linked catalog items later) */}
+                {/* Lookbook Items Section */}
                 {items && items.length > 0 && (
                     <div className="mt-16 pt-8 border-t border-gray-200">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-6">Featured Items</h2>
-                        {/* Placeholder for items grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-6 font-primary">Featured Items</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             {items.map((item, idx) => (
-                                <div key={idx} className="bg-gray-50 p-4 rounded text-center">
-                                    Item {idx + 1}
-                                </div>
-                                // Note: 'item' structure depends on what backend returns. 
-                                // usually it's a wrapper { itemId, sortOrder, catalogItem: {...} }
+                                <SKUCard key={item.id || idx} item={item} />
                             ))}
                         </div>
                     </div>

@@ -73,7 +73,7 @@ export default function AdminEditBrandPage() {
     // Update document title when brand is loaded
     useEffect(() => {
         if (brand?.brandInfo?.name) {
-            document.title = `Admin - Brand @${brand.brandInfo.name}`;
+            document.title = `Admin | Brand @${brand.brandInfo.name}`;
         }
     }, [brand]);
 

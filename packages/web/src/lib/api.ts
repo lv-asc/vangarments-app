@@ -110,6 +110,9 @@ class ApiClient {
     this.addRequestInterceptor((config) => {
       const headers = new Headers(config.headers);
 
+      // Always load token fresh to handle SSR and token updates
+      this.loadToken();
+
       if (this.token) {
         headers.set('Authorization', `Bearer ${this.token}`);
       }
@@ -469,6 +472,73 @@ class ApiClient {
     }>;
   }> {
     const response = await this.request<any>('/users/my-memberships');
+    return response as any;
+  }
+
+  async getSwitchableAccounts(): Promise<{
+    accounts: {
+      users: Array<{
+        id: string;
+        type: 'user';
+        name: string;
+        username?: string;
+        avatar?: string;
+        email?: string;
+        telephone?: string;
+      }>;
+      brands: Array<{
+        id: string;
+        type: 'brand';
+        name: string;
+        slug?: string;
+        avatar?: string;
+        email?: string;
+        telephone?: string;
+        responsibleUserId?: string;
+      }>;
+      stores: Array<{
+        id: string;
+        type: 'store';
+        name: string;
+        slug?: string;
+        avatar?: string;
+        email?: string;
+        telephone?: string;
+        responsibleUserId?: string;
+      }>;
+      suppliers: Array<{
+        id: string;
+        type: 'supplier';
+        name: string;
+        slug?: string;
+        avatar?: string;
+        email?: string;
+        telephone?: string;
+        responsibleUserId?: string;
+      }>;
+      nonProfits: Array<{
+        id: string;
+        type: 'non_profit';
+        name: string;
+        slug?: string;
+        avatar?: string;
+        email?: string;
+        telephone?: string;
+        responsibleUserId?: string;
+      }>;
+      pages: Array<{
+        id: string;
+        type: 'page';
+        name: string;
+        slug?: string;
+        avatar?: string;
+        email?: string;
+        telephone?: string;
+        responsibleUserId?: string;
+      }>;
+    };
+  }> {
+    const response = await this.request<any>('/accounts/switchable');
     return response as any;
   }
 
@@ -978,13 +1048,13 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/materials/trash');
     return (response as any).materials || response.data || response;
   }
-  async addVUFSMaterial(name: string, category: string = 'natural', skuRef?: string, compositions?: any[]) {
-    return this.request('/vufs-management/materials', { method: 'POST', body: JSON.stringify({ name, category, skuRef, compositions }) });
+  async addVUFSMaterial(name: string, category: string = 'natural', skuRef?: string, compositions?: any[], careInstructions?: string) {
+    return this.request('/vufs-management/materials', { method: 'POST', body: JSON.stringify({ name, category, skuRef, compositions, careInstructions }) });
   }
   async deleteVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'DELETE' }); }
   async restoreVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}/restore`, { method: 'POST' }); }
   async permanentlyDeleteVUFSMaterial(id: string) { return this.request(`/vufs-management/materials/${id}/permanent`, { method: 'DELETE' }); }
-  async updateVUFSMaterial(id: string, name: string, skuRef?: string, compositions?: any[]) { return this.request(`/vufs-management/materials/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef, compositions }) }); }
+  async updateVUFSMaterial(id: string, name: string, skuRef?: string, compositions?: any[], careInstructions?: string) { return this.request(`/vufs-management/materials/${id}`, { method: 'PATCH', body: JSON.stringify({ name, skuRef, compositions, careInstructions }) }); }
 
   // --- COMPOSITIONS ---
   async getVUFSCompositionCategories() {
@@ -1612,6 +1682,14 @@ class ApiClient {
   async put<T>(endpoint: string, data?: any): Promise<T> {
     const response = await this.request<T>(endpoint, {
       method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return (response as any).data || response as T;
+  }
+
+  async patch<T>(endpoint: string, data?: any): Promise<T> {
+    const response = await this.request<T>(endpoint, {
+      method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
     });
     return (response as any).data || response as T;
