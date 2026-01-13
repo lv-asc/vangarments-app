@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { db } from '../database/connection';
 import {
     MoodboardModel,
     CreateMoodboardData,
@@ -28,6 +29,8 @@ if (process.env.NODE_ENV === 'development') {
         }
     });
 
+
+
     // Dev route for creating moodboard without auth
     router.post('/create-dev', async (req: Request, res: Response) => {
         try {
@@ -47,8 +50,25 @@ if (process.env.NODE_ENV === 'development') {
                 return res.status(400).json({ error: 'Title is required' });
             }
 
+            const DEV_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+            // Ensure dev user exists
+            const userExists = await db.query('SELECT 1 FROM users WHERE id = $1', [DEV_USER_ID]);
+            if (userExists.rows.length === 0) {
+                await db.query(`
+                    INSERT INTO users (id, profile, email, username)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (id) DO NOTHING
+                 `, [
+                    DEV_USER_ID,
+                    JSON.stringify({ name: "Dev User", bio: "Development purpose user" }),
+                    'dev@vangarments.com',
+                    'devuser'
+                ]);
+            }
+
             const data: CreateMoodboardData = {
-                ownerId: '00000000-0000-0000-0000-000000000000', // Dev user ID
+                ownerId: DEV_USER_ID, // Dev user ID
                 brandId,
                 title,
                 slug,
@@ -62,9 +82,9 @@ if (process.env.NODE_ENV === 'development') {
 
             const moodboard = await MoodboardModel.create(data);
             res.status(201).json(moodboard);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating moodboard (dev):', error);
-            res.status(500).json({ error: 'Failed to create moodboard' });
+            res.status(500).json({ error: `Failed to create moodboard: ${error.message}` });
         }
     });
 

@@ -109,7 +109,7 @@ export default function DatabaseAdminPage() {
             : null;
 
         // Create EventSource with auth (using fetch for initial auth, then SSE)
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
         const sseUrl = `${apiUrl}/admin/db/sync/${endpoint}`;
 
         // Unfortunately EventSource doesn't support headers, so we'll use fetch with streaming
@@ -369,10 +369,10 @@ export default function DatabaseAdminPage() {
                                             <div key={step} className="flex flex-col items-center">
                                                 <div
                                                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step < progress.step
-                                                            ? 'bg-green-500 text-white'
-                                                            : step === progress.step
-                                                                ? 'bg-blue-600 text-white'
-                                                                : 'bg-gray-200 text-gray-500'
+                                                        ? 'bg-green-500 text-white'
+                                                        : step === progress.step
+                                                            ? 'bg-blue-600 text-white'
+                                                            : 'bg-gray-200 text-gray-500'
                                                         }`}
                                                 >
                                                     {step < progress.step ? (
