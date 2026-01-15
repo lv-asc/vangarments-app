@@ -15,7 +15,10 @@ import {
     LinkIcon,
     ChevronUpIcon,
     ChevronDownIcon,
-    ChatBubbleLeftEllipsisIcon
+    ChatBubbleLeftEllipsisIcon,
+    SparklesIcon,
+    Square2StackIcon,
+    PaperClipIcon
 } from '@heroicons/react/24/outline';
 import type { InfiniteCanvasRef, CanvasTool } from './InfiniteCanvas';
 
@@ -26,12 +29,22 @@ const creamPrimary = '#F5F1E8';
 const creamSecondary = '#E8E0D0';
 
 const STICKY_COLORS = [
-    { name: 'yellow', color: '#FEF3C7', label: 'Yellow' },
-    { name: 'pink', color: '#FCE7F3', label: 'Pink' },
-    { name: 'orange', color: '#FFEDD5', label: 'Orange' },
-    { name: 'green', color: '#D1FAE5', label: 'Green' },
-    { name: 'blue', color: '#DBEAFE', label: 'Blue' },
-    { name: 'purple', color: '#E9D8FD', label: 'Purple' }
+    { name: 'yellow_light', color: '#FEF9C3', label: 'Light Yellow' },
+    { name: 'yellow_dark', color: '#FDE047', label: 'Yellow' },
+    { name: 'orange', color: '#FED7AA', label: 'Orange' },
+    { name: 'salmon', color: '#FCA5A5', label: 'Salmon' },
+    { name: 'pink_light', color: '#FCE7F3', label: 'Light Pink' },
+    { name: 'pink_dark', color: '#F472B6', label: 'Pink' },
+    { name: 'blue_light', color: '#BFDBFE', label: 'Light Blue' },
+    { name: 'purple', color: '#C084FC', label: 'Purple' },
+    { name: 'cyan', color: '#67E8F9', label: 'Cyan' },
+    { name: 'blue_dark', color: '#60A5FA', label: 'Blue' },
+    { name: 'teal', color: '#5EEAD4', label: 'Teal' },
+    { name: 'green', color: '#4ADE80', label: 'Green' },
+    { name: 'lime_light', color: '#D9F99D', label: 'Light Lime' },
+    { name: 'lime_dark', color: '#A3E635', label: 'Lime' },
+    { name: 'white', color: '#FFFFFF', label: 'White' },
+    { name: 'black', color: '#000000', label: 'Black' }
 ];
 
 const GOOGLE_FONTS = [
@@ -152,6 +165,11 @@ export default function MoodboardToolbar({
     const [textFont, setTextFont] = useState('Inter');
     const [showTextSettings, setShowTextSettings] = useState(false);
     const [shapeColor, setShapeColor] = useState('#3B82F6');
+    // Shape styling controls
+    const [shapeFillColor, setShapeFillColor] = useState('#3B82F6');
+    const [shapeStrokeColor, setShapeStrokeColor] = useState('#000000');
+    const [shapeStrokeWidth, setShapeStrokeWidth] = useState(2);
+    const [shapeNoFill, setShapeNoFill] = useState(false);
     const [fontsLoaded, setFontsLoaded] = useState(false);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -174,9 +192,14 @@ export default function MoodboardToolbar({
     const handleAddStickyNote = (color: string) => { canvasRef.current?.addStickyNote(color); setShowStickyColors(false); };
     const handleAddText = () => { canvasRef.current?.addText('Double-click to edit', textColor, textFont); setShowTextSettings(false); handleToolClick('select'); };
     const handleAddShape = (shapeType: 'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line') => {
-        canvasRef.current?.addShape(shapeType, shapeColor);
+        canvasRef.current?.addShape(
+            shapeType,
+            shapeNoFill ? null : shapeFillColor,
+            shapeStrokeColor,
+            shapeStrokeWidth
+        );
         setShowShapes(false);
-        handleToolClick('select');
+        // Don't switch to select mode - let user drag to create the shape
     };
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -258,6 +281,7 @@ export default function MoodboardToolbar({
                 </div>
 
                 <ToolButton icon={<HighlighterIcon className="w-5 h-5" />} label="Highlighter" active={activeTool === 'highlighter'} onClick={() => handleToolClick('highlighter')} />
+                <ToolButton icon={<PaperClipIcon className="w-5 h-5" />} label="Link Tool" active={activeTool === 'link_tool'} onClick={() => handleToolClick(activeTool === 'link_tool' ? 'select' : 'link_tool')} />
             </div>
 
             {/* Shape Tools */}
@@ -266,13 +290,88 @@ export default function MoodboardToolbar({
                 <div className="relative">
                     <ToolButton icon={<ShapesIcon className="w-5 h-5" />} label="Shapes" active={showShapes} onClick={() => { closeAllMenus(); setShowShapes(!showShapes); }} />
                     {showShapes && (
-                        <div className="absolute top-12 left-0 p-4 rounded-lg shadow-xl z-50" style={{ backgroundColor: navySecondary, border: '1px solid #3D4A5D', width: 200 }}>
+                        <div className="absolute top-12 left-0 p-4 rounded-lg shadow-xl z-50" style={{ backgroundColor: navySecondary, border: '1px solid #3D4A5D', width: 240 }}>
+                            {/* Fill Color Section */}
                             <div className="mb-3">
-                                <label className="text-xs font-medium mb-1 block" style={{ color: creamSecondary }}>Shape Color</label>
+                                <label className="text-xs font-medium mb-1 block" style={{ color: creamSecondary }}>Fill Color</label>
                                 <div className="flex flex-wrap gap-2">
-                                    {PRESET_COLORS.map(color => (<button key={color} onClick={() => { setShapeColor(color); canvasRef.current?.setShapeColor(color); }} className={`w-6 h-6 rounded-full border-2 transition-transform ${shapeColor === color ? 'scale-125' : ''}`} style={{ backgroundColor: color, borderColor: shapeColor === color ? creamPrimary : '#3D4A5D' }} />))}
+                                    {/* No Fill Button (Photoshop style) */}
+                                    <button
+                                        onClick={() => setShapeNoFill(!shapeNoFill)}
+                                        className={`w-6 h-6 rounded-full border-2 transition-transform relative ${shapeNoFill ? 'scale-125' : ''}`}
+                                        style={{
+                                            backgroundColor: '#FFFFFF',
+                                            borderColor: shapeNoFill ? creamPrimary : '#3D4A5D',
+                                            overflow: 'hidden'
+                                        }}
+                                        title="No Fill"
+                                    >
+                                        {/* Red diagonal line */}
+                                        <div
+                                            className="absolute"
+                                            style={{
+                                                width: '150%',
+                                                height: '2px',
+                                                backgroundColor: '#DC2626',
+                                                top: '50%',
+                                                left: '-25%',
+                                                transform: 'rotate(-45deg)',
+                                                transformOrigin: 'center'
+                                            }}
+                                        />
+                                    </button>
+                                    {PRESET_COLORS.map(color => (
+                                        <button
+                                            key={color}
+                                            onClick={() => {
+                                                setShapeFillColor(color);
+                                                setShapeNoFill(false);
+                                            }}
+                                            className={`w-6 h-6 rounded-full border-2 transition-transform ${!shapeNoFill && shapeFillColor === color ? 'scale-125' : ''}`}
+                                            style={{
+                                                backgroundColor: color,
+                                                borderColor: !shapeNoFill && shapeFillColor === color ? creamPrimary : '#3D4A5D'
+                                            }}
+                                        />
+                                    ))}
                                 </div>
                             </div>
+
+                            {/* Stroke Color Section */}
+                            <div className="mb-3">
+                                <label className="text-xs font-medium mb-1 block" style={{ color: creamSecondary }}>Stroke Color</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {PRESET_COLORS.map(color => (
+                                        <button
+                                            key={color}
+                                            onClick={() => setShapeStrokeColor(color)}
+                                            className={`w-6 h-6 rounded-full border-2 transition-transform ${shapeStrokeColor === color ? 'scale-125' : ''}`}
+                                            style={{
+                                                backgroundColor: color,
+                                                borderColor: shapeStrokeColor === color ? creamPrimary : '#3D4A5D'
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Stroke Width Section */}
+                            <div className="mb-3">
+                                <label className="text-xs font-medium mb-1 block" style={{ color: creamSecondary }}>Stroke Width: {shapeStrokeWidth}px</label>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="20"
+                                    value={shapeStrokeWidth}
+                                    onChange={(e) => setShapeStrokeWidth(Number(e.target.value))}
+                                    className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                                    style={{
+                                        background: `linear-gradient(to right, ${creamPrimary} 0%, ${creamPrimary} ${(shapeStrokeWidth / 20) * 100}%, ${navyPrimary} ${(shapeStrokeWidth / 20) * 100}%, ${navyPrimary} 100%)`
+                                    }}
+                                />
+                            </div>
+
+                            {/* Shape Types Grid */}
                             <div className="grid grid-cols-4 gap-2">
                                 {SHAPES.map(shape => (
                                     <button key={shape.type} onClick={() => handleAddShape(shape.type)} className="w-10 h-10 rounded flex items-center justify-center text-lg hover:opacity-80 transition-opacity" style={{ backgroundColor: navyPrimary, color: creamPrimary }} title={shape.label}>
@@ -288,10 +387,24 @@ export default function MoodboardToolbar({
                 <div className="relative">
                     <ToolButton icon={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8l6-6V5c0-1.1-.9-2-2-2zm-7 15v-5h5l-5 5z" /></svg>} label="Sticky Note" active={showStickyColors} onClick={() => { closeAllMenus(); setShowStickyColors(!showStickyColors); }} />
                     {showStickyColors && (
-                        <div className="absolute top-12 left-0 p-3 rounded-lg shadow-xl z-50" style={{ backgroundColor: navySecondary, border: '1px solid #3D4A5D' }}>
-                            <label className="text-xs font-medium mb-2 block" style={{ color: creamSecondary }}>Pick a color</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {STICKY_COLORS.map(({ name, color, label }) => (<button key={name} onClick={() => handleAddStickyNote(name)} title={label} className="w-10 h-10 rounded-lg shadow-md hover:scale-110 transition-transform" style={{ backgroundColor: color }} />))}
+                        <div className="absolute top-12 left-0 p-4 rounded-2xl shadow-2xl z-50 flex flex-col gap-4" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', width: '160px' }}>
+                            <div className="grid grid-cols-2 gap-2">
+                                {STICKY_COLORS.map(({ name, color, label }) => (
+                                    <button
+                                        key={name}
+                                        onClick={() => handleAddStickyNote(name)}
+                                        title={label}
+                                        className="w-14 h-14 border transition-all hover:scale-105 active:scale-95"
+                                        style={{ backgroundColor: color, borderColor: 'rgba(0,0,0,0.1)' }}
+                                    />
+                                ))}
+                            </div>
+
+                            <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+                                <button className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-semibold transition-colors hover:bg-gray-100" style={{ backgroundColor: '#F3F4F6', color: '#1F2937' }}>
+                                    <Square2StackIcon className="w-4 h-4" />
+                                    Bloco
+                                </button>
                             </div>
                         </div>
                     )}

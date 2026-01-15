@@ -13,6 +13,9 @@ import {
     XMarkIcon,
     SwatchIcon
 } from '@heroicons/react/24/outline';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter, useSearchParams } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 // API Base URL - uses backend server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -35,6 +38,7 @@ interface Moodboard {
     id: string;
     title: string;
     slug?: string;
+    ownerUsername?: string;
     description?: string;
     coverImage?: string;
     visibility: 'private' | 'team' | 'public';
@@ -63,6 +67,9 @@ const creamPrimary = '#F5F1E8';
 const creamSecondary = '#E8E0D0';
 
 export default function DesignStudioPage() {
+    const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState<'files' | 'moodboards' | 'mockups'>('files');
     const [designFiles, setDesignFiles] = useState<DesignFile[]>([]);
     const [moodboards, setMoodboards] = useState<Moodboard[]>([]);
@@ -79,8 +86,19 @@ export default function DesignStudioPage() {
     }, []);
 
     useEffect(() => {
-        fetchData();
-    }, [activeTab]);
+        if (!isAuthLoading && !isAuthenticated) {
+            toast.error('Você precisa estar logado para acessar o Design Studio. Esta área é pessoal de cada usuário.', {
+                id: 'auth-required-design-studio'
+            });
+            router.push('/login?redirect=/design-studio');
+        }
+    }, [isAuthLoading, isAuthenticated, router]);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchData();
+        }
+    }, [activeTab, isAuthenticated]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -161,6 +179,8 @@ export default function DesignStudioPage() {
                 const newMoodboard = await res.json();
                 setMoodboards([newMoodboard, ...moodboards]);
                 setShowNewMoodboardModal(false);
+                // Redirect to the new moodboard using slug-based URL
+                router.push(`/design-studio/u/${user?.username || 'user'}/${newMoodboard.slug || newMoodboard.id}`);
             } else {
                 const errorData = await res.json().catch(() => ({}));
                 console.error('Failed to create moodboard:', errorData);
@@ -347,6 +367,14 @@ export default function DesignStudioPage() {
             return <PhotoIcon className="w-8 h-8 text-orange-500" />;
         }
     };
+
+    if (isAuthLoading || !isAuthenticated) {
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: navyPrimary }}>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style={{ borderColor: creamPrimary }}></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen" style={{ background: `linear-gradient(135deg, ${navyPrimary} 0%, ${navySecondary} 100%)` }}>
@@ -584,7 +612,7 @@ export default function DesignStudioPage() {
                                 {moodboards.map((moodboard) => (
                                     <Link
                                         key={moodboard.id}
-                                        href={`/design-studio/moodboards/${moodboard.id}`}
+                                        href={`/design-studio/u/${moodboard.ownerUsername || user?.username || 'user'}/${moodboard.slug || moodboard.id}`}
                                         className="rounded-xl border overflow-hidden transition-all group hover:border-[#4D5A6D] hover:shadow-lg"
                                         style={{ backgroundColor: `${navySecondary}80`, borderColor: '#2D3A4D' }}
                                     >
@@ -818,6 +846,7 @@ function NewMoodboardModal({
 }
 
 // Modal Component for Mockup Upload
+// Modal Component for Mockup Upload
 function UploadMockupModal({
     onClose,
     onUpload
@@ -829,6 +858,8 @@ function UploadMockupModal({
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [dragOver, setDragOver] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const acceptedTypes = '.png,.jpg,.jpeg,.webp,.svg,.pdf,.psd';
@@ -866,10 +897,17 @@ function UploadMockupModal({
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (file) {
-            onUpload(file, name || file.name, description);
+        if (file && !uploading) {
+            setUploading(true);
+            setError(null);
+            try {
+                await onUpload(file, name || file.name, description);
+            } catch (err: any) {
+                setError(err.message || 'Failed to upload mockup');
+                setUploading(false);
+            }
         }
     };
 
@@ -881,7 +919,7 @@ function UploadMockupModal({
             >
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-bold" style={{ color: creamPrimary }}>Upload Mockup</h2>
-                    <button onClick={onClose} className="p-1 rounded-full hover:opacity-80">
+                    <button onClick={onClose} disabled={uploading} className="p-1 rounded-full hover:opacity-80 disabled:opacity-50">
                         <XMarkIcon className="w-6 h-6" style={{ color: creamSecondary }} />
                     </button>
                 </div>
@@ -889,14 +927,15 @@ function UploadMockupModal({
                 <form onSubmit={handleSubmit}>
                     {/* Drop Zone */}
                     <div
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragOver(true); }}
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => !uploading && fileInputRef.current?.click()}
                         className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all"
                         style={{
                             borderColor: dragOver ? creamPrimary : '#2D3A4D',
-                            backgroundColor: dragOver ? `${navyPrimary}80` : 'transparent'
+                            backgroundColor: dragOver ? `${navyPrimary}80` : 'transparent',
+                            opacity: uploading ? 0.6 : 1
                         }}
                     >
                         <input
@@ -905,6 +944,7 @@ function UploadMockupModal({
                             accept={acceptedTypes}
                             onChange={handleFileChange}
                             className="hidden"
+                            disabled={uploading}
                         />
                         {file ? (
                             <div>
@@ -937,7 +977,8 @@ function UploadMockupModal({
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Mockup name"
-                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none"
+                            disabled={uploading}
+                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none disabled:opacity-50"
                             style={{
                                 backgroundColor: navyPrimary,
                                 borderWidth: '1px',
@@ -958,7 +999,8 @@ function UploadMockupModal({
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Add a description..."
                             rows={3}
-                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none resize-none"
+                            disabled={uploading}
+                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none resize-none disabled:opacity-50"
                             style={{
                                 backgroundColor: navyPrimary,
                                 borderWidth: '1px',
@@ -969,23 +1011,37 @@ function UploadMockupModal({
                         />
                     </div>
 
+                    {error && (
+                        <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                            {error}
+                        </div>
+                    )}
+
                     {/* Actions */}
                     <div className="flex justify-end gap-3 mt-6">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 transition-colors hover:opacity-80"
+                            disabled={uploading}
+                            className="px-4 py-2 transition-colors hover:opacity-80 disabled:opacity-50"
                             style={{ color: creamSecondary }}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            disabled={!file}
-                            className="px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                            disabled={!file || uploading}
+                            className="px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 flex items-center gap-2"
                             style={{ backgroundColor: creamPrimary, color: navyPrimary }}
                         >
-                            Upload
+                            {uploading ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+                                    Uploading...
+                                </>
+                            ) : (
+                                'Upload'
+                            )}
                         </button>
                     </div>
                 </form>
@@ -1006,6 +1062,8 @@ function UploadFileModal({
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [dragOver, setDragOver] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const acceptedTypes = '.ai,.eps,.svg,.obj,.fbx,.gltf,.glb,.sketch,.png,.jpg,.jpeg,.pdf,.docx,.txt';
@@ -1028,10 +1086,17 @@ function UploadFileModal({
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (file) {
-            onUpload(file, name || file.name, description);
+        if (file && !uploading) {
+            setUploading(true);
+            setError(null);
+            try {
+                await onUpload(file, name || file.name, description);
+            } catch (err: any) {
+                setError(err.message || 'Failed to upload file');
+                setUploading(false);
+            }
         }
     };
 
@@ -1043,7 +1108,7 @@ function UploadFileModal({
             >
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-bold" style={{ color: creamPrimary }}>Upload Design File</h2>
-                    <button onClick={onClose} className="p-1 rounded-full hover:opacity-80">
+                    <button onClick={onClose} disabled={uploading} className="p-1 rounded-full hover:opacity-80 disabled:opacity-50">
                         <XMarkIcon className="w-6 h-6" style={{ color: creamSecondary }} />
                     </button>
                 </div>
@@ -1051,14 +1116,15 @@ function UploadFileModal({
                 <form onSubmit={handleSubmit}>
                     {/* Drop Zone */}
                     <div
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragOver(true); }}
                         onDragLeave={() => setDragOver(false)}
                         onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => !uploading && fileInputRef.current?.click()}
                         className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors"
                         style={{
                             borderColor: dragOver ? creamPrimary : '#3D4A5D',
-                            backgroundColor: dragOver ? `${navyPrimary}80` : 'transparent'
+                            backgroundColor: dragOver ? `${navyPrimary}80` : 'transparent',
+                            opacity: uploading ? 0.6 : 1
                         }}
                     >
                         <input
@@ -1067,6 +1133,7 @@ function UploadFileModal({
                             accept={acceptedTypes}
                             onChange={handleFileChange}
                             className="hidden"
+                            disabled={uploading}
                         />
                         {file ? (
                             <div>
@@ -1097,7 +1164,8 @@ function UploadFileModal({
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Enter file name"
-                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none"
+                            disabled={uploading}
+                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none disabled:opacity-50"
                             style={{
                                 backgroundColor: navyPrimary,
                                 borderWidth: '1px',
@@ -1118,7 +1186,8 @@ function UploadFileModal({
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Add a description..."
                             rows={3}
-                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none resize-none"
+                            disabled={uploading}
+                            className="w-full rounded-lg px-4 py-3 transition-colors focus:outline-none resize-none disabled:opacity-50"
                             style={{
                                 backgroundColor: navyPrimary,
                                 borderWidth: '1px',
@@ -1129,23 +1198,37 @@ function UploadFileModal({
                         />
                     </div>
 
+                    {error && (
+                        <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+                            {error}
+                        </div>
+                    )}
+
                     {/* Actions */}
                     <div className="flex justify-end gap-3 mt-6">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 transition-colors hover:opacity-80"
+                            disabled={uploading}
+                            className="px-4 py-2 transition-colors hover:opacity-80 disabled:opacity-50"
                             style={{ color: creamSecondary }}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            disabled={!file}
-                            className="px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                            disabled={!file || uploading}
+                            className="px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 flex items-center gap-2"
                             style={{ backgroundColor: creamPrimary, color: navyPrimary }}
                         >
-                            Upload
+                            {uploading ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+                                    Uploading...
+                                </>
+                            ) : (
+                                'Upload'
+                            )}
                         </button>
                     </div>
                 </form>

@@ -23,14 +23,15 @@ import {
   DocumentTextIcon,
   RectangleStackIcon,
   ChatBubbleLeftRightIcon,
-  ClockIcon
+  ClockIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline';
 import { getImageUrl, debounce } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
-type FilterType = 'all' | 'item' | 'brand' | 'store' | 'user' | 'post' | 'page' | 'non_profit' | 'supplier';
+type FilterType = 'all' | 'item' | 'brand' | 'store' | 'user' | 'post' | 'page' | 'non_profit' | 'supplier' | 'editorial';
 
 const ResultSection = ({ title, items, renderItem, icon: Icon }: { title: string, items: any[], renderItem: (item: any) => React.ReactNode, icon: any }) => {
   if (!items || items.length === 0) return null;
@@ -594,7 +595,8 @@ export default function DiscoverPage() {
               { id: 'post', label: 'Posts' },
               { id: 'page', label: 'Pages' },
               { id: 'non_profit', label: 'Non-Profits' },
-              { id: 'supplier', label: 'Suppliers' }
+              { id: 'supplier', label: 'Suppliers' },
+              { id: 'editorial', label: 'Editorial' }
             ].map((filter) => (
               <button
                 key={filter.id}
@@ -644,6 +646,9 @@ export default function DiscoverPage() {
                 )}
                 {(filterType === 'all' || filterType === 'supplier') && (
                   <ResultSection title="Suppliers" items={results.suppliers} icon={BuildingStorefrontIcon} renderItem={item => <BrandCard brand={item} />} />
+                )}
+                {(filterType === 'all' || filterType === 'editorial') && (
+                  <ResultSection title="Editorial" items={results.editorial} icon={NewspaperIcon} renderItem={item => <StoryCard story={item} />} />
                 )}
               </>
             )}

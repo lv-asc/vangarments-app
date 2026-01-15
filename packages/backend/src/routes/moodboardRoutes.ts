@@ -123,6 +123,33 @@ if (process.env.NODE_ENV === 'development') {
             res.status(500).json({ error: 'Failed to update moodboard' });
         }
     });
+
+    // Dev route for getting moodboard by username + slug without auth
+    router.get('/u/:username/:slug', async (req: Request, res: Response) => {
+        try {
+            const { username, slug } = req.params;
+
+            // Get user ID from username
+            const userQuery = 'SELECT id FROM users WHERE LOWER(username) = LOWER($1)';
+            const userResult = await db.query(userQuery, [username]);
+
+            if (userResult.rows.length === 0) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            const userId = userResult.rows[0].id;
+            const moodboard = await MoodboardModel.findBySlug(userId, slug);
+
+            if (!moodboard) {
+                return res.status(404).json({ error: 'Moodboard not found' });
+            }
+
+            res.json(moodboard);
+        } catch (error) {
+            console.error('Error fetching moodboard by username/slug (dev):', error);
+            res.status(500).json({ error: 'Failed to fetch moodboard' });
+        }
+    });
 }
 
 // All routes require authentication
@@ -201,6 +228,36 @@ router.get('/slug/:slug', async (req: Request, res: Response) => {
         res.json(moodboard);
     } catch (error) {
         console.error('Error fetching moodboard by slug:', error);
+        res.status(500).json({ error: 'Failed to fetch moodboard' });
+    }
+});
+
+/**
+ * GET /api/moodboards/u/:username/:slug
+ * Get a moodboard by username and slug
+ */
+router.get('/u/:username/:slug', async (req: Request, res: Response) => {
+    try {
+        const { username, slug } = req.params;
+
+        // Get user ID from username
+        const userQuery = 'SELECT id FROM users WHERE LOWER(username) = LOWER($1)';
+        const userResult = await db.query(userQuery, [username]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const userId = userResult.rows[0].id;
+        const moodboard = await MoodboardModel.findBySlug(userId, slug);
+
+        if (!moodboard) {
+            return res.status(404).json({ error: 'Moodboard not found' });
+        }
+
+        res.json(moodboard);
+    } catch (error) {
+        console.error('Error fetching moodboard by username/slug:', error);
         res.status(500).json({ error: 'Failed to fetch moodboard' });
     }
 });

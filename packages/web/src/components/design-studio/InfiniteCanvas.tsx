@@ -12,6 +12,17 @@ export interface CanvasObject {
     locked: boolean;
     visible: boolean;
     color?: string;
+    comments?: CanvasComment[];
+}
+
+export interface CanvasComment {
+    id: string;
+    userId: string;
+    userName: string;
+    userAvatar?: string;
+    content: string;
+    createdAt: string;
+    replies?: CanvasComment[];
 }
 
 export interface ConnectionData {
@@ -21,7 +32,7 @@ export interface ConnectionData {
     color: string;
 }
 
-export type CanvasTool = 'select' | 'pan' | 'text' | 'brush' | 'eraser' | 'sticky' | 'connect' | 'image' | 'shape' | 'comment' | 'highlighter';
+export type CanvasTool = 'select' | 'pan' | 'text' | 'brush' | 'eraser' | 'sticky' | 'connect' | 'image' | 'shape' | 'comment' | 'highlighter' | 'link_tool';
 
 
 
@@ -42,11 +53,16 @@ export interface InfiniteCanvasRef {
     addText: (text: string, color?: string, font?: string) => void;
     addImage: (url: string, isFileCard?: boolean, fileData?: { name: string; type: string; id: string }) => void;
     addStickyNote: (color: string) => void;
-    addShape: (type: 'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line', color?: string) => void;
+    addCommentMarker: (x: number, y: number, initialComment?: CanvasComment, parentId?: string | null) => void;
+    addShape: (type: 'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line', fillColor?: string | null, strokeColor?: string, strokeWidth?: number) => void;
     setBrushColor: (color: string) => void;
     setBrushWidth: (width: number) => void;
     setTextColor: (color: string) => void;
+    addLinkCard: (url: string, x: number, y: number) => void;
+    addLinkPlaceholder: (x: number, y: number) => void;
     setShapeColor: (color: string) => void;
+    setShapeStrokeColor: (color: string) => void;
+    setShapeStrokeWidth: (width: number) => void;
     setEraserSize: (size: number) => void;
     getEraserSize: () => number;
     setActiveTool: (tool: CanvasTool) => void;
@@ -93,12 +109,22 @@ const creamPrimary = '#F5F1E8';
 
 // Sticky note colors with darker shades for folded corner
 const STICKY_COLORS: Record<string, { main: string; fold: string }> = {
-    yellow: { main: '#FEF3C7', fold: '#FDE68A' },
-    pink: { main: '#FCE7F3', fold: '#FBCFE8' },
-    orange: { main: '#FFEDD5', fold: '#FED7AA' },
-    green: { main: '#D1FAE5', fold: '#A7F3D0' },
-    blue: { main: '#DBEAFE', fold: '#BFDBFE' },
-    purple: { main: '#E9D8FD', fold: '#DDD6FE' }
+    yellow_light: { main: '#FEF9C3', fold: '#FEF08A' },
+    yellow_dark: { main: '#FDE047', fold: '#EAB308' },
+    orange: { main: '#FED7AA', fold: '#FB923C' },
+    salmon: { main: '#FCA5A5', fold: '#F87171' },
+    pink_light: { main: '#FCE7F3', fold: '#FBCFE8' },
+    pink_dark: { main: '#F472B6', fold: '#DB2777' },
+    blue_light: { main: '#BFDBFE', fold: '#93C5FD' },
+    purple: { main: '#C084FC', fold: '#A855F7' },
+    cyan: { main: '#67E8F9', fold: '#22D3EE' },
+    blue_dark: { main: '#60A5FA', fold: '#3B82F6' },
+    teal: { main: '#5EEAD4', fold: '#2DD4BF' },
+    green: { main: '#4ADE80', fold: '#22C55E' },
+    lime_light: { main: '#D9F99D', fold: '#BEF264' },
+    lime_dark: { main: '#A3E635', fold: '#84CC16' },
+    white: { main: '#FFFFFF', fold: '#E5E7EB' },
+    black: { main: '#000000', fold: '#1F2937' }
 };
 
 const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
@@ -123,11 +149,19 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
     const brushColorRef = useRef('#DC2626');
     const brushWidthRef = useRef(3);
     const textColorRef = useRef(creamPrimary);
-    const shapeColorRef = useRef('#3B82F6');
+    const shapeColorRef = useRef<string | null>('#3B82F6');
+    const shapeStrokeColorRef = useRef('#000000'); // Added ref for shape stroke color
+    const shapeStrokeWidthRef = useRef(2); // Added ref for shape stroke width
+    const stickyColorRef = useRef('yellow_light');
     const activeToolRef = useRef<CanvasTool>('select');
     const connectingFromRef = useRef<string | null>(null);
     const isPanningRef = useRef(false);
     const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+    // Shape creation state
+    const isCreatingShapeRef = useRef(false);
+    const shapeTypeRef = useRef<'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line' | null>(null);
+    const shapeStartPointRef = useRef<{ x: number; y: number } | null>(null);
+    const tempShapeRef = useRef<fabric.Object | null>(null);
     const callbacksRef = useRef({ onSelectionChange, onObjectsChange, onModified, onZoomChange, onToolChange, onFileDoubleClick, onObjectSelected });
 
     const [currentZoom, setCurrentZoom] = useState(1);
@@ -142,6 +176,50 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
     // Drawing layer for brush strokes - enables true pixel erasing
     const drawingLayerRef = useRef<HTMLCanvasElement | null>(null);
     const drawingLayerImageRef = useRef<fabric.FabricImage | null>(null);
+    // Input invisível para capturar paste
+    const pasteInputRef = useRef<HTMLTextAreaElement>(null);
+
+    // Helper to update selected object position in screen coordinates
+    const updateSelectionPosition = useCallback(() => {
+        if (!fabricRef.current) return;
+        const activeObject = fabricRef.current.getActiveObject();
+        if (activeObject && !(activeObject as any).isCommentMarker) {
+            // Get absolute coordinates on canvas
+            const center = activeObject.getCenterPoint();
+            const boundingRect = activeObject.getBoundingRect();
+
+            // Convert to screen coordinates
+            // We need to account for canvas viewport transform (zoom/pan)
+            const vpt = fabricRef.current.viewportTransform || [1, 0, 0, 1, 0, 0];
+            const zoom = fabricRef.current.getZoom();
+
+            // Calculate screen coordinates of the object's top-center
+            // (vpt[4], vpt[5]) is the pan offset
+            // vpt[0] and vpt[3] are scale factors (zoom)
+
+            // The object's top-center in canvas/scene coordinates (unzoomed/unpanned)
+            // Note: getBoundingRect() returns values in scene coordinates if not transformed,
+            // but fabric's behaviour depends on version.
+            // Let's use getCoords() for precision if needed, but getBoundingRect is usually fine for axis-aligned.
+            // Actually, let's use the canvas viewport transform to project the scene point to screen point.
+
+            // Scene Point (center top of object)
+            const sceneX = center.x;
+            const sceneY = boundingRect.top;
+
+            // Convert to Screen Point (relative to canvas element)
+            const screenX = sceneX * vpt[0] + vpt[4];
+            const screenY = sceneY * vpt[3] + vpt[5];
+
+            // Add canvas element's offset on the page
+            const canvasRect = fabricRef.current.getElement().getBoundingClientRect();
+
+            const finalX = canvasRect.left + screenX;
+            const finalY = canvasRect.top + screenY;
+
+            callbacksRef.current.onObjectSelected?.(activeObject, { x: finalX, y: finalY });
+        }
+    }, []);
 
     // Photoshop-style layer system
     const layersRef = useRef<Layer[]>([]);
@@ -165,7 +243,8 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                 name: obj.name || `${obj.type || 'Object'} ${index + 1}`,
                 locked: !!(obj.lockMovementX && obj.lockMovementY),
                 visible: obj.visible !== false,
-                color: obj.stickyColor
+                color: obj.stickyColor,
+                comments: obj.comments
             })).reverse();
     }, []);
 
@@ -174,7 +253,7 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
         try {
             const objectsToSave = fabricRef.current.getObjects().filter((obj: any) => !obj.isGrid && !obj.isConnection && !obj.isPin);
             const jsonData = {
-                objects: objectsToSave.map((obj: any) => obj.toObject(['id', 'name', 'isSticky', 'stickyColor', 'isFileCard', 'fileData', 'isStickyBg', 'isStickyFold'])),
+                objects: objectsToSave.map((obj: any) => obj.toObject(['id', 'name', 'isSticky', 'stickyColor', 'isFileCard', 'fileData', 'isStickyBg', 'isStickyFold', 'isCommentMarker', 'comments'])),
                 connections: connectionsRef.current,
                 background: fabricRef.current.backgroundColor
             };
@@ -187,6 +266,831 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
             if (historyRef.current.length > 50) { historyRef.current.shift(); historyIndexRef.current--; }
         } catch (e) { console.error('Error saving state:', e); }
     }, []);
+
+    // --- Link Tool Helpers ---
+
+    // YouTube ID extraction helper
+    const getYoutubeId = (url: string): string | null => {
+        // Handle various YouTube URL formats:
+        // - https://www.youtube.com/watch?v=VIDEO_ID
+        // - https://youtu.be/VIDEO_ID
+        // - https://www.youtube.com/embed/VIDEO_ID
+        // - https://m.youtube.com/watch?v=VIDEO_ID
+        const patterns = [
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+            /youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/
+        ];
+
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+
+        return null;
+    };
+
+    // YouTube Card Creator - Elegant Design
+    const createVideoEmbed = useCallback((videoId: string, x: number, y: number) => {
+        if (!fabricRef.current) return;
+
+        const cardWidth = 400;
+        const padding = 16;
+        const headerHeight = 48;
+        const thumbnailHeight = 225; // 16:9 ratio for 400px width
+        const cardHeight = headerHeight + thumbnailHeight;
+
+        const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+        const proxiedThumbnailUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(thumbnailUrl)}`;
+        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const youtubeLogoUrl = 'https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg';
+        const proxiedLogoUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(youtubeLogoUrl)}`;
+
+        // For Group with originX/Y: 'center', elements are positioned relative to center
+        // Offset from center (group will be centered, so offset by -half dimensions)
+        const offsetX = -cardWidth / 2;
+        const offsetY = -cardHeight / 2;
+
+        // Container Base - White card with rounded corners
+        const container = new fabric.Rect({
+            width: cardWidth,
+            height: cardHeight,
+            fill: '#ffffff',
+            rx: 12,
+            ry: 12,
+            left: offsetX,
+            top: offsetY,
+            originX: 'left',
+            originY: 'top'
+        });
+
+        // Header background (subtle gray)
+        const headerBg = new fabric.Rect({
+            width: cardWidth,
+            height: headerHeight,
+            fill: '#f9fafb',
+            left: offsetX,
+            top: offsetY,
+            originX: 'left',
+            originY: 'top',
+            rx: 12,
+            ry: 0 // Only round top corners
+        });
+
+        // YouTube domain text
+        const domainText = new fabric.IText('youtube.com', {
+            fontSize: 14,
+            fill: '#4b5563',
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: '500',
+            left: offsetX + padding + 28, // Space for logo
+            top: offsetY + (headerHeight / 2),
+            originX: 'left',
+            originY: 'center',
+            selectable: false
+        });
+
+        // Load YouTube logo
+        const loadYoutubeLogo = () => {
+            return fabric.FabricImage.fromURL(proxiedLogoUrl, { crossOrigin: 'anonymous' })
+                .then((logoImg: any) => {
+                    const logoSize = 20;
+                    const scale = logoSize / Math.max(logoImg.width, logoImg.height);
+                    const offsetX = -cardWidth / 2;
+                    const offsetY = -cardHeight / 2;
+                    logoImg.set({
+                        scaleX: scale,
+                        scaleY: scale,
+                        left: offsetX + padding,
+                        top: offsetY + (headerHeight / 2),
+                        originX: 'left',
+                        originY: 'center',
+                        selectable: false
+                    });
+                    return logoImg;
+                })
+                .catch(() => {
+                    // Fallback: Red circle with play icon
+                    const offsetX = -cardWidth / 2;
+                    const offsetY = -cardHeight / 2;
+                    const fallbackLogo = new fabric.Circle({
+                        radius: 10,
+                        fill: '#ff0000',
+                        left: offsetX + padding,
+                        top: offsetY + (headerHeight / 2),
+                        originX: 'left',
+                        originY: 'center',
+                        selectable: false
+                    });
+                    return fallbackLogo;
+                });
+        };
+
+        // Load thumbnail
+        const loadThumbnail = () => {
+            return fabric.FabricImage.fromURL(proxiedThumbnailUrl, { crossOrigin: 'anonymous' })
+                .then((thumbImg: any) => {
+                    const scale = cardWidth / (thumbImg.width || cardWidth);
+                    const offsetX = -cardWidth / 2;
+                    const offsetY = -cardHeight / 2;
+                    thumbImg.set({
+                        scaleX: scale,
+                        scaleY: scale,
+                        left: offsetX,
+                        top: offsetY + headerHeight,
+                        originX: 'left',
+                        originY: 'top',
+                        selectable: false
+                    });
+                    return thumbImg;
+                })
+                .catch(() => {
+                    // Fallback: Gray placeholder
+                    const offsetX = -cardWidth / 2;
+                    const offsetY = -cardHeight / 2;
+                    const fallbackThumb = new fabric.Rect({
+                        width: cardWidth,
+                        height: thumbnailHeight,
+                        fill: '#e5e7eb',
+                        left: offsetX,
+                        top: offsetY + headerHeight,
+                        originX: 'left',
+                        originY: 'top'
+                    });
+                    return fallbackThumb;
+                });
+        };
+
+        // Create play button overlay
+        const createPlayButton = () => {
+            const offsetX = -cardWidth / 2;
+            const offsetY = -cardHeight / 2;
+
+            const playCircle = new fabric.Circle({
+                radius: 30,
+                fill: '#ffffff',
+                opacity: 0.9,
+                left: 0, // Center of group
+                top: offsetY + headerHeight + (thumbnailHeight / 2),
+                originX: 'center',
+                originY: 'center',
+                selectable: false,
+                shadow: new fabric.Shadow({
+                    color: 'rgba(0,0,0,0.3)',
+                    blur: 15,
+                    offsetX: 0,
+                    offsetY: 3
+                })
+            });
+
+            const playTriangle = new fabric.Path('M 0 -10 L 0 10 L 15 0 Z', {
+                fill: '#ff0000',
+                left: 3, // Slight offset from center for visual centering
+                top: offsetY + headerHeight + (thumbnailHeight / 2),
+                originX: 'center',
+                originY: 'center',
+                selectable: false
+            });
+
+            return [playCircle, playTriangle];
+        };
+
+        // Assemble the card
+        Promise.all([loadYoutubeLogo(), loadThumbnail()]).then(([logo, thumbnail]) => {
+            if (!fabricRef.current) return;
+
+            const [playCircle, playTriangle] = createPlayButton();
+
+            // Create the complete card group
+            const youtubeCard = new fabric.Group(
+                [container, headerBg, logo, domainText, thumbnail, playCircle, playTriangle],
+                {
+                    left: x,
+                    top: y,
+                    originX: 'center',
+                    originY: 'center',
+                    shadow: new fabric.Shadow({
+                        color: 'rgba(0,0,0,0.12)',
+                        blur: 24,
+                        offsetX: 0,
+                        offsetY: 4
+                    })
+                }
+            );
+
+            // Add metadata
+            const embedId = generateId();
+            (youtubeCard as any).id = embedId;
+            (youtubeCard as any).name = 'video_embed';
+            (youtubeCard as any).videoId = videoId;
+            (youtubeCard as any).videoUrl = videoUrl;
+            (youtubeCard as any).layerId = activeLayerIdRef.current;
+
+            // Add to active layer
+            const currentLayer = layersRef.current.find(l => l.id === activeLayerIdRef.current);
+            if (currentLayer) {
+                currentLayer.objectIds.push(embedId);
+            }
+
+            // Add to canvas
+            fabricRef.current.add(youtubeCard);
+            fabricRef.current.setActiveObject(youtubeCard);
+            fabricRef.current.requestRenderAll();
+
+            saveState();
+        }).catch((err: any) => {
+            console.error('Failed to create YouTube card:', err);
+
+            // Ultra-simple fallback
+            const fallbackCard = new fabric.Rect({
+                width: cardWidth,
+                height: 200,
+                fill: '#fee2e2',
+                stroke: '#ef4444',
+                strokeWidth: 2,
+                rx: 12,
+                ry: 12,
+                left: x,
+                top: y,
+                originX: 'center',
+                originY: 'center'
+            });
+
+            const fallbackText = new fabric.IText('YouTube Video\n(Failed to load)', {
+                fontSize: 16,
+                fill: '#dc2626',
+                fontFamily: 'Inter, sans-serif',
+                textAlign: 'center',
+                left: x,
+                top: y,
+                originX: 'center',
+                originY: 'center'
+            });
+
+            const fallbackGroup = new fabric.Group([fallbackCard, fallbackText], {
+                left: x,
+                top: y,
+                originX: 'center',
+                originY: 'center'
+            });
+
+            const embedId = generateId();
+            (fallbackGroup as any).id = embedId;
+            (fallbackGroup as any).name = 'video_embed';
+            (fallbackGroup as any).videoId = videoId;
+            (fallbackGroup as any).videoUrl = videoUrl;
+            (fallbackGroup as any).layerId = activeLayerIdRef.current;
+
+            const currentLayer = layersRef.current.find(l => l.id === activeLayerIdRef.current);
+            if (currentLayer) {
+                currentLayer.objectIds.push(embedId);
+            }
+
+            if (fabricRef.current) {
+                fabricRef.current.add(fallbackGroup);
+                fabricRef.current.setActiveObject(fallbackGroup);
+                fabricRef.current.requestRenderAll();
+            }
+
+            saveState();
+        });
+    }, [generateId, saveState]);
+    const createLinkCard = useCallback((inputUrl: string, x: number, y: number) => {
+        if (!fabricRef.current) return;
+
+        // Helper to safely extract hostname from various URL formats
+        const getSafeHostname = (inputUrl: string): string => {
+            try {
+                // Try parsing as-is first
+                return new URL(inputUrl).hostname;
+            } catch (e) {
+                // If failed, try adding https://
+                try {
+                    return new URL('https://' + inputUrl).hostname;
+                } catch (e2) {
+                    // Final fallback - try to extract domain manually
+                    const match = inputUrl.match(/(?:https?:\/\/)?(?:www\.)?([^\/\?#]+)/i);
+                    return match ? match[1] : 'google.com';
+                }
+            }
+        };
+
+        try {
+            // Ensure protocol exists for URL parsing
+            let url = inputUrl.trim();
+            if (!/^https?:\/\//i.test(url)) {
+                url = 'https://' + url;
+            }
+
+            // Extract clean hostname with fallback protection
+            const domain = getSafeHostname(url);
+
+            // Google blocks direct canvas access - use allorigins proxy
+            const googleUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(googleUrl)}`;
+
+            console.log('🔗 Creating Link Card (Optimistic UI):', {
+                inputUrl,
+                url,
+                domain,
+                proxyUrl
+            });
+
+            const height = 48;
+            const iconSize = 24;
+            const padding = 12;
+
+            // ============================================
+            // PASO 1: Crear card INMEDIATO con placeholder
+            // ============================================
+
+            // Placeholder icon - círculo gris claro
+            const placeholderIcon = new fabric.Circle({
+                radius: iconSize / 2,
+                fill: '#E5E7EB', // Gray-200
+                originX: 'center',
+                originY: 'center',
+                left: padding + iconSize / 2,
+                top: 0
+            });
+            (placeholderIcon as any).isPlaceholder = true;
+
+            const textObj = new fabric.Text(domain, {
+                fontFamily: 'Inter, sans-serif',
+                fontSize: 16,
+                fill: '#2563EB',
+                underline: true,
+                originX: 'left',
+                originY: 'center',
+                left: padding + iconSize + 8,
+                top: 0
+            });
+
+            const totalWidth = padding + iconSize + 8 + (textObj.width || 100) + padding * 2;
+
+            const background = new fabric.Rect({
+                width: totalWidth,
+                height: height,
+                rx: height / 2,
+                ry: height / 2,
+                fill: '#FFFFFF',
+                stroke: '#E5E7EB',
+                strokeWidth: 1,
+                originX: 'center',
+                originY: 'center',
+                shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.05)', blur: 10, offsetX: 0, offsetY: 4 })
+            });
+
+            const halfWidth = totalWidth / 2;
+            placeholderIcon.set({ left: -halfWidth + padding + iconSize / 2, top: 0 });
+            textObj.set({ left: -halfWidth + padding + iconSize + 8, top: 0 });
+
+            const linkCard = new fabric.Group([background, placeholderIcon, textObj], {
+                left: x,
+                top: y,
+                originX: 'center',
+                originY: 'center',
+                subTargetCheck: false,
+                hoverCursor: 'pointer'
+            });
+
+            const id = generateId();
+            (linkCard as any).id = id;
+            (linkCard as any).name = 'Link Card';
+            (linkCard as any).isLinkCard = true;
+            (linkCard as any).url = url;
+            (linkCard as any).domain = domain;
+
+            // Añadir al canvas INMEDIATAMENTE
+            fabricRef.current.add(linkCard);
+            fabricRef.current.setActiveObject(linkCard);
+            fabricRef.current.requestRenderAll();
+            saveState();
+
+            callbacksRef.current.onObjectsChange?.(getCanvasObjects());
+            callbacksRef.current.onObjectSelected?.(linkCard, { x, y });
+
+            console.log('✅ Card created immediately with placeholder');
+
+            // ============================================
+            // PASO 2: Cargar favicon en background
+            // ============================================
+
+            console.log('Hostname:', domain);
+
+            // Fallback generic icon (simple chain link icon in gray)
+            const genericLinkIconComp = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAABmJLR0QA/wD/AP+gvaeTAAABxklEQVR4nO2ZwU4CMRCG/w1e9CDGxJM38eTR9GD06MmbF08enz141EQTjTEaE40mQOhtt1uszbSlBdrup/wTTOhM+5tpO0MppZRSSimllNJCjGkC8AG8A1gDeAfwBmA9xrilE4BvA/AA4LEd3wM40gq9BfAB4KkdPwB40wm9BfABoO7G3+qE3gL4AnDtxt/phN4C+AZw48bf6oTeAvgB0HTj73RCbwF8A2i58Xc6obcAPgE03fgbndBbAN8Amm78rU7oLYADgIsbf6cTegvga8D/L7/SCb0F8A2g5sbf6oTeAvgGcCv8/9d36ITeAvgE4P8X/+uE3gL4BnAr/f/XN+mE3gL4AmD9F//rnN4C+AbwIPz/1zfqhN4C+AIw9v9/oRN6C+AbwK3w/1/foBN6C+ALwNj/n+uE3gL4BnAr/P/X1+mE3gL4AjD2/+c6obcAvgHcCv//9XU6obcAvgCM/f+5TugtgG8At8L/f32dTugtgC8AY/+f64TeAvgGcCv8/9fX6YS+tEC3O38G8AzgAcAzgG8A6xjjliYAnwDeAKwBvAF4AzCMMU5ppZRSSimllNLfkx+s056hW+h83AAAAABJRU5ErkJggg==';
+
+            // Provider URLs
+            const ddgUrl = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
+            const proxyDdgUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ddgUrl)}`;
+
+            // Helper to get Global Position for reliable .add()
+            const getIconGlobalPosition = () => {
+                const halfWidth = (linkCard.width || 200) / 2;
+                const localX = -halfWidth + 12;
+                const localY = 0;
+                const matrix = (linkCard as any).calcTransformMatrix();
+                return (fabric as any).util.transformPoint(new fabric.Point(localX, localY), matrix);
+            };
+
+            const setupIcon = (img: any) => {
+                const p = getIconGlobalPosition();
+
+                // Calculate proportional scale to fit in 24x24 box
+                const maxDim = Math.max(img.width, img.height);
+                const scaleFactor = 24 / maxDim;
+
+                img.set({
+                    left: p.x,
+                    top: p.y,
+                    originX: 'left',
+                    originY: 'center',
+                    scaleX: scaleFactor,
+                    scaleY: scaleFactor
+                    // No width/height set here, letting Fabric use natural scale
+                });
+                linkCard.add(img);
+                linkCard.set('dirty', true);
+                fabricRef.current?.requestRenderAll();
+            };
+
+            const loadFallbackPath = () => {
+                if (!fabricRef.current || !linkCard) return;
+                console.warn('Fallback Image failed, using Vector Path.');
+                linkCard.remove(placeholderIcon); // Ensure removed
+
+                const p = getIconGlobalPosition();
+                const linkIcon = new fabric.Path('M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14', {
+                    fill: '',
+                    stroke: '#2563EB',
+                    strokeWidth: 2,
+                    strokeLinecap: 'round',
+                    strokeLinejoin: 'round',
+                    scaleX: 1.2,
+                    scaleY: 1.2,
+                    originX: 'left',
+                    originY: 'center',
+                    left: p.x,
+                    top: p.y
+                });
+                linkCard.add(linkIcon);
+                linkCard.set('dirty', true);
+                fabricRef.current?.requestRenderAll();
+            };
+
+            const loadFallbackImage = () => {
+                console.log('Attempting Fallback Image...');
+                fabric.Image.fromURL(genericLinkIconComp, { crossOrigin: 'anonymous' }).then((img: any) => {
+                    if (!fabricRef.current || !linkCard || !img) {
+                        loadFallbackPath();
+                        return;
+                    }
+                    linkCard.remove(placeholderIcon);
+                    setupIcon(img);
+                }).catch(() => {
+                    loadFallbackPath();
+                });
+            };
+
+            // 2. Google Provider (Backup)
+            const loadGoogleFavicon = () => {
+                fabric.Image.fromURL(proxyUrl, { crossOrigin: 'anonymous' }).then((img: any) => {
+                    if (!fabricRef.current || !linkCard || !img || img.width === 0) {
+                        loadFallbackImage();
+                        return;
+                    }
+                    linkCard.remove(placeholderIcon);
+                    setupIcon(img);
+                }).catch((err: any) => {
+                    console.warn('Google Favicon failed:', err);
+                    loadFallbackImage();
+                });
+            };
+
+            // 1. DuckDuckGo Provider (Primary)
+            console.log(`Attempting DDG Favicon: ${proxyDdgUrl}`);
+            fabric.Image.fromURL(proxyDdgUrl, { crossOrigin: 'anonymous' }).then((img: any) => {
+                if (!fabricRef.current || !linkCard || !img || img.width === 0) {
+                    loadGoogleFavicon();
+                    return;
+                }
+                linkCard.remove(placeholderIcon);
+                setupIcon(img);
+            }).catch((err: any) => {
+                console.warn('DDG Favicon network error:', err);
+                loadGoogleFavicon();
+            });
+        } catch (e) {
+            console.error('❌ Invalid URL:', e);
+        }
+    }, [generateId, saveState, getCanvasObjects]);
+
+    const createLinkPlaceholder = useCallback((x: number, y: number) => {
+        if (!fabricRef.current) return;
+        const width = 240; const height = 48;
+        const bg = new fabric.Rect({
+            width: width, height: height, rx: 24, ry: 24,
+            fill: '#F3F4F6', stroke: '#9CA3AF', strokeWidth: 2, strokeDashArray: [6, 6],
+            originX: 'center', originY: 'center'
+        });
+        const text = new fabric.Text('Cole seu link aqui (Ctrl+V)', {
+            fontFamily: 'Inter, sans-serif', fontSize: 14, fill: '#6B7280', originX: 'center', originY: 'center'
+        });
+        const placeholder = new fabric.Group([bg, text], {
+            left: x, top: y, originX: 'center', originY: 'center',
+            subTargetCheck: false, hoverCursor: 'pointer'
+        });
+        const id = generateId();
+        (placeholder as any).id = id; (placeholder as any).name = 'Link Placeholder'; (placeholder as any).isLinkPlaceholder = true;
+        fabricRef.current.add(placeholder); fabricRef.current.setActiveObject(placeholder); fabricRef.current.requestRenderAll();
+        saveState();
+        callbacksRef.current.onObjectsChange?.(getCanvasObjects());
+        callbacksRef.current.onObjectSelected?.(placeholder, { x, y });
+    }, [generateId, saveState, getCanvasObjects]);
+
+    const createStickyNote = useCallback((centerX: number, centerY: number, color: string) => {
+        if (!fabricRef.current) return;
+        const canvas = fabricRef.current;
+        const colors = STICKY_COLORS[color] || STICKY_COLORS.yellow_light;
+
+        const SIZE = 200;
+        const PADDING = 16;
+        const FOLD_SIZE = 28;
+        const MAX_FONT_SIZE = 32;
+        const MIN_FONT_SIZE = 10;
+        const textColor = color === 'black' ? '#FFFFFF' : '#1F2937';
+
+        const objId = generateId();
+
+        // Background
+        const bgPoints = [
+            { x: 0, y: 0 },
+            { x: SIZE - FOLD_SIZE, y: 0 },
+            { x: SIZE, y: FOLD_SIZE },
+            { x: SIZE, y: SIZE },
+            { x: 0, y: SIZE }
+        ];
+
+        const background = new fabric.Polygon(bgPoints, {
+            fill: colors.main,
+            stroke: 'transparent',
+            strokeWidth: 0,
+            originX: 'left',
+            originY: 'top',
+            shadow: new fabric.Shadow({
+                color: 'rgba(0,0,0,0.2)',
+                blur: 12,
+                offsetX: 2,
+                offsetY: 4
+            })
+        });
+
+        // Fold
+        const foldTriangle = new fabric.Polygon([
+            { x: SIZE - FOLD_SIZE, y: 0 },
+            { x: SIZE, y: FOLD_SIZE },
+            { x: SIZE - FOLD_SIZE, y: FOLD_SIZE }
+        ], {
+            fill: colors.fold,
+            stroke: 'transparent',
+            strokeWidth: 0,
+            originX: 'left',
+            originY: 'top',
+            shadow: new fabric.Shadow({
+                color: 'rgba(0,0,0,0.15)',
+                blur: 4,
+                offsetX: -1,
+                offsetY: 1
+            })
+        });
+
+        // Internal Text (Non-editable directly)
+        const textObj = new fabric.Textbox('', {
+            left: SIZE / 2,
+            top: SIZE / 2,
+            fontSize: MAX_FONT_SIZE,
+            fontFamily: 'Shadows Into Light, Inter, Arial, sans-serif',
+            fill: textColor,
+            textAlign: 'center',
+            originX: 'center',
+            originY: 'center',
+            width: SIZE - PADDING * 2,
+            splitByGrapheme: true,
+            editable: false,
+            selectable: false,
+            evented: false,
+            lockScalingX: true,
+            lockScalingY: true
+        } as any);
+
+        // Sticky State
+        const stickyState = {
+            size: SIZE,
+            padding: PADDING,
+            maxFontSize: MAX_FONT_SIZE,
+            minFontSize: MIN_FONT_SIZE,
+            objId: objId
+        };
+
+        // --- AutoFit Logic (Shared) ---
+        // Adapts to scale if passed via manual sizing or implicit object scaling
+        const autoFitText = (targetText: fabric.Textbox, manualCenterPoint?: { x: number, y: number }) => {
+            const scaleX = targetText.scaleX || 1;
+            const availableWidth = (stickyState.size - stickyState.padding * 2) * scaleX;
+            // Logical width for textbox (it handles scale internally for visual) - wait, if we set width, it changes wrap.
+            // If scale is applied, width should be logical width.
+            const logicalWidth = stickyState.size - stickyState.padding * 2;
+
+            targetText.set('width', logicalWidth);
+
+            if (!targetText.text || targetText.text.length === 0) {
+                targetText.set('fontSize', stickyState.maxFontSize);
+                if (manualCenterPoint) {
+                    const scaleY = targetText.scaleY || 1;
+                    // Visual height might be line height if empty? Or 0.
+                    // Use approx height of one line at max font
+                    const approxHeight = (targetText.calcTextHeight?.() || stickyState.maxFontSize) * scaleY;
+                    targetText.set('top', manualCenterPoint.y - (approxHeight / 2));
+                }
+                return;
+            }
+
+            const availableHeight = stickyState.size - stickyState.padding * 2; // Logical available height
+            let low = stickyState.minFontSize;
+            let high = stickyState.maxFontSize;
+            let optimalSize = low;
+
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                targetText.set('fontSize', mid);
+                // targetText.initDimensions(); // Recalc dimensions 
+                // Fabric v6/v7 auto updates on set, but initDimensions safe.
+
+                const logicalTextHeight = targetText.height || 0;
+
+                // We compare logical heights because scaleY applies to both content and box similarly
+                // (Assuming targetText has same scale as parent container)
+                if (logicalTextHeight <= availableHeight) {
+                    optimalSize = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+
+            targetText.set('fontSize', optimalSize);
+
+            // Character Limit Check
+            if (activeToolRef.current === 'sticky' || targetText.isEditing) {
+                const logicalTextHeight = targetText.height || 0;
+                if (logicalTextHeight > availableHeight) {
+                    const txt = targetText.text || '';
+                    if (txt.length > 0) {
+                        targetText.set('text', txt.substring(0, txt.length - 1));
+                        // Optional: Alert user (but avoid constant alerts)
+                    }
+                }
+            }
+
+            // Manual Vertical Centering for Overlay (Visual Coords)
+            if (manualCenterPoint) {
+                const finalScaleY = targetText.scaleY || 1;
+                const finalHeight = (targetText.height || 0) * finalScaleY;
+                targetText.set('top', manualCenterPoint.y - (finalHeight / 2));
+                targetText.setCoords();
+            }
+        };
+
+        // Create Group
+        const stickyGroup = new fabric.Group([background, foldTriangle, textObj], {
+            left: centerX,
+            top: centerY,
+            originX: 'center',
+            originY: 'center',
+            subTargetCheck: false, // Treat as single object
+            interactive: true,
+            transparentCorners: false,
+            borderColor: '#3B82F6',
+            cornerColor: '#3B82F6',
+            cornerSize: 10,
+            hasControls: true
+        });
+
+        (stickyGroup as any).lockUniScaling = true;
+        (stickyGroup as any).id = objId;
+        (stickyGroup as any).name = 'Sticky Note';
+        (stickyGroup as any).isSticky = true;
+        (stickyGroup as any).stickyColor = color;
+        (stickyGroup as any).layerId = activeLayerIdRef.current;
+        (stickyGroup as any)._stickyState = stickyState;
+
+        // Scaling Handler
+        stickyGroup.on('scaling', () => {
+            const scaleX = stickyGroup.scaleX || 1;
+            stickyGroup.set('scaleY', scaleX);
+        });
+
+        // --- Enter Edit Mode (Overlay) ---
+        const enterEditMode = () => {
+            console.log('Entering Edit Mode (Unified)');
+            // 1. Get Group Center in World Coords
+            const matrix = stickyGroup.calcTransformMatrix();
+            const centerLocal = new fabric.Point(0, 0);
+            const centerWorld = fabric.util.transformPoint(centerLocal, matrix);
+
+            // 2. Hide Internal Text
+            textObj.set('opacity', 0);
+            canvas.requestRenderAll();
+
+            // 3. Create Overlay Textbox
+            // We match the scale of the group
+            const groupScaleX = stickyGroup.scaleX || 1;
+            const groupScaleY = stickyGroup.scaleY || 1;
+
+            const overlayText = new fabric.Textbox(textObj.text || '', {
+                left: centerWorld.x,
+                top: centerWorld.y,
+                width: (stickyState.size - stickyState.padding * 2), // Width logic handled by scale? 
+                // If we set scaleX, width should be logical.
+                scaleX: groupScaleX,
+                scaleY: groupScaleY,
+                fontSize: textObj.fontSize || MAX_FONT_SIZE,
+                fontFamily: textObj.fontFamily,
+                fontWeight: textObj.fontWeight,
+                fontStyle: textObj.fontStyle,
+                underline: textObj.underline,
+                linethrough: textObj.linethrough,
+                fill: textColor,
+                textAlign: 'center',
+                originX: 'center',
+                originY: 'top', // Important for stability
+                splitByGrapheme: true,
+                hasControls: false,
+                lockMovementX: true,
+                lockMovementY: true,
+                selectable: false, // Overlay itself isn't draggable
+                styles: JSON.parse(JSON.stringify(textObj.styles || {})) // Clone existing styles
+            } as any);
+
+            // Initial Fit & Center
+            const updateOverlay = () => {
+                autoFitText(overlayText, { x: centerWorld.x, y: centerWorld.y });
+            };
+
+            updateOverlay();
+
+            // Events
+            overlayText.on('changed', updateOverlay);
+
+            // Sync Styles to Overlay if toolbar changes them externally (optional but good)
+            // ...
+
+            overlayText.on('editing:exited', () => {
+                // Sync Back Text AND Styles
+                textObj.set({
+                    text: overlayText.text,
+                    fontWeight: overlayText.fontWeight,
+                    fontStyle: overlayText.fontStyle,
+                    underline: overlayText.underline,
+                    linethrough: overlayText.linethrough,
+                    styles: JSON.parse(JSON.stringify(overlayText.styles || {})), // Important: Deep clone styles
+                    opacity: 1
+                });
+
+                // Re-fit internal text (no visual center needed as group handles it)
+                autoFitText(textObj);
+
+                canvas.remove(overlayText);
+                canvas.setActiveObject(stickyGroup);
+                canvas.requestRenderAll();
+                saveState();
+            });
+
+            canvas.add(overlayText);
+            canvas.setActiveObject(overlayText);
+            overlayText.enterEditing();
+            overlayText.selectAll();
+            canvas.requestRenderAll();
+        };
+
+        stickyGroup.on('mousedblclick', enterEditMode);
+
+        canvas.add(stickyGroup);
+        canvas.setActiveObject(stickyGroup);
+
+        // Add to layer
+        const currentLayer = layersRef.current.find(l => l.id === activeLayerIdRef.current);
+        if (currentLayer) {
+            currentLayer.objectIds.push(objId);
+        }
+
+        // Auto-enter edit mode on creation
+        enterEditMode();
+
+        saveState();
+    }, [saveState, updateSelectionPosition]);
 
     const drawConnectionWithPins = useCallback((conn: ConnectionData) => {
         if (!fabricRef.current) return;
@@ -590,11 +1494,38 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
             setActiveLayerId(defaultLayer.id);
         }
 
+        canvas.on('mouse:wheel', (opt) => {
+            const delta = opt.e.deltaY;
+            let zoom = canvas.getZoom();
+            zoom *= 0.999 ** delta;
+            if (zoom > 20) zoom = 20;
+            if (zoom < 0.01) zoom = 0.01;
+
+            // Zoom at mouse position
+            canvas.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom);
+
+            opt.e.preventDefault();
+            opt.e.stopPropagation();
+
+            setCurrentZoom(zoom);
+            drawGrid();
+            updateMinimap();
+            setCurrentZoom(zoom);
+            drawGrid();
+            updateMinimap();
+            callbacksRef.current.onZoomChange?.(zoom);
+            updateSelectionPosition();
+        });
+
         canvas.on('mouse:down', (opt) => {
             const evt = opt.e as MouseEvent;
             if (evt.button === 2 || activeToolRef.current === 'pan') {
-                isPanningRef.current = true; lastPointRef.current = { x: evt.clientX, y: evt.clientY };
-                canvas.selection = false; canvas.setCursor('grabbing'); evt.preventDefault(); return;
+                isPanningRef.current = true;
+                lastPointRef.current = { x: evt.clientX, y: evt.clientY };
+                canvas.selection = false;
+                canvas.setCursor('grabbing');
+                evt.preventDefault();
+                return;
             }
 
             // Eraser mode - just start erasing, rasterization happens per-stroke on demand
@@ -610,6 +1541,29 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                 return;
             }
 
+            if (activeToolRef.current === 'comment') {
+                const pointer = (canvas as any).getScenePoint(opt.e);
+                // Check if clicking on an object to attach comment to it
+                const targetObject = opt.target;
+                const parentId = targetObject && !(targetObject as any).isGrid && !(targetObject as any).isCommentMarker
+                    ? (targetObject as any).id
+                    : null;
+
+                (ref as any).current?.addCommentMarker(pointer.x, pointer.y, undefined, parentId);
+                setActiveToolState('select');
+                activeToolRef.current = 'select';
+                return;
+            }
+
+            if (activeToolRef.current === 'sticky') {
+                const pointer = (opt as any).scenePoint || (canvas as any).getScenePoint(opt.e);
+                createStickyNote(pointer.x, pointer.y, stickyColorRef.current);
+                setActiveToolState('select');
+                activeToolRef.current = 'select';
+                canvas.setCursor('default');
+                return;
+            }
+
             if (activeToolRef.current === 'connect' && opt.target) {
                 const targetId = (opt.target as any).id;
                 if (targetId && !(opt.target as any).isGrid && !(opt.target as any).isConnection && !(opt.target as any).isPin) {
@@ -622,6 +1576,38 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                         saveState(); callbacksRef.current.onModified?.();
                     }
                 }
+            }
+
+            // Shape creation mode - start drag-to-create
+            if (shapeTypeRef.current && !opt.target) {
+                const pointer = (canvas as any).getScenePoint(opt.e);
+                isCreatingShapeRef.current = true;
+                shapeStartPointRef.current = { x: pointer.x, y: pointer.y };
+                canvas.selection = false;
+                return;
+            }
+
+            // Link Tool - Click to create placeholder
+            if (activeToolRef.current === 'link_tool' && !opt.target) {
+                const pointer = (canvas as any).getScenePoint(opt.e);
+                createLinkPlaceholder(pointer.x, pointer.y);
+
+                // Optional: Force focus to pasteInputRef to ensure paste works immediately
+                pasteInputRef.current?.focus();
+
+                // Should we switch back to select? 
+                // Maybe keep it in link_tool until user selects something else?
+                // For now, let's keep it in link_tool to allow creating multiple placeholders if needed
+                // But typically user creates one and pastes.
+                // Let's switch to select to allow user to immediately interact with the placeholder (which is selected)
+                setActiveToolState('select');
+                activeToolRef.current = 'select';
+                canvas.defaultCursor = 'default';
+                canvas.hoverCursor = 'move';
+                canvas.selection = true;
+                // Re-enable evented
+                canvas.getObjects().forEach((obj: any) => { if (!obj.isGrid && !obj.isConnection && !obj.isPin) obj.evented = true; });
+                return;
             }
         });
 
@@ -653,13 +1639,187 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                     vpt[4] += evt.clientX - lastPointRef.current.x;
                     vpt[5] += evt.clientY - lastPointRef.current.y;
                     lastPointRef.current = { x: evt.clientX, y: evt.clientY };
-                    canvas.requestRenderAll(); drawGrid();
+                    canvas.requestRenderAll();
+                    canvas.requestRenderAll();
+                    drawGrid();
+                    updateMinimap();
+                    updateSelectionPosition();
                 }
+            }
+
+            // Shape creation - update dimensions while dragging
+            if (isCreatingShapeRef.current && shapeStartPointRef.current && shapeTypeRef.current) {
+                const pointer = (canvas as any).getScenePoint(opt.e);
+                const startX = shapeStartPointRef.current.x;
+                const startY = shapeStartPointRef.current.y;
+                const currentX = pointer.x;
+                const currentY = pointer.y;
+
+                // Calculate dimensions and handle negative coordinates
+                // The start point is ALWAYS one of the corners (anchor point)
+                const width = Math.abs(currentX - startX);
+                const height = Math.abs(currentY - startY);
+                const left = Math.min(startX, currentX);
+                const top = Math.min(startY, currentY);
+
+                // Remove previous temporary shape if exists
+                if (tempShapeRef.current) {
+                    canvas.remove(tempShapeRef.current);
+                    tempShapeRef.current = null;
+                }
+
+                // Only create shape if dragged at least 5 pixels
+                if (width < 5 && height < 5) return;
+
+                // Get styling from refs
+                const fillColor = shapeColorRef.current === null ? 'transparent' : shapeColorRef.current;
+                const strokeColor = shapeStrokeColorRef.current;
+                const strokeWidth = shapeStrokeWidthRef.current;
+                let shape: fabric.Object;
+
+                switch (shapeTypeRef.current) {
+                    case 'rect':
+                        shape = new fabric.Rect({
+                            left, top, width, height,
+                            fill: fillColor,
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            rx: 4, ry: 4,
+                            originX: 'left', originY: 'top',
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                        break;
+                    case 'circle': {
+                        const radius = Math.min(width, height) / 2;
+                        // Circle should be positioned at top-left corner, not center
+                        shape = new fabric.Circle({
+                            left, top,
+                            radius,
+                            fill: fillColor,
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            originX: 'left', originY: 'top',
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                        break;
+                    }
+                    case 'triangle':
+                        shape = new fabric.Triangle({
+                            left, top, width, height,
+                            fill: fillColor,
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            originX: 'left', originY: 'top',
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                        break;
+                    case 'diamond': {
+                        const points = [
+                            { x: width / 2, y: 0 },
+                            { x: width, y: height / 2 },
+                            { x: width / 2, y: height },
+                            { x: 0, y: height / 2 }
+                        ];
+                        shape = new fabric.Polygon(points, {
+                            left, top,
+                            fill: fillColor,
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            originX: 'left', originY: 'top',
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                        break;
+                    }
+                    case 'star': {
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const outerRadius = Math.min(width, height) / 2;
+                        const innerRadius = outerRadius / 2;
+                        const starPoints = [];
+                        for (let i = 0; i < 10; i++) {
+                            const r = i % 2 === 0 ? outerRadius : innerRadius;
+                            const angle = (Math.PI / 5) * i - Math.PI / 2;
+                            starPoints.push({
+                                x: centerX + r * Math.cos(angle),
+                                y: centerY + r * Math.sin(angle)
+                            });
+                        }
+                        shape = new fabric.Polygon(starPoints, {
+                            left, top,
+                            fill: fillColor,
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            originX: 'left', originY: 'top',
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                        break;
+                    }
+                    case 'arrow': {
+                        const arrowWidth = width;
+                        const arrowHeight = height;
+                        const shaftHeight = arrowHeight * 0.4;
+                        const headHeight = arrowHeight * 0.6;
+                        const points = [
+                            { x: 0, y: arrowHeight / 2 - shaftHeight / 2 },
+                            { x: arrowWidth * 0.6, y: arrowHeight / 2 - shaftHeight / 2 },
+                            { x: arrowWidth * 0.6, y: 0 },
+                            { x: arrowWidth, y: arrowHeight / 2 },
+                            { x: arrowWidth * 0.6, y: arrowHeight },
+                            { x: arrowWidth * 0.6, y: arrowHeight / 2 + shaftHeight / 2 },
+                            { x: 0, y: arrowHeight / 2 + shaftHeight / 2 }
+                        ];
+                        shape = new fabric.Polygon(points, {
+                            left, top,
+                            fill: fillColor,
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            originX: 'left', originY: 'top',
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                        break;
+                    }
+                    case 'line':
+                        // Line uses absolute coordinates, not left/top
+                        // For lines, use strokeColor as the line color
+                        shape = new fabric.Line([startX, startY, currentX, currentY], {
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                        break;
+                    default:
+                        shape = new fabric.Rect({
+                            left, top, width, height,
+                            fill: fillColor,
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidth,
+                            originX: 'left', originY: 'top',
+                            selectable: false, evented: false,
+                            erasable: false
+                        } as any);
+                }
+
+                (shape as any).isTemporaryShape = true;
+                tempShapeRef.current = shape;
+                canvas.add(shape);
+                canvas.renderAll();
             }
         });
 
         canvas.on('mouse:up', () => {
             isPanningRef.current = false; lastPointRef.current = null;
+
+            // Clear guides
+            const guides = canvas.getObjects().filter((o: any) => o.isGuide);
+            guides.forEach(g => canvas.remove(g));
+
             // Save state if we were erasing
             if (isErasingRef.current && activeToolRef.current === 'eraser') {
                 saveState();
@@ -667,6 +1827,45 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
             }
             isErasingRef.current = false;
             lastEraserPointRef.current = null; // Reset eraser stroke
+
+            // Finalize shape creation
+            if (isCreatingShapeRef.current && tempShapeRef.current) {
+                const tempShape = tempShapeRef.current;
+
+                // Remove temporary flag and make it selectable
+                delete (tempShape as any).isTemporaryShape;
+                tempShape.set({
+                    selectable: true,
+                    evented: true
+                });
+
+                // Add metadata
+                (tempShape as any).id = generateId();
+                (tempShape as any).name = shapeTypeRef.current!.charAt(0).toUpperCase() + shapeTypeRef.current!.slice(1);
+                (tempShape as any).layerId = activeLayerIdRef.current;
+
+                // Select the new shape
+                canvas.setActiveObject(tempShape);
+                canvas.renderAll();
+
+                // Save state
+                saveState();
+                callbacksRef.current.onModified?.();
+
+                // Reset shape creation state
+                isCreatingShapeRef.current = false;
+                shapeStartPointRef.current = null;
+                tempShapeRef.current = null;
+                shapeTypeRef.current = null;
+                canvas.selection = true;
+            } else if (isCreatingShapeRef.current) {
+                // Shape was too small, just reset
+                isCreatingShapeRef.current = false;
+                shapeStartPointRef.current = null;
+                shapeTypeRef.current = null;
+                canvas.selection = true;
+            }
+
             if (activeToolRef.current !== 'pan' && activeToolRef.current !== 'eraser') canvas.selection = true;
             canvas.setCursor('default'); updateMinimap();
         });
@@ -674,9 +1873,80 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
         canvas.on('mouse:down:before', (opt) => { if ((opt.e as MouseEvent).button === 2) opt.e.preventDefault(); });
 
         canvas.on('mouse:dblclick', (opt) => {
-            if (opt.target && (opt.target as any).isFileCard) {
-                const fileId = (opt.target as any).fileData?.id;
-                if (fileId) callbacksRef.current.onFileDoubleClick?.(fileId);
+            if (opt.target) {
+                if ((opt.target as any).isFileCard) {
+                    const fileId = (opt.target as any).fileData?.id;
+                    if (fileId) callbacksRef.current.onFileDoubleClick?.(fileId);
+                } else if ((opt.target as any).isLinkCard) {
+                    // Open link on double-click
+                    const url = (opt.target as any).url;
+                    if (url) {
+                        window.open(url, '_blank');
+                    }
+                } else if ((opt.target as any).name === 'video_embed') {
+                    // Open YouTube video on double-click
+                    const videoUrl = (opt.target as any).videoUrl;
+                    if (videoUrl) {
+                        window.open(videoUrl, '_blank');
+                    }
+                } else if ((opt.target as any).isLinkPlaceholder) {
+                    // Inline editing instead of prompt
+                    const { left, top } = opt.target;
+
+                    // Remove placeholder
+                    canvas.remove(opt.target);
+
+                    // Create temporary IText
+                    const linkInput = new fabric.IText('https://', {
+                        left: left,
+                        top: top,
+                        fontFamily: 'Inter, sans-serif',
+                        fontSize: 16,
+                        fill: '#1F2937',
+                        originX: 'center',
+                        originY: 'center',
+                        width: 240,
+                        backgroundColor: '#FFFFFF',
+                        padding: 8
+                    });
+
+                    (linkInput as any).isLinkInput = true;
+                    (linkInput as any).isTemporary = true;
+
+                    // Override Enter key to exit editing instead of new line
+                    linkInput.keysMap = {
+                        ...linkInput.keysMap,
+                        13: 'exitEditing'
+                    };
+
+                    canvas.add(linkInput);
+                    canvas.setActiveObject(linkInput);
+                    linkInput.enterEditing();
+                    linkInput.selectAll();
+                    canvas.renderAll();
+                }
+            }
+        });
+
+        // Handle link input completion
+        canvas.on('text:editing:exited', (e) => {
+            if ((e.target as any).isLinkInput) {
+                const textObj = e.target as fabric.IText;
+                // Use requestAnimationFrame to avoid "cannot read property fire of undefined"
+                // which happens if we remove object synchronously during event handling
+                requestAnimationFrame(() => {
+                    const url = textObj.text || '';
+
+                    // Remove the input object
+                    if (fabricRef.current) {
+                        fabricRef.current.remove(textObj);
+                        fabricRef.current.requestRenderAll();
+                    }
+
+                    if (url && url.length > 0) {
+                        createLinkCard(url, textObj.left!, textObj.top!);
+                    }
+                });
             }
         });
 
@@ -691,9 +1961,19 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                 color: obj.stickyColor
             }));
 
-            if (activeObjects.length > 0 && e.e) {
-                const evt = e.e as MouseEvent;
-                callbacksRef.current.onObjectSelected?.(activeObjects[0], { x: evt.clientX, y: evt.clientY });
+            if (activeObjects.length > 0) {
+                if ((activeObjects[0] as any).isCommentMarker && e.e) {
+                    const evt = e.e as MouseEvent;
+                    callbacksRef.current.onObjectSelected?.(activeObjects[0], { x: evt.clientX, y: evt.clientY });
+                } else if ((activeObjects[0] as any).isLinkPlaceholder) {
+                    // Focus paste input for link placeholders
+                    setTimeout(() => {
+                        pasteInputRef.current?.focus();
+                    }, 50);
+                    updateSelectionPosition();
+                } else {
+                    updateSelectionPosition();
+                }
             }
             callbacksRef.current.onSelectionChange?.(selected);
         });
@@ -709,9 +1989,13 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                 color: obj.stickyColor
             }));
 
-            if (activeObjects.length > 0 && e.e) {
-                const evt = e.e as MouseEvent;
-                callbacksRef.current.onObjectSelected?.(activeObjects[0], { x: evt.clientX, y: evt.clientY });
+            if (activeObjects.length > 0) {
+                if ((activeObjects[0] as any).isCommentMarker && e.e) {
+                    const evt = e.e as MouseEvent;
+                    callbacksRef.current.onObjectSelected?.(activeObjects[0], { x: evt.clientX, y: evt.clientY });
+                } else {
+                    updateSelectionPosition();
+                }
             }
             callbacksRef.current.onSelectionChange?.(selected);
         });
@@ -796,7 +2080,130 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
             saveState(); callbacksRef.current.onModified?.(); callbacksRef.current.onObjectsChange?.(getCanvasObjects());
             updateConnectionLines(); updateMinimap();
         });
-        canvas.on('object:moving', () => updateConnectionLines());
+        canvas.on('object:moving', (e) => {
+            updateConnectionLines();
+
+            // Update Properties Toolbar position during drag
+            const obj = e.target;
+            if (!obj || (obj as any).isCommentMarker) return;
+
+            const bounds = obj.getBoundingRect();
+            if (bounds) {
+                updateSelectionPosition();
+            }
+
+            // Move attached comment markers with parent object
+            const objId = (obj as any).id;
+            if (objId) {
+                const attachedComments = canvas.getObjects().filter((o: any) =>
+                    o.isCommentMarker && o.parentObjectId === objId
+                );
+                attachedComments.forEach((comment: any) => {
+                    const parentBounds = obj.getBoundingRect();
+                    if (parentBounds && comment.parentOffsetX !== undefined && comment.parentOffsetY !== undefined) {
+                        comment.set({
+                            left: parentBounds.left + parentBounds.width + comment.parentOffsetX,
+                            top: parentBounds.top + comment.parentOffsetY
+                        });
+                        comment.setCoords();
+                    }
+                });
+                canvas.requestRenderAll();
+            }
+
+            // Smart Snapping
+            const evt = e.e as MouseEvent;
+            const isSnappingEnabled = evt.metaKey || evt.ctrlKey;
+
+            // Remove old guides
+            const oldGuides = canvas.getObjects().filter((o: any) => o.isGuide);
+            oldGuides.forEach(g => canvas.remove(g));
+
+            if (isSnappingEnabled) {
+                const snapThreshold = 10;
+                const canvasObjects = canvas.getObjects().filter((o: any) => o !== obj && !o.isGrid && !o.isConnection && !o.isPin && o.visible);
+
+                const objCenter = obj.getCenterPoint();
+                const objBounds = obj.getBoundingRect();
+
+                let snapX = null;
+                let snapY = null;
+
+                for (const target of canvasObjects) {
+                    const targetCenter = target.getCenterPoint();
+                    const targetBounds = target.getBoundingRect();
+
+                    // Horizontal Snapping (X)
+                    // Center to Center
+                    if (Math.abs(objCenter.x - targetCenter.x) < snapThreshold) {
+                        snapX = targetCenter.x;
+                        const line = new fabric.Line([targetCenter.x, 0, targetCenter.x, canvas.getHeight() || 1000], {
+                            stroke: '#FF00FF', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+                        });
+                        (line as any).isGuide = true;
+                        canvas.add(line);
+                        obj.set({ left: targetCenter.x - (obj.width! * obj.scaleX! / 2) });
+                    }
+                    // Edges
+                    else if (Math.abs(objBounds.left - targetBounds.left) < snapThreshold) {
+                        snapX = targetBounds.left;
+                        const line = new fabric.Line([targetBounds.left, 0, targetBounds.left, canvas.getHeight() || 1000], {
+                            stroke: '#00BFFF', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+                        });
+                        (line as any).isGuide = true;
+                        canvas.add(line);
+                        obj.set({ left: targetBounds.left });
+                    }
+                    else if (Math.abs(objBounds.left + objBounds.width - (targetBounds.left + targetBounds.width)) < snapThreshold) {
+                        snapX = targetBounds.left + targetBounds.width;
+                        const line = new fabric.Line([snapX, 0, snapX, canvas.getHeight() || 1000], {
+                            stroke: '#00BFFF', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+                        });
+                        (line as any).isGuide = true;
+                        canvas.add(line);
+                        obj.set({ left: snapX - objBounds.width });
+                    }
+
+                    // Vertical Snapping (Y)
+                    // Center to Center
+                    if (Math.abs(objCenter.y - targetCenter.y) < snapThreshold) {
+                        snapY = targetCenter.y;
+                        const line = new fabric.Line([0, targetCenter.y, canvas.getWidth() || 1000, targetCenter.y], {
+                            stroke: '#FF00FF', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+                        });
+                        (line as any).isGuide = true;
+                        canvas.add(line);
+                        obj.set({ top: targetCenter.y - (obj.height! * obj.scaleY! / 2) });
+                    }
+                    // Edges
+                    else if (Math.abs(objBounds.top - targetBounds.top) < snapThreshold) {
+                        snapY = targetBounds.top;
+                        const line = new fabric.Line([0, targetBounds.top, canvas.getWidth() || 1000, targetBounds.top], {
+                            stroke: '#00BFFF', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+                        });
+                        (line as any).isGuide = true;
+                        canvas.add(line);
+                        obj.set({ top: targetBounds.top });
+                    }
+                    else if (Math.abs(objBounds.top + objBounds.height - (targetBounds.top + targetBounds.height)) < snapThreshold) {
+                        snapY = targetBounds.top + targetBounds.height;
+                        const line = new fabric.Line([0, snapY, canvas.getWidth() || 1000, snapY], {
+                            stroke: '#00BFFF', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+                        });
+                        (line as any).isGuide = true;
+                        canvas.add(line);
+                        obj.set({ top: snapY - objBounds.height });
+                    }
+                }
+
+                obj.setCoords();
+            }
+
+            // Always ensure coords are updated
+            if (!isSnappingEnabled) {
+                obj.setCoords();
+            }
+        });
         canvas.on('object:scaling', () => updateConnectionLines());
 
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -859,6 +2266,60 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
                 e.preventDefault(); activeToolRef.current = 'pan'; setActiveToolState('pan');
                 canvas.selection = false; canvas.setCursor('grab');
             }
+
+            // Global Hotkeys
+            if (e.code === 'KeyV') { e.preventDefault(); setActiveToolState('select'); }
+            if (e.code === 'KeyH') { e.preventDefault(); setActiveToolState('pan'); }
+            if (e.code === 'KeyS') { e.preventDefault(); setActiveToolState('sticky'); }
+            if (e.code === 'KeyT') { e.preventDefault(); setActiveToolState('text'); }
+
+            // Cmd+G for Group
+            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyG') {
+                e.preventDefault();
+                const activeObjects = canvas.getActiveObjects();
+                if (activeObjects.length > 1) {
+                    const group = new fabric.Group(activeObjects);
+                    (group as any).id = generateId();
+                    (group as any).name = 'Group';
+                    activeObjects.forEach(obj => canvas.remove(obj));
+                    canvas.add(group);
+                    canvas.setActiveObject(group);
+                    canvas.requestRenderAll();
+                    saveState();
+                }
+            }
+
+            // Cmd+D for Duplicate
+            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyD') {
+                e.preventDefault();
+                const activeObject = canvas.getActiveObject();
+                if (activeObject) {
+                    activeObject.clone().then((cloned: any) => {
+                        canvas.discardActiveObject();
+                        cloned.set({
+                            left: cloned.left + 20,
+                            top: cloned.top + 20,
+                            evented: true,
+                        });
+                        if (cloned.type === 'activeSelection') {
+                            cloned.canvas = canvas;
+                            cloned.forEachObject((obj: any) => {
+                                obj.id = generateId();
+                                canvas.add(obj);
+                            });
+                            cloned.setCoords();
+                        } else {
+                            cloned.id = generateId();
+                            canvas.add(cloned);
+                        }
+                        canvas.setActiveObject(cloned);
+                        canvas.requestRenderAll();
+                        saveState();
+                        callbacksRef.current.onObjectsChange?.(getCanvasObjects());
+                    });
+                }
+            }
+
             if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); deleteSelectedObjects(); }
             if (e.code === 'Escape') { connectingFromRef.current = null; setConnectingFrom(null); }
         };
@@ -874,6 +2335,11 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
         const resizeObserver = new ResizeObserver(handleResize);
         resizeObserver.observe(containerRef.current);
         saveState(); drawGrid();
+
+        // AUTO-FOCUS: Forçar foco no container para capturar eventos de teclado
+        containerRef.current?.focus();
+        console.log('Container focado automaticamente');
+
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
@@ -881,6 +2347,231 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Handle paste events for images - PRODUCTION VERSION
+    useEffect(() => {
+        console.log('===== PASTE HANDLER SETUP =====');
+
+        const handlePaste = (e: ClipboardEvent) => {
+            console.log('PASTE DETECTADO');
+
+            // 1. If files, ALWAYS ALLOW (Image Paste Fix)
+            if (e.clipboardData && e.clipboardData.files.length > 0) {
+                console.log('Files detected, allowing paste');
+                // Proceed to file handling logic below...
+            } else {
+                // 2. If text/url, check focus protection
+                const target = e.target as HTMLElement;
+                const isPasteInput = pasteInputRef.current && (target === pasteInputRef.current);
+
+                if (!isPasteInput && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                    console.log('Ignorando paste - usuário digitando');
+                    return;
+                }
+            }
+
+            // Verificar canvas
+            const canvas = fabricRef.current;
+            if (!canvas) {
+                console.log('Canvas não existe');
+                return;
+            }
+
+            // Verificar clipboard data
+            if (!e.clipboardData) {
+                console.log('Sem clipboardData');
+                return;
+            }
+
+            // LINK PLACEHOLDER LOGIC
+            // Check if we have a selected placeholder and we are pasting text
+            const activeObject = canvas.getActiveObject();
+            if (activeObject && (activeObject as any).isLinkPlaceholder) {
+                const pastedText = e.clipboardData.getData('text');
+                if (pastedText) {
+                    try {
+                        // Validate URL
+                        new URL(pastedText.startsWith('http') ? pastedText : 'https://' + pastedText);
+                        console.log('Valid URL pasted on placeholder:', pastedText);
+
+                        e.preventDefault();
+
+                        const { left, top } = activeObject;
+
+                        // Remove placeholder
+                        canvas.remove(activeObject);
+
+                        // BIFURCATION: Check if it's a YouTube video
+                        const videoId = getYoutubeId(pastedText);
+
+                        if (videoId) {
+                            // SCENARIO A: Create Video Embed
+                            console.log('YouTube video detected:', videoId);
+                            createVideoEmbed(videoId, left, top);
+                        } else {
+                            // SCENARIO B: Create Link Card
+                            console.log('Regular link detected');
+                            createLinkCard(pastedText, left, top);
+                        }
+
+                        return;
+                    } catch (err) {
+                        console.log('Pasted text is not a valid URL:', pastedText);
+                        // If not a URL, let it fall through or maybe show error? 
+                        // For now let's just let it fall through logic (although it likely won't do anything else useful with text on a group)
+                    }
+                }
+            }
+
+            console.log('Itens no clipboard:', e.clipboardData.items.length);
+
+            // Iterar sobre os itens do clipboard
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                console.log('Item', i, '- kind:', item.kind, 'type:', item.type);
+
+                // Verificar se é imagem (kind === 'file' e type começa com 'image/')
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    console.log('IMAGEM ENCONTRADA!');
+                    e.preventDefault();
+
+                    // Obter o arquivo/blob
+                    const blob = item.getAsFile();
+                    if (!blob) {
+                        console.log('Falha ao obter blob');
+                        continue;
+                    }
+                    console.log('Blob obtido:', blob.type, blob.size, 'bytes');
+
+                    // Criar URL do objeto
+                    const imageUrl = URL.createObjectURL(blob);
+                    console.log('URL criada:', imageUrl);
+
+                    // Calcular posição - usar posição do mouse se disponível, senão centro do canvas
+                    let posX: number;
+                    let posY: number;
+
+                    if (cursorPosRef.current) {
+                        // Converter posição do mouse para coordenadas do canvas
+                        const canvasElement = canvas.getElement();
+                        const rect = canvasElement.getBoundingClientRect();
+                        const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+                        const zoom = canvas.getZoom();
+
+                        posX = (cursorPosRef.current.x - rect.left - vpt[4]) / zoom;
+                        posY = (cursorPosRef.current.y - rect.top - vpt[5]) / zoom;
+                        console.log('Usando posição do mouse:', posX, posY);
+                    } else {
+                        // Fallback: centro do canvas
+                        const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+                        const zoom = canvas.getZoom();
+                        posX = (canvas.getWidth() / 2 - vpt[4]) / zoom;
+                        posY = (canvas.getHeight() / 2 - vpt[5]) / zoom;
+                        console.log('Usando centro do canvas:', posX, posY);
+                    }
+
+                    // Criar imagem Fabric
+                    fabric.FabricImage.fromURL(imageUrl).then((img) => {
+                        console.log('Imagem Fabric criada');
+
+                        const canvas = fabricRef.current;
+                        if (!canvas) {
+                            console.log('Canvas perdido');
+                            URL.revokeObjectURL(imageUrl);
+                            return;
+                        }
+
+                        // Escalar para tamanho máximo de 400px
+                        const maxSize = 400;
+                        const imgWidth = img.width || 300;
+                        const imgHeight = img.height || 300;
+                        const scale = Math.min(maxSize / imgWidth, maxSize / imgHeight, 1);
+
+                        console.log('Dimensões:', imgWidth, 'x', imgHeight, 'Escala:', scale);
+
+                        // Configurar propriedades da imagem
+                        img.set({
+                            left: posX,
+                            top: posY,
+                            scaleX: scale,
+                            scaleY: scale,
+                            originX: 'center',
+                            originY: 'center',
+                            shadow: new fabric.Shadow({
+                                color: 'rgba(0,0,0,0.2)',
+                                blur: 10,
+                                offsetX: 0,
+                                offsetY: 4
+                            })
+                        });
+
+                        // Adicionar ID e nome
+                        const imgId = `pasted_${Date.now()}`;
+                        (img as any).id = imgId;
+                        (img as any).name = 'Pasted Image';
+                        (img as any).layerId = activeLayerIdRef.current;
+
+                        console.log('Imagem configurada com ID:', imgId);
+
+                        // Adicionar à layer ativa
+                        const currentLayer = layersRef.current.find(l => l.id === activeLayerIdRef.current);
+                        if (currentLayer) {
+                            currentLayer.objectIds.push(imgId);
+                            console.log('Adicionada à layer:', currentLayer.name);
+                        }
+
+                        // Adicionar ao canvas
+                        canvas.add(img);
+                        canvas.bringObjectToFront(img);
+                        canvas.setActiveObject(img);
+                        canvas.requestRenderAll();
+                        console.log('Imagem adicionada e renderizada');
+
+                        // Salvar estado e disparar callbacks
+                        saveState();
+                        callbacksRef.current.onModified?.();
+                        callbacksRef.current.onObjectsChange?.(getCanvasObjects());
+                        updateMinimap();
+
+                        // Limpar URL após delay
+                        setTimeout(() => {
+                            URL.revokeObjectURL(imageUrl);
+                            console.log('URL revogada');
+                        }, 10000);
+
+                        console.log('===== PASTE COMPLETO COM SUCESSO =====');
+
+                    }).catch((err) => {
+                        console.error('ERRO ao criar imagem:', err);
+                        URL.revokeObjectURL(imageUrl);
+                    });
+
+                    // Processar apenas a primeira imagem
+                    break;
+                }
+            }
+        };
+
+        // Anexar listener ao CONTAINER e WINDOW
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('paste', handlePaste as EventListener);
+            console.log('Event listener anexado ao CONTAINER');
+        }
+        window.addEventListener('paste', handlePaste);
+        console.log('Event listener anexado ao WINDOW');
+        console.log('===== PASTE HANDLER SETUP COMPLETE =====');
+
+        // Cleanup
+        return () => {
+            if (container) {
+                container.removeEventListener('paste', handlePaste as EventListener);
+            }
+            window.removeEventListener('paste', handlePaste);
+            console.log('Event listeners removidos');
+        };
+    }, [isInitialized]); // Depende de isInitialized
 
     // Handle tool changes
     useEffect(() => {
@@ -908,13 +2599,28 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
             // Disable evented for all objects to prevent selecting/dragging while erasing
             fabricRef.current.getObjects().forEach((obj: any) => { obj.evented = false; });
             fabricRef.current.discardActiveObject();
+        } else if (activeTool === 'link_tool') {
+            fabricRef.current.isDrawingMode = false;
+            fabricRef.current.defaultCursor = 'alias';
+            fabricRef.current.hoverCursor = 'alias';
+            fabricRef.current.selection = false;
+            // Force cursor on upper canvas element
+            if (fabricRef.current.upperCanvasEl) {
+                fabricRef.current.upperCanvasEl.style.cursor = 'alias';
+            }
+            // Disable evented for all objects to ensure clicks go to the canvas for link creation
+            fabricRef.current.getObjects().forEach((obj: any) => { if (!obj.isGrid && !obj.isConnection && !obj.isPin) obj.evented = false; });
+            fabricRef.current.requestRenderAll();
         } else {
             fabricRef.current.isDrawingMode = false;
+            fabricRef.current.defaultCursor = 'default';
+            fabricRef.current.hoverCursor = 'move';
             // Re-enable evented for all objects
             fabricRef.current.getObjects().forEach((obj: any) => { if (!obj.isGrid && !obj.isConnection && !obj.isPin) obj.evented = true; });
         }
         if (activeTool === 'pan') { fabricRef.current.selection = false; fabricRef.current.setCursor('grab'); }
-        else if (activeTool !== 'eraser') { fabricRef.current.selection = true; }
+        else if (activeTool === 'sticky') { fabricRef.current.selection = false; fabricRef.current.setCursor('crosshair'); fabricRef.current.defaultCursor = 'crosshair'; }
+        else if (activeTool !== 'eraser') { fabricRef.current.selection = true; fabricRef.current.defaultCursor = 'default'; }
         callbacksRef.current.onToolChange?.(activeTool);
     }, [activeTool, isInitialized, eraserSize]);
 
@@ -940,115 +2646,120 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
             textObj.enterEditing(); textObj.selectAll(); fabricRef.current.renderAll();
         },
 
-        addStickyNote: (color = 'yellow') => {
+        addStickyNote: (color = 'yellow_light') => {
             if (!fabricRef.current) return;
-            const vpt = fabricRef.current.viewportTransform || [1, 0, 0, 1, 0, 0];
-            const zoom = fabricRef.current.getZoom();
-            const centerX = (fabricRef.current.getWidth() / 2 - vpt[4]) / zoom;
-            const centerY = (fabricRef.current.getHeight() / 2 - vpt[5]) / zoom;
-            const colors = STICKY_COLORS[color] || STICKY_COLORS.yellow;
-            const size = 150;
-
-            // Create an IText with background styling (not a Group - Groups can't be edited inline)
-            const sticky = new fabric.IText('Type here...', {
-                left: centerX - size / 2,
-                top: centerY - size / 2,
-                width: size,
-                fontSize: 16,
-                fontFamily: 'Inter, Arial, sans-serif',
-                fill: navyPrimary,
-                textAlign: 'center',
-                backgroundColor: colors.main,
-                padding: 20,
-                shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.15)', blur: 8, offsetX: 3, offsetY: 3 }),
-                erasable: false
-            } as any);
-
-            (sticky as any).id = generateId();
-            (sticky as any).name = `Sticky (${color})`;
-            (sticky as any).isSticky = true;
-            (sticky as any).stickyColor = color;
-
-            // Custom rendering for folded corner
-            const originalRender = sticky.render.bind(sticky);
-            sticky.render = function (ctx: CanvasRenderingContext2D) {
-                const w = this.width || size;
-                const h = this.height || size;
-                const foldSize = 20;
-
-                // Draw folded corner effect
-                ctx.save();
-                ctx.translate(this.left || 0, this.top || 0);
-
-                // Draw fold triangle
-                ctx.fillStyle = colors.fold;
-                ctx.beginPath();
-                ctx.moveTo(w - foldSize, 0);
-                ctx.lineTo(w, foldSize);
-                ctx.lineTo(w, 0);
-                ctx.closePath();
-                ctx.fill();
-
-                ctx.restore();
-
-                originalRender(ctx);
-            };
-
-            fabricRef.current.add(sticky);
-            fabricRef.current.setActiveObject(sticky);
-            sticky.enterEditing();
-            sticky.selectAll();
-            fabricRef.current.renderAll();
+            stickyColorRef.current = color;
+            setActiveToolState('sticky');
+            activeToolRef.current = 'sticky';
+            fabricRef.current.defaultCursor = 'crosshair';
+            fabricRef.current.setCursor('crosshair');
+            fabricRef.current.selection = false;
         },
 
-        addShape: (shapeType: 'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line', color?: string) => {
-            if (!fabricRef.current) return;
-            const vpt = fabricRef.current.viewportTransform || [1, 0, 0, 1, 0, 0];
-            const zoom = fabricRef.current.getZoom();
-            const centerX = (fabricRef.current.getWidth() / 2 - vpt[4]) / zoom;
-            const centerY = (fabricRef.current.getHeight() / 2 - vpt[5]) / zoom;
-            const fillColor = color || shapeColorRef.current;
-            let shape: fabric.Object;
 
-            switch (shapeType) {
-                case 'rect':
-                    shape = new fabric.Rect({ left: centerX - 50, top: centerY - 40, width: 100, height: 80, fill: fillColor, stroke: '#000', strokeWidth: 1, rx: 4, ry: 4, erasable: false } as any);
-                    break;
-                case 'circle':
-                    shape = new fabric.Circle({ left: centerX - 40, top: centerY - 40, radius: 40, fill: fillColor, stroke: '#000', strokeWidth: 1, erasable: false } as any);
-                    break;
-                case 'triangle':
-                    shape = new fabric.Triangle({ left: centerX - 50, top: centerY - 45, width: 100, height: 90, fill: fillColor, stroke: '#000', strokeWidth: 1, erasable: false } as any);
-                    break;
-                case 'diamond':
-                    shape = new fabric.Polygon([{ x: 50, y: 0 }, { x: 100, y: 50 }, { x: 50, y: 100 }, { x: 0, y: 50 }], { left: centerX - 50, top: centerY - 50, fill: fillColor, stroke: '#000', strokeWidth: 1, erasable: false } as any);
-                    break;
-                case 'star': {
-                    const starPoints = [];
-                    for (let i = 0; i < 10; i++) {
-                        const r = i % 2 === 0 ? 40 : 20;
-                        const angle = (Math.PI / 5) * i - Math.PI / 2;
-                        starPoints.push({ x: 40 + r * Math.cos(angle), y: 40 + r * Math.sin(angle) });
-                    }
-                    shape = new fabric.Polygon(starPoints, { left: centerX - 40, top: centerY - 40, fill: fillColor, stroke: '#000', strokeWidth: 1, erasable: false } as any);
-                    break;
+        addCommentMarker: (x: number, y: number, initialComment?: CanvasComment, parentId?: string | null) => {
+            if (!fabricRef.current) return;
+
+            // Pin Style: Red Circle with minimalist chat bubble outline
+            const pinColor = '#EF4444'; // Red-500
+            const pinRadius = 16;
+
+            const pinHead = new fabric.Circle({
+                radius: pinRadius,
+                fill: pinColor,
+                originX: 'center', originY: 'center',
+                top: 0, left: 0,
+                stroke: '#FFFFFF',
+                strokeWidth: 2
+            });
+
+            // Minimalist chat bubble icon (outline only)
+            const bubblePath = 'M -6 -4 L 6 -4 Q 8 -4 8 -2 L 8 2 Q 8 4 6 4 L 0 4 L -3 7 L -3 4 L -6 4 Q -8 4 -8 2 L -8 -2 Q -8 -4 -6 -4 Z';
+            const icon = new fabric.Path(bubblePath, {
+                fill: 'transparent',
+                stroke: '#FFFFFF',
+                strokeWidth: 1.5,
+                originX: 'center', originY: 'center',
+                top: 0, left: 0,
+                scaleX: 1.2,
+                scaleY: 1.2
+            });
+
+            const commentMarker = new fabric.Group([pinHead, icon], {
+                left: x, top: y,
+                originX: 'center', originY: 'center',
+                hasControls: false,
+                hasBorders: false,
+                lockRotation: true,
+                lockScalingX: true,
+                lockScalingY: true,
+                subTargetCheck: false,
+                hoverCursor: 'pointer'
+            });
+
+            const markerId = generateId();
+            (commentMarker as any).id = markerId;
+            (commentMarker as any).name = 'Comment Marker';
+            (commentMarker as any).isCommentMarker = true;
+            (commentMarker as any).comments = initialComment ? [initialComment] : [];
+            (commentMarker as any).erasable = false;
+            (commentMarker as any).parentObjectId = parentId || null;
+
+            // If there's a parent object, calculate relative position
+            if (parentId) {
+                const parentObj = fabricRef.current.getObjects().find((o: any) => o.id === parentId);
+                if (parentObj) {
+                    const parentBounds = parentObj.getBoundingRect();
+                    // Store offset from parent's top-right corner
+                    (commentMarker as any).parentOffsetX = x - (parentBounds.left + parentBounds.width);
+                    (commentMarker as any).parentOffsetY = y - parentBounds.top;
                 }
-                case 'arrow':
-                    shape = new fabric.Polygon([{ x: 0, y: 30 }, { x: 60, y: 30 }, { x: 60, y: 15 }, { x: 100, y: 45 }, { x: 60, y: 75 }, { x: 60, y: 60 }, { x: 0, y: 60 }], { left: centerX - 50, top: centerY - 45, fill: fillColor, stroke: '#000', strokeWidth: 1, erasable: false } as any);
-                    break;
-                case 'line':
-                    shape = new fabric.Line([centerX - 50, centerY, centerX + 50, centerY], { stroke: fillColor, strokeWidth: 3, erasable: false } as any);
-                    break;
-                default:
-                    shape = new fabric.Rect({ left: centerX - 50, top: centerY - 40, width: 100, height: 80, fill: fillColor, erasable: false } as any);
             }
-            (shape as any).id = generateId();
-            (shape as any).name = shapeType.charAt(0).toUpperCase() + shapeType.slice(1);
-            fabricRef.current.add(shape);
-            fabricRef.current.setActiveObject(shape);
+
+            fabricRef.current.add(commentMarker);
+            fabricRef.current.setActiveObject(commentMarker);
+
+            saveState();
+
+            // Trigger selection callback immediately so UI opens
+            callbacksRef.current.onObjectSelected?.(commentMarker, { x: 0, y: 0 });
+        },
+
+        addShape: (shapeType: 'rect' | 'circle' | 'triangle' | 'diamond' | 'star' | 'arrow' | 'line', fillColor?: string | null, strokeColor?: string, strokeWidth?: number) => {
+            if (!fabricRef.current) return;
+
+            // Set shape creation mode
+            shapeTypeRef.current = shapeType;
+
+            // Update fill color (null means no fill)
+            if (fillColor !== undefined) {
+                shapeColorRef.current = fillColor;
+            }
+
+            // Update stroke color
+            if (strokeColor !== undefined) {
+                shapeStrokeColorRef.current = strokeColor;
+            }
+
+            // Update stroke width
+            if (strokeWidth !== undefined) {
+                shapeStrokeWidthRef.current = strokeWidth;
+            }
+
+            // Deselect any active objects
+            fabricRef.current.discardActiveObject();
             fabricRef.current.renderAll();
         },
 
+
+
+        addLinkCard: (url: string, x: number, y: number) => {
+            createLinkCard(url, x, y);
+        },
+
+        addLinkPlaceholder: (x: number, y: number) => {
+            createLinkPlaceholder(x, y);
+        },
         addImage: (url: string, isFileCard = false, fileData?: { name: string; type: string; id: string }) => {
             if (!fabricRef.current) return;
             const vpt = fabricRef.current.viewportTransform || [1, 0, 0, 1, 0, 0];
@@ -1376,7 +3087,7 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
             if (!fabricRef.current) return {};
             const objectsToExport = fabricRef.current.getObjects().filter((obj: any) => !obj.isGrid && !obj.isConnection && !obj.isPin);
             return {
-                objects: objectsToExport.map((obj: any) => obj.toObject(['id', 'name', 'isSticky', 'stickyColor', 'isFileCard', 'fileData', 'isImageLayer'])),
+                objects: objectsToExport.map((obj: any) => obj.toObject(['id', 'name', 'isSticky', 'stickyColor', 'isFileCard', 'fileData', 'isImageLayer', 'isCommentMarker', 'comments'])),
                 connections: connectionsRef.current,
                 viewportTransform: fabricRef.current.viewportTransform,
                 background: fabricRef.current.backgroundColor,
@@ -1482,6 +3193,8 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
         setBrushWidth: (width: number) => { brushWidthRef.current = width; if (fabricRef.current?.freeDrawingBrush) { fabricRef.current.freeDrawingBrush.width = width; } },
         setTextColor: (color: string) => { textColorRef.current = color; const active = fabricRef.current?.getActiveObject(); if (active && (active.type === 'i-text' || active.type === 'text')) { (active as fabric.IText).set('fill', color); fabricRef.current?.renderAll(); } },
         setShapeColor: (color: string) => { shapeColorRef.current = color; },
+        setShapeStrokeColor: (color: string) => { shapeStrokeColorRef.current = color; },
+        setShapeStrokeWidth: (width: number) => { shapeStrokeWidthRef.current = width; },
         panBy: (dx: number, dy: number) => { if (!fabricRef.current) return; const vpt = fabricRef.current.viewportTransform; if (vpt) { vpt[4] += dx; vpt[5] += dy; fabricRef.current.setViewportTransform(vpt); drawGrid(); } },
         getConnections: () => [...connectionsRef.current],
         getObjectById: (id: string) => fabricRef.current?.getObjects().find((o: any) => o.id === id) || null,
@@ -1641,9 +3354,141 @@ const InfiniteCanvas = forwardRef<InfiniteCanvasRef, InfiniteCanvasProps>(({
     return (
         <div
             ref={containerRef}
+            tabIndex={-1}
             className="infinite-canvas-container w-full h-full relative overflow-hidden"
-            style={{ backgroundColor, cursor: activeTool === 'pan' ? 'grab' : activeTool === 'brush' || activeTool === 'highlighter' ? 'crosshair' : activeTool === 'eraser' ? 'none' : activeTool === 'connect' ? (connectingFrom ? 'cell' : 'crosshair') : 'default' }}
+            style={{
+                backgroundColor,
+                cursor: activeTool === 'pan' ? 'grab' : activeTool === 'brush' || activeTool === 'highlighter' ? 'crosshair' : activeTool === 'eraser' ? 'none' : activeTool === 'connect' ? (connectingFrom ? 'cell' : 'crosshair') : activeTool === 'link_tool' ? 'alias' : 'default',
+                outline: 'none'
+            }}
+            onClick={() => {
+                // Focar no textarea invisível para capturar paste
+                pasteInputRef.current?.focus();
+                console.log('Paste input focado via click');
+            }}
+            onMouseDown={() => {
+                // Também focar no mousedown
+                pasteInputRef.current?.focus();
+            }}
         >
+            {/* Textarea invisível para capturar paste */}
+            <textarea
+                ref={pasteInputRef}
+                style={{
+                    position: 'absolute',
+                    left: -9999,
+                    top: 0,
+                    width: 1,
+                    height: 1,
+                    opacity: 0,
+                    pointerEvents: 'none'
+                }}
+                onPaste={(e) => {
+                    console.log('PASTE DETECTADO NO TEXTAREA!');
+                    const clipboardData = e.clipboardData;
+                    if (!clipboardData) {
+                        console.log('Sem clipboardData');
+                        return;
+                    }
+
+                    console.log('Itens:', clipboardData.items.length);
+                    const items = clipboardData.items;
+
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        console.log('Item', i, '- kind:', item.kind, 'type:', item.type);
+
+                        if (item.kind === 'file' && item.type.startsWith('image/')) {
+                            console.log('IMAGEM ENCONTRADA!');
+                            e.preventDefault();
+
+                            const blob = item.getAsFile();
+                            if (!blob) {
+                                console.log('Falha ao obter blob');
+                                continue;
+                            }
+                            console.log('Blob obtido:', blob.size, 'bytes');
+
+                            const imageUrl = URL.createObjectURL(blob);
+                            console.log('URL criada:', imageUrl);
+
+                            const canvas = fabricRef.current;
+                            if (!canvas) {
+                                console.log('Canvas não existe');
+                                URL.revokeObjectURL(imageUrl);
+                                return;
+                            }
+
+                            // Posição: centro do canvas
+                            const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+                            const zoom = canvas.getZoom();
+                            const posX = (canvas.getWidth() / 2 - vpt[4]) / zoom;
+                            const posY = (canvas.getHeight() / 2 - vpt[5]) / zoom;
+
+                            console.log('Posição:', posX, posY);
+
+                            fabric.FabricImage.fromURL(imageUrl).then((img) => {
+                                console.log('Imagem Fabric criada');
+
+                                const canvas = fabricRef.current;
+                                if (!canvas) {
+                                    URL.revokeObjectURL(imageUrl);
+                                    return;
+                                }
+
+                                const maxSize = 400;
+                                const imgWidth = img.width || 300;
+                                const imgHeight = img.height || 300;
+                                const scale = Math.min(maxSize / imgWidth, maxSize / imgHeight, 1);
+
+                                img.set({
+                                    left: posX,
+                                    top: posY,
+                                    scaleX: scale,
+                                    scaleY: scale,
+                                    originX: 'center',
+                                    originY: 'center',
+                                    shadow: new fabric.Shadow({
+                                        color: 'rgba(0,0,0,0.2)',
+                                        blur: 10,
+                                        offsetX: 0,
+                                        offsetY: 4
+                                    })
+                                });
+
+                                const imgId = `pasted_${Date.now()}`;
+                                (img as any).id = imgId;
+                                (img as any).name = 'Pasted Image';
+                                (img as any).layerId = activeLayerIdRef.current;
+
+                                const currentLayer = layersRef.current.find(l => l.id === activeLayerIdRef.current);
+                                if (currentLayer) {
+                                    currentLayer.objectIds.push(imgId);
+                                }
+
+                                canvas.add(img);
+                                canvas.bringObjectToFront(img);
+                                canvas.setActiveObject(img);
+                                canvas.requestRenderAll();
+
+                                saveState();
+                                callbacksRef.current.onModified?.();
+                                callbacksRef.current.onObjectsChange?.(getCanvasObjects());
+                                updateMinimap();
+
+                                setTimeout(() => URL.revokeObjectURL(imageUrl), 10000);
+
+                                console.log('===== IMAGEM COLADA COM SUCESSO! =====');
+                            }).catch((err) => {
+                                console.error('Erro:', err);
+                                URL.revokeObjectURL(imageUrl);
+                            });
+
+                            break;
+                        }
+                    }
+                }}
+            />
             <canvas ref={canvasRef} />
 
             {/* Minimap - pointer-events-none to prevent click interference */}

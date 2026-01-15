@@ -63,6 +63,7 @@ export interface DesignFileFilters {
 export interface Moodboard {
     id: string;
     ownerId: string;
+    ownerUsername?: string;
     brandId?: string;
     title: string;
     slug?: string;
@@ -466,9 +467,11 @@ export class MoodboardModel {
         offset = 0
     ): Promise<{ moodboards: Moodboard[]; total: number }> {
         const query = `
-            SELECT * FROM moodboards
-            WHERE owner_id = $1 AND deleted_at IS NULL
-            ORDER BY updated_at DESC
+            SELECT m.*, u.username as owner_username
+            FROM moodboards m
+            LEFT JOIN users u ON m.owner_id = u.id
+            WHERE m.owner_id = $1 AND m.deleted_at IS NULL
+            ORDER BY m.updated_at DESC
             LIMIT $2 OFFSET $3
         `;
         const countQuery = `
@@ -785,6 +788,7 @@ export class MoodboardModel {
         return {
             id: row.id,
             ownerId: row.owner_id,
+            ownerUsername: row.owner_username || undefined,
             brandId: row.brand_id || undefined,
             title: row.title,
             slug: row.slug || undefined,

@@ -180,10 +180,11 @@ export default function PropertiesToolbar({ canvasRef, position, onUpdate }: Pro
         <div
             className="fixed z-50 flex items-center gap-1 p-2 rounded-lg shadow-xl"
             style={{
-                left: Math.max(10, Math.min(position.x - 200, window.innerWidth - 500)),
+                left: position.x,
                 top: Math.max(10, position.y - 70),
                 backgroundColor: '#FFFFFF',
-                border: '1px solid #E5E7EB'
+                border: '1px solid #E5E7EB',
+                transform: 'translateX(-50%)'
             }}
             onClick={(e) => e.stopPropagation()}
         >

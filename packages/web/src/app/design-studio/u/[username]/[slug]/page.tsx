@@ -78,9 +78,9 @@ export default function MoodboardEditorPage() {
             toast.error('Você precisa estar logado para acessar seus moodboards. Esta área é pessoal de cada usuário.', {
                 id: 'auth-required-moodboard'
             });
-            router.push(`/login?redirect=/design-studio/moodboards/${params.id}`);
+            router.push(`/login?redirect=/design-studio/u/${params.username}/moodboards/${params.slug}`);
         }
-    }, [isAuthLoading, isAuthenticated, router, params.id]);
+    }, [isAuthLoading, isAuthenticated, router, params.username, params.slug]);
 
     // Fetch moodboard data
     useEffect(() => {
@@ -92,8 +92,8 @@ export default function MoodboardEditorPage() {
                 const isDev = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
 
                 const moodboardEndpoint = isDev
-                    ? `${API_BASE_URL}/moodboards/get-dev/${params.id}`
-                    : `${API_BASE_URL}/moodboards/${params.id}`;
+                    ? `${API_BASE_URL}/moodboards/u/${params.username}/${params.slug}`
+                    : `${API_BASE_URL}/moodboards/u/${params.username}/${params.slug}`;
 
                 const moodboardHeaders: HeadersInit = {};
                 if (!isDev && token) {
@@ -115,10 +115,10 @@ export default function MoodboardEditorPage() {
             setLoading(false);
         };
 
-        if (params.id && !isAuthLoading && isAuthenticated) {
+        if (params.username && params.slug && !isAuthLoading && isAuthenticated) {
             fetchData();
         }
-    }, [params.id, router, isAuthLoading, isAuthenticated]);
+    }, [params.username, params.slug, router, isAuthLoading, isAuthenticated]);
 
     // Load canvas data when moodboard is loaded and canvas is ready
     useEffect(() => {
@@ -320,6 +320,7 @@ export default function MoodboardEditorPage() {
                             if (!obj) {
                                 setSelectedObject(null);
                                 setActiveCommentThread(null);
+                                setPropsToolbarPos(null);
                                 return;
                             }
                             if ((obj as any).isCommentMarker && pos) {
