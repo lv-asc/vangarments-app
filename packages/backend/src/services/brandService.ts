@@ -291,6 +291,7 @@ export class BrandService {
         },
         item: {
           id: sku.id,
+          code: sku.code,
           name: parentName,
           description: sku.description || '',
           images: sku.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],

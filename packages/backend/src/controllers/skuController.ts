@@ -573,10 +573,25 @@ export class SKUController {
                     bl.logo as line_logo,
                     si.retail_price_brl,
                     si.retail_price_usd,
-                    si.retail_price_eur
+                    si.retail_price_eur,
+                    s.name as style_name,
+                    p.name as pattern_name,
+                    f.name as fit_name,
+                    g.name as gender_name,
+                    a.name as apparel_name,
+                    m.name as material_name,
+                    bc.name as collection_name,
+                    bc.cover_image_url as collection_cover_image
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
                 LEFT JOIN brand_lines bl ON si.line_id = bl.id
+                LEFT JOIN brand_collections bc ON si.brand_id = bc.brand_id AND si.collection = bc.name
+                LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
+                LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
+                LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid
+                LEFT JOIN vufs_genders g ON g.id = NULLIF(si.category->>'genderId', '')::uuid
+                LEFT JOIN vufs_attribute_values a ON a.id = NULLIF(si.category->>'apparelId', '')::uuid
+                LEFT JOIN vufs_materials m ON m.id = NULLIF(si.category->>'materialId', '')::uuid
                 WHERE si.deleted_at IS NULL
             `;
 
@@ -600,7 +615,73 @@ export class SKUController {
             query += ` ORDER BY si.created_at DESC LIMIT 100`;
 
             const result = await db.query(query, values);
-            const allSkus = result.rows;
+            let allSkus = result.rows;
+
+            // If filtering parents, we MUST ensure that if a child matches but the parent doesn't,
+            // we still fetch the parent so the child can be grouped under it.
+            if (filterParents) {
+                const matchedParentIds = new Set(allSkus.filter(s => !s.parent_sku_id).map(s => s.id));
+                const missingParentIds = new Set<string>();
+
+                allSkus.forEach(s => {
+                    if (s.parent_sku_id && !matchedParentIds.has(s.parent_sku_id)) {
+                        missingParentIds.add(s.parent_sku_id);
+                    }
+                });
+
+                if (missingParentIds.size > 0) {
+                    const parentQuery = `
+                        SELECT 
+                            si.*, 
+                            ba.brand_info->>'name' as brand_name,
+                            ba.brand_info->>'logo' as brand_logo,
+                            ba.brand_info->>'slug' as brand_slug,
+                            bl.name as line_name, 
+                            bl.logo as line_logo,
+                            si.retail_price_brl,
+                            si.retail_price_usd,
+                            si.retail_price_eur,
+                            s.name as style_name,
+                            p.name as pattern_name,
+                            f.name as fit_name,
+                            g.name as gender_name,
+                            a.name as apparel_name,
+                            m.name as material_name
+                        FROM sku_items si
+                        JOIN brand_accounts ba ON si.brand_id = ba.id
+                        LEFT JOIN brand_lines bl ON si.line_id = bl.id
+                        LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
+                        LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
+                        LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid
+                        LEFT JOIN vufs_genders g ON g.id = NULLIF(si.category->>'genderId', '')::uuid
+                        LEFT JOIN vufs_attribute_values a ON a.id = NULLIF(si.category->>'apparelId', '')::uuid
+                        LEFT JOIN vufs_materials m ON m.id = NULLIF(si.category->>'materialId', '')::uuid
+                        WHERE si.id = ANY($1) AND si.deleted_at IS NULL
+                    `;
+                    const parentResult = await db.query(parentQuery, [Array.from(missingParentIds)]);
+                    allSkus = [...allSkus, ...parentResult.rows];
+                }
+            }
+
+            // Fetch size sort orders for ALL matching SKUs (used in both grouped and non-grouped views)
+            const allSizeIds = new Set<string>();
+            allSkus.forEach(row => {
+                const rowMeta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {};
+                if (rowMeta.sizeId) allSizeIds.add(rowMeta.sizeId);
+            });
+
+            let sizeOrderMap: Record<string, number> = {};
+            if (allSizeIds.size > 0) {
+                const sizeOrderQuery = `
+                    SELECT id, sort_order 
+                    FROM vufs_sizes 
+                    WHERE id = ANY($1)
+                `;
+                const sizeOrderResult = await db.query(sizeOrderQuery, [Array.from(allSizeIds)]);
+                sizeOrderResult.rows.forEach((row: any) => {
+                    sizeOrderMap[row.id] = row.sort_order || 999;
+                });
+            }
 
             if (filterParents) {
                 // Group ONLY by explicit parent_sku_id
@@ -636,27 +717,7 @@ export class SKUController {
                 const topResults = groupedResults.slice(0, 20);
 
 
-                // Fetch size sort orders for all variants
-                const allSizeIds = new Set<string>();
-                topResults.forEach(row => {
-                    (row._variants || []).forEach((v: any) => {
-                        const vMeta = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata || {};
-                        if (vMeta.sizeId) allSizeIds.add(vMeta.sizeId);
-                    });
-                });
-
-                let sizeOrderMap: Record<string, number> = {};
-                if (allSizeIds.size > 0) {
-                    const sizeOrderQuery = `
-                        SELECT id, sort_order 
-                        FROM vufs_sizes 
-                        WHERE id = ANY($1)
-                    `;
-                    const sizeOrderResult = await db.query(sizeOrderQuery, [Array.from(allSizeIds)]);
-                    sizeOrderResult.rows.forEach((row: any) => {
-                        sizeOrderMap[row.id] = row.sort_order || 999;
-                    });
-                }
+                // Fetch size sort orders for all variants (redundant now, removed)
 
                 const skus = topResults.map(row => {
                     const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {};
@@ -668,19 +729,17 @@ export class SKUController {
                             code: v.code,
                             size: vMeta.sizeName || vMeta.size || v.name,
                             sizeId: vMeta.sizeId,
+                            sizeSortOrder: vMeta.sizeId ? (sizeOrderMap[vMeta.sizeId] || 999) : 999,
                             color: vMeta.colorName || vMeta.color,
                             retailPriceBrl: v.retail_price_brl,
                             retailPriceUsd: v.retail_price_usd,
                             retailPriceEur: v.retail_price_eur,
-                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || [],
-                            _sizeOrder: vMeta.sizeId ? (sizeOrderMap[vMeta.sizeId] || 999) : 999
+                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || []
                         };
                     });
 
                     // Sort variants by size order
-                    variants.sort((a: any, b: any) => a._sizeOrder - b._sizeOrder);
-                    // Remove the temporary _sizeOrder field
-                    variants.forEach((v: any) => delete v._sizeOrder);
+                    variants.sort((a: any, b: any) => a.sizeSortOrder - b.sizeSortOrder);
 
                     // If this parent has variants, strip the size suffix from the parent name
                     // This handles cases where the parent was incorrectly saved with a size suffix like "[S]"
@@ -701,6 +760,10 @@ export class SKUController {
                         category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
                         description: row.description,
                         materials: row.materials,
+                        style: row.style,
+                        pattern: row.pattern,
+                        fit: row.fit,
+                        gender: row.gender,
                         images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
                         metadata: meta,
                         brand: {
@@ -723,6 +786,13 @@ export class SKUController {
                         };
                     }
 
+                    if (row.collection_name || row.collection_cover_image) {
+                        item.collectionInfo = {
+                            name: row.collection_name,
+                            coverImage: row.collection_cover_image
+                        };
+                    }
+
                     return item;
                 });
 
@@ -730,6 +800,7 @@ export class SKUController {
             } else {
                 // parentsOnly=false: return all without grouping
                 const skus = allSkus.slice(0, 20).map(row => {
+                    const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {};
                     const item: any = {
                         id: row.id,
                         brandId: row.brand_id,
@@ -742,8 +813,15 @@ export class SKUController {
                         category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
                         description: row.description,
                         materials: row.materials,
+                        style: row.style_name,
+                        pattern: row.pattern_name,
+                        fit: row.fit_name,
+                        gender: row.gender_name,
+                        apparel: row.apparel_name,
+                        materialName: row.material_name,
                         images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
-                        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata || {},
+                        metadata: meta,
+                        sizeSortOrder: meta.sizeId ? (sizeOrderMap[meta.sizeId] || 999) : 999,
                         brand: {
                             name: row.brand_name,
                             logo: row.brand_logo,

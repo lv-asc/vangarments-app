@@ -129,7 +129,8 @@ export class POMController {
                     sm.id, sm.pom_id, sm.size_id, sm.value, sm.tolerance,
                     pd.code as pom_code, pd.name as pom_name, pd.measurement_unit,
                     pd.is_half_measurement,
-                    vs.name as size_name
+                    vs.name as size_name,
+                    vs.sort_order as size_sort_order
                 FROM sku_measurements sm
                 JOIN pom_definitions pd ON sm.pom_id = pd.id
                 JOIN vufs_sizes vs ON sm.size_id = vs.id

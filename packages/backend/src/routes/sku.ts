@@ -4,8 +4,8 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-// Public search (or authenticated but generic)
-router.get('/search', authenticateToken, SKUController.searchSKUs);
+// Public search for SEO/metadata generation
+router.get('/search', SKUController.searchSKUs);
 
 // Brand specific SKU management
 router.post('/brands/:brandId/skus', authenticateToken, SKUController.createSKU);

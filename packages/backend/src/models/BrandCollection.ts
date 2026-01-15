@@ -87,20 +87,8 @@ export class BrandCollectionModel {
             return this.findById(identifier);
         }
 
-        // Find by slug within the brand
+        // Find by slug within the brand (check both account ID and vufs ID)
         const query = `
-      WITH unified_skus AS (
-        SELECT id, parent_sku_id, name, collection
-        FROM sku_items
-        WHERE brand_id = $1 AND deleted_at IS NULL
-      ),
-      grouped_skus AS (
-        -- Parents or standalone items
-        SELECT id FROM unified_skus WHERE parent_sku_id IS NULL AND collection = (SELECT name FROM brand_collections WHERE brand_id = $1 AND slug = $2 LIMIT 1)
-        UNION
-        -- Cross-ref items are always treated as "parents" for the sake of count if they are not children
-        SELECT item_id FROM brand_collection_items WHERE collection_id = (SELECT id FROM brand_collections WHERE brand_id = $1 AND slug = $2 LIMIT 1)
-      )
       SELECT bc.*, 
              (SELECT COUNT(*) FROM (
                SELECT item_id FROM brand_collection_items WHERE collection_id = bc.id
@@ -108,7 +96,10 @@ export class BrandCollectionModel {
                SELECT id FROM sku_items WHERE brand_id = bc.brand_id AND collection = bc.name AND parent_sku_id IS NULL AND deleted_at IS NULL
              ) as distinct_parents) as item_count
       FROM brand_collections bc
-      WHERE bc.brand_id = $1 AND bc.slug = $2
+      LEFT JOIN brand_accounts ba ON bc.brand_id = ba.vufs_brand_id OR bc.brand_id = ba.id
+      WHERE (bc.brand_id = $1 OR ba.id = $1 OR ba.vufs_brand_id = $1) 
+      AND (bc.slug = $2 OR bc.id::text = $2)
+      LIMIT 1
     `;
         const result = await db.query(query, [brandId, identifier]);
         return result.rows.length > 0 ? this.mapRowToCollection(result.rows[0]) : null;
@@ -119,7 +110,7 @@ export class BrandCollectionModel {
       SELECT bc.*, 
              (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
       FROM brand_collections bc
-      WHERE bc.brand_id = $1
+      WHERE bc.brand_id = $1 OR bc.brand_id IN (SELECT vufs_brand_id FROM brand_accounts WHERE id = $1)
     `;
 
         if (publishedOnly) {
@@ -234,16 +225,18 @@ export class BrandCollectionModel {
 
     static async getItems(collectionId: string): Promise<any[]> {
         // First get the collection name and brand info to find tagged items
+        // Support collections linked via vufs_brand_id or direct brand account id
         const collResult = await db.query(`
-            SELECT bc.name, bc.brand_id, ba.brand_info 
+            SELECT bc.name, bc.brand_id, ba.id as account_id, ba.brand_info 
             FROM brand_collections bc
-            JOIN brand_accounts ba ON bc.brand_id = ba.id
+            LEFT JOIN brand_accounts ba ON bc.brand_id = ba.id OR bc.brand_id = ba.vufs_brand_id
             WHERE bc.id = $1
         `, [collectionId]);
 
         if (collResult.rows.length === 0) return [];
         const collectionName = collResult.rows[0].name;
-        const brandId = collResult.rows[0].brand_id;
+        // Use the account ID for querying SKUs, not the collection's brand_id
+        const brandId = collResult.rows[0].account_id || collResult.rows[0].brand_id;
         const brandInfo = typeof collResult.rows[0].brand_info === 'string'
             ? JSON.parse(collResult.rows[0].brand_info)
             : collResult.rows[0].brand_info;

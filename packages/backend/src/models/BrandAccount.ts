@@ -60,6 +60,7 @@ export interface BrandAccount {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
+  vufsBrandId?: string;
 }
 
 export interface CreateBrandAccountData {
@@ -132,7 +133,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL AND si.parent_sku_id IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.id = $1 AND ba.deleted_at IS NULL
@@ -160,7 +161,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL AND si.parent_sku_id IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE (
@@ -180,7 +181,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL AND si.parent_sku_id IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.user_id = $1 AND ba.deleted_at IS NULL
@@ -195,7 +196,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL AND si.parent_sku_id IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.user_id = $1 AND ba.deleted_at IS NULL
@@ -252,7 +253,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count,
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL AND si.parent_sku_id IS NULL) as catalog_items_count,
              COUNT(*) OVER() as total
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
@@ -356,7 +357,7 @@ export class BrandAccountModel {
     const query = `
       SELECT ba.*, 
              u.profile as user_profile,
-             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL) as catalog_items_count
+             (SELECT COUNT(*)::int FROM sku_items si WHERE si.brand_id = ba.id AND si.deleted_at IS NULL AND si.parent_sku_id IS NULL) as catalog_items_count
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       WHERE ba.deleted_at IS NOT NULL
@@ -427,7 +428,7 @@ export class BrandAccountModel {
   }> {
     // Get catalog items count from sku_items table
     const catalogQuery = `
-      SELECT COUNT(*)::int as count FROM sku_items WHERE brand_id = $1 AND deleted_at IS NULL
+      SELECT COUNT(*)::int as count FROM sku_items WHERE brand_id = $1 AND deleted_at IS NULL AND parent_sku_id IS NULL
     `;
     const catalogResult = await db.query(catalogQuery, [brandId]);
     const catalogItems = catalogResult.rows[0]?.count || 0;
@@ -576,7 +577,8 @@ export class BrandAccountModel {
       },
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      deletedAt: row.deleted_at
+      deletedAt: row.deleted_at,
+      vufsBrandId: row.vufs_brand_id
     };
   }
 }

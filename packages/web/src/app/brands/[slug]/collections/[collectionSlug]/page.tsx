@@ -52,6 +52,13 @@ export default function BrandCollectionPage() {
         loadData();
     }, [slug, collectionSlug]);
 
+    // Set browser tab title when data is loaded
+    useEffect(() => {
+        if (brandName && collection?.name) {
+            document.title = `${brandName} | ${collection.name}`;
+        }
+    }, [brandName, collection]);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-white">

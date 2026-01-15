@@ -29,7 +29,9 @@ import {
   ArrowRightOnRectangleIcon,
   FireIcon,
   UsersIcon,
-  RectangleStackIcon
+  RectangleStackIcon,
+  Cog6ToothIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -363,6 +365,26 @@ export function Header() {
                             </p>
                             <p className="text-xs text-muted-foreground truncate">@{user.username || user.email?.split('@')[0] || 'user'}</p>
                           </div>
+
+                          {/* Edit Profile Option */}
+                          <Link
+                            href={`/u/${user.username || user.email?.split('@')[0] || 'user'}`}
+                            className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors group"
+                            onClick={() => setIsUserMenuOpen(false)}
+                          >
+                            <UserCircleIcon className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                            <span>Edit Profile</span>
+                          </Link>
+
+                          {/* Settings Option */}
+                          <Link
+                            href="/settings"
+                            className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors group"
+                            onClick={() => setIsUserMenuOpen(false)}
+                          >
+                            <Cog6ToothIcon className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                            <span>Settings</span>
+                          </Link>
 
                           {/* Switch Account Option */}
                           <button

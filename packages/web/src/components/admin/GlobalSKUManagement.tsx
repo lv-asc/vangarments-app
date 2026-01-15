@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
 import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 import SearchableCombobox from '../ui/Combobox';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
@@ -760,7 +761,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             patternId: metadata.patternId || '',
             materialId: metadata.materialId || '',
             fitId: metadata.fitId || '',
-            selectedSizes: [], // Don't show sizes for parent editing
+            selectedSizes: Array.isArray(parentSku.variants)
+                ? Array.from(new Set(parentSku.variants.map((v: any) => v.metadata?.sizeId).filter(Boolean)))
+                : [], // Populate with all unique sizes from variants
             selectedColors: [], // Don't show colors for parent editing
             description: firstVariant.description || '',
             images: [], // Don't edit images from parent
@@ -852,7 +855,16 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             images: formData.images,
             videos: formData.videos,
             materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
-            category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
+            category: {
+                page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '',
+                styleId: formData.styleId || null,
+                patternId: formData.patternId || null,
+                fitId: formData.fitId || null,
+                genderId: formData.genderId || null,
+                apparelId: formData.apparelId || null,
+                materialId: formData.materialId || null
+            },
+
             metadata: {
                 officialSkuOrInstance: formData.officialSkuOrInstance,
                 isGeneric: formData.isGeneric,
@@ -902,7 +914,16 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                             images: variant.images,
                             videos: variant.videos,
                             materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
-                            category: { page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '' },
+                            category: {
+                                page: styles.find(c => c.id === formData.styleId)?.name || apparels.find(c => c.id === formData.apparelId)?.name || '',
+                                styleId: formData.styleId || null,
+                                patternId: formData.patternId || null,
+                                fitId: formData.fitId || null,
+                                genderId: formData.genderId || null,
+                                apparelId: formData.apparelId || null,
+                                materialId: formData.materialId || null
+                            },
+
                             metadata: {
                                 ...variantMetadata,
                                 modelName: formData.modelName,
@@ -1194,7 +1215,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-sm font-medium text-blue-600 truncate">{sku.name}</p>
+                                                    <Link
+                                                        href={`/items/${slugify(sku.code)}`}
+                                                        className="text-sm font-medium text-blue-600 truncate hover:underline"
+                                                    >
+                                                        {sku.name}
+                                                    </Link>
                                                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                                                         {sku.code}
                                                     </span>
@@ -1298,10 +1324,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <button onClick={() => openModal(variant)} className="p-1.5 text-gray-400 hover:text-blue-500">
-                                                        <PencilIcon className="h-4 w-4" />
-                                                    </button>
-                                                    <button onClick={() => handleDelete(variant.id)} className="p-1.5 text-gray-400 hover:text-red-500">
+                                                    <button onClick={() => handleDelete(variant.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete variant">
                                                         <TrashIcon className="h-4 w-4" />
                                                     </button>
                                                 </div>
@@ -1460,7 +1483,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     label="Collection"
                                                     value={formData.collection}
                                                     onChange={(name) => setFormData({ ...formData, collection: name || '' })}
-                                                    options={collections.map(c => ({ ...c, image: c.coverImageUrl }))}
+                                                    options={collections.map(c => ({ ...c, image: getImageUrl(c.coverImageUrl) }))}
                                                     placeholder="Select Collection (Optional)"
                                                     disabled={!formData.brandId}
                                                     freeSolo={true} // Allow new collection names? Maybe not if restricted. But API allows string.
@@ -2349,4 +2372,20 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             />
         </div>
     );
+}
+
+/**
+ * Helper function to slugify strings for URLs
+ */
+function slugify(text: string): string {
+    if (!text) return '';
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
 }

@@ -5,7 +5,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { skuApi } from '@/lib/skuApi';
 import { apiClient } from '@/lib/api';
 import { getImageUrl } from '@/lib/utils';
-import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
@@ -21,6 +22,7 @@ interface Measurement {
     measurement_unit: string;
     is_half_measurement: boolean;
     size_name: string;
+    size_sort_order?: number;
 }
 
 /**
@@ -77,61 +79,104 @@ export default function ProductPageClient() {
                             }
                         }
 
-                        setProduct(matchingProduct);
-
-                        // If a variant ID is specified or we can detect the size from the URL, select that variant
-                        if (variantId && matchingProduct.variants) {
-                            const variant = matchingProduct.variants.find((v: any) => v.id === variantId);
-                            setSelectedVariant(variant || null);
-                        }
-
-                        // Fetch measurements for all variants of the product
-                        // We need measurements from the parent or all its variants
-                        try {
-                            // First try to get measurements from the parent SKU ID
-                            let measurementsData = await apiClient.getSKUMeasurements(matchingProduct.id);
-
-                            // If no measurements from parent and we have variants, try to aggregate from variants
-                            if ((!measurementsData || !Array.isArray(measurementsData) || measurementsData.length === 0)
-                                && matchingProduct.variants && matchingProduct.variants.length > 0) {
-                                const allMeasurements: Measurement[] = [];
-                                for (const variant of matchingProduct.variants) {
-                                    try {
-                                        const variantMeasurements = await apiClient.getSKUMeasurements(variant.id);
-                                        if (Array.isArray(variantMeasurements)) {
-                                            allMeasurements.push(...variantMeasurements);
-                                        }
-                                    } catch (e) {
-                                        // Continue to next variant
-                                    }
-                                }
-                                measurementsData = allMeasurements;
-                            }
-
-                            if (Array.isArray(measurementsData)) {
-                                setMeasurements(measurementsData);
-                            }
-                        } catch (e) {
-                            console.log('No measurements found for this product');
-                        }
-
-                        // Track visit
-                        const bSlug = matchingProduct.brand?.slug || (matchingProduct.brand?.name ? slugify(matchingProduct.brand.name) : 'brand');
-                        addVisit({
-                            id: matchingProduct.id,
-                            name: matchingProduct.name,
-                            logo: matchingProduct.images?.[0]?.url || matchingProduct.images?.[0]?.imageUrl,
-                            businessType: 'item',
-                            type: 'item',
-                            slug: matchingProduct.code ? slugify(matchingProduct.code) : slugify(matchingProduct.name),
-                            brandName: matchingProduct.brand?.name,
-                            brandSlug: bSlug,
-                            visitedAt: Date.now()
-                        });
-                    } else {
-                        toast.error('Product not found');
-                        router.push('/search');
                     }
+
+                    // FALLBACK: If we found a parent but no variants (because search by code didn't match children),
+                    // try searching by name to find the variants.
+                    if (matchingProduct && (!matchingProduct.variants || matchingProduct.variants.length === 0)) {
+                        try {
+                            // Search by name, parentsOnly=false to get everything
+                            const variantSearch = await skuApi.searchSKUs(matchingProduct.name, undefined, false);
+
+                            // Filter for items that are children of this parent
+                            if (variantSearch.skus && variantSearch.skus.length > 0) {
+                                const foundVariants = variantSearch.skus.filter((v: any) =>
+                                    v.parentSkuId === matchingProduct.id
+                                );
+
+                                if (foundVariants.length > 0) {
+                                    // Transform raw SKU data to match variant format
+                                    const transformedVariants = foundVariants.map((v: any) => {
+                                        const meta = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata || {};
+                                        return {
+                                            ...v,
+                                            size: meta.sizeName || meta.size || v.name,
+                                            sizeId: meta.sizeId,
+                                            sizeSortOrder: v.sizeSortOrder || meta.sizeOrder || 999,
+                                            color: meta.colorName || meta.color,
+                                            retailPriceBrl: v.retailPriceBrl || v.retail_price_brl,
+                                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || []
+                                        };
+                                    });
+
+                                    // Sort variants by size order
+                                    transformedVariants.sort((a, b) => (a.sizeSortOrder || 999) - (b.sizeSortOrder || 999));
+
+                                    matchingProduct.variants = transformedVariants;
+                                }
+                            }
+                        } catch (err) {
+                            console.log('Failed to fetch variants by name fallback', err);
+                        }
+                    }
+
+                    setProduct(matchingProduct);
+
+                    // If a variant ID is specified or we can detect the size from the URL, select that variant
+                    if (variantId && matchingProduct.variants) {
+                        const variant = matchingProduct.variants.find((v: any) => v.id === variantId);
+                        setSelectedVariant(variant || null);
+                    }
+
+                    // Fetch measurements
+                    try {
+                        let measurementsData: Measurement[] = [];
+
+                        // 1. If we have variants, aggregate measurements from ALL of them
+                        if (matchingProduct.variants && matchingProduct.variants.length > 0) {
+                            const allMeasurements: Measurement[] = [];
+                            // Use Promise.all for parallel fetching
+                            const variantPromises = matchingProduct.variants.map(async (variant: any) => {
+                                try {
+                                    const vm = await apiClient.getSKUMeasurements(variant.id);
+                                    return Array.isArray(vm) ? vm : [];
+                                } catch (e) {
+                                    return [];
+                                }
+                            });
+
+                            const results = await Promise.all(variantPromises);
+                            results.forEach(res => allMeasurements.push(...res));
+                            measurementsData = allMeasurements;
+                        }
+
+                        // 2. If no variants or no variant measurements found, try the main product ID
+                        // (This covers standalone SKUs or if aggregation failed)
+                        if (measurementsData.length === 0) {
+                            const parentRes = await apiClient.getSKUMeasurements(matchingProduct.id);
+                            if (Array.isArray(parentRes)) {
+                                measurementsData = parentRes;
+                            }
+                        }
+
+                        setMeasurements(measurementsData);
+                    } catch (e) {
+                        console.log('No measurements found for this product', e);
+                    }
+
+                    // Track visit
+                    const bSlug = matchingProduct.brand?.slug || (matchingProduct.brand?.name ? slugify(matchingProduct.brand.name) : 'brand');
+                    addVisit({
+                        id: matchingProduct.id,
+                        name: matchingProduct.name,
+                        logo: matchingProduct.images?.[0]?.url || matchingProduct.images?.[0]?.imageUrl,
+                        businessType: 'item',
+                        type: 'item',
+                        slug: matchingProduct.code ? slugify(matchingProduct.code) : slugify(matchingProduct.name),
+                        brandName: matchingProduct.brand?.name,
+                        brandSlug: bSlug,
+                        visitedAt: Date.now()
+                    });
                 } else {
                     toast.error('Product not found');
                     router.push('/search');
@@ -193,7 +238,10 @@ export default function ProductPageClient() {
 
     // Organize measurements by POM and size
     const uniquePOMs = Array.from(new Map(measurements.map(m => [m.pom_id, { id: m.pom_id, name: m.pom_name, code: m.pom_code, unit: m.measurement_unit }])).values());
-    const uniqueSizes = Array.from(new Map(measurements.map(m => [m.size_id, { id: m.size_id, name: m.size_name }])).values());
+    const uniqueSizes = Array.from(new Map(measurements.map(m => [m.size_id, { id: m.size_id, name: m.size_name, sortOrder: m.size_sort_order || 999 }])).values());
+
+    // Sort sizes by their sortOrder (S, M, L, XL, etc.)
+    uniqueSizes.sort((a, b) => (a.sortOrder || 999) - (b.sortOrder || 999));
 
     // Get the size ID of the selected variant
     const selectedSizeId = selectedVariant?.sizeId;
@@ -474,55 +522,96 @@ export default function ProductPageClient() {
                                             </button>
 
                                             {showDetails && (
-                                                <div className="mt-4 space-y-3">
+                                                <div className="mt-4 grid grid-cols-1 gap-y-4">
                                                     {product.code && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Product Code</span>
-                                                            <span className="text-sm text-gray-900 font-mono">{product.code}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                <TagIcon className="h-5 w-5 text-gray-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Product Code</p>
+                                                                <p className="text-sm font-medium text-gray-900 font-mono">{product.code}</p>
+                                                            </div>
                                                         </div>
                                                     )}
 
-                                                    {product.category && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Apparel</span>
-                                                            <span className="text-sm text-gray-900">
-                                                                {typeof product.category === 'string' ? product.category : (product.category.page || product.category.level3 || product.category.level2)}
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    {product.materials && product.materials.length > 0 && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Material</span>
-                                                            <span className="text-sm text-gray-900">{product.materials.join(', ')}</span>
+                                                    {/* Apparel Section - Using ApparelIcon */}
+                                                    {(product.apparel || product.category) && (
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                <ApparelIcon
+                                                                    name={product.apparel || (typeof product.category === 'string' ? product.category : (product.category.page || ''))}
+                                                                    className="h-5 w-5 text-gray-600"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Apparel</p>
+                                                                <p className="text-sm font-medium text-gray-900 capitalize">
+                                                                    {product.apparel || (typeof product.category === 'string' ? product.category : (product.category.page || product.category.level3 || product.category.level2))}
+                                                                </p>
+                                                            </div>
                                                         </div>
                                                     )}
 
                                                     {product.style && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Style</span>
-                                                            <span className="text-sm text-gray-900">{product.style}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                <SwatchIcon className="h-5 w-5 text-gray-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Style</p>
+                                                                <p className="text-sm font-medium text-gray-900">{product.style}</p>
+                                                            </div>
                                                         </div>
                                                     )}
 
                                                     {product.pattern && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Pattern</span>
-                                                            <span className="text-sm text-gray-900">{product.pattern}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                {React.createElement(getPatternIcon(product.pattern), { className: "h-5 w-5 text-gray-600" })}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Pattern</p>
+                                                                <p className="text-sm font-medium text-gray-900">{product.pattern}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {(product.materials?.length > 0 || product.materialName) && (
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                <BeakerIcon className="h-5 w-5 text-gray-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Material</p>
+                                                                <p className="text-sm font-medium text-gray-900">
+                                                                    {product.materials?.length > 0 ? product.materials.join(', ') : product.materialName}
+                                                                </p>
+                                                            </div>
                                                         </div>
                                                     )}
 
                                                     {product.fit && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Fit</span>
-                                                            <span className="text-sm text-gray-900">{product.fit}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                <AdjustmentsHorizontalIcon className="h-5 w-5 text-gray-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Fit</p>
+                                                                <p className="text-sm font-medium text-gray-900">{product.fit}</p>
+                                                            </div>
                                                         </div>
                                                     )}
 
                                                     {product.gender && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <span className="text-sm text-gray-500">Gender</span>
-                                                            <span className="text-sm text-gray-900 capitalize">{product.gender}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                {React.createElement(getGenderIcon(product.gender), { className: "h-5 w-5 text-gray-600" })}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Gender</p>
+                                                                <p className="text-sm font-medium text-gray-900 capitalize">{product.gender}</p>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>

@@ -126,9 +126,21 @@ export class SKUItemModel {
 
     static async findById(id: string): Promise<SKUItem | null> {
         const query = `
-            SELECT si.*, bl.name as line_name, bl.logo as line_logo
+            SELECT si.*, bl.name as line_name, bl.logo as line_logo,
+                   s.name as style_name,
+                   p.name as pattern_name,
+                   f.name as fit_name,
+                   g.name as gender_name,
+                   a.name as apparel_name,
+                   m.name as material_name
             FROM sku_items si
             LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
+            LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
+            LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid
+            LEFT JOIN vufs_genders g ON g.id = NULLIF(si.category->>'genderId', '')::uuid
+            LEFT JOIN vufs_attribute_values a ON a.id = NULLIF(si.category->>'apparelId', '')::uuid
+            LEFT JOIN vufs_materials m ON m.id = NULLIF(si.category->>'materialId', '')::uuid
             WHERE si.id = $1 AND si.deleted_at IS NULL
             `;
         const result = await db.query(query, [id]);
@@ -142,9 +154,21 @@ export class SKUItemModel {
         search?: string
     }): Promise<SKUItem[]> {
         let query = `
-            SELECT si.*, bl.name as line_name, bl.logo as line_logo
+            SELECT si.*, bl.name as line_name, bl.logo as line_logo,
+                   s.name as style_name,
+                   p.name as pattern_name,
+                   f.name as fit_name,
+                   g.name as gender_name,
+                   a.name as apparel_name,
+                   m.name as material_name
             FROM sku_items si
             LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
+            LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
+            LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid
+            LEFT JOIN vufs_genders g ON g.id = NULLIF(si.category->>'genderId', '')::uuid
+            LEFT JOIN vufs_attribute_values a ON a.id = NULLIF(si.category->>'apparelId', '')::uuid
+            LEFT JOIN vufs_materials m ON m.id = NULLIF(si.category->>'materialId', '')::uuid
             WHERE si.brand_id = $1 AND si.deleted_at IS NULL
         `;
         const values: any[] = [brandId];
