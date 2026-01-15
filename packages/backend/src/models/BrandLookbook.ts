@@ -86,18 +86,16 @@ export class BrandLookbookModel {
             return this.findById(identifier);
         }
 
-        // Find by slug within the brand
+        // Find by slug within the brand (check both account ID and vufs ID)
         const query = `
       SELECT lb.*, 
-             (SELECT COUNT(*) FROM (
-               SELECT bli.item_id FROM brand_lookbook_items bli WHERE bli.lookbook_id = lb.id
-               UNION
-               SELECT si.id FROM sku_items si 
-               JOIN brand_collections bc ON si.collection = bc.name 
-               WHERE si.brand_id = lb.brand_id AND bc.id = lb.collection_id AND si.parent_sku_id IS NULL AND si.deleted_at IS NULL
-             ) as distinct_parents) as item_count
+             (SELECT COUNT(*) FROM brand_lookbook_items bli WHERE bli.lookbook_id = lb.id) as item_count
       FROM brand_lookbooks lb
-      WHERE lb.brand_id = $1 AND lb.slug = $2
+      WHERE (
+        lb.brand_id = $1 
+        OR lb.brand_id IN (SELECT vufs_brand_id FROM brand_accounts WHERE id = $1)
+      )
+      AND (lb.slug = $2 OR lb.id::text = $2)
     `;
         const result = await db.query(query, [brandId, identifier]);
         return result.rows.length > 0 ? this.mapRowToLookbook(result.rows[0]) : null;
@@ -108,7 +106,7 @@ export class BrandLookbookModel {
       SELECT lb.*, 
              (SELECT COUNT(*) FROM brand_lookbook_items bli WHERE bli.lookbook_id = lb.id) as item_count
       FROM brand_lookbooks lb
-      WHERE lb.brand_id = $1
+      WHERE lb.brand_id = $1 OR lb.brand_id IN (SELECT vufs_brand_id FROM brand_accounts WHERE id = $1)
     `;
 
         if (publishedOnly) {
@@ -217,16 +215,19 @@ export class BrandLookbookModel {
 
     static async getItems(lookbookId: string): Promise<any[]> {
         // First get the collection name and brand info
+        // Support lookbooks linked via vufs_brand_id or direct brand account id
         const lbResult = await db.query(`
-            SELECT lb.brand_id, bc.name as collection_name, lb.collection_id, ba.brand_info 
+            SELECT lb.brand_id, bc.name as collection_name, lb.collection_id, ba.id as account_id, ba.brand_info 
             FROM brand_lookbooks lb
             LEFT JOIN brand_collections bc ON lb.collection_id = bc.id
-            JOIN brand_accounts ba ON lb.brand_id = ba.id
+            JOIN brand_accounts ba ON lb.brand_id = ba.id OR lb.brand_id = ba.vufs_brand_id
             WHERE lb.id = $1
         `, [lookbookId]);
 
         if (lbResult.rows.length === 0) return [];
-        const { brand_id: brandId, collection_name: collectionName, brand_info: brandInfoRaw } = lbResult.rows[0];
+        const { collection_name: collectionName, brand_info: brandInfoRaw } = lbResult.rows[0];
+        // Use the account ID for Querying SKUs
+        const brandId = lbResult.rows[0].account_id || lbResult.rows[0].brand_id;
         const brandInfo = typeof brandInfoRaw === 'string' ? JSON.parse(brandInfoRaw) : brandInfoRaw;
 
         // Fetch all SKUs that might be in this lookbook

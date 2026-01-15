@@ -40,6 +40,8 @@ import { MeasurementsSection } from '@/components/profile/MeasurementsSection';
 import { MeasurementManager } from '@/components/profile/MeasurementManager';
 import VerificationRequestModal from '@/components/verification/VerificationRequestModal';
 import SwitchAccountModal from '@/components/profile/SwitchAccountModal';
+import { LikedItemsTab } from '@/components/profile/LikedItemsTab';
+import { WishlistTab } from '@/components/profile/WishlistTab';
 import {
   DndContext,
   closestCenter,
@@ -81,6 +83,8 @@ interface UserProfile {
     country?: boolean;
     state?: boolean;
     city?: boolean;
+    likedItems?: boolean;
+    wishlists?: boolean;
   };
   roles?: string[];
   createdAt: string;
@@ -242,7 +246,9 @@ export default function ProfilePage() {
       state: false,
       city: false,
       gender: false,
-      telephone: true
+      telephone: true,
+      likedItems: true,
+      wishlists: true
     },
     birthDate: '',
     height: '',
@@ -403,7 +409,9 @@ export default function ProfilePage() {
             state: false,
             city: false,
             gender: false,
-            telephone: true // Private by default
+            telephone: true, // Private by default
+            likedItems: profileResponse.profile.privacySettings?.likedItems ?? true,
+            wishlists: profileResponse.profile.privacySettings?.wishlists ?? true
           },
           birthDate: profileResponse.profile.personalInfo?.birthDate ? new Date(profileResponse.profile.personalInfo.birthDate).toISOString().split('T')[0] : '',
           height: profileResponse.profile.measurements?.height || '',
@@ -541,7 +549,9 @@ export default function ProfilePage() {
           state: false,
           city: false,
           gender: false,
-          telephone: true
+          telephone: true,
+          likedItems: userProfile.privacySettings?.likedItems ?? true,
+          wishlists: userProfile.privacySettings?.wishlists ?? true
         },
         birthDate: userProfile.personalInfo?.birthDate ? new Date(userProfile.personalInfo.birthDate).toISOString().split('T')[0] : '',
         height: userProfile.measurements?.height || '',
@@ -1366,6 +1376,55 @@ export default function ProfilePage() {
                         </button>
                       </div>
 
+                      {/* Content Visibility Settings */}
+                      <div className="border-t border-gray-100 pt-4 mt-4 space-y-4">
+                        <h5 className="text-sm font-medium text-gray-700">Content Visibility</h5>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col flex-1 mr-4">
+                            <label className="text-sm font-medium text-gray-700 font-bold">Liked Items Tab</label>
+                            <p className="text-xs text-gray-500">Show the items you've liked on your public profile</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(prev => ({
+                              ...prev,
+                              privacySettings: {
+                                ...prev.privacySettings,
+                                likedItems: !prev.privacySettings.likedItems
+                              }
+                            }))}
+                            className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${editForm.privacySettings.likedItems ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                              }`}
+                          >
+                            {editForm.privacySettings.likedItems ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                            <span>{editForm.privacySettings.likedItems ? 'Visible' : 'Private'}</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col flex-1 mr-4">
+                            <label className="text-sm font-medium text-gray-700 font-bold">Wishlists Tab</label>
+                            <p className="text-xs text-gray-500">Show your wishlists on your public profile</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(prev => ({
+                              ...prev,
+                              privacySettings: {
+                                ...prev.privacySettings,
+                                wishlists: !prev.privacySettings.wishlists
+                              }
+                            }))}
+                            className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${editForm.privacySettings.wishlists ? 'bg-blue-100 text-blue-800' : 'bg-gray-200 text-gray-600'
+                              }`}
+                          >
+                            {editForm.privacySettings.wishlists ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}
+                            <span>{editForm.privacySettings.wishlists ? 'Visible' : 'Private'}</span>
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Locked Fields */}
                       <div className="border-t border-gray-200 my-2 pt-2"></div>
 
@@ -1960,6 +2019,8 @@ export default function ProfilePage() {
               {[
                 { id: 'wardrobe', name: 'Wardrobe' },
                 { id: 'outfits', name: 'Outfits' },
+                { id: 'likes', name: 'Liked Items' },
+                { id: 'wishlists', name: 'Wishlists' },
                 { id: 'activity', name: 'Activity' }
               ].map((tab) => (
                 <button
@@ -2032,7 +2093,10 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {activeTab !== 'wardrobe' && (
+            {activeTab === 'likes' && <LikedItemsTab />}
+            {activeTab === 'wishlists' && <WishlistTab />}
+
+            {activeTab !== 'wardrobe' && activeTab !== 'likes' && activeTab !== 'wishlists' && (
               <div className="text-center py-12">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h3>
                 <p className="text-gray-600">This section is currently being developed.</p>

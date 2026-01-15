@@ -206,9 +206,15 @@ export class BrandProfileController {
      */
     async getLookbook(req: Request, res: Response): Promise<void> {
         try {
-            const { lookbookId } = req.params;
+            const { brandId, lookbookId } = req.params;
 
-            const lookbook = await BrandLookbookModel.findById(lookbookId);
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
+            if (!brand) {
+                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
+                return;
+            }
+
+            const lookbook = await BrandLookbookModel.findBySlugOrId(lookbookId, brand.id);
             if (!lookbook) {
                 res.status(404).json({
                     error: { code: 'LOOKBOOK_NOT_FOUND', message: 'Lookbook not found' }
@@ -216,7 +222,7 @@ export class BrandProfileController {
                 return;
             }
 
-            const items = await BrandLookbookModel.getItems(lookbookId);
+            const items = await BrandLookbookModel.getItems(lookbook.id);
             res.json({ success: true, data: { lookbook, items } });
         } catch (error: any) {
             res.status(500).json({

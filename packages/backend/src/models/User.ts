@@ -439,7 +439,14 @@ export class UserModel {
     const preferences = row.preferences ?
       (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {};
     const privacySettings = row.privacy_settings ?
-      (typeof row.privacy_settings === 'string' ? JSON.parse(row.privacy_settings) : row.privacy_settings) : { height: false, weight: false, birthDate: false, gender: false };
+      (typeof row.privacy_settings === 'string' ? JSON.parse(row.privacy_settings) : row.privacy_settings) : {
+        height: false,
+        weight: false,
+        birthDate: false,
+        gender: false,
+        likedItems: true,
+        wishlists: true
+      };
 
     return {
       id: row.id,

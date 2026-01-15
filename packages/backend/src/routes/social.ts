@@ -190,6 +190,15 @@ router.get(
 );
 
 router.get(
+  '/users/:userId/mutual-connections',
+  AuthUtils.authenticateToken,
+  userIdValidation,
+  paginationValidation,
+  validateRequest,
+  socialController.getMutualConnections.bind(socialController)
+);
+
+router.get(
   '/users/:userId/follow-status',
   AuthUtils.authenticateToken,
   userIdValidation,

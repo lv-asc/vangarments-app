@@ -1,6 +1,7 @@
 'use client';
 
-import { useProfile } from './layout';
+import { useProfile } from './ProfileLayoutClient';
+import Link from 'next/link'; // Import Link
 import { LockClosedIcon } from '@heroicons/react/24/outline';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
 import { useEffect } from 'react';
@@ -54,9 +55,44 @@ export default function PublicUserProfilePage() {
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-3 text-center py-12 bg-white rounded-2xl border border-gray-100 border-dashed">
-                <p className="text-gray-500">Nenhum item público encontrado.</p>
+        <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Link href={`/u/${profile.username}/followers`} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors block">
+                    <div className="text-2xl font-bold text-[#00132d] mb-1">{profile.stats.followers}</div>
+                    <div className="text-sm text-gray-600">Followers</div>
+                </Link>
+                <Link href={`/u/${profile.username}/following`} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 cursor-pointer hover:border-[#00132d] transition-colors block">
+                    <div className="text-2xl font-bold text-[#00132d] mb-1">{profile.stats.following}</div>
+                    <div className="text-sm text-gray-600">Following</div>
+                </Link>
+            </div>
+
+            {/* Tabs */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div className="border-b border-gray-200">
+                    <nav className="flex space-x-8 px-6">
+                        <Link
+                            href={`/u/${profile.username}`}
+                            className="py-4 px-1 border-b-2 font-medium text-sm transition-colors border-[#00132d] text-[#00132d]"
+                        >
+                            Wardrobe
+                        </Link>
+                        <Link
+                            href={`/u/${profile.username}/outfits`}
+                            className="py-4 px-1 border-b-2 font-medium text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        >
+                            Outfits
+                        </Link>
+                    </nav>
+                </div>
+
+                <div className="p-6">
+                    {/* Wardrobe Content */}
+                    <div className="text-center py-12 border-2 border-dashed border-gray-100 rounded-xl">
+                        <p className="text-gray-500">Nenhum item público encontrado.</p>
+                    </div>
+                </div>
             </div>
         </div>
     );

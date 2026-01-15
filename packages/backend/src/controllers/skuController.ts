@@ -16,7 +16,7 @@ export class SKUController {
             }
 
             const { brandId } = req.params;
-            const { name, code, collection, line, category, description, materials, images, metadata, retailPriceBrl, retailPriceUsd, retailPriceEur, parentSkuId } = req.body;
+            const { name, code, collection, line, lineId, category, description, materials, images, metadata, retailPriceBrl, retailPriceUsd, retailPriceEur, parentSkuId, releaseDate, careInstructions } = req.body;
 
             let targetBrandId = brandId;
             let brand = await BrandAccountModel.findById(brandId);
@@ -72,6 +72,7 @@ export class SKUController {
                 code,
                 collection,
                 line,
+                lineId,
                 category,
                 description,
                 materials,
@@ -80,7 +81,9 @@ export class SKUController {
                 retailPriceBrl,
                 retailPriceUsd,
                 retailPriceEur,
-                parentSkuId
+                parentSkuId,
+                releaseDate,
+                careInstructions
             });
 
             res.status(201).json({ message: 'SKU created successfully', sku });
@@ -548,6 +551,44 @@ export class SKUController {
     }
 
     /**
+     * Get related SKUs (by collection or brand)
+     */
+    static async getRelatedSKUs(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { type, limit = 8 } = req.query; // type: 'collection' | 'brand'
+
+            const sku = await SKUItemModel.findById(id);
+            if (!sku) {
+                res.status(404).json({ error: 'SKU not found' });
+                return;
+            }
+
+            let related: any[] = [];
+
+            if (type === 'collection') {
+                if (sku.collection) {
+                    related = await SKUItemModel.findRelated(sku.brandId, sku.id, { collection: sku.collection, limit: Number(limit) });
+                } else if (sku.lineId) {
+                    // Fallback to line
+                    related = await SKUItemModel.findRelated(sku.brandId, sku.id, { lineId: sku.lineId, limit: Number(limit) });
+                }
+            } else if (type === 'brand') {
+                // Exclude current collection to avoid duplication
+                related = await SKUItemModel.findRelated(sku.brandId, sku.id, {
+                    excludeCollection: sku.collection,
+                    limit: Number(limit)
+                });
+            }
+
+            res.json(related);
+        } catch (error) {
+            console.error('Error fetching related items', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    /**
      * Public search for Linking
      */
     static async searchSKUs(req: Request, res: Response): Promise<void> {
@@ -734,7 +775,8 @@ export class SKUController {
                             retailPriceBrl: v.retail_price_brl,
                             retailPriceUsd: v.retail_price_usd,
                             retailPriceEur: v.retail_price_eur,
-                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || []
+                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || [],
+                            metadata: vMeta
                         };
                     });
 
@@ -760,10 +802,11 @@ export class SKUController {
                         category: typeof row.category === 'string' ? JSON.parse(row.category) : row.category,
                         description: row.description,
                         materials: row.materials,
-                        style: row.style,
-                        pattern: row.pattern,
-                        fit: row.fit,
-                        gender: row.gender,
+                        style: row.style_name || (typeof row.category === 'string' ? JSON.parse(row.category).style : row.category?.style),
+                        pattern: row.pattern_name || (typeof row.category === 'string' ? JSON.parse(row.category).pattern : row.category?.pattern),
+                        fit: row.fit_name || (typeof row.category === 'string' ? JSON.parse(row.category).fit : row.category?.fit),
+                        gender: row.gender_name || (typeof row.category === 'string' ? JSON.parse(row.category).gender : row.category?.gender),
+                        materialName: row.material_name,
                         images: typeof row.images === 'string' ? JSON.parse(row.images) : row.images || [],
                         metadata: meta,
                         brand: {
@@ -774,6 +817,8 @@ export class SKUController {
                         retailPriceBrl: row.retail_price_brl,
                         retailPriceUsd: row.retail_price_usd,
                         retailPriceEur: row.retail_price_eur,
+                        releaseDate: row.release_date,
+                        careInstructions: row.care_instructions,
                         isVirtualParent: row._isVirtualParent || false,
                         variants
                     };

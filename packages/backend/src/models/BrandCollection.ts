@@ -110,7 +110,9 @@ export class BrandCollectionModel {
       SELECT bc.*, 
              (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
       FROM brand_collections bc
-      WHERE bc.brand_id = $1 OR bc.brand_id IN (SELECT vufs_brand_id FROM brand_accounts WHERE id = $1)
+      WHERE bc.brand_id = $1 
+         OR bc.brand_id IN (SELECT id FROM brand_accounts WHERE vufs_brand_id = $1)
+         OR bc.brand_id IN (SELECT id FROM brand_accounts WHERE id = $1)
     `;
 
         if (publishedOnly) {

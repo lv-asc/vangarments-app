@@ -543,8 +543,8 @@ router.get(
 
 router.get(
   '/:brandId/lookbooks/:lookbookId',
-  param('brandId').isUUID().withMessage('Brand ID must be a valid UUID'),
-  param('lookbookId').isUUID().withMessage('Lookbook ID must be a valid UUID'),
+  param('brandId').isString().isLength({ min: 1 }).withMessage('Brand ID or Slug is required'),
+  param('lookbookId').isString().isLength({ min: 1 }).withMessage('Lookbook ID or Slug is required'),
   validateRequest,
   brandProfileController.getLookbook.bind(brandProfileController)
 );

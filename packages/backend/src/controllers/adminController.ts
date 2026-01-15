@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { db } from '../database/connection';
 import { AuthenticatedRequest, AuthUtils } from '../utils/auth';
 import { UserModel } from '../models/User';
+import { LocalStorageService } from '../services/localStorageService';
 
 export class AdminController {
     async getUsers(req: AuthenticatedRequest, res: Response) {
@@ -56,7 +57,7 @@ export class AdminController {
 
     async createUser(req: AuthenticatedRequest, res: Response) {
         try {
-            const { name, username, email, password, roles, birthDate, gender, cpf } = req.body;
+            const { name, username, email, password, roles, birthDate, gender, cpf, telephone, genderOther, bodyType } = req.body;
 
             // Basic validation
             if (!email || !username || !password || !name) {
@@ -71,10 +72,13 @@ export class AdminController {
             // Check if user already exists
             const existingEmail = await UserModel.findByEmail(email);
             if (existingEmail) {
+                const isTrashed = existingEmail.status === 'trashed';
                 return res.status(400).json({
                     error: {
-                        code: 'EMAIL_TAKEN',
-                        message: 'Email is already in use'
+                        code: isTrashed ? 'EMAIL_TAKEN_TRASHED' : 'EMAIL_TAKEN',
+                        message: isTrashed
+                            ? 'This email belongs to a deleted (trashed) account. Please check the "Trash" tab to restore or permanently delete it.'
+                            : 'Email is already in use'
                     }
                 });
             }
@@ -89,6 +93,27 @@ export class AdminController {
                 });
             }
 
+            // Check if CPF is taken (if provided)
+            let cpfToSave = cpf;
+            const cleanCPF = cpf ? cpf.replace(/[^\d]/g, '') : '';
+            const isPlaceholderCPF = cleanCPF === '00000000000';
+
+            if (cpf && !isPlaceholderCPF) {
+                const existingCPF = await UserModel.findByCPF(cpf);
+                if (existingCPF) {
+                    return res.status(400).json({
+                        error: {
+                            code: 'CPF_TAKEN',
+                            message: 'CPF is already in use'
+                        }
+                    });
+                }
+                cpfToSave = cpf;
+            } else if (isPlaceholderCPF) {
+                // If it's the placeholder, we save as null to allow multiple test users
+                cpfToSave = null;
+            }
+
             // Hash password
             const passwordHash = await AuthUtils.hashPassword(password);
 
@@ -100,15 +125,19 @@ export class AdminController {
                 passwordHash,
                 birthDate: birthDate ? new Date(birthDate) : new Date(),
                 gender: gender || 'prefer-not-to-say',
-                cpf: cpf || null,
-                telephone: req.body.telephone || ''
+                genderOther: genderOther,
+                bodyType: bodyType,
+                cpf: cpfToSave,
+                telephone: telephone || ''
             });
 
             // Set roles if provided
             if (roles && Array.isArray(roles) && roles.length > 0) {
+                console.log(`[ADMIN] Setting roles for user ${newUser.id}:`, roles);
                 await UserModel.setRoles(newUser.id, roles);
             } else {
                 // Default role
+                console.log(`[ADMIN] Setting default consumer role for user ${newUser.id}`);
                 await UserModel.setRoles(newUser.id, ['consumer']);
             }
 
@@ -122,14 +151,186 @@ export class AdminController {
                     roles: roles || ['consumer']
                 }
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Create user error:', error);
             res.status(500).json({
                 error: {
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: 'An error occurred while creating the user'
+                    message: 'An error occurred while creating the user',
+                    details: error.message
                 }
             });
+        }
+    }
+
+    /**
+     * Upload avatar for a specific user
+     * POST /api/admin/users/:userId/avatar
+     */
+    async uploadUserAvatar(req: AuthenticatedRequest, res: Response) {
+        try {
+            const { userId } = req.params;
+            const file = req.file;
+
+            if (!file) {
+                return res.status(400).json({ error: { code: 'NO_FILE', message: 'No file uploaded' } });
+            }
+
+            const uploadResult = await LocalStorageService.uploadImage(
+                file.buffer,
+                file.originalname,
+                file.mimetype,
+                'profiles',
+                userId
+            );
+
+            const avatarUrl = uploadResult.optimizedUrl || uploadResult.url;
+
+            await UserModel.update(userId, {
+                profile: { avatarUrl }
+            });
+
+            res.json({
+                success: true,
+                data: { avatarUrl }
+            });
+        } catch (error: any) {
+            console.error('Admin upload avatar error:', error);
+            res.status(500).json({ error: { code: 'UPLOAD_ERROR', message: 'Failed to upload avatar' } });
+        }
+    }
+
+    /**
+     * Upload banner for a specific user
+     * POST /api/admin/users/:userId/banner
+     */
+    async uploadUserBanner(req: AuthenticatedRequest, res: Response) {
+        try {
+            const { userId } = req.params;
+            const file = req.file;
+
+            if (!file) {
+                return res.status(400).json({ error: { code: 'NO_FILE', message: 'No file uploaded' } });
+            }
+
+            const uploadResult = await LocalStorageService.uploadImage(
+                file.buffer,
+                file.originalname,
+                file.mimetype,
+                'banners',
+                userId
+            );
+
+            const bannerUrl = uploadResult.optimizedUrl || uploadResult.url;
+
+            await UserModel.update(userId, {
+                profile: { bannerUrl }
+            });
+
+            res.json({
+                success: true,
+                data: { bannerUrl }
+            });
+        } catch (error: any) {
+            console.error('Admin upload banner error:', error);
+            res.status(500).json({ error: { code: 'UPLOAD_ERROR', message: 'Failed to upload banner' } });
+        }
+    }
+
+    /**
+     * Get user follows (followers and following)
+     * GET /api/admin/users/:userId/follows
+     */
+    async getUserFollows(req: AuthenticatedRequest, res: Response) {
+        try {
+            const { userId } = req.params;
+
+            // Fetch followers
+            const followersRes = await db.query(`
+                SELECT u.id, u.username, u.profile, uf.created_at
+                FROM user_follows uf
+                JOIN users u ON uf.follower_id = u.id
+                WHERE uf.following_id = $1
+            `, [userId]);
+
+            // Fetch following
+            const followingRes = await db.query(`
+                SELECT u.id, u.username, u.profile, uf.created_at
+                FROM user_follows uf
+                JOIN users u ON uf.following_id = u.id
+                WHERE uf.follower_id = $1
+            `, [userId]);
+
+            // Helper to format user
+            const formatUser = (row: any) => {
+                const profile = typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile;
+                return {
+                    id: row.id,
+                    username: row.username,
+                    name: profile.name,
+                    avatar: profile.avatarUrl || profile.profilePicture,
+                    followedAt: row.created_at
+                };
+            };
+
+            res.json({
+                success: true,
+                data: {
+                    followers: followersRes.rows.map(formatUser),
+                    following: followingRes.rows.map(formatUser)
+                }
+            });
+        } catch (error: any) {
+            console.error('Get user follows error:', error);
+            res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to fetch user connections' } });
+        }
+    }
+
+    /**
+     * Add a follow connection (force follow)
+     * POST /api/admin/users/:userId/follows
+     * Body: { targetId: string } -> userId follows targetId
+     */
+    async addUserFollow(req: AuthenticatedRequest, res: Response) {
+        try {
+            const { userId } = req.params;
+            const { targetId } = req.body;
+
+            if (!targetId) {
+                return res.status(400).json({ error: { code: 'MISSING_PARAM', message: 'targetId is required' } });
+            }
+
+            await db.query(`
+                INSERT INTO user_follows (follower_id, following_id, status)
+                VALUES ($1, $2, 'accepted')
+                ON CONFLICT (follower_id, following_id) DO NOTHING
+            `, [userId, targetId]);
+
+            res.json({ success: true, message: 'Follow connection added' });
+        } catch (error: any) {
+            console.error('Add user follow error:', error);
+            res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to add follow connection' } });
+        }
+    }
+
+    /**
+     * Remove a follow connection
+     * DELETE /api/admin/users/:userId/follows/:targetId
+     * Removes userId -> targetId (unfollow)
+     */
+    async removeUserFollow(req: AuthenticatedRequest, res: Response) {
+        try {
+            const { userId, targetId } = req.params;
+
+            await db.query(`
+                DELETE FROM user_follows
+                WHERE follower_id = $1 AND following_id = $2
+            `, [userId, targetId]);
+
+            res.json({ success: true, message: 'Follow connection removed' });
+        } catch (error: any) {
+            console.error('Remove user follow error:', error);
+            res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to remove follow connection' } });
         }
     }
 

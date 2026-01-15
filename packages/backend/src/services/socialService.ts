@@ -208,6 +208,13 @@ export class SocialService {
   }
 
   /**
+   * Get mutual connections (users viewer follows who follows target)
+   */
+  async getMutualConnections(viewerId: string, targetUserId: string, limit = 3): Promise<{ users: UserProfile[]; total: number }> {
+    return await UserFollowModel.getMutualConnections(viewerId, targetUserId, limit);
+  }
+
+  /**
    * Like a post
    */
   async likePost(postId: string, userId: string): Promise<PostLike> {

@@ -32,6 +32,7 @@ export interface SKUItem {
     deletedAt?: Date | null;
     parentSkuId?: string;
     releaseDate?: Date | null;
+    careInstructions?: string;
 }
 
 export interface CreateSKUItemData {
@@ -60,6 +61,7 @@ export interface CreateSKUItemData {
     retailPriceEur?: number;
     parentSkuId?: string;
     releaseDate?: Date;
+    careInstructions?: string;
 }
 
 export interface UpdateSKUItemData {
@@ -86,6 +88,7 @@ export interface UpdateSKUItemData {
     retailPriceUsd?: number;
     retailPriceEur?: number;
     releaseDate?: Date | null;
+    careInstructions?: string;
 }
 
 export class SKUItemModel {
@@ -94,9 +97,9 @@ export class SKUItemModel {
             INSERT INTO sku_items(
                 brand_id, name, code, collection, line, line_id,
                 category, description, materials, images, videos, metadata,
-                retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id, release_date
+                retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id, release_date, care_instructions
             )
-            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             RETURNING *
         `;
 
@@ -117,7 +120,8 @@ export class SKUItemModel {
             data.retailPriceUsd,
             data.retailPriceEur,
             data.parentSkuId || null,
-            data.releaseDate || null
+            data.releaseDate || null,
+            data.careInstructions || null
         ];
 
         const result = await db.query(query, values);
@@ -260,6 +264,7 @@ export class SKUItemModel {
         if (data.retailPriceUsd !== undefined) { updates.push(`retail_price_usd = $${paramIndex++} `); values.push(data.retailPriceUsd); }
         if (data.retailPriceEur !== undefined) { updates.push(`retail_price_eur = $${paramIndex++} `); values.push(data.retailPriceEur); }
         if (data.releaseDate !== undefined) { updates.push(`release_date = $${paramIndex++} `); values.push(data.releaseDate); }
+        if (data.careInstructions !== undefined) { updates.push(`care_instructions = $${paramIndex++} `); values.push(data.careInstructions); }
 
         if (updates.length === 0) return this.findById(id);
 
@@ -334,6 +339,58 @@ export class SKUItemModel {
         return { skus, total };
     }
 
+    static async findRelated(brandId: string, excludeSkuId: string, options: {
+        collection?: string;
+        lineId?: string;
+        excludeCollection?: string;
+        limit?: number;
+    }): Promise<any[]> {
+        let query = `
+            SELECT si.*, 
+                   bl.name as line_name, bl.logo as line_logo,
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'logo' as brand_logo,
+                   ba.brand_info->>'slug' as brand_slug
+            FROM sku_items si
+            JOIN brand_accounts ba ON si.brand_id = ba.id
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            WHERE si.brand_id = $1 
+            AND si.id != $2 
+            AND si.deleted_at IS NULL
+            AND si.parent_sku_id IS NULL
+        `;
+        const values: any[] = [brandId, excludeSkuId];
+        let paramIndex = 3;
+
+        if (options.collection) {
+            query += ` AND si.collection = $${paramIndex++} `;
+            values.push(options.collection);
+        }
+
+        if (options.lineId) {
+            query += ` AND si.line_id = $${paramIndex++} `;
+            values.push(options.lineId);
+        }
+
+        if (options.excludeCollection) {
+            query += ` AND (si.collection IS NULL OR si.collection != $${paramIndex++}) `;
+            values.push(options.excludeCollection);
+        }
+
+        query += ` ORDER BY si.created_at DESC LIMIT $${paramIndex++} `;
+        values.push(options.limit || 8);
+
+        const result = await db.query(query, values);
+        return result.rows.map(row => ({
+            ...this.mapRowToSKUItem(row),
+            brand: {
+                name: row.brand_name,
+                logo: row.brand_logo,
+                slug: row.brand_slug
+            }
+        }));
+    }
+
     static async findByIdIncludeDeleted(id: string): Promise<SKUItem | null> {
         const query = `
             SELECT si.*, bl.name as line_name, bl.logo as line_logo
@@ -367,7 +424,8 @@ export class SKUItemModel {
             updatedAt: row.updated_at,
             deletedAt: row.deleted_at,
             parentSkuId: row.parent_sku_id,
-            releaseDate: row.release_date
+            releaseDate: row.release_date,
+            careInstructions: row.care_instructions
         };
 
         if (row.line_name || row.line_logo || row.line_id) {

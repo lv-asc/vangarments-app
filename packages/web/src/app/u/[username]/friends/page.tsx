@@ -1,6 +1,6 @@
 'use client';
 
-import { useProfile } from '../layout';
+import { useProfile } from '../ProfileLayoutClient';
 
 export default function UserFriendsPage() {
     const { profile, loading } = useProfile();

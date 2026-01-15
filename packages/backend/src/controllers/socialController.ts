@@ -543,6 +543,46 @@ export class SocialController {
   }
 
   /**
+   * Get mutual connections between viewer and target user
+   */
+  async getMutualConnections(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { userId: targetUserId } = req.params;
+      const viewerId = req.user!.id;
+      const { limit = 3 } = req.query;
+
+      if (viewerId === targetUserId) {
+        res.json({
+          success: true,
+          data: { users: [], total: 0 }
+        });
+        return;
+      }
+
+      const result = await socialService.getMutualConnections(
+        viewerId,
+        targetUserId,
+        parseInt(limit as string)
+      );
+
+      res.json({
+        success: true,
+        data: {
+          users: result.users,
+          total: result.total
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'GET_MUTUAL_CONNECTIONS_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
    * Get user's social statistics
    */
   async getUserSocialStats(req: Request, res: Response): Promise<void> {

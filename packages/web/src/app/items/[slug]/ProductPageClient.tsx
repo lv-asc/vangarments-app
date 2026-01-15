@@ -5,11 +5,15 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { skuApi } from '@/lib/skuApi';
 import { apiClient } from '@/lib/api';
 import { getImageUrl } from '@/lib/utils';
-import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon, HeartIcon, PlusIcon, CheckIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
+import { useAuth } from '@/hooks/useAuth';
+import ItemCarousel from '@/components/ui/ItemCarousel';
+import WishlistSelectionModal from '@/components/ui/WishlistSelectionModal';
 
 interface Measurement {
     id: string;
@@ -46,9 +50,46 @@ export default function ProductPageClient() {
     const [loading, setLoading] = useState(true);
     const [measurements, setMeasurements] = useState<Measurement[]>([]);
     const [showMeasurements, setShowMeasurements] = useState(false);
+    const [showCareInstructions, setShowCareInstructions] = useState(false);
+    const [isLiked, setIsLiked] = useState(false);
+    const [isOnWishlist, setIsOnWishlist] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [collectionItems, setCollectionItems] = useState<any[]>([]);
+    const [brandItems, setBrandItems] = useState<any[]>([]);
+    const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
     const { addVisit } = useRecentVisits();
+    const { user } = useAuth();
+
+    const handleLikeToggle = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!user) {
+            toast.error('Please log in to like items');
+            return;
+        }
+
+        const previousState = isLiked;
+        setIsLiked(!previousState);
+
+        try {
+            await apiClient.toggleLike(product.id);
+        } catch (error) {
+            setIsLiked(previousState);
+            toast.error('Failed to update like status');
+        }
+    };
+
+    const handleWishlistToggle = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) {
+            toast.error('Please log in to add to wishlist');
+            return;
+        }
+        setIsWishlistModalOpen(true);
+    };
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -192,6 +233,41 @@ export default function ProductPageClient() {
 
         fetchProduct();
     }, [productSlug, variantId, router]); // Removed brandSlug from deps
+
+    // Check like status when product loads
+    useEffect(() => {
+        if (product && user) {
+            apiClient.getLikeStatus(product.id)
+                .then((res) => setIsLiked(res.liked))
+                .catch(() => { }); // Fail silently
+        } else if (!user) {
+            setIsLiked(false);
+        }
+    }, [product, user]);
+
+    useEffect(() => {
+        if (product && user) {
+            apiClient.getWishlistStatus(product.id)
+                .then((res) => setIsOnWishlist(res.onWishlist))
+                .catch(() => { });
+        } else if (!user) {
+            setIsOnWishlist(false);
+        }
+    }, [product, user]);
+
+    useEffect(() => {
+        if (product) {
+            // Fetch More from Collection
+            skuApi.getRelatedSKUs(product.id, 'collection')
+                .then(items => setCollectionItems(items))
+                .catch(err => console.error('Error fetching collection items', err));
+
+            // Fetch More from Brand
+            skuApi.getRelatedSKUs(product.id, 'brand')
+                .then(items => setBrandItems(items))
+                .catch(err => console.error('Error fetching brand items', err));
+        }
+    }, [product]);
 
     if (loading) {
         return (
@@ -383,6 +459,8 @@ export default function ProductPageClient() {
                                             </Link>
                                         )}
 
+
+
                                         {/* Collection Badge */}
                                         {(product.collectionInfo || product.collection) && (
                                             <Link
@@ -409,8 +487,45 @@ export default function ProductPageClient() {
 
                                     <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
                                     {displayPrice && (
-                                        <p className="text-2xl font-semibold text-gray-900 mt-4">{displayPrice}</p>
+                                        <p className="text-2xl font-semibold text-gray-900 mt-4">
+                                            <span className="text-sm font-normal text-gray-500 mr-1">Retail</span>
+                                            {displayPrice}
+                                        </p>
                                     )}
+                                </div>
+
+                                {/* Like & Wishlist Buttons */}
+                                <div className="flex items-center gap-3 mt-6 mb-6">
+                                    <button
+                                        onClick={handleLikeToggle}
+                                        className={`p-2 rounded-full transition-all ${isLiked ? 'bg-red-50' : 'bg-gray-50 hover:bg-gray-100'}`}
+                                    >
+                                        {isLiked ? (
+                                            <HeartIconSolid className="h-6 w-6 text-red-500 animate-like" />
+                                        ) : (
+                                            <HeartIcon className="h-6 w-6 text-gray-400" />
+                                        )}
+                                    </button>
+
+                                    <button
+                                        onClick={handleWishlistToggle}
+                                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${isOnWishlist
+                                            ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                            : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        {isOnWishlist ? (
+                                            <>
+                                                <CheckIcon className="h-4 w-4" />
+                                                On Wishlist
+                                            </>
+                                        ) : (
+                                            <>
+                                                <PlusIcon className="h-4 w-4" />
+                                                Wishlist
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
 
                                 {/* Variant Selector */}
@@ -507,6 +622,31 @@ export default function ProductPageClient() {
                                         </div>
                                     )}
 
+                                    {/* Care Instructions Section */}
+                                    {product.careInstructions && (
+                                        <div className="border-t border-gray-200 pt-6">
+                                            <button
+                                                onClick={() => setShowCareInstructions(!showCareInstructions)}
+                                                className="flex items-center justify-between w-full text-left"
+                                            >
+                                                <h3 className="text-sm font-medium text-gray-900">Care Instructions</h3>
+                                                {showCareInstructions ? (
+                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                                )}
+                                            </button>
+
+                                            {showCareInstructions && (
+                                                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                                                    <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                                                        {product.careInstructions}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {product.code && (
                                         <div className="border-t border-gray-200 pt-6">
                                             <button
@@ -523,6 +663,24 @@ export default function ProductPageClient() {
 
                                             {showDetails && (
                                                 <div className="mt-4 grid grid-cols-1 gap-y-4">
+                                                    {product.releaseDate && (
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg">
+                                                                <CalendarIcon className="h-5 w-5 text-gray-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Release Date</p>
+                                                                <p className="text-sm font-medium text-gray-900">
+                                                                    {new Date(product.releaseDate).toLocaleDateString('pt-BR', {
+                                                                        day: 'numeric',
+                                                                        month: 'long',
+                                                                        year: 'numeric'
+                                                                    })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     {product.code && (
                                                         <div className="flex items-center gap-3">
                                                             <div className="p-2 bg-gray-100 rounded-lg">
@@ -623,7 +781,35 @@ export default function ProductPageClient() {
                         </div>
                     </div>
                 </div>
+
+                {/* Related Items Carousels */}
+                {(collectionItems.length > 0 || brandItems.length > 0) && (
+                    <div className="mt-12 space-y-12">
+                        {collectionItems.length > 0 && (
+                            <ItemCarousel
+                                title={`More from ${product.collection || 'Collection'}`}
+                                items={collectionItems}
+                                seeAllLink={product.collectionInfo?.name && product.brand?.slug ? `/brands/${product.brand.slug}/collections/${slugify(product.collectionInfo.name)}` : undefined}
+                            />
+                        )}
+
+                        {brandItems.length > 0 && (
+                            <ItemCarousel
+                                title={`More from ${product.brand?.name || 'Brand'}`}
+                                items={brandItems}
+                                seeAllLink={product.brand?.slug ? `/brands/${product.brand.slug}` : undefined}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
+
+            <WishlistSelectionModal
+                isOpen={isWishlistModalOpen}
+                onClose={() => setIsWishlistModalOpen(false)}
+                skuItemId={product?.id}
+                onStatusChange={(status) => setIsOnWishlist(status)}
+            />
         </div>
     );
 }

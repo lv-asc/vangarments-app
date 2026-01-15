@@ -156,6 +156,37 @@ export class UserFollowModel {
     };
   }
 
+  static async getMutualConnections(
+    viewerId: string,
+    targetUserId: string,
+    limit = 3
+  ): Promise<{ users: UserProfile[]; total: number }> {
+    // Find users who:
+    // 1. Are followed by viewerId (uf1)
+    // 2. Are following targetUserId (uf2)
+    const query = `
+      SELECT u.*, array_agg(ur.role) as roles,
+             COUNT(*) OVER() as total
+      FROM users u
+      JOIN user_follows uf1 ON u.id = uf1.following_id   -- Viewer follows U
+      JOIN user_follows uf2 ON u.id = uf2.follower_id    -- U follows Target
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      WHERE uf1.follower_id = $1 
+        AND uf2.following_id = $2
+        AND uf1.status = 'accepted'
+        AND uf2.status = 'accepted'
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.created_at, u.updated_at
+      LIMIT $3
+    `;
+
+    const result = await db.query(query, [viewerId, targetUserId, limit]);
+
+    return {
+      users: result.rows.map(row => UserModel.mapToUserProfile(row)),
+      total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
+    };
+  }
+
   static async delete(followerId: string, followingId: string): Promise<boolean> {
     const query = 'DELETE FROM user_follows WHERE follower_id = $1 AND following_id = $2';
     const result = await db.query(query, [followerId, followingId]);

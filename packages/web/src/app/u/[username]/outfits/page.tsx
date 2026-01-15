@@ -1,6 +1,6 @@
 'use client';
 
-import { useProfile } from '../layout';
+import { useProfile } from '../ProfileLayoutClient';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
 
 export default function UserOutfitsPage() {

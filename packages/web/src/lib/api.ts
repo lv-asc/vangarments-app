@@ -578,6 +578,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getMutualConnections(userId: string, limit = 3): Promise<{ users: any[]; total: number }> {
+    const response = await this.request<any>(`/social/users/${userId}/mutual-connections?limit=${limit}`);
+    return response.data;
+  }
+
   async getPublicProfile(username: string): Promise<{ profile: any }> {
     const response = await this.request<any>(`/users/u/${username}`);
     return response as any;
@@ -659,6 +664,64 @@ class ApiClient {
     return this.request('/admin/users', {
       method: 'POST',
       body: JSON.stringify(userData),
+    });
+  }
+
+  async adminUploadUserAvatar(userId: string, file: File): Promise<{ avatarUrl: string }> {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/admin/users/${userId}/avatar`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new ApiErrorClass(data.error?.message || 'Upload failed', 'UPLOAD_ERROR', data.error);
+    return data.data;
+  }
+
+  async adminUploadUserBanner(userId: string, file: File): Promise<{ bannerUrl: string }> {
+    const formData = new FormData();
+    formData.append('banner', file);
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/admin/users/${userId}/banner`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new ApiErrorClass(data.error?.message || 'Upload failed', 'UPLOAD_ERROR', data.error);
+    return data.data;
+  }
+
+  async adminGetUserFollows(userId: string): Promise<{ followers: any[], following: any[] }> {
+    const response = await this.request<any>(`/admin/users/${userId}/follows`);
+    return response.data;
+  }
+
+  async adminAddUserFollow(userId: string, targetId: string): Promise<void> {
+    await this.request(`/admin/users/${userId}/follows`, {
+      method: 'POST',
+      body: JSON.stringify({ targetId }),
+    });
+  }
+
+  async adminRemoveUserFollow(userId: string, targetId: string): Promise<void> {
+    await this.request(`/admin/users/${userId}/follows/${targetId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -776,6 +839,72 @@ class ApiClient {
     }
 
     return data.data || data;
+  }
+
+  // Like System Methods
+  async toggleLike(skuItemId: string): Promise<{ liked: boolean; count: number }> {
+    const response = await this.request<any>('/likes/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ skuItemId }),
+    });
+    return response as any;
+  }
+
+  async getLikeStatus(skuItemId: string): Promise<{ liked: boolean }> {
+    const response = await this.request<any>(`/likes/status/${skuItemId}`);
+    return response as any;
+  }
+
+  async getUserLikes(limit = 20, offset = 0): Promise<{ items: any[]; total: number }> {
+    const response = await this.request<any>(`/likes/user?limit=${limit}&offset=${offset}`);
+    return response as any;
+  }
+
+  // Wishlist System Methods
+  async toggleWishlist(skuItemId: string, wishlistId?: string): Promise<{ added: boolean; wishlistId: string }> {
+    const response = await this.request<any>('/wishlists/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ skuItemId, wishlistId })
+    });
+    return response as any;
+  }
+
+  async getWishlistStatus(skuItemId: string): Promise<{ onWishlist: boolean }> {
+    const response = await this.request<any>(`/wishlists/status/${skuItemId}`);
+    return response as any;
+  }
+
+  async getMyWishlists(): Promise<any[]> {
+    const response = await this.request<any>('/wishlists/my-lists');
+    return response as any;
+  }
+
+  async getWishlistItems(wishlistId: string): Promise<any[]> {
+    const response = await this.request<any>(`/wishlists/${wishlistId}/items`);
+    return response as any;
+  }
+
+  async createWishlist(name: string, visibility?: string): Promise<any> {
+    const response = await this.request<any>('/wishlists', {
+      method: 'POST',
+      body: JSON.stringify({ name, visibility })
+    });
+    return response as any;
+  }
+
+  async updateWishlist(wishlistId: string, data: { name?: string; visibility?: string }): Promise<any> {
+    const response = await this.request<any>(`/wishlists/${wishlistId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    return response as any;
+  }
+
+  async deleteWishlist(wishlistId: string): Promise<{ success: boolean }> {
+    const response = await this.request<any>(`/wishlists/${wishlistId}`, {
+      method: 'DELETE'
+    });
+    return response as any;
   }
 
   // Wardrobe Methods
@@ -1662,6 +1791,36 @@ class ApiClient {
   async healthCheck(): Promise<{ status: string; timestamp: string }> {
     const response = await this.request<{ status: string; timestamp: string }>('/health');
     return (response as any).data || response as { status: string; timestamp: string };
+  }
+
+  // Silhouette Methods
+  async getSilhouettes(params?: any) {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    const response = await this.request<any>(`/silhouettes${query}`);
+    return (response as any).data || response;
+  }
+
+  async createSilhouette(data: any) {
+    const response = await this.request<any>('/silhouettes', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return (response as any).data || response;
+  }
+
+  async updateSilhouette(id: string, data: any) {
+    const response = await this.request<any>(`/silhouettes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+    return (response as any).data || response;
+  }
+
+  async deleteSilhouette(id: string) {
+    const response = await this.request<any>(`/silhouettes/${id}`, {
+      method: 'DELETE'
+    });
+    return (response as any).data || response;
   }
 
   // Generic request method for custom endpoints

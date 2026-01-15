@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
-import { formatCPF } from '@/lib/masks';
+import { formatCPF, formatPhone } from '@/lib/masks';
 import { MagnifyingGlassIcon, FunnelIcon, ArrowsUpDownIcon, Squares2X2Icon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -26,6 +26,8 @@ interface User {
     banExpiresAt?: string;
     brands?: { id: string; name: string }[];
     linkedEntities?: LinkedEntity[];
+    verificationStatus?: string;
+    createdAt?: string;
 }
 
 interface Brand {
@@ -66,6 +68,232 @@ const GROUP_OPTIONS = [
     { value: 'status', label: 'By Status' },
     { value: 'role', label: 'By Primary Role' },
 ];
+
+// --- Sub-components ---
+
+const ManageImagesModal = ({ user, onClose, onSuccess }: { user: User, onClose: () => void, onSuccess: () => void }) => {
+    const [uploading, setUploading] = useState(false);
+
+    const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            if (type === 'avatar') {
+                await (apiClient as any).adminUploadUserAvatar(user.id, file);
+            } else {
+                await (apiClient as any).adminUploadUserBanner(user.id, file);
+            }
+            toast.success(`${type === 'avatar' ? 'Profile picture' : 'Banner'} updated`);
+            onSuccess(); // To refresh visible stats/images
+        } catch (error: any) {
+            toast.error(error.message || 'Upload failed');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold font-outfit">Manage Images: @{user.username}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <span className="sr-only">Close</span>
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div className="space-y-6">
+                    {/* Avatar Section */}
+                    <div className="flex items-center gap-4 p-4 border rounded-lg bg-gray-50">
+                        <div className="w-16 h-16 rounded-full bg-gray-200 overflow-hidden relative border border-gray-300">
+                            {user.avatarUrl ? (
+                                <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-gray-400">
+                                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900 mb-1">Profile Picture</h4>
+                            <label className="inline-block">
+                                <span className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${uploading ? 'bg-gray-200 text-gray-500' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+                                    {uploading ? 'Uploading...' : 'Change Avatar'}
+                                </span>
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept="image/*"
+                                    disabled={uploading}
+                                    onChange={(e) => handleUpload(e, 'avatar')}
+                                />
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Banner Section */}
+                    <div className="p-4 border rounded-lg bg-gray-50">
+                        <h4 className="font-semibold text-gray-900 mb-3">Profile Banner</h4>
+                        <div className="w-full h-32 rounded-lg bg-gray-200 overflow-hidden relative border border-gray-300 mb-3">
+                            <div className="flex items-center justify-center h-full text-gray-400">
+                                <span className="text-sm">Banner Preview</span>
+                            </div>
+                        </div>
+                        <label className="inline-block w-full">
+                            <div className={`w-full py-2 rounded-lg text-sm font-medium text-center transition-colors cursor-pointer ${uploading ? 'bg-gray-200 text-gray-500' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>
+                                {uploading ? 'Uploading...' : 'Upload New Banner'}
+                            </div>
+                            <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                disabled={uploading}
+                                onChange={(e) => handleUpload(e, 'banner')}
+                            />
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ManageNetworkModal = ({ user, onClose }: { user: User, onClose: () => void }) => {
+    const [activeTab, setActiveTab] = useState<'followers' | 'following'>('followers');
+    const [networkData, setNetworkData] = useState<{ followers: any[], following: any[] }>({ followers: [], following: [] });
+    const [loading, setLoading] = useState(true);
+    const [targetIdInput, setTargetIdInput] = useState('');
+
+    useEffect(() => {
+        loadNetwork();
+    }, []);
+
+    const loadNetwork = async () => {
+        setLoading(true);
+        try {
+            const data = await (apiClient as any).adminGetUserFollows(user.id);
+            setNetworkData(data);
+        } catch (error) {
+            toast.error('Failed to load network');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddFollow = async () => {
+        if (!targetIdInput) return;
+        try {
+            await (apiClient as any).adminAddUserFollow(user.id, targetIdInput);
+            toast.success('Follow added');
+            setTargetIdInput('');
+            loadNetwork();
+        } catch (error) {
+            toast.error('Failed to add connection');
+        }
+    };
+
+    const handleRemove = async (targetId: string, type: 'follower' | 'following') => {
+        try {
+            if (type === 'following') {
+                // Remove someone user is following:  user -> target
+                await (apiClient as any).adminRemoveUserFollow(user.id, targetId);
+            } else {
+                // Remove a follower: target -> user
+                await (apiClient as any).adminRemoveUserFollow(targetId, user.id);
+            }
+            toast.success('Connection removed');
+            loadNetwork();
+        } catch (error) {
+            toast.error('Failed to remove connection');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 h-[80vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6 flex-shrink-0">
+                    <h3 className="text-xl font-bold font-outfit">Manage Network: @{user.username}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div className="flex mb-4 border-b flex-shrink-0">
+                    <button
+                        className={`px-4 py-2 font-medium ${activeTab === 'followers' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        onClick={() => setActiveTab('followers')}
+                    >
+                        Followers ({networkData.followers.length})
+                    </button>
+                    <button
+                        className={`px-4 py-2 font-medium ${activeTab === 'following' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        onClick={() => setActiveTab('following')}
+                    >
+                        Following ({networkData.following.length})
+                    </button>
+                </div>
+
+                {activeTab === 'following' && (
+                    <div className="flex gap-2 mb-4 flex-shrink-0">
+                        <input
+                            type="text"
+                            placeholder="Enter User ID to force follow..."
+                            className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                            value={targetIdInput}
+                            onChange={e => setTargetIdInput(e.target.value)}
+                        />
+                        <button
+                            onClick={handleAddFollow}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+                        >
+                            Force Follow
+                        </button>
+                    </div>
+                )}
+
+                <div className="flex-1 overflow-y-auto">
+                    {loading ? (
+                        <div className="text-center py-8 text-gray-500">Loading network...</div>
+                    ) : (
+                        <div className="space-y-2">
+                            {(activeTab === 'followers' ? networkData.followers : networkData.following).map((u: any) => (
+                                <div key={u.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
+                                            {u.avatar && <img src={u.avatar} alt={u.username} className="w-full h-full object-cover" />}
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900 line-clamp-1">{u.name || u.username}</p>
+                                            <p className="text-xs text-gray-500">@{u.username}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleRemove(u.id, activeTab === 'followers' ? 'follower' : 'following')}
+                                        className="text-red-500 hover:text-red-700 text-xs font-medium px-2 py-1 border border-red-200 rounded hover:bg-red-50"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+                            ))}
+                            {(activeTab === 'followers' ? networkData.followers : networkData.following).length === 0 && (
+                                <div className="text-center py-8 text-gray-400 text-sm">No users found.</div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default function AdminUsersPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -690,6 +918,9 @@ function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalProps) {
         roles: ['consumer'],
         birthDate: '',
         gender: 'prefer-not-to-say',
+        genderOther: '',
+        bodyType: '',
+        telephone: '',
         cpf: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -756,6 +987,17 @@ function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalProps) {
                                     onChange={e => setFormData({ ...formData, username: e.target.value })}
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Telephone</label>
+                                <input
+                                    type="text"
+                                    required
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                                    value={formData.telephone}
+                                    onChange={e => setFormData({ ...formData, telephone: formatPhone(e.target.value) })}
+                                    placeholder="(00) 00000-0000"
+                                />
+                            </div>
                         </div>
 
                         <div>
@@ -799,6 +1041,64 @@ function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalProps) {
                             </div>
                         </div>
 
+
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                            <div className="flex gap-4">
+                                {['male', 'female', 'other'].map((option) => (
+                                    <label key={option} className="flex items-center cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="gender"
+                                            value={option}
+                                            checked={formData.gender === option}
+                                            onChange={e => setFormData({ ...formData, gender: e.target.value })}
+                                            className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                        />
+                                        <span className="ml-2 text-gray-700 capitalize">
+                                            {option === 'male' ? 'Male' : option === 'female' ? 'Female' : 'Other'}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                            {formData.gender === 'other' && (
+                                <div className="mt-2 space-y-3 pl-4 border-l-2 border-blue-100">
+                                    <div>
+                                        <label className="block text-xs text-gray-600 mb-1">Specify (optional)</label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            value={formData.genderOther}
+                                            onChange={e => setFormData({ ...formData, genderOther: e.target.value })}
+                                            placeholder="e.g. Non-binary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-600 mb-1">Body Type (for Virtual Dressing Room)</label>
+                                        <div className="flex gap-4">
+                                            {['male', 'female'].map((type) => (
+                                                <label key={type} className="flex items-center cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="bodyType"
+                                                        value={type}
+                                                        checked={formData.bodyType === type}
+                                                        onChange={e => setFormData({ ...formData, bodyType: e.target.value })}
+                                                        required={formData.gender === 'other'}
+                                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                    />
+                                                    <span className="ml-2 text-sm text-gray-700">
+                                                        {type === 'male' ? 'Male Body' : 'Female Body'}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Birth Date (Optional)</label>
@@ -838,8 +1138,8 @@ function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalProps) {
                             </button>
                         </div>
                     </form>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     );
 }

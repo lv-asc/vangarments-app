@@ -131,7 +131,8 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
     journalism: { id: 'journalism', title: 'Journalism', description: 'Manage News, Columns, and Articles.', href: '/admin/journalism', iconName: 'NewspaperIcon', gradient: 'from-slate-600 to-gray-700' },
     verified_entities: { id: 'verified_entities', title: 'Entity Verifications', description: 'Manage Entity Verification Status.', href: '/admin/entity-verifications', iconName: 'ShieldCheckIcon', gradient: 'from-blue-600 to-indigo-600' },
     config: { id: 'config', title: 'System Configuration', description: 'Global settings and system parameters.', href: '/admin/configuration', iconName: 'Cog6ToothIcon', gradient: 'from-gray-600 to-gray-800' },
-    entity_config: { id: 'entity_config', title: 'Entity Configuration', description: 'Configure entity features and labels.', href: '/admin/entities/configuration', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-indigo-500 to-purple-600' }
+    entity_config: { id: 'entity_config', title: 'Entity Configuration', description: 'Configure entity features and labels.', href: '/admin/entities/configuration', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-indigo-500 to-purple-600' },
+    silhouettes: { id: 'silhouettes', title: 'Silhouettes', description: 'Manage default POM templates for brands.', href: '/admin/silhouettes', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-violet-500 to-indigo-600' }
 };
 
 

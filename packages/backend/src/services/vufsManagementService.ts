@@ -1634,7 +1634,6 @@ export class VUFSManagementService {
     const nextOrder = (maxOrderRes.rows[0]?.max_order || 0) + 1;
 
     const query = `
-      INSERT INTO vufs_attribute_values (type_slug, name, sort_order, parent_id)
       INSERT INTO vufs_attribute_values (type_slug, name, sort_order, parent_id, sku_ref)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *

@@ -61,6 +61,11 @@ export const skuApi = {
         const params = new URLSearchParams(filters);
         const response = await apiClient.get<{ skus: SKUItem[] }>(`/skus/brands/${brandId}/skus?${params.toString()}`);
         return response;
+    },
+
+    getRelatedSKUs: async (skuId: string, type: 'collection' | 'brand', limit = 8): Promise<SKUItem[]> => {
+        const response = await apiClient.get<SKUItem[]>(`/skus/skus/${skuId}/related?type=${type}&limit=${limit}`);
+        return response;
     }
 };
 

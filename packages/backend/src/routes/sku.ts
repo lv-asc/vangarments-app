@@ -13,6 +13,7 @@ router.get('/brands/:brandId/skus', authenticateToken, SKUController.getBrandSKU
 
 // SKU CRUD
 router.get('/', authenticateToken, SKUController.getAllSKUs);
+router.get('/skus/:id/related', SKUController.getRelatedSKUs); // Public
 router.get('/skus/:id', authenticateToken, SKUController.getSKU);
 router.patch('/skus/:id', authenticateToken, SKUController.updateSKU);
 router.delete('/skus/:id', authenticateToken, SKUController.deleteSKU);

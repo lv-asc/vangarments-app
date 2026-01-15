@@ -8,14 +8,19 @@ interface SelectorProps {
     onChange: (val: string) => void; // Update form value
     options: Array<{ id: string; name: string; label?: string }>; // Data source
     placeholder?: string;
+    onSearch?: (query: string) => void; // Optional: External search handler
+    loading?: boolean; // Optional: Loading state
 }
 
-export function SmartCombobox({ value, onChange, options, placeholder = "Select or Type..." }: SelectorProps) {
+export function SmartCombobox({ value, onChange, options, placeholder = "Select or Type...", onSearch, loading = false }: SelectorProps) {
     const [query, setQuery] = useState('');
 
-    // FILTERING LOGIC: Based on 'query', not 'value'
-    const filteredOptions =
-        query === ''
+    // FILTERING LOGIC: 
+    // If onSearch is provided, we assume parent handles filtering/fetching, so we show ALL options provided.
+    // Otherwise, we filter locally.
+    const filteredOptions = onSearch
+        ? options
+        : query === ''
             ? options
             : options.filter((opt) => {
                 const lowerQuery = query.toLowerCase();
@@ -37,7 +42,10 @@ export function SmartCombobox({ value, onChange, options, placeholder = "Select 
                             return selected ? `${selected.name}${selected.label ? ` (${selected.label})` : ''}` : '';
                         }}
                         // SEARCH LOGIC: Update query on type
-                        onChange={(event) => setQuery(event.target.value)}
+                        onChange={(event) => {
+                            setQuery(event.target.value);
+                            if (onSearch) onSearch(event.target.value);
+                        }}
                         placeholder={placeholder}
                     />
                     <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
@@ -54,7 +62,9 @@ export function SmartCombobox({ value, onChange, options, placeholder = "Select 
                     afterLeave={() => setQuery('')}
                 >
                     <Combobox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm z-[100]">
-                        {filteredOptions.length === 0 && query !== '' ? (
+                        {loading ? (
+                            <div className="relative cursor-default select-none py-2 px-4 text-gray-700">Loading...</div>
+                        ) : filteredOptions.length === 0 && query !== '' ? (
                             <div className="relative cursor-default select-none py-2 px-4 text-gray-700">
                                 Nothing found.
                             </div>

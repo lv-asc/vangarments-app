@@ -15,7 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
-import { Dialog } from '@headlessui/react';
+import { Dialog, Tab } from '@headlessui/react';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import ImageCropper from '@/components/ui/ImageCropper';
 import { SmartCombobox } from '@/components/ui/SmartCombobox';
@@ -39,6 +39,7 @@ interface UserProfile {
     roles: string[];
     // Status
     status: 'active' | 'banned' | 'deactivated';
+    verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
     banExpiresAt?: Date;
     // Personal Info
     personalInfo?: {
@@ -109,6 +110,7 @@ export default function AdminEditUserPage() {
         telephone: '',
         password: '',
         status: 'active',
+        verificationStatus: 'unverified',
         banExpiresAt: undefined as Date | undefined
     });
 
@@ -120,6 +122,17 @@ export default function AdminEditUserPage() {
     // Cropper State
     const [showCropper, setShowCropper] = useState(false);
     const [cropperImageSrc, setCropperImageSrc] = useState<string>('');
+    const [uploadType, setUploadType] = useState<'avatar' | 'banner' | null>(null);
+
+    // Follows State
+    const [follows, setFollows] = useState<{ followers: any[]; following: any[] }>({ followers: [], following: [] });
+    const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
+    const [followSearchQuery, setFollowSearchQuery] = useState('');
+    const [followSearchResults, setFollowSearchResults] = useState<any[]>([]);
+    const [followSearchLoading, setFollowSearchLoading] = useState(false);
+    const [selectedFollowUser, setSelectedFollowUser] = useState<string>('');
+
+
 
     // Ban Modal State
     const [isBanModalOpen, setIsBanModalOpen] = useState(false);
@@ -242,6 +255,7 @@ export default function AdminEditUserPage() {
                     socialLinks: user.socialLinks || [],
                     roles: user.roles || [],
                     status: user.status || 'active',
+                    verificationStatus: user.verificationStatus || 'unverified',
                     banExpiresAt: user.banExpiresAt ? new Date(user.banExpiresAt) : undefined,
                     privacySettings: user.privacySettings || {
                         height: false, weight: false, birthDate: false,
@@ -275,12 +289,26 @@ export default function AdminEditUserPage() {
                     suppliers: user.suppliers || [],
                     pages: user.pages || []
                 });
+
+                loadFollows();
             }
         } catch (error) {
             console.error('Failed to load user', error);
             toast.error('Failed to load user data');
         } finally {
             setLoading(false);
+        }
+        setLoading(false);
+    }
+
+    const loadFollows = async () => {
+        try {
+            const data = await apiClient.get<any>(`/admin/users/${id}/follows`);
+            if (data) {
+                setFollows(data);
+            }
+        } catch (error) {
+            console.error('Failed to load follows', error);
         }
     };
 
@@ -409,6 +437,7 @@ export default function AdminEditUserPage() {
                 password: userData.password.trim() !== '' ? userData.password : undefined
             };
 
+            console.log('DEBUG: Submitting user update payload:', payload); // Debug roles issue
             await apiClient.put(`/users/${id}`, payload);
             toast.success('User updated successfully');
             loadUser();
@@ -453,24 +482,37 @@ export default function AdminEditUserPage() {
         e.target.value = '';
     };
 
+    const handleAvatarUploadClick = () => {
+        setUploadType('avatar');
+        document.getElementById('admin-avatar-upload')?.click();
+    };
+
+    const handleBannerUploadClick = () => {
+        setUploadType('banner');
+        document.getElementById('admin-banner-upload')?.click();
+    };
+
     const handleCropSave = async (croppedBlob: Blob) => {
-        // We need an endpoint to upload avatar for ANOTHER user.
-        // User controller `uploadAvatar` uses req.user.userId. 
-        // Admin likely cannot easily upload avatar for another user with current `uploadAvatar`.
-        // I might need to skip this feature or implement `adminUploadAvatar`.
-        // For now, I'll try to use the standard one but it will upload to MY (admin) profile!
-        // WAIT. Yes. `uploadAvatar` uses `req.user.userId`.
-        // So I CANNOT support image upload for admin unless I update backend.
-        // I will Disable image upload for now but leave the UI ready?
-        // Or I can update backend to allow admin to specify userId in upload.
-        // Given constraints, I'll likely skip image upload or note it.
-        // But user asked "Exactly like".
-        // I'll show the UI but maybe alert "Admin cannot change user avatar yet" or similar?
-        // Or I quickly patch `uploadAvatar`?
-        // Let's patch `uploadAvatar` to check for query param? Or just not support it now.
-        // I'll comment it out or show toast "Not supported for admin yet".
-        toast.error("Admin upload of user avatar not supported yet.");
-        setShowCropper(false);
+        if (!uploadType) return;
+
+        try {
+            // Convert Blob to File for the API client
+            const file = new File([croppedBlob], `image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+            if (uploadType === 'avatar') {
+                await (apiClient as any).adminUploadUserAvatar(id, file);
+            } else {
+                await (apiClient as any).adminUploadUserBanner(id, file);
+            }
+
+            toast.success(`${uploadType === 'avatar' ? 'Avatar' : 'Banner'} uploaded successfully`);
+            setShowCropper(false);
+            setUploadType(null);
+            loadUser(); // Reload to see change
+        } catch (error: any) {
+            console.error('Upload failed', error);
+            toast.error(`Failed to upload ${uploadType}: ${error.message || 'Unknown error'}`);
+        }
     };
 
 
@@ -504,6 +546,79 @@ export default function AdminEditUserPage() {
             loadUser();
         } catch (error: any) {
             toast.error(error.message || 'Failed to reactivate user');
+        }
+    };
+
+    // Verification
+    const handleVerificationChange = async (newStatus: string) => {
+        try {
+            await apiClient.put(`/admin/entities/${id}/verify`, { status: newStatus, entityType: 'USER' });
+            setUserData(prev => ({ ...prev, verificationStatus: newStatus as any }));
+            toast.success('Verification status updated');
+        } catch (error) {
+            toast.error('Failed to update verification status');
+        }
+    };
+
+    // Follow Management
+    const searchUsersToFollow = async (query: string) => {
+        setFollowSearchQuery(query);
+        if (query.length < 2) {
+            setFollowSearchResults([]);
+            return;
+        }
+        setFollowSearchLoading(true);
+        try {
+            // Re-use admin user search but limited
+            const response = await apiClient.get<any>(`/admin/users?search=${query}&limit=10`);
+            if (response.users) {
+                setFollowSearchResults(response.users.filter((u: any) => u.id !== id));
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setFollowSearchLoading(false);
+        }
+    };
+
+    const handleForceFollow = async () => {
+        if (!selectedFollowUser) return;
+        try {
+            await apiClient.post(`/admin/users/${id}/follows`, { targetId: selectedFollowUser });
+            toast.success('Follow connection added');
+            setIsFollowModalOpen(false);
+            setSelectedFollowUser('');
+            loadFollows();
+        } catch (error) {
+            toast.error('Failed to add follow');
+        }
+    };
+
+    const handleRemoveFollow = async (targetId: string, type: 'follower' | 'following') => {
+        // API semantics: DELETE /admin/users/:userId/follows/:targetId 
+        // Logic: if type is 'following', we remove userId -> targetId.
+        // If type is 'follower', the backend endpoint removes "userId Follows TargetId". 
+        // Wait, removeUserFollow implementation: `DELETE FROM user_follows WHERE follower_id = $1 AND following_id = $2`.
+        // Params: userId (URL param 1), targetId (URL param 2).
+        // So it removes userId -> targetId. That is "Following".
+        // To remove a FOLLOWER (TargetId -> UserId), we need to swap params? 
+        // Current endpoint implementation assumes removing userId's FOLLOWING.
+        // To remove a follower, we might need another call or endpoint.
+        // AdminController.removeUserFollow: `DELETE FROM user_follows WHERE follower_id = $1 AND following_id = $2`.
+        // If we want to remove a follower (follower_id=Target, following_id=User), we should call:
+        // DELETE /admin/users/TargetId/follows/UserId.
+
+        try {
+            if (type === 'following') {
+                await apiClient.delete(`/admin/users/${id}/follows/${targetId}`);
+            } else {
+                // Remove follower: target follows user.
+                await apiClient.delete(`/admin/users/${targetId}/follows/${id}`);
+            }
+            toast.success('Connection removed');
+            loadFollows();
+        } catch (error) {
+            toast.error('Failed to remove connection');
         }
     };
 
@@ -605,334 +720,413 @@ export default function AdminEditUserPage() {
     if (authLoading || loading) return <div className="p-10 flex justify-center">Loading...</div>;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="mb-6">
-                <Link href="/admin/users" className="flex items-center text-sm text-gray-500 hover:text-gray-700">
-                    <ArrowLeftIcon className="h-4 w-4 mr-1" /> Back to Users
-                </Link>
-            </div>
-
-            <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900">Edit User Profile</h1>
-                        <p className="mt-1 text-sm text-gray-500">ID: {id}</p>
-                    </div>
-                    <div>
-                        {userData.status === 'active' && <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>}
-                        {userData.status === 'banned' && <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Banned</span>}
-                        {userData.status === 'deactivated' && <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Deactivated</span>}
-                    </div>
+        <>
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div className="mb-6">
+                    <Link href="/admin/users" className="flex items-center text-sm text-gray-500 hover:text-gray-700">
+                        <ArrowLeftIcon className="h-4 w-4 mr-1" /> Back to Users
+                    </Link>
                 </div>
 
-                <div className="p-6">
-                    {/* Rich Form adapted from ProfilePage */}
-                    <div className="flex items-start space-x-6 mb-8">
-                        {/* Avatar Display Only (Upload disabled for admin for now) */}
-                        <div className="relative">
-                            {userData.profileImage ? (
-                                <img src={getImageUrl(userData.profileImage)} alt={userData.name} className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg" />
-                            ) : (
-                                <div className="w-24 h-24 bg-[#00132d] rounded-full flex items-center justify-center border-4 border-white shadow-lg">
-                                    <span className="text-[#fff7d7] text-2xl font-bold">{userData.name?.charAt(0) || 'U'}</span>
-                                </div>
-                            )}
-                            {/* Hidden input for now */}
-                            {/* <label className="absolute bottom-0 right-0 bg-[#00132d] text-[#fff7d7] p-2 rounded-full cursor-pointer"><CameraIcon className="h-4 w-4" /><input type="file" className="hidden" onChange={handleImageUpload} /></label> */}
+                <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
+                    <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                        <div>
+                            <h1 className="text-xl font-bold text-gray-900">Edit User Profile</h1>
+                            <p className="mt-1 text-sm text-gray-500">ID: {id}</p>
                         </div>
+                        <div>
+                            {userData.status === 'active' && <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 mr-2">Active</span>}
+                            {userData.status === 'banned' && <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 mr-2">Banned</span>}
+                            {userData.status === 'deactivated' && <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 mr-2">Deactivated</span>}
 
-                        <div className="flex-1 space-y-4">
-                            <h2 className="text-lg font-medium text-gray-900">Basic Info</h2>
-                            <input
-                                type="text"
-                                value={userData.name}
-                                onChange={(e) => setUserData({ ...userData, name: e.target.value })}
-                                className="w-full text-xl font-bold text-gray-900 bg-transparent border-b-2 border-gray-200 focus:border-[#00132d] focus:outline-none"
-                                placeholder="User Name"
-                            />
-
-                            {/* Username */}
-                            <div className="mt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                                {(() => {
-                                    const cooldownDays = getUsernameChangeCooldown();
-                                    return (
-                                        <div className="space-y-2">
-                                            {cooldownDays && (
-                                                <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-800">
-                                                    Cooldown active: {cooldownDays} days remaining. Admin override available (edit below).
-                                                </div>
-                                            )}
-                                            <div className="flex items-center">
-                                                <span className="text-gray-400 mr-2">@</span>
-                                                <input
-                                                    type="text"
-                                                    value={userData.username}
-                                                    onChange={(e) => handleUsernameChange(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
-                                                    className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${usernameStatus === 'available' ? 'border-green-300 focus:ring-green-200' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-red-300 focus:ring-red-200' : 'border-gray-300'}`}
-                                                />
-                                                <div className="ml-2 w-6">
-                                                    {usernameStatus === 'checking' && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#00132d]"></div>}
-                                                    {usernameStatus === 'available' && <CheckCircleIcon className="h-5 w-5 text-green-500" />}
-                                                    {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <XCircleIcon className="h-5 w-5 text-red-500" />}
-                                                </div>
-                                            </div>
-                                            {usernameError && <p className="text-xs text-red-600">{usernameError}</p>}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
+                            <select
+                                value={userData.verificationStatus}
+                                onChange={(e) => handleVerificationChange(e.target.value)}
+                                className={`text-xs font-semibold rounded-full border-0 py-1 pl-2 pr-6 focus:ring-1 cursor-pointer ${userData.verificationStatus === 'verified' ? 'bg-blue-100 text-blue-800' : userData.verificationStatus === 'rejected' ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}
+                            >
+                                <option value="unverified">Unverified</option>
+                                <option value="pending">Pending</option>
+                                <option value="verified">Verified</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
                         </div>
                     </div>
 
-                    <div className="space-y-6">
-                        {/* Bio */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
-                            <textarea value={userData.bio} onChange={(e) => setUserData({ ...userData, bio: e.target.value })} rows={3} className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500" />
-                        </div>
-
-                        {/* Roles */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Roles</label>
-                            <div className="flex flex-wrap gap-2">
-                                {AVAILABLE_ROLES.map(role => (
-                                    <button
-                                        key={role}
-                                        type="button"
-                                        onClick={() => {
-                                            const newRoles = userData.roles.includes(role) ? userData.roles.filter(r => r !== role) : [...userData.roles, role];
-                                            setUserData({ ...userData, roles: newRoles });
-                                        }}
-                                        className={`px-3 py-1 rounded-full text-sm font-medium border ${userData.roles.includes(role) ? 'bg-[#00132d] text-[#fff7d7] border-[#00132d]' : 'bg-white text-gray-700 border-gray-300'}`}
-                                    >
-                                        {role}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Personal Info */}
-                        <div className="pt-6 border-t border-gray-100">
-                            <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Info</h3>
-                            <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-700">Birth Date</label>
-                                        <div className="flex gap-2">
-                                            <input type="date" value={userData.birthDate} onChange={(e) => setUserData({ ...userData, birthDate: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, birthDate: !p.privacySettings.birthDate } }))} className={`p-2 rounded ${userData.privacySettings.birthDate ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.birthDate ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-700">Gender</label>
-                                        <div className="flex gap-2 items-center h-10">
-                                            <select value={userData.gender} onChange={(e) => setUserData({ ...userData, gender: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm">
-                                                <option value="">Select...</option>
-                                                <option value="male">Male</option>
-                                                <option value="female">Female</option>
-                                                <option value="other">Other</option>
-                                                <option value="prefer-not-to-say">Prefer not to say</option>
-                                            </select>
-                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, gender: !p.privacySettings.gender } }))} className={`p-2 rounded ${userData.privacySettings.gender ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.gender ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {userData.gender === 'other' && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <input type="text" placeholder="Specify gender" value={userData.genderOther} onChange={(e) => setUserData({ ...userData, genderOther: e.target.value })} className="rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                        <select value={userData.bodyType} onChange={(e) => setUserData({ ...userData, bodyType: e.target.value })} className="rounded-md border-gray-300 shadow-sm sm:text-sm">
-                                            <option value="">Select Body Type</option>
-                                            <option value="male">Male</option>
-                                            <option value="female">Female</option>
-                                        </select>
+                    <div className="p-6">
+                        {/* Rich Form adapted from ProfilePage */}
+                        <div className="flex items-start space-x-6 mb-8">
+                            {/* Avatar Display Only (Upload disabled for admin for now) */}
+                            <div className="relative group">
+                                {userProfile?.bannerImage && (
+                                    <div className="absolute -top-24 left-0 w-full h-32 -z-10 rounded-t-lg overflow-hidden">
+                                        <img src={getImageUrl(userProfile.bannerImage)} className="w-full h-full object-cover opacity-50" />
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-700">Height (cm)</label>
-                                        <div className="flex gap-2">
-                                            <input type="number" value={userData.height} onChange={(e) => setUserData({ ...userData, height: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, height: !p.privacySettings.height } }))} className={`p-2 rounded ${userData.privacySettings.height ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.height ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                <div className="relative">
+                                    {userData.profileImage ? (
+                                        <img src={getImageUrl(userData.profileImage)} alt={userData.name} className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg" />
+                                    ) : (
+                                        <div className="w-24 h-24 bg-[#00132d] rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                                            <span className="text-[#fff7d7] text-2xl font-bold">{userData.name?.charAt(0) || 'U'}</span>
                                         </div>
+                                    )}
+                                    <div className="absolute -bottom-2 -right-2 flex gap-1">
+                                        <button type="button" onClick={handleAvatarUploadClick} className="bg-white p-1.5 rounded-full shadow border border-gray-200 text-gray-600 hover:text-blue-600" title="Change Avatar">
+                                            <CameraIcon className="h-4 w-4" />
+                                        </button>
                                     </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-700">Weight (kg)</label>
-                                        <div className="flex gap-2">
-                                            <input type="number" value={userData.weight} onChange={(e) => setUserData({ ...userData, weight: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, weight: !p.privacySettings.weight } }))} className={`p-2 rounded ${userData.privacySettings.weight ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.weight ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
-                                        </div>
-                                    </div>
+                                    <input type="file" id="admin-avatar-upload" className="hidden" accept="image/*" onChange={handleImageUpload} />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-700">Contact Email</label>
-                                        <input type="email" value={userData.contactEmail} onChange={(e) => setUserData({ ...userData, contactEmail: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-700">Telephone</label>
-                                        <div className="flex gap-2">
-                                            <input type="tel" value={userData.telephone} onChange={(e) => setUserData({ ...userData, telephone: formatPhone(e.target.value) })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, telephone: !p.privacySettings.telephone } }))} className={`p-2 rounded ${userData.privacySettings.telephone ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.telephone ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
-                                        </div>
-                                    </div>
+                                <div className="mt-2 text-xs text-center">
+                                    <button type="button" onClick={handleBannerUploadClick} className="text-blue-600 hover:underline">Change Banner</button>
+                                    <input type="file" id="admin-banner-upload" className="hidden" accept="image/*" onChange={handleImageUpload} />
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Address */}
-                        <div className="pt-6 border-t border-gray-100">
-                            <h3 className="text-lg font-medium text-gray-900 mb-4">Address</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="col-span-1">
-                                    <label className="text-xs text-gray-500">CEP</label>
-                                    <input type="text" value={userData.cep} onChange={(e) => setUserData({ ...userData, cep: formatCEP(e.target.value) })} onBlur={handleCEPBlur} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="00000-000" />
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="text-xs text-gray-500">Country</label>
-                                    <div className="flex gap-1">
-                                        <input type="text" value={userData.country} onChange={(e) => setUserData({ ...userData, country: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                        <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, country: !p.privacySettings.country } }))} className={`p-1 rounded ${userData.privacySettings.country ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.country ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
-                                    </div>
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="text-xs text-gray-500">State</label>
-                                    <div className="flex gap-1">
-                                        <select value={userData.state} onChange={(e) => setUserData({ ...userData, state: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm">
-                                            <option value="">Select</option>
-                                            {BRAZILIAN_STATES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                                        </select>
-                                        <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, state: !p.privacySettings.state } }))} className={`p-1 rounded ${userData.privacySettings.state ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.state ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
-                                    </div>
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="text-xs text-gray-500">City</label>
-                                    <div className="flex gap-1">
-                                        <input type="text" value={userData.city} onChange={(e) => setUserData({ ...userData, city: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                        <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, city: !p.privacySettings.city } }))} className={`p-1 rounded ${userData.privacySettings.city ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.city ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
-                                    </div>
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="text-xs text-gray-500">Address (Street)</label>
-                                    <input type="text" value={userData.street} onChange={(e) => setUserData({ ...userData, street: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="text-xs text-gray-500">Number</label>
-                                    <input type="text" value={userData.number} onChange={(e) => setUserData({ ...userData, number: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="text-xs text-gray-500">Complement</label>
-                                    <input type="text" value={userData.complement} onChange={(e) => setUserData({ ...userData, complement: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="text-xs text-gray-500">Neighborhood</label>
-                                    <input type="text" value={userData.neighborhood} onChange={(e) => setUserData({ ...userData, neighborhood: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
-                                </div>
-                            </div>
-                        </div>
+                            <div className="flex-1 space-y-4">
+                                <h2 className="text-lg font-medium text-gray-900">Basic Info</h2>
+                                <input
+                                    type="text"
+                                    value={userData.name}
+                                    onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+                                    className="w-full text-xl font-bold text-gray-900 bg-transparent border-b-2 border-gray-200 focus:border-[#00132d] focus:outline-none"
+                                    placeholder="User Name"
+                                />
 
-                        {/* Social Links */}
-                        <div className="pt-6 border-t border-gray-100">
-                            <h3 className="text-lg font-medium text-gray-900 mb-4">Social Links</h3>
-                            <div className="grid grid-cols-1 gap-3">
-                                {SOCIAL_PLATFORMS.map(platform => {
-                                    const existing = userData.socialLinks.find(l => l.platform === platform);
-                                    return (
-                                        <div key={platform} className="flex items-center space-x-2">
-                                            <div className="w-32 flex items-center space-x-2">
-                                                <SocialIcon platform={platform} size="sm" className="text-gray-400" />
-                                                <span className="text-sm text-gray-600">{platform}</span>
+                                {/* Username */}
+                                <div className="mt-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                                    {(() => {
+                                        const cooldownDays = getUsernameChangeCooldown();
+                                        return (
+                                            <div className="space-y-2">
+                                                {cooldownDays && (
+                                                    <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-800">
+                                                        Cooldown active: {cooldownDays} days remaining. Admin override available (edit below).
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center">
+                                                    <span className="text-gray-400 mr-2">@</span>
+                                                    <input
+                                                        type="text"
+                                                        value={userData.username}
+                                                        onChange={(e) => handleUsernameChange(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
+                                                        className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${usernameStatus === 'available' ? 'border-green-300 focus:ring-green-200' : usernameStatus === 'taken' || usernameStatus === 'invalid' ? 'border-red-300 focus:ring-red-200' : 'border-gray-300'}`}
+                                                    />
+                                                    <div className="ml-2 w-6">
+                                                        {usernameStatus === 'checking' && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#00132d]"></div>}
+                                                        {usernameStatus === 'available' && <CheckCircleIcon className="h-5 w-5 text-green-500" />}
+                                                        {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <XCircleIcon className="h-5 w-5 text-red-500" />}
+                                                    </div>
+                                                </div>
+                                                {usernameError && <p className="text-xs text-red-600">{usernameError}</p>}
                                             </div>
-                                            <input
-                                                type="text"
-                                                value={existing ? existing.url : ''}
-                                                onChange={(e) => {
-                                                    const newLinks = [...userData.socialLinks];
-                                                    const idx = newLinks.findIndex(l => l.platform === platform);
-                                                    if (idx >= 0) {
-                                                        if (e.target.value) newLinks[idx].url = e.target.value;
-                                                        else newLinks.splice(idx, 1);
-                                                    } else if (e.target.value) {
-                                                        newLinks.push({ platform, url: e.target.value });
-                                                    }
-                                                    setUserData({ ...userData, socialLinks: newLinks });
-                                                }}
-                                                className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm"
-                                                placeholder={`URL or handle`}
-                                            />
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-
-                        {/* Security */}
-                        <div className="pt-6 border-t border-gray-100">
-                            <h3 className="text-lg font-medium text-gray-900 mb-4">Security</h3>
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <div className="max-w-xs">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Change Password</label>
-                                    <div className="relative">
-                                        <input
-                                            type="password"
-                                            value={userData.password}
-                                            onChange={(e) => setUserData({ ...userData, password: e.target.value })}
-                                            className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm pr-10"
-                                            placeholder="Enter new password"
-                                            autoComplete="new-password"
-                                        />
-                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                                            <LockClosedIcon className="h-4 w-4 text-gray-400" />
-                                        </div>
-                                    </div>
-                                    <p className="mt-1 text-xs text-gray-500">Leave blank to keep current password.</p>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Save Actions */}
-                        <div className="pt-6 border-t border-gray-200 flex justify-end gap-3">
-                            <button type="button" onClick={() => router.push('/admin/users')} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
-                            <button
-                                type="submit"
-                                onClick={handleSubmit}
-                                disabled={saving}
-                                className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                            >
-                                {saving ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </div>
+                        <div className="space-y-6">
+                            {/* Bio */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
+                                <textarea value={userData.bio} onChange={(e) => setUserData({ ...userData, bio: e.target.value })} rows={3} className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+                            </div>
 
+                            {/* Roles */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Roles</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {AVAILABLE_ROLES.map(role => (
+                                        <button
+                                            key={role}
+                                            type="button"
+                                            onClick={() => {
+                                                const newRoles = userData.roles.includes(role) ? userData.roles.filter(r => r !== role) : [...userData.roles, role];
+                                                setUserData({ ...userData, roles: newRoles });
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-sm font-medium border ${userData.roles.includes(role) ? 'bg-[#00132d] text-[#fff7d7] border-[#00132d]' : 'bg-white text-gray-700 border-gray-300'}`}
+                                        >
+                                            {role}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Personal Info */}
+                            <div className="pt-6 border-t border-gray-100">
+                                <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Info</h3>
+                                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">Birth Date</label>
+                                            <div className="flex gap-2">
+                                                <input type="date" value={userData.birthDate} onChange={(e) => setUserData({ ...userData, birthDate: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                                <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, birthDate: !p.privacySettings.birthDate } }))} className={`p-2 rounded ${userData.privacySettings.birthDate ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.birthDate ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">Gender</label>
+                                            <div className="flex gap-2 items-center h-10">
+                                                <select value={userData.gender} onChange={(e) => setUserData({ ...userData, gender: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm">
+                                                    <option value="">Select...</option>
+                                                    <option value="male">Male</option>
+                                                    <option value="female">Female</option>
+                                                    <option value="other">Other</option>
+                                                    <option value="prefer-not-to-say">Prefer not to say</option>
+                                                </select>
+                                                <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, gender: !p.privacySettings.gender } }))} className={`p-2 rounded ${userData.privacySettings.gender ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.gender ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {userData.gender === 'other' && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <input type="text" placeholder="Specify gender" value={userData.genderOther} onChange={(e) => setUserData({ ...userData, genderOther: e.target.value })} className="rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                            <select value={userData.bodyType} onChange={(e) => setUserData({ ...userData, bodyType: e.target.value })} className="rounded-md border-gray-300 shadow-sm sm:text-sm">
+                                                <option value="">Select Body Type</option>
+                                                <option value="male">Male</option>
+                                                <option value="female">Female</option>
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">Height (cm)</label>
+                                            <div className="flex gap-2">
+                                                <input type="number" value={userData.height} onChange={(e) => setUserData({ ...userData, height: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                                <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, height: !p.privacySettings.height } }))} className={`p-2 rounded ${userData.privacySettings.height ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.height ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">Weight (kg)</label>
+                                            <div className="flex gap-2">
+                                                <input type="number" value={userData.weight} onChange={(e) => setUserData({ ...userData, weight: e.target.value })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                                <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, weight: !p.privacySettings.weight } }))} className={`p-2 rounded ${userData.privacySettings.weight ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.weight ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">Contact Email</label>
+                                            <input type="email" value={userData.contactEmail} onChange={(e) => setUserData({ ...userData, contactEmail: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">Telephone</label>
+                                            <div className="flex gap-2">
+                                                <input type="tel" value={userData.telephone} onChange={(e) => setUserData({ ...userData, telephone: formatPhone(e.target.value) })} className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                                <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, telephone: !p.privacySettings.telephone } }))} className={`p-2 rounded ${userData.privacySettings.telephone ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.telephone ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Address */}
+                            <div className="pt-6 border-t border-gray-100">
+                                <h3 className="text-lg font-medium text-gray-900 mb-4">Address</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="col-span-1">
+                                        <label className="text-xs text-gray-500">CEP</label>
+                                        <input type="text" value={userData.cep} onChange={(e) => setUserData({ ...userData, cep: formatCEP(e.target.value) })} onBlur={handleCEPBlur} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="00000-000" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-xs text-gray-500">Country</label>
+                                        <div className="flex gap-1">
+                                            <input type="text" value={userData.country} onChange={(e) => setUserData({ ...userData, country: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, country: !p.privacySettings.country } }))} className={`p-1 rounded ${userData.privacySettings.country ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.country ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-xs text-gray-500">State</label>
+                                        <div className="flex gap-1">
+                                            <select value={userData.state} onChange={(e) => setUserData({ ...userData, state: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm">
+                                                <option value="">Select</option>
+                                                {BRAZILIAN_STATES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                            </select>
+                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, state: !p.privacySettings.state } }))} className={`p-1 rounded ${userData.privacySettings.state ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.state ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-xs text-gray-500">City</label>
+                                        <div className="flex gap-1">
+                                            <input type="text" value={userData.city} onChange={(e) => setUserData({ ...userData, city: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                            <button onClick={() => setUserData(p => ({ ...p, privacySettings: { ...p.privacySettings, city: !p.privacySettings.city } }))} className={`p-1 rounded ${userData.privacySettings.city ? 'bg-blue-100' : 'bg-gray-200'}`}>{userData.privacySettings.city ? <EyeIcon className="w-4 h-4" /> : <EyeSlashIcon className="w-4 h-4" />}</button>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-xs text-gray-500">Address (Street)</label>
+                                        <input type="text" value={userData.street} onChange={(e) => setUserData({ ...userData, street: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-xs text-gray-500">Number</label>
+                                        <input type="text" value={userData.number} onChange={(e) => setUserData({ ...userData, number: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-xs text-gray-500">Complement</label>
+                                        <input type="text" value={userData.complement} onChange={(e) => setUserData({ ...userData, complement: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-xs text-gray-500">Neighborhood</label>
+                                        <input type="text" value={userData.neighborhood} onChange={(e) => setUserData({ ...userData, neighborhood: e.target.value })} className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Social Links */}
+                            <div className="pt-6 border-t border-gray-100">
+                                <h3 className="text-lg font-medium text-gray-900 mb-4">Social Links</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {SOCIAL_PLATFORMS.map(platform => {
+                                        const existing = userData.socialLinks.find(l => l.platform === platform);
+                                        return (
+                                            <div key={platform} className="flex items-center space-x-2">
+                                                <div className="w-32 flex items-center space-x-2">
+                                                    <SocialIcon platform={platform} size="sm" className="text-gray-400" />
+                                                    <span className="text-sm text-gray-600">{platform}</span>
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={existing ? existing.url : ''}
+                                                    onChange={(e) => {
+                                                        const newLinks = [...userData.socialLinks];
+                                                        const idx = newLinks.findIndex(l => l.platform === platform);
+                                                        if (idx >= 0) {
+                                                            if (e.target.value) newLinks[idx].url = e.target.value;
+                                                            else newLinks.splice(idx, 1);
+                                                        } else if (e.target.value) {
+                                                            newLinks.push({ platform, url: e.target.value });
+                                                        }
+                                                        setUserData({ ...userData, socialLinks: newLinks });
+                                                    }}
+                                                    className="flex-1 rounded-md border-gray-300 shadow-sm sm:text-sm"
+                                                    placeholder={`URL or handle`}
+                                                />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+
+                            {/* Security */}
+                            <div className="pt-6 border-t border-gray-100">
+                                <h3 className="text-lg font-medium text-gray-900 mb-4">Security</h3>
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <div className="max-w-xs">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Change Password</label>
+                                        <div className="relative">
+                                            <input
+                                                type="password"
+                                                value={userData.password}
+                                                onChange={(e) => setUserData({ ...userData, password: e.target.value })}
+                                                className="w-full rounded-md border-gray-300 shadow-sm sm:text-sm pr-10"
+                                                placeholder="Enter new password"
+                                                autoComplete="new-password"
+                                            />
+                                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                                <LockClosedIcon className="h-4 w-4 text-gray-400" />
+                                            </div>
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">Leave blank to keep current password.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Save Actions */}
+                            <div className="pt-6 border-t border-gray-200 flex justify-end gap-3">
+                                <button type="button" onClick={() => router.push('/admin/users')} className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                                <button
+                                    type="submit"
+                                    onClick={handleSubmit}
+                                    disabled={saving}
+                                    className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                                >
+                                    {saving ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+
+                        </div>
                     </div>
+
+                    {/* Linked Entities */}
+                    <div className="border-t border-gray-200">
+                        <div className="px-6 py-4 bg-gray-50 flex justify-between items-center">
+                            <h2 className="text-lg font-medium text-gray-900">Linked Entities</h2>
+                            <div className="flex items-center gap-2">
+                                {selectionMode ? (
+                                    <>
+                                        <button onClick={exitSelectionMode} className="text-xs text-gray-600 hover:text-gray-800 px-2 py-1 border border-gray-300 rounded">Cancel</button>
+                                        <button onClick={() => setBatchUnlinkModalOpen(true)} disabled={getTotalSelected() === 0} className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded disabled:opacity-50">Unlink Selected</button>
+                                    </>
+                                ) : (
+                                    <button onClick={() => setSelectionMode(true)} className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 border border-blue-200 rounded">Select to Unlink</button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <EntitySection title="Brands" items={linkedEntities.brands} onAdd={() => openLinkModal('brand')} onRemove={(itemId) => openUnlinkModal('brand', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.brands} onToggleSelect={(itemId) => toggleEntitySelection('brand', itemId)} />
+                            {/* Reuse EntitySection for others... condensed for clarity in implementation plan */}
+                            <EntitySection title="Non-Profits" items={linkedEntities.nonProfits} onAdd={() => openLinkModal('nonProfit')} onRemove={(itemId) => openUnlinkModal('nonProfit', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.nonProfits} onToggleSelect={(itemId) => toggleEntitySelection('nonProfit', itemId)} />
+                            <EntitySection title="Stores" items={linkedEntities.stores} onAdd={() => openLinkModal('store')} onRemove={(itemId) => openUnlinkModal('store', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.stores} onToggleSelect={(itemId) => toggleEntitySelection('store', itemId)} />
+                            <EntitySection title="Suppliers" items={linkedEntities.suppliers} onAdd={() => openLinkModal('supplier')} onRemove={(itemId) => openUnlinkModal('supplier', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.suppliers} onToggleSelect={(itemId) => toggleEntitySelection('supplier', itemId)} />
+                            <EntitySection title="Pages" items={linkedEntities.pages} onAdd={() => openLinkModal('page')} onRemove={(itemId) => openUnlinkModal('page', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.pages} onToggleSelect={(itemId) => toggleEntitySelection('page', itemId)} />
+                        </div>
+                    </div>
+
                 </div>
 
-                {/* Linked Entities */}
+                {/* Follow Management */}
                 <div className="border-t border-gray-200">
                     <div className="px-6 py-4 bg-gray-50 flex justify-between items-center">
-                        <h2 className="text-lg font-medium text-gray-900">Linked Entities</h2>
-                        <div className="flex items-center gap-2">
-                            {selectionMode ? (
-                                <>
-                                    <button onClick={exitSelectionMode} className="text-xs text-gray-600 hover:text-gray-800 px-2 py-1 border border-gray-300 rounded">Cancel</button>
-                                    <button onClick={() => setBatchUnlinkModalOpen(true)} disabled={getTotalSelected() === 0} className="text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded disabled:opacity-50">Unlink Selected</button>
-                                </>
-                            ) : (
-                                <button onClick={() => setSelectionMode(true)} className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 border border-blue-200 rounded">Select to Unlink</button>
-                            )}
-                        </div>
+                        <h2 className="text-lg font-medium text-gray-900">Network / Relations</h2>
+                        <button onClick={() => setIsFollowModalOpen(true)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center border border-blue-200 rounded px-2 py-1"><PlusIcon className="h-3 w-3 mr-1" /> Add Follow</button>
                     </div>
-                    <div className="p-6 space-y-6">
-                        <EntitySection title="Brands" items={linkedEntities.brands} onAdd={() => openLinkModal('brand')} onRemove={(itemId) => openUnlinkModal('brand', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.brands} onToggleSelect={(itemId) => toggleEntitySelection('brand', itemId)} />
-                        {/* Reuse EntitySection for others... condensed for clarity in implementation plan */}
-                        <EntitySection title="Non-Profits" items={linkedEntities.nonProfits} onAdd={() => openLinkModal('nonProfit')} onRemove={(itemId) => openUnlinkModal('nonProfit', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.nonProfits} onToggleSelect={(itemId) => toggleEntitySelection('nonProfit', itemId)} />
-                        <EntitySection title="Stores" items={linkedEntities.stores} onAdd={() => openLinkModal('store')} onRemove={(itemId) => openUnlinkModal('store', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.stores} onToggleSelect={(itemId) => toggleEntitySelection('store', itemId)} />
-                        <EntitySection title="Suppliers" items={linkedEntities.suppliers} onAdd={() => openLinkModal('supplier')} onRemove={(itemId) => openUnlinkModal('supplier', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.suppliers} onToggleSelect={(itemId) => toggleEntitySelection('supplier', itemId)} />
-                        <EntitySection title="Pages" items={linkedEntities.pages} onAdd={() => openLinkModal('page')} onRemove={(itemId) => openUnlinkModal('page', itemId)} selectionMode={selectionMode} selectedIds={selectedEntities.pages} onToggleSelect={(itemId) => toggleEntitySelection('page', itemId)} />
+                    <div className="p-6">
+                        <Tab.Group>
+                            <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 p-1 mb-4 w-fit">
+                                <Tab className={({ selected }) => `w-32 rounded-lg py-2.5 text-sm font-medium leading-5 ${selected ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'}`}>Followers ({follows.followers.length})</Tab>
+                                <Tab className={({ selected }) => `w-32 rounded-lg py-2.5 text-sm font-medium leading-5 ${selected ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'}`}>Following ({follows.following.length})</Tab>
+                            </Tab.List>
+                            <Tab.Panels>
+                                <Tab.Panel>
+                                    {follows.followers.length > 0 ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {follows.followers.map((f: any) => (
+                                                <div key={f.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                                                    <div className="flex items-center gap-3">
+                                                        <img src={getImageUrl(f.avatar)} className="w-8 h-8 rounded-full bg-gray-200 object-cover" />
+                                                        <div><p className="text-sm font-medium">{f.name || f.username}</p><p className="text-xs text-gray-500">@{f.username}</p></div>
+                                                    </div>
+                                                    <button onClick={() => handleRemoveFollow(f.id, 'follower')} className="text-xs text-red-500 hover:text-red-700 border border-red-100 rounded px-2 py-1">Remove</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : <p className="text-sm text-gray-500 italic">No followers.</p>}
+                                </Tab.Panel>
+                                <Tab.Panel>
+                                    {follows.following.length > 0 ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {follows.following.map((f: any) => (
+                                                <div key={f.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                                                    <div className="flex items-center gap-3">
+                                                        <img src={getImageUrl(f.avatar)} className="w-8 h-8 rounded-full bg-gray-200 object-cover" />
+                                                        <div><p className="text-sm font-medium">{f.name || f.username}</p><p className="text-xs text-gray-500">@{f.username}</p></div>
+                                                    </div>
+                                                    <button onClick={() => handleRemoveFollow(f.id, 'following')} className="text-xs text-red-500 hover:text-red-700 border border-red-100 rounded px-2 py-1">Remove</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : <p className="text-sm text-gray-500 italic">Not following anyone.</p>}
+                                </Tab.Panel>
+                            </Tab.Panels>
+                        </Tab.Group>
                     </div>
                 </div>
 
@@ -1007,8 +1201,35 @@ export default function AdminEditUserPage() {
                 </div>
             </Dialog>
 
+
+            {/* Follow Modal */}
+            <Dialog open={isFollowModalOpen} onClose={() => setIsFollowModalOpen(false)} className="relative z-50">
+                <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+                <div className="fixed inset-0 flex items-center justify-center p-4">
+                    <Dialog.Panel className="mx-auto max-w-sm rounded bg-white p-6 shadow-xl w-full">
+                        <Dialog.Title className="text-lg font-medium text-gray-900">Add Follow Connection</Dialog.Title>
+                        <p className="text-xs text-gray-500 mb-4">Make this user follow someone.</p>
+                        <div className="mb-4">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Search User to Follow</label>
+                            <SmartCombobox
+                                value={selectedFollowUser}
+                                onChange={setSelectedFollowUser}
+                                options={followSearchResults.map(u => ({ id: u.id, name: u.personalInfo?.name || u.username, label: `@${u.username}` }))}
+                                onSearch={searchUsersToFollow}
+                                placeholder="Type username..."
+                                loading={followSearchLoading}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setIsFollowModalOpen(false)} className="px-3 py-2 text-sm bg-white border rounded">Cancel</button>
+                            <button onClick={handleForceFollow} disabled={!selectedFollowUser} className="px-3 py-2 text-sm text-white bg-blue-600 rounded disabled:opacity-50">Force Follow</button>
+                        </div>
+                    </Dialog.Panel>
+                </div>
+            </Dialog>
+
             {showCropper && <ImageCropper imageSrc={cropperImageSrc} onCancel={() => { setShowCropper(false); setCropperImageSrc(''); }} onCropComplete={handleCropSave} />}
-        </div>
+        </>
     );
 }
 

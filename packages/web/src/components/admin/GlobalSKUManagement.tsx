@@ -95,6 +95,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         skuId: ''
     });
 
+    // Silhouette/Modeling State
+    const [availableSilhouettes, setAvailableSilhouettes] = useState<any[]>([]);
+    const [selectedSilhouetteId, setSelectedSilhouetteId] = useState<string>('');
+
     // Form Data
     const [formData, setFormData] = useState({
         brandId: '',
@@ -138,7 +142,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         generatedCode: '',
         retailPriceBrl: '' as string | number,
         retailPriceUsd: '' as string | number,
-        retailPriceEur: '' as string | number
+        retailPriceEur: '' as string | number,
+        releaseDate: '',
+        careInstructions: ''
     });
 
     useEffect(() => {
@@ -231,6 +237,41 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
         fetchApparelPOMs();
     }, [formData.apparelId, pomCategories, pomDefinitions, apparels, vufsCategories]);
+
+    // Fetch silhouettes when brand, apparel, or fit changes
+    useEffect(() => {
+        const fetchSilhouettes = async () => {
+            if (!formData.brandId || !formData.apparelId || !formData.fitId) {
+                setAvailableSilhouettes([]);
+                setSelectedSilhouetteId('');
+                return;
+            }
+
+            try {
+                const res = await apiClient.getSilhouettes({
+                    brandId: formData.brandId,
+                    apparelId: formData.apparelId,
+                    fitId: formData.fitId
+                });
+                setAvailableSilhouettes(res.silhouettes || []);
+            } catch (e) {
+                console.error('Failed to fetch silhouettes', e);
+            }
+        };
+
+        fetchSilhouettes();
+    }, [formData.brandId, formData.apparelId, formData.fitId]);
+
+    // Apply silhouette POMs when selected
+    useEffect(() => {
+        if (!selectedSilhouetteId) return;
+
+        const sil = availableSilhouettes.find(s => s.id === selectedSilhouetteId);
+        if (sil && sil.pom_ids) {
+            setSelectedPomIds(sil.pom_ids);
+            toast.success(`Applied silhouette: ${sil.name}`);
+        }
+    }, [selectedSilhouetteId, availableSilhouettes]);
 
     // Helper to slugify strings for SKU codes
     const slugify = (text: string) => text.toString().toLowerCase()
@@ -646,7 +687,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 generatedCode: sku.code,
                 retailPriceBrl: sku.retailPriceBrl || '',
                 retailPriceUsd: sku.retailPriceUsd || '',
-                retailPriceEur: sku.retailPriceEur || ''
+                retailPriceEur: sku.retailPriceEur || '',
+                releaseDate: sku.releaseDate ? new Date(sku.releaseDate).toISOString().split('T')[0] : '',
+                careInstructions: sku.careInstructions || ''
             });
 
             // Fetch measurements for this SKU
@@ -703,7 +746,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 generatedCode: 'To be generated',
                 retailPriceBrl: '',
                 retailPriceUsd: '',
-                retailPriceEur: ''
+                retailPriceEur: '',
+                releaseDate: '',
+                careInstructions: ''
             });
             setLines([]);
             setCollections([]);
@@ -726,9 +771,11 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         setSelectedVariants([]);
 
         // Resolve brandId - using first variant's data
-        const brandName = firstVariant.brand?.name || '';
+        // Resolve brandId - using parent data first, fall back to variant
+        // The parent row from searchSKUs has { brand: { name: ... } }
+        const brandName = parentSku.brand?.name || firstVariant.brand?.name || '';
         const matchingVufsBrand = vufsBrands.find(b => b.name === brandName);
-        const resolvedBrandId = matchingVufsBrand?.id || firstVariant.brandId || firstVariant.brand?.id || '';
+        const resolvedBrandId = matchingVufsBrand?.id || parentSku.brandId || firstVariant.brandId || firstVariant.brand?.id || '';
 
         // Fetch lines and collections for the brand
         let fetchedLines: any[] = [];
@@ -740,8 +787,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         }
 
         // Resolve lineId
-        const lineName = firstVariant.lineInfo?.name || firstVariant.line || '';
-        let resolvedLineId = firstVariant.lineId || firstVariant.lineInfo?.id || '';
+        const lineName = parentSku.lineInfo?.name || parentSku.line || firstVariant.lineInfo?.name || firstVariant.line || '';
+        let resolvedLineId = parentSku.lineId || parentSku.lineInfo?.id || firstVariant.lineId || firstVariant.lineInfo?.id || '';
         if (!resolvedLineId && lineName && fetchedLines.length > 0) {
             const matchingLine = fetchedLines.find(l => l.name === lineName);
             if (matchingLine) {
@@ -750,10 +797,14 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         }
 
         // Set form data from first variant (without size/color which are variant-specific)
+        // DEBUG: Check if variants have sizeId
+        console.log('[openParentModal] parentSku.variants:', parentSku.variants);
+        console.log('[openParentModal] Extracted sizeIds:', parentSku.variants?.map((v: any) => ({ name: v.name, sizeId: v.sizeId, metadataSizeId: v.metadata?.sizeId })));
+
         setFormData({
             brandId: resolvedBrandId,
             lineId: resolvedLineId,
-            collection: firstVariant.collection || '',
+            collection: parentSku.collection || firstVariant.collection || '',
             modelName: metadata.modelName || parentSku.name, // Use parent's base name
             genderId: metadata.genderId || '',
             apparelId: metadata.apparelId || '',
@@ -762,10 +813,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             materialId: metadata.materialId || '',
             fitId: metadata.fitId || '',
             selectedSizes: Array.isArray(parentSku.variants)
-                ? Array.from(new Set(parentSku.variants.map((v: any) => v.metadata?.sizeId).filter(Boolean)))
+                ? Array.from(new Set(parentSku.variants.map((v: any) => v.metadata?.sizeId || v.sizeId).filter(Boolean)))
                 : [], // Populate with all unique sizes from variants
             selectedColors: [], // Don't show colors for parent editing
-            description: firstVariant.description || '',
+            description: parentSku.description || firstVariant.description || '',
             images: [], // Don't edit images from parent
             videos: [],
             nameConfig: metadata.nameConfig || {
@@ -778,9 +829,11 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             },
             generatedName: parentSku.name,
             generatedCode: parentSku.code,
-            retailPriceBrl: firstVariant.retailPriceBrl || '',
-            retailPriceUsd: firstVariant.retailPriceUsd || '',
-            retailPriceEur: firstVariant.retailPriceEur || ''
+            retailPriceBrl: parentSku.retailPriceBrl || firstVariant.retailPriceBrl || '',
+            retailPriceUsd: parentSku.retailPriceUsd || firstVariant.retailPriceUsd || '',
+            retailPriceEur: parentSku.retailPriceEur || firstVariant.retailPriceEur || '',
+            releaseDate: parentSku.releaseDate ? new Date(parentSku.releaseDate).toISOString().split('T')[0] : '',
+            careInstructions: parentSku.careInstructions || ''
         });
 
         // Fetch measurements - for now, fetch for the first variant to have some data
@@ -889,7 +942,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             },
             retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
             retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
-            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null
+            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null,
+            releaseDate: formData.releaseDate || null,
+            careInstructions: formData.careInstructions || null
         };
     };
     const handleSubmit = async (e: React.FormEvent) => {
@@ -933,17 +988,20 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                 patternId: formData.patternId,
                                 materialId: formData.materialId,
                                 fitId: formData.fitId,
-                                nameConfig: formData.nameConfig
+                                nameConfig: formData.nameConfig,
+                                releaseDate: formData.releaseDate ? new Date(formData.releaseDate) : null,
+                                careInstructions: formData.careInstructions
                             }
                         };
                         await apiClient.updateSKU(variant.id, parentPayload as any);
 
                         // Also update measurements for this variant if relevant
-                        if (variantMetadata.sizeId && measurements) {
+                        const variantSizeId = variantMetadata.sizeId || variant.sizeId;
+                        if (variantSizeId && measurements) {
                             const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
-                                const m = (sizeValues as any)[variantMetadata.sizeId];
+                                const m = (sizeValues as any)[variantSizeId];
                                 if (!m || m.value === undefined) return null;
-                                return { pomId, sizeId: variantMetadata.sizeId, value: m.value, tolerance: m.tolerance };
+                                return { pomId, sizeId: variantSizeId, value: m.value, tolerance: m.tolerance };
                             }).filter(Boolean);
                             if (sizeMeasurements.length > 0) {
                                 await apiClient.saveSKUMeasurements(variant.id, sizeMeasurements as any);
@@ -984,32 +1042,54 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 const parentResult = await apiClient.createSKU(formData.brandId, parentPayload);
                 const parentId = parentResult?.sku?.id;
 
-                if (parentId && (sizesToCreate.length > 0 || colorsToCreate.length > 0)) {
+                if (!parentId) {
+                    throw new Error('Failed to create parent SKU');
+                }
+
+                // Track variant creation results
+                let createdVariants = 0;
+                let failedVariants = 0;
+
+                if (sizesToCreate.length > 0 || colorsToCreate.length > 0) {
                     const effectiveSizes = sizesToCreate.length > 0 ? sizesToCreate : [null];
                     const effectiveColors = colorsToCreate.length > 0 ? colorsToCreate : [null];
 
                     for (const colorId of effectiveColors) {
                         for (const sizeId of effectiveSizes) {
                             if (!sizeId && !colorId) continue;
-                            const variantPayload = buildSKUPayload(colorId, sizeId, false);
-                            variantPayload.parentSkuId = parentId;
-                            const variantResult = await apiClient.createSKU(formData.brandId, variantPayload);
+                            try {
+                                const variantPayload = buildSKUPayload(colorId, sizeId, false);
+                                variantPayload.parentSkuId = parentId;
+                                const variantResult = await apiClient.createSKU(formData.brandId, variantPayload);
 
-                            // Save measurements for this variant if size matches
-                            if (variantResult?.sku?.id && sizeId && measurements) {
-                                const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
-                                    const m = (sizeValues as any)[sizeId];
-                                    if (!m || m.value === undefined) return null;
-                                    return { pomId, sizeId, value: m.value, tolerance: m.tolerance };
-                                }).filter(Boolean);
-                                if (sizeMeasurements.length > 0) {
-                                    await apiClient.saveSKUMeasurements(variantResult.sku.id, sizeMeasurements as any);
+                                // Save measurements for this variant if size matches
+                                if (variantResult?.sku?.id && sizeId && measurements) {
+                                    const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
+                                        const m = (sizeValues as any)[sizeId];
+                                        if (!m || m.value === undefined) return null;
+                                        return { pomId, sizeId, value: m.value, tolerance: m.tolerance };
+                                    }).filter(Boolean);
+                                    if (sizeMeasurements.length > 0) {
+                                        await apiClient.saveSKUMeasurements(variantResult.sku.id, sizeMeasurements as any);
+                                    }
                                 }
+                                createdVariants++;
+                            } catch (variantError) {
+                                console.error('Failed to create variant:', { colorId, sizeId, error: variantError });
+                                failedVariants++;
                             }
                         }
                     }
                 }
-                toast.success('SKUs created successfully');
+
+                // Show appropriate message based on results
+                if (failedVariants > 0 && createdVariants > 0) {
+                    toast.success(`Created ${createdVariants} variant(s), but ${failedVariants} failed`);
+                } else if (failedVariants > 0 && createdVariants === 0) {
+                    toast.error(`Parent SKU created but all ${failedVariants} variants failed`);
+                } else {
+                    toast.success('SKUs created successfully');
+                }
             }
             setShowModal(false);
             fetchSkus();
@@ -1020,6 +1100,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             setModalLoading(false);
         }
     };
+
 
     const handleDelete = async (id: string) => {
         setConfirmModal({
@@ -1103,12 +1184,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         });
     };
 
-    // Fetch trash when switching to trash view
+    // Fetch trash count initially and when search changes
     useEffect(() => {
-        if (showTrash) {
-            fetchDeletedSkus();
-        }
-    }, [showTrash, search]);
+        fetchDeletedSkus();
+    }, [search]);
 
     return (
         <div className="space-y-6">
@@ -1132,16 +1211,6 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                             New SKU
                         </Button>
                     )}
-                    <button
-                        onClick={() => setShowTrash(!showTrash)}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${showTrash
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                    >
-                        <TrashIcon className="h-4 w-4 inline mr-1" />
-                        {showTrash ? 'Back to SKUs' : 'Trash'}
-                    </button>
                 </div>
             </div>
 
@@ -1586,6 +1655,21 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     />
                                                 </div>
 
+                                                {/* Silhouette / Modeling Selection */}
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Silhouette"
+                                                        value={availableSilhouettes.find(s => s.id === selectedSilhouetteId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const sil = availableSilhouettes.find(s => s.name === name);
+                                                            setSelectedSilhouetteId(sil?.id || '');
+                                                        }}
+                                                        options={availableSilhouettes}
+                                                        placeholder={availableSilhouettes.length > 0 ? "Select Silhouette (Modeling)..." : "No Silhouettes found for this combo"}
+                                                        disabled={availableSilhouettes.length === 0}
+                                                    />
+                                                </div>
+
                                                 <div>
                                                     <SearchableCombobox
                                                         label="Gender"
@@ -1645,7 +1729,65 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                         </div>
                                                     </div>
 
+                                                    {/* Release Date */}
+                                                    <div className="col-span-2 sm:col-span-1 mt-4">
+                                                        <label className="block text-xs font-medium text-gray-700 uppercase">Release Date</label>
+                                                        <input
+                                                            type="date"
+                                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                            value={formData.releaseDate}
+                                                            onChange={e => setFormData({ ...formData, releaseDate: e.target.value })}
+                                                        />
+                                                        <p className="mt-1 text-xs text-gray-500">When was this item released or will be released</p>
+                                                    </div>
 
+                                                    {/* Care Instructions */}
+                                                    <div className="col-span-2 mt-4">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Care Instructions</label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    // Get care instructions from selected material
+                                                                    const selectedMaterial = materials.find(m => m.id === formData.materialId);
+                                                                    if (selectedMaterial?.careInstructions) {
+                                                                        setFormData({ ...formData, careInstructions: selectedMaterial.careInstructions });
+                                                                    } else if (selectedMaterial?.name) {
+                                                                        // Fallback to default care instructions based on material name
+                                                                        const defaultInstructions: Record<string, string> = {
+                                                                            'cotton': 'Machine wash cold or warm. Tumble dry low or medium. Iron on medium-high heat if needed.',
+                                                                            'linen': 'Machine wash cold or warm. Tumble dry low or hang to dry. Iron while slightly damp on high heat.',
+                                                                            'wool': 'Hand wash cold or dry clean. Lay flat to dry on a towel. Do not wring or twist.',
+                                                                            'silk': 'Hand wash cold or dry clean. Do not wring. Air dry away from sunlight. Iron on low with a pressing cloth.',
+                                                                            'polyester': 'Machine wash warm or cold. Tumble dry low. Remove promptly to avoid wrinkles.',
+                                                                            'denim': 'Machine wash cold inside out. Tumble dry low or hang to dry to preserve color.',
+                                                                            'leather': 'Wipe with damp cloth. Condition regularly with leather conditioner. Store away from heat and sunlight.'
+                                                                        };
+                                                                        const materialKey = selectedMaterial.name.toLowerCase();
+                                                                        const instructions = defaultInstructions[materialKey] || 'Check garment label for specific care instructions.';
+                                                                        setFormData({ ...formData, careInstructions: instructions });
+                                                                    }
+                                                                }}
+                                                                disabled={!formData.materialId}
+                                                                className={`text-xs flex items-center gap-1 ${formData.materialId
+                                                                    ? 'text-indigo-600 hover:text-indigo-800 cursor-pointer'
+                                                                    : 'text-gray-400 cursor-not-allowed'
+                                                                    }`}
+                                                            >
+                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                                                                </svg>
+                                                                Use default based on material
+                                                            </button>
+                                                        </div>
+                                                        <textarea
+                                                            rows={3}
+                                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                            value={formData.careInstructions}
+                                                            onChange={e => setFormData({ ...formData, careInstructions: e.target.value })}
+                                                            placeholder="How to wash, dry, and maintain this item..."
+                                                        />
+                                                    </div>
 
 
 
