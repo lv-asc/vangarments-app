@@ -2315,8 +2315,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                                                 <div className="relative">
                                                                                     <input
                                                                                         type="number"
-                                                                                        step="0.1"
-                                                                                        placeholder="0.00"
+                                                                                        step="1"
+                                                                                        placeholder="0"
                                                                                         className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 pr-8 text-center"
                                                                                         value={displayValue}
                                                                                         onChange={(e) => {

@@ -20,12 +20,12 @@ export default function ProductCard({ item }: ProductCardProps) {
 
     return (
         <Link href={`/items/${productSlug}`} className="group block h-full">
-            <div className="aspect-[3/4] rounded-lg bg-gray-100 overflow-hidden relative mb-3">
+            <div className="aspect-[4/5] rounded-xl bg-[#EBEBEB] overflow-hidden relative mb-3 p-6">
                 {imageUrl ? (
                     <img
                         src={imageUrl}
                         alt={item.name}
-                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-contain object-center group-hover:scale-105 transition-transform duration-300"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">

@@ -66,7 +66,7 @@ export default function ItemCarousel({ title, items, seeAllLink }: ItemCarouselP
                     }
                 `}</style>
                 {items.map((item) => (
-                    <div key={item.id} className="min-w-[160px] md:min-w-[200px] snap-start">
+                    <div key={item.id} className="flex-none w-[180px] md:w-[320px] snap-start">
                         <ProductCard item={item} />
                     </div>
                 ))}

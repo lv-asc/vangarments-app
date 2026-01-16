@@ -53,7 +53,7 @@ export class SilhouetteController {
      */
     static async createSilhouette(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
-            const { brandId, apparelId, fitId, pomIds } = req.body;
+            const { brandId, apparelId, fitId, variant, pomIds, sizeIds, measurements } = req.body;
 
             if (!brandId || !apparelId || !fitId) {
                 res.status(400).json({ error: 'Missing required fields' });
@@ -84,10 +84,10 @@ export class SilhouetteController {
             const name = `${brandName} ${fitName} ${apparelName} #${nextNumber}`;
 
             const result = await db.query(`
-                INSERT INTO brand_silhouettes (brand_id, apparel_id, fit_id, name, pom_ids)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO brand_silhouettes (brand_id, apparel_id, fit_id, name, variant, pom_ids, size_ids, measurements)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING *
-            `, [brandId, apparelId, fitId, name, pomIds || []]);
+            `, [brandId, apparelId, fitId, name, variant || null, pomIds || [], sizeIds || [], measurements || {}]);
 
             res.status(201).json({ silhouette: result.rows[0] });
         } catch (error) {
@@ -102,7 +102,7 @@ export class SilhouetteController {
     static async updateSilhouette(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const { name, pomIds } = req.body;
+            const { name, variant, pomIds, sizeIds, measurements } = req.body;
 
             const updates: string[] = [];
             const values: any[] = [];
@@ -112,9 +112,21 @@ export class SilhouetteController {
                 updates.push(`name = $${paramIndex++}`);
                 values.push(name);
             }
+            if (variant !== undefined) {
+                updates.push(`variant = $${paramIndex++}`);
+                values.push(variant);
+            }
             if (pomIds) {
                 updates.push(`pom_ids = $${paramIndex++}`);
                 values.push(pomIds);
+            }
+            if (sizeIds) {
+                updates.push(`size_ids = $${paramIndex++}`);
+                values.push(sizeIds);
+            }
+            if (measurements) {
+                updates.push(`measurements = $${paramIndex++}`);
+                values.push(measurements);
             }
 
             if (updates.length === 0) {

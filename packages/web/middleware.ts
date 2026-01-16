@@ -52,7 +52,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Get authentication status from cookies or headers
-  const authToken = request.cookies.get('auth-token')?.value;
+  const authToken = request.cookies.get('auth_token')?.value;
   const isAuthenticated = !!authToken;
 
   // Check if user is admin (simplified check)

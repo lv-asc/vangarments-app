@@ -217,12 +217,19 @@ class ApiClient {
         ...options.headers
       }
     };
+
+    // Add timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    config.signal = controller.signal;
+
     for (const interceptor of this.requestInterceptors) {
       config = await interceptor(config);
     }
 
     try {
       let response = await fetch(url, config);
+      clearTimeout(timeoutId);
       const duration = performance.now() - startTime;
 
       // Record performance metric
@@ -279,6 +286,7 @@ class ApiClient {
 
       return data;
     } catch (error) {
+      clearTimeout(timeoutId);
       const duration = performance.now() - startTime;
 
       // Record failed request performance
