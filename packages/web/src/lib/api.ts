@@ -1744,7 +1744,11 @@ class ApiClient {
 
   async getBrandCollections(brandId: string) {
     const response = await this.request<any>(`/brands/${brandId}/collections?publishedOnly=false`);
-    return (response as any).data || response;
+    const body = (response as any).data || response;
+    if (body && body.success && body.data) {
+      return body.data;
+    }
+    return body;
   }
 
   async createBrandCollection(brandId: string, data: any) {

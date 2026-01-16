@@ -96,9 +96,35 @@ export default function ProductPageClient() {
             try {
                 setLoading(true);
 
-                // Search for product by code (slug) with parentsOnly=true
-                // This should return parent SKUs with their variants grouped
-                const result = await skuApi.searchSKUs(productSlug, undefined, true);
+                let searchSlug = productSlug;
+                let detectedSizeSuffix = '';
+
+                // Helper to slugify consistent with others
+                const toSlug = (text: string) => text.toString().toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
+
+                // 1. First attempt: direct search
+                // This handles:
+                // - Normal parent/child SKU codes (if they match the slug)
+                // - Standalone SKUs
+                let result = await skuApi.searchSKUs(searchSlug, undefined, true);
+
+                // 2. Second attempt: if no results, try stripping valid size suffixes
+                // This handles: /items/product-name-size turned into search for "product-name"
+                if (!result.skus || result.skus.length === 0) {
+                    const parts = productSlug.split('-');
+                    if (parts.length > 1) {
+                        const potentialSize = parts.pop(); // e.g. "l", "xl"
+                        const potentialBase = parts.join('-');
+
+                        // Try searching for the base name/code
+                        const baseResult = await skuApi.searchSKUs(potentialBase, undefined, true);
+                        if (baseResult.skus && baseResult.skus.length > 0) {
+                            result = baseResult;
+                            detectedSizeSuffix = potentialSize || '';
+                            searchSlug = potentialBase;
+                        }
+                    }
+                }
 
                 if (result.skus && result.skus.length > 0) {
                     // For now, we take the first match as the slug should be unique enough
@@ -163,10 +189,20 @@ export default function ProductPageClient() {
 
                     setProduct(matchingProduct);
 
-                    // If a variant ID is specified or we can detect the size from the URL, select that variant
+                    // Variant Selection Logic
+                    // 1. If variantId query param exists, use it (legacy support)
                     if (variantId && matchingProduct.variants) {
                         const variant = matchingProduct.variants.find((v: any) => v.id === variantId);
                         setSelectedVariant(variant || null);
+                    }
+                    // 2. If we detected a size suffix in the slug, try to match it
+                    else if (detectedSizeSuffix && matchingProduct.variants) {
+                        const matchedVariant = matchingProduct.variants.find((v: any) =>
+                            toSlug(v.size || v.name) === detectedSizeSuffix
+                        );
+                        if (matchedVariant) {
+                            setSelectedVariant(matchedVariant);
+                        }
                     }
 
                     // Fetch measurements
@@ -483,6 +519,26 @@ export default function ProductPageClient() {
                                                 </span>
                                             </Link>
                                         )}
+
+                                        {/* Official Item Link Badge */}
+                                        {product.officialItemLink && (
+                                            <a
+                                                href={product.officialItemLink.startsWith('http') ? product.officialItemLink : `https://${product.officialItemLink}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50/50 border border-blue-100 hover:bg-blue-50 hover:border-blue-200 transition-all group"
+                                            >
+                                                <img
+                                                    src={`https://www.google.com/s2/favicons?domain=${new URL(product.officialItemLink.startsWith('http') ? product.officialItemLink : `https://${product.officialItemLink}`).hostname}&sz=32`}
+                                                    alt="Official"
+                                                    className="w-4 h-4 rounded-full"
+                                                    onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /%3E%3C/svg%3E'; }}
+                                                />
+                                                <span className="text-sm font-medium text-blue-700 group-hover:text-blue-800 transition-colors">
+                                                    Official Site
+                                                </span>
+                                            </a>
+                                        )}
                                     </div>
 
                                     <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
@@ -536,7 +592,11 @@ export default function ProductPageClient() {
                                             {product.variants.map((variant: any) => (
                                                 <button
                                                     key={variant.id}
-                                                    onClick={() => setSelectedVariant(variant)}
+                                                    onClick={() => {
+                                                        const newSlug = `${slugify(product.code ? product.code : product.name)}-${slugify(variant.size || variant.name)}`;
+                                                        router.push(`/items/${newSlug}`);
+                                                        setSelectedVariant(variant);
+                                                    }}
                                                     className={`px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${selectedVariant?.id === variant.id
                                                         ? 'border-gray-900 bg-gray-900 text-white'
                                                         : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'

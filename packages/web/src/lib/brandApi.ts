@@ -127,7 +127,7 @@ class BrandApi {
     if (params?.businessType) queryParams.append('businessType', params.businessType);
 
     const response = await apiClient.get<any>(`/brands/search?${queryParams.toString()}`);
-    return response.brands || [];
+    return response.data?.brands || response.brands || [];
   }
 
   async getBrand(brandId: string): Promise<BrandAccount> {

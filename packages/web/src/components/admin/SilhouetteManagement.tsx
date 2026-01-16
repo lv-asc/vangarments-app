@@ -10,6 +10,7 @@ import { PlusIcon, TrashIcon, MagnifyingGlassIcon, ArrowPathIcon, XMarkIcon, Pen
 import SearchableCombobox from '../ui/Combobox';
 import { ApparelIcon } from '../ui/ApparelIcons';
 import { getImageUrl } from '@/lib/utils';
+import { Input } from '@/components/ui/Input';
 
 export default function SilhouetteManagement() {
     const [silhouettes, setSilhouettes] = useState<any[]>([]);
@@ -566,7 +567,7 @@ export default function SilhouetteManagement() {
                                             const isHalf = pom.is_half_measurement;
 
                                             return (
-                                                <div key={pomId} className="bg-white rounded-xl border border-gray-200 shadow-sm relative">
+                                                <div key={pomId} className="bg-white rounded-xl border border-gray-200 shadow-sm relative z-0 hover:z-10 transition-shadow">
                                                     {/* POM Header */}
                                                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between rounded-t-xl">
                                                         <div className="flex items-center gap-2">
@@ -646,29 +647,31 @@ export default function SilhouetteManagement() {
 
                                                             {/* Grade Increment Field */}
                                                             {formData.selectedSizeIds.length > 1 && (
-                                                                <div className="flex flex-col justify-end min-w-[100px]">
+                                                                <div className="flex flex-col justify-end min-w-[110px] group relative">
                                                                     <div className="flex items-center justify-center gap-1 mb-1 relative group">
-                                                                        <label className="block text-xs font-medium text-gray-500 uppercase">
+                                                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-tight">
                                                                             Grade
                                                                         </label>
                                                                         <InformationCircleIcon
-                                                                            className="w-3.5 h-3.5 text-gray-400 hover:text-blue-600 cursor-help transition-colors"
+                                                                            className="w-3.5 h-3.5 text-gray-300 hover:text-blue-500 cursor-help transition-colors"
                                                                         />
-                                                                        {/* Custom Tooltip - Positioned Below Label to avoid clipping by modal header */}
-                                                                        <div className="absolute top-full right-0 mt-1 w-52 p-2 bg-slate-900 text-white text-[11px] rounded-lg shadow-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-all duration-200 z-[70] text-center font-normal leading-tight border border-slate-700">
-                                                                            Enter increment (e.g. 1.0) to auto-fill all sizes based on the first size value.
-                                                                            <div className="absolute bottom-full right-2 border-4 border-transparent border-b-slate-900"></div>
+
+                                                                        {/* Tooltip - Positioned ABOVE to avoid blocking input */}
+                                                                        <div className="hidden group-hover:block absolute bottom-full right-0 mb-2 w-52 p-3 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl z-[200] text-center font-normal leading-relaxed border border-slate-700 pointer-events-none">
+                                                                            <p>Enter an increment (e.g. 1.0) to auto-fill measurements for all larger sizes, starting from the value in the first size.</p>
+                                                                            <div className="absolute top-full right-5 border-[6px] border-transparent border-t-slate-900"></div>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex gap-2">
+                                                                    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
                                                                         <input
                                                                             type="number"
                                                                             step="1"
                                                                             placeholder="0"
                                                                             value={gradeValues[pomId] || ''}
                                                                             onChange={(e) => setGradeValues({ ...gradeValues, [pomId]: e.target.value })}
-                                                                            className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-center py-2"
+                                                                            className="w-10 bg-transparent text-xs font-semibold text-gray-900 focus:outline-none text-center"
                                                                         />
+                                                                        <div className="w-px h-4 bg-gray-300 mx-0.5" />
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => {
@@ -702,8 +705,7 @@ export default function SilhouetteManagement() {
                                                                                 setFormData({ ...formData, measurements: newMeasurements });
                                                                                 toast.success(`Applied +${increment}cm grading`);
                                                                             }}
-                                                                            className="px-4 py-2 bg-slate-900 text-white border border-transparent rounded-md text-xs font-semibold hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-all shadow-sm active:scale-95"
-                                                                            title="Apply grading from first size"
+                                                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wider px-1"
                                                                         >
                                                                             Apply
                                                                         </button>

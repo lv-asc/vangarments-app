@@ -102,6 +102,7 @@ export interface VUFSPattern {
   skuRef?: string;
   groupId?: string;
   subcategoryId?: string;
+  swatchUrl?: string;
   isActive: boolean;
   isDeleted?: boolean;
   deletedAt?: string;
@@ -482,7 +483,9 @@ export class VUFSManagementService {
       isActive: row.is_active,
       skuRef: row.sku_ref,
       careInstructions: row.care_instructions || null,
-      isDeleted: row.is_deleted || false
+      isDeleted: row.is_deleted || false,
+      iconUrl: row.icon_url,
+      swatchUrl: row.swatch_url
     }));
   }
 
@@ -809,15 +812,20 @@ export class VUFSManagementService {
    * Get brands by type
    */
   static async getBrandsByType(type: string, parentId?: string): Promise<VUFSBrandOption[]> {
-    let query = 'SELECT * FROM vufs_brands WHERE type = $1 AND is_active = true';
+    let query = `
+      SELECT vb.*, ba.brand_info->>'logo' as logo
+      FROM vufs_brands vb
+      LEFT JOIN brand_accounts ba ON ba.brand_info->>'name' = vb.name
+      WHERE vb.type = $1 AND vb.is_active = true
+    `;
     const params: any[] = [type];
 
     if (parentId) {
-      query += ' AND parent_id = $2';
+      query += ' AND vb.parent_id = $2';
       params.push(parentId);
     }
 
-    query += ' ORDER BY name';
+    query += ' ORDER BY vb.name';
 
     const result = await db.query(query, params);
     return result.rows.map((row: any) => ({
@@ -825,7 +833,8 @@ export class VUFSManagementService {
       name: row.name,
       type: row.type as any,
       parentId: row.parent_id,
-      isActive: row.is_active
+      isActive: row.is_active,
+      logo: row.logo || undefined
     }));
   }
 
@@ -849,14 +858,20 @@ export class VUFSManagementService {
   }
 
   static async searchBrands(query: string): Promise<VUFSBrandOption[]> {
-    const sql = 'SELECT * FROM vufs_brands WHERE name ILIKE $1 AND is_active = true';
+    const sql = `
+      SELECT vb.*, ba.brand_info->>'logo' as logo
+      FROM vufs_brands vb
+      LEFT JOIN brand_accounts ba ON ba.brand_info->>'name' = vb.name
+      WHERE vb.name ILIKE $1 AND vb.is_active = true
+    `;
     const result = await db.query(sql, [`%${query}%`]);
     return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type as any,
       parentId: row.parent_id,
-      isActive: row.is_active
+      isActive: row.is_active,
+      logo: row.logo || undefined
     }));
   }
 
@@ -999,6 +1014,7 @@ export class VUFSManagementService {
       skuRef: row.sku_ref,
       groupId: row.group_id?.toString(),
       subcategoryId: row.subcategory_id?.toString(),
+      swatchUrl: row.swatch_url,
       isActive: row.is_active,
       isDeleted: row.is_deleted || false
     }));
@@ -1357,7 +1373,9 @@ export class VUFSManagementService {
       isActive: row.is_active,
       skuRef: row.sku_ref,
       isDeleted: row.is_deleted || false,
-      associatedCategories: row.associated_categories || []
+      associatedCategories: row.associated_categories || [],
+      iconUrl: row.icon_url,
+      swatchUrl: row.swatch_url
     }));
   }
 
@@ -1512,7 +1530,14 @@ export class VUFSManagementService {
   static async getGenders(): Promise<any[]> {
     const query = 'SELECT * FROM vufs_genders WHERE is_active = true AND (is_deleted = false OR is_deleted IS NULL) ORDER BY name';
     const result = await db.query(query);
-    return result.rows.map((row: any) => ({ ...row, isActive: row.is_active, skuRef: row.sku_ref, isDeleted: row.is_deleted || false }));
+    return result.rows.map((row: any) => ({
+      ...row,
+      isActive: row.is_active,
+      skuRef: row.sku_ref,
+      isDeleted: row.is_deleted || false,
+      iconUrl: row.icon_url,
+      swatchUrl: row.swatch_url
+    }));
   }
 
   static async getDeletedGenders(): Promise<any[]> {
@@ -1621,7 +1646,9 @@ export class VUFSManagementService {
       isActive: row.is_active,
       sortOrder: row.sort_order || 0,
       parentId: row.parent_id || null,
-      skuRef: row.sku_ref
+      skuRef: row.sku_ref,
+      iconUrl: row.icon_url,
+      swatchUrl: row.swatch_url
     }));
   }
 

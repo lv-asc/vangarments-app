@@ -360,18 +360,18 @@ export class BrandProfileController {
             const { brandId } = req.params;
             const publishedOnly = req.query.publishedOnly !== 'false';
 
+            // First try to find the brand in brand_accounts by slug or ID
             const brand = await BrandAccountModel.findBySlugOrId(brandId);
-            if (!brand) {
-                res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
-                return;
-            }
 
-            // First try direct lookup by brand_accounts.id
-            let collections = await BrandCollectionModel.findByBrand(brand.id, publishedOnly);
+            let collections: any[] = [];
 
-            // If no collections found, try looking up by vufs_brand_id
-            // This supports the case where frontend sends a vufs_brands.id
-            if (collections.length === 0) {
+            if (brand) {
+                // Brand Account found - fetch collections for it
+                collections = await BrandCollectionModel.findByBrand(brand.id, publishedOnly);
+            } else {
+                // Brand Account not found by slug/ID.
+                // It might be a VUFS Brand ID - try to find collections by looking up
+                // the Brand Account that matches the VUFS Brand name.
                 collections = await BrandCollectionModel.findByVufsBrandId(brandId, publishedOnly);
             }
 

@@ -1,0 +1,120 @@
+
+> @vangarments/backend@1.0.0 migrate
+> tsx src/scripts/migrate.ts status
+
+
+📊 Migration Status:
+Total migrations: 87
+Executed: 68
+Pending: 39
+
+📋 Pending migrations:
+  - 20251200000001_create_vufs_attributes_tables
+  - 20251200000002_create_vufs_custom_attributes
+  - 20251200000003_create_vufs_categories
+  - 20251200000004_create_vufs_items_table
+  - 20251200000005_create_vufs_category_attributes
+  - 20251200000006_create_vufs_brand_attributes
+  - 20251200000007_create_vufs_size_attributes
+  - 20251214000000_add_privacy_settings
+  - 20251214000000_create_wardrobe_conditions
+  - 20251214000000_update_users_add_status_and_ban
+  - 20251214000001_create_brand_profiles
+  - 20251214000002_create_marketplace_tables
+  - 20251214000003_create_lgpd_compliance_tables
+  - 20251214000004_create_item_images_table
+  - 20251214000005_create_sku_items_table
+  - 20251214000006_create_brand_lines_table
+  - 20251214000007_create_beta_program_tables
+  - 20251214000008_create_content_reports_table
+  - 20251214000009_vufs_global_settings
+  - 20251215105959_update_journalism_schema
+  - 20251217000000_vufs_admin_expansions
+  - 20260102_fix_pom_mapping_type
+  - 20260103_create_media_tags
+  - 20260105000000_create_dev_user
+  - 20260111_add_sku_image_source_type
+  - 20260111_add_tag_description
+  - 20260112_add_entity_contact_fields
+  - 20260112_advanced_calendar_features
+  - 20260112_create_calendar_events
+  - 20260112_upgrade_calendar_media
+  - 20260113_add_care_instructions_to_materials
+  - 20260113_add_region_to_calendar
+  - 20260113_create_calendar_event_types
+  - 20260115_add_care_instructions_to_sku_items
+  - 20260115_add_unique_parent_sku_code
+  - 20260115_create_user_likes
+  - 20260115_create_user_wishlists
+  - 20260116_add_official_link_to_sku_items
+  - add_soft_delete_columns
+
+✅ Executed migrations:
+  - add_oauth_columns (Sat Oct 18 2025 12:07:44 GMT-0300 (Brasilia Standard Time))
+  - create_beta_program_tables (Sat Oct 18 2025 12:07:44 GMT-0300 (Brasilia Standard Time))
+  - create_content_reports_table (Sat Oct 18 2025 12:07:44 GMT-0300 (Brasilia Standard Time))
+  - create_item_images_table (Sat Oct 18 2025 12:07:44 GMT-0300 (Brasilia Standard Time))
+  - create_lgpd_compliance_tables (Sat Oct 18 2025 12:07:44 GMT-0300 (Brasilia Standard Time))
+  - create_marketplace_tables (Mon Dec 08 2025 14:34:13 GMT-0300 (Brasilia Standard Time))
+  - create_vufs_categories (Mon Dec 08 2025 14:42:00 GMT-0300 (Brasilia Standard Time))
+  - add_username_column (Fri Dec 12 2025 12:52:16 GMT-0300 (Brasilia Standard Time))
+  - create_brand_profiles (Fri Dec 12 2025 12:52:16 GMT-0300 (Brasilia Standard Time))
+  - create_vufs_attributes_tables (Fri Dec 12 2025 12:52:16 GMT-0300 (Brasilia Standard Time))
+  - create_vufs_brand_attributes (Fri Dec 12 2025 12:52:16 GMT-0300 (Brasilia Standard Time))
+  - create_vufs_category_attributes (Fri Dec 12 2025 12:52:16 GMT-0300 (Brasilia Standard Time))
+  - create_vufs_custom_attributes (Fri Dec 12 2025 12:52:16 GMT-0300 (Brasilia Standard Time))
+  - create_vufs_items_table (Fri Dec 12 2025 12:52:16 GMT-0300 (Brasilia Standard Time))
+  - add_privacy_settings (Fri Dec 12 2025 16:17:57 GMT-0300 (Brasilia Standard Time))
+  - create_vufs_size_attributes (Fri Dec 12 2025 16:17:57 GMT-0300 (Brasilia Standard Time))
+  - update_users_add_status_and_ban (Fri Dec 12 2025 16:17:57 GMT-0300 (Brasilia Standard Time))
+  - update_brand_accounts_allow_multiple (Fri Dec 12 2025 17:20:04 GMT-0300 (Brasilia Standard Time))
+  - vufs_global_settings (Sat Dec 13 2025 12:41:10 GMT-0300 (Brasilia Standard Time))
+  - create_sku_items_table (Sun Dec 14 2025 10:33:08 GMT-0300 (Brasilia Standard Time))
+  - create_brand_lines_table (Sun Dec 14 2025 11:01:47 GMT-0300 (Brasilia Standard Time))
+  - add_videos_to_sku_items (Sun Dec 14 2025 18:17:59 GMT-0300 (Brasilia Standard Time))
+  - update_brand_lines_schema_v2 (Sun Dec 14 2025 19:24:15 GMT-0300 (Brasilia Standard Time))
+  - vufs_admin_expansions (Sun Dec 14 2025 19:24:15 GMT-0300 (Brasilia Standard Time))
+  - 20251215100000_create_journalism_table (Mon Dec 15 2025 09:43:15 GMT-0300 (Brasilia Standard Time))
+  - 20251215110000_update_journalism_schema (Mon Dec 15 2025 10:32:46 GMT-0300 (Brasilia Standard Time))
+  - 20251215110000_create_user_linkable_entities (Mon Dec 15 2025 10:39:19 GMT-0300 (Brasilia Standard Time))
+  - update_lookbooks_schema (Mon Dec 15 2025 16:00:13 GMT-0300 (Brasilia Standard Time))
+  - update_team_roles_array (Mon Dec 15 2025 17:52:52 GMT-0300 (Brasilia Standard Time))
+  - 20251217140000_add_slug_columns (Wed Dec 17 2025 13:43:27 GMT-0300 (Brasilia Standard Time))
+  - 20251217150000_add_complex_colors (Thu Dec 18 2025 00:25:07 GMT-0300 (Brasilia Standard Time))
+  - 20251217160000_enhance_color_groups (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - 20251217180000_create_entity_follows (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - 20251217180001_create_messaging_tables (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - 20251217190000_add_entity_slug_columns (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - 20251217190000_enhance_messaging (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - 20251217_add_follow_status_and_privacy (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - 20251218000000_enhance_pages_table (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - allow_null_user_id_brand_accounts (Thu Dec 18 2025 00:35:31 GMT-0300 (Brasilia Standard Time))
+  - 20251218010000_create_vufs_standards (Thu Dec 18 2025 01:18:49 GMT-0300 (Brasilia Standard Time))
+  - 20251219110000_expand_vufs_standards (Fri Dec 19 2025 11:09:35 GMT-0300 (Brasilia Standard Time))
+  - 20251220180000_add_conversation_description (Sat Dec 20 2025 17:16:08 GMT-0300 (Brasilia Standard Time))
+  - 20251220183000_fix_group_admins (Sat Dec 20 2025 19:40:58 GMT-0300 (Brasilia Standard Time))
+  - 20251220194000_add_conversation_slug (Sat Dec 20 2025 19:40:58 GMT-0300 (Brasilia Standard Time))
+  - 20251220200000_backfill_conversation_slugs (Sat Dec 20 2025 21:43:35 GMT-0300 (Brasilia Standard Time))
+  - 20251222144000_create_vufs_genders (Mon Dec 22 2025 14:37:53 GMT-0300 (Brasilia Standard Time))
+  - 20251222_add_curatorship_collection_type (Mon Dec 22 2025 14:37:53 GMT-0300 (Brasilia Standard Time))
+  - 20251222_add_trashed_to_user_status (Mon Dec 22 2025 14:37:53 GMT-0300 (Brasilia Standard Time))
+  - 20251222163000_add_unique_constraint_vufs_attribute_values (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - 20251222170000_create_design_files_moodboards (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - 20251223_add_canvas_data_to_moodboards (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - 20251223_add_foundation_fields (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - 20251224_enhance_privacy_settings (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - 20251225000000_create_media_labels (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - add_vufs_brand_id_to_brand_accounts (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - seed_sizes_fits (Thu Dec 25 2025 16:19:02 GMT-0300 (Brasilia Standard Time))
+  - 20251225010000_add_new_styles_fits (Thu Dec 25 2025 21:32:27 GMT-0300 (Brasilia Standard Time))
+  - 20251229_entity_configuration (Mon Dec 29 2025 22:16:47 GMT-0300 (Brasilia Standard Time))
+  - 20251230000000_create_compositions_tables (Mon Dec 29 2025 22:16:47 GMT-0300 (Brasilia Standard Time))
+  - add_parent_sku_id (Mon Dec 29 2025 22:16:47 GMT-0300 (Brasilia Standard Time))
+  - add_retail_price_to_sku_items (Mon Dec 29 2025 22:16:47 GMT-0300 (Brasilia Standard Time))
+  - add_sku_ref_to_attribute_values (Mon Dec 29 2025 22:16:47 GMT-0300 (Brasilia Standard Time))
+  - add_sku_ref_to_entities (Mon Dec 29 2025 22:16:47 GMT-0300 (Brasilia Standard Time))
+  - add_social_links_to_entities (Mon Dec 29 2025 22:16:47 GMT-0300 (Brasilia Standard Time))
+  - 20251231000000_create_page_team_members (Mon Dec 29 2025 22:50:20 GMT-0300 (Brasilia Standard Time))
+  - 20251231000001_add_page_metadata (Mon Dec 29 2025 23:07:52 GMT-0300 (Brasilia Standard Time))
+  - add_actor_to_notifications (Tue Dec 30 2025 18:14:10 GMT-0300 (Brasilia Standard Time))
+  - 20260101_create_pom_system (Thu Jan 01 2026 23:14:44 GMT-0300 (Brasilia Standard Time))

@@ -6,6 +6,7 @@ const router = Router();
 
 // Public search for SEO/metadata generation
 router.get('/search', SKUController.searchSKUs);
+router.get('/release-date-options', SKUController.getReleaseDateOptions);
 
 // Brand specific SKU management
 router.post('/brands/:brandId/skus', authenticateToken, SKUController.createSKU);

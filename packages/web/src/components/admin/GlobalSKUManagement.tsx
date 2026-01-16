@@ -12,6 +12,7 @@ import SearchableCombobox from '../ui/Combobox';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 import { ImageTagEditor } from '@/components/tagging';
+import { getImageUrl } from '@/lib/utils';
 
 interface GlobalSKUManagementProps {
 }
@@ -144,7 +145,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         retailPriceUsd: '' as string | number,
         retailPriceEur: '' as string | number,
         releaseDate: '',
-        careInstructions: ''
+        careInstructions: '',
+        officialItemLink: ''
     });
 
     useEffect(() => {
@@ -587,10 +589,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             const baseName = sku.name.replace(/\s*\([^)]*\)\s*\[[^\]]*\]/g, '').trim();
 
             // Search for SKUs with similar base name
-            const result = await apiClient.searchSKUs({
-                term: baseName,
-                brandId: sku.brandId
-            });
+            const result = await apiClient.searchSKUs(baseName, sku.brandId);
 
             // Filter to only include variants (same base name but different size/color)
             const variants = result.skus.filter((v: any) => {
@@ -612,7 +611,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             setEditingSku(sku);
             // Check if this is a variant (has parentSkuId) or a parent SKU
             const isVariant = !!sku.parentSkuId;
-            setEditMode(isVariant ? 'variant' : 'edit'); // 'variant' for variants, 'edit' for parent SKUs
+            setEditMode(isVariant ? 'variant' as const : 'edit' as any); // 'variant' for variants, 'edit' for parent SKUs
             setEditingParentVariants([]);
             const metadata = sku.metadata || {};
 
@@ -688,8 +687,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 retailPriceBrl: sku.retailPriceBrl || '',
                 retailPriceUsd: sku.retailPriceUsd || '',
                 retailPriceEur: sku.retailPriceEur || '',
+                officialSkuOrInstance: metadata.officialSkuOrInstance || '',
+                isGeneric: metadata.isGeneric || false,
+                conditionId: metadata.conditionId || '',
                 releaseDate: sku.releaseDate ? new Date(sku.releaseDate).toISOString().split('T')[0] : '',
-                careInstructions: sku.careInstructions || ''
+                careInstructions: sku.careInstructions || '',
+                officialItemLink: sku.officialItemLink || ''
             });
 
             // Fetch measurements for this SKU
@@ -744,11 +747,15 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 },
                 generatedName: '',
                 generatedCode: 'To be generated',
+                officialSkuOrInstance: '',
+                isGeneric: false,
+                conditionId: '',
                 retailPriceBrl: '',
                 retailPriceUsd: '',
                 retailPriceEur: '',
                 releaseDate: '',
-                careInstructions: ''
+                careInstructions: '',
+                officialItemLink: ''
             });
             setLines([]);
             setCollections([]);
@@ -832,8 +839,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             retailPriceBrl: parentSku.retailPriceBrl || firstVariant.retailPriceBrl || '',
             retailPriceUsd: parentSku.retailPriceUsd || firstVariant.retailPriceUsd || '',
             retailPriceEur: parentSku.retailPriceEur || firstVariant.retailPriceEur || '',
+            officialSkuOrInstance: metadata.officialSkuOrInstance || '',
+            isGeneric: metadata.isGeneric || false,
+            conditionId: metadata.conditionId || '',
             releaseDate: parentSku.releaseDate ? new Date(parentSku.releaseDate).toISOString().split('T')[0] : '',
-            careInstructions: parentSku.careInstructions || ''
+            careInstructions: parentSku.careInstructions || '',
+            officialItemLink: parentSku.officialItemLink || firstVariant.officialItemLink || ''
         });
 
         // Fetch measurements - for now, fetch for the first variant to have some data
@@ -944,7 +955,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
             retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null,
             releaseDate: formData.releaseDate || null,
-            careInstructions: formData.careInstructions || null
+            careInstructions: formData.careInstructions || null,
+            officialItemLink: formData.officialItemLink || null,
+            parentSkuId: null as string | null
         };
     };
     const handleSubmit = async (e: React.FormEvent) => {
@@ -1655,20 +1668,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     />
                                                 </div>
 
-                                                {/* Silhouette / Modeling Selection */}
-                                                <div>
-                                                    <SearchableCombobox
-                                                        label="Silhouette"
-                                                        value={availableSilhouettes.find(s => s.id === selectedSilhouetteId)?.name || ''}
-                                                        onChange={(name) => {
-                                                            const sil = availableSilhouettes.find(s => s.name === name);
-                                                            setSelectedSilhouetteId(sil?.id || '');
-                                                        }}
-                                                        options={availableSilhouettes}
-                                                        placeholder={availableSilhouettes.length > 0 ? "Select Silhouette (Modeling)..." : "No Silhouettes found for this combo"}
-                                                        disabled={availableSilhouettes.length === 0}
-                                                    />
-                                                </div>
+
 
                                                 <div>
                                                     <SearchableCombobox
@@ -1787,6 +1787,44 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                             onChange={e => setFormData({ ...formData, careInstructions: e.target.value })}
                                                             placeholder="How to wash, dry, and maintain this item..."
                                                         />
+                                                    </div>
+
+                                                    {/* Official Item Link */}
+                                                    <div className="col-span-2 mt-4">
+                                                        <label className="block text-xs font-medium text-gray-700 uppercase">Official Item Link</label>
+                                                        <div className="mt-1 flex rounded-md shadow-sm">
+                                                            <div className="relative flex items-stretch flex-grow focus-within:z-10">
+                                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                    {formData.officialItemLink ? (
+                                                                        <img
+                                                                            src={`https://www.google.com/s2/favicons?domain=${new URL(formData.officialItemLink.startsWith('http') ? formData.officialItemLink : `https://${formData.officialItemLink}`).hostname}&sz=32`}
+                                                                            alt=""
+                                                                            className="h-4 w-4"
+                                                                            onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /%3E%3C/svg%3E'; }}
+                                                                        />
+                                                                    ) : (
+                                                                        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                                        </svg>
+                                                                    )}
+                                                                </div>
+                                                                <input
+                                                                    type="url"
+                                                                    className="focus:ring-blue-500 focus:border-blue-500 block w-full rounded-none rounded-l-md pl-10 sm:text-sm border-gray-300"
+                                                                    placeholder="https://brand.com/products/item-slug"
+                                                                    value={formData.officialItemLink}
+                                                                    onChange={e => setFormData({ ...formData, officialItemLink: e.target.value })}
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => formData.officialItemLink && window.open(formData.officialItemLink.startsWith('http') ? formData.officialItemLink : `https://${formData.officialItemLink}`, '_blank')}
+                                                                className="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                                            >
+                                                                <span>Test</span>
+                                                            </button>
+                                                        </div>
+                                                        <p className="mt-1 text-xs text-gray-500">Link to the official product page on the brand's website</p>
                                                     </div>
 
 
@@ -2199,6 +2237,24 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             value={formData.description}
                                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         />
+                                    </div>
+
+
+                                    {/* Silhouette / Modeling Selection - Moved here */}
+                                    <div className="col-span-2 mt-4 mb-4">
+                                        <div className="max-w-md">
+                                            <SearchableCombobox
+                                                label="Silhouette (Auto-fill Measurements)"
+                                                value={availableSilhouettes.find(s => s.id === selectedSilhouetteId)?.name || ''}
+                                                onChange={(name) => {
+                                                    const sil = availableSilhouettes.find(s => s.name === name);
+                                                    setSelectedSilhouetteId(sil?.id || '');
+                                                }}
+                                                options={availableSilhouettes}
+                                                placeholder={availableSilhouettes.length > 0 ? "Select Silhouette to auto-fill POMs..." : "No Silhouettes found for this combo"}
+                                                disabled={availableSilhouettes.length === 0}
+                                            />
+                                        </div>
                                     </div>
 
                                     {/* Measurements Section (Refactored: POM -> Sizes) */}

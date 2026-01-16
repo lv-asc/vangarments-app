@@ -27,9 +27,16 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
     const brandName = item.brand?.name || item.brand?.brand || 'Unknown Brand';
     const brandSlug = item.brand?.slug || slugify(brandName);
     const categoryName = item.category?.page || (typeof item.category === 'string' ? item.category : 'Item');
-    const imageUrl = typeof item.images?.[0] === 'string'
-        ? item.images[0]
-        : (item.images?.[0]?.url || item.images?.[0]?.imageUrl);
+
+    // Image handling
+    const getImgUrl = (img: any) => {
+        if (!img) return null;
+        if (typeof img === 'string') return img;
+        return img.url || img.imageUrl;
+    };
+
+    const firstImage = getImgUrl(item.images?.[0]);
+    const secondImage = getImgUrl(item.images?.[1]);
 
     // Backend now returns variants sorted by size order from /admin/sizes
     const variants = item.variants || [];
@@ -51,112 +58,89 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
     const displayName = stripSizeSuffix(item.name);
 
     return (
-        <div className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-start gap-3">
-                {/* Image Link */}
-                <Link href={productUrl} className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-                    {imageUrl ? (
-                        <img src={getImageUrl(imageUrl)} alt={displayName} className="h-full w-full object-cover" />
-                    ) : (
-                        <div className="h-full w-full flex items-center justify-center text-gray-400">
-                            <ShoppingBagIcon className="h-6 w-6" />
+        <div className="group block bg-white rounded-xl border border-transparent hover:border-gray-100 transition-all duration-300">
+            {/* Image Container */}
+            <Link href={productUrl} className="block relative aspect-[3/4] rounded-xl overflow-hidden bg-[#f7f7f7] p-6 mb-3">
+                {firstImage ? (
+                    <>
+                        {/* First Image - Always visible initially */}
+                        <img
+                            src={getImageUrl(firstImage)}
+                            alt={displayName}
+                            className={`w-full h-full object-contain transition-opacity duration-500 ease-in-out ${secondImage ? 'group-hover:opacity-0' : ''}`}
+                        />
+                        {/* Second Image - Visible on hover */}
+                        {secondImage && (
+                            <img
+                                src={getImageUrl(secondImage)}
+                                alt={`${displayName} - Alternate View`}
+                                className="absolute inset-0 w-full h-full object-contain p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-in-out"
+                            />
+                        )}
+                    </>
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <ShoppingBagIcon className="h-12 w-12" />
+                    </div>
+                )}
+            </Link>
+
+            <div className="px-1 space-y-2">
+                {/* Brand & Badges */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        href={`/brands/${brandSlug}`}
+                        className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group/brand"
+                    >
+                        <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
+                            {item.brand?.logo ? (
+                                <img src={getImageUrl(item.brand.logo)} className="h-full w-full object-contain" />
+                            ) : (
+                                <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
+                                    {brandName.charAt(0)}
+                                </div>
+                            )}
                         </div>
-                    )}
+                        <span className="text-xs font-semibold text-gray-900 truncate max-w-[120px]">{brandName}</span>
+                    </Link>
+                </div>
+
+                {/* Product Name */}
+                <Link href={productUrl} className="block">
+                    <h3 className="text-sm text-gray-600 font-medium truncate leading-tight hover:text-gray-900 transition-colors">
+                        {displayName}
+                    </h3>
                 </Link>
 
-                <div className="min-w-0 flex-1">
-                    {/* Brand/Line/Collection Badges */}
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                        {/* Brand Badge */}
-                        <Link
-                            href={`/brands/${brandSlug}`}
-                            className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-                        >
-                            <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
-                                {item.brand?.logo ? (
-                                    <img src={getImageUrl(item.brand.logo)} className="h-full w-full object-contain" />
-                                ) : (
-                                    <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
-                                        {brandName.charAt(0)}
-                                    </div>
-                                )}
-                            </div>
-                            <span className="text-xs font-bold text-gray-900 truncate max-w-[100px]">{brandName}</span>
-                        </Link>
-
-                        {/* Line Badge */}
-                        {(item.lineInfo?.name || item.line) && (
-                            <Link
-                                href={`/brands/${brandSlug}?line=${item.lineId || item.lineInfo?.id || slugify(item.lineInfo?.name || item.line)}`}
-                                className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-                            >
-                                <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
-                                    {item.lineInfo?.logo ? (
-                                        <img src={getImageUrl(item.lineInfo.logo)} className="h-full w-full object-contain" />
-                                    ) : (
-                                        <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
-                                            L
-                                        </div>
-                                    )}
-                                </div>
-                                <span className="text-[10px] text-gray-600 truncate max-w-[80px]">{item.lineInfo?.name || item.line}</span>
-                            </Link>
-                        )}
-
-                        {/* Collection Badge */}
-                        {(item.collectionInfo?.name || item.collection) && (
-                            <Link
-                                href={`/brands/${brandSlug}/collections/${slugify(item.collectionInfo?.name || item.collection)}`}
-                                className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-                            >
-                                <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
-                                    {item.collectionInfo?.coverImage ? (
-                                        <img src={getImageUrl(item.collectionInfo.coverImage)} className="h-full w-full object-cover" />
-                                    ) : (
-                                        <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
-                                            C
-                                        </div>
-                                    )}
-                                </div>
-                                <span className="text-[10px] text-gray-600 truncate max-w-[80px]">{item.collectionInfo?.name || item.collection}</span>
-                            </Link>
-                        )}
-                    </div>
-
-                    <Link href={productUrl}>
-                        <p className="text-xs text-gray-500 truncate hover:text-blue-600">{displayName}</p>
-                    </Link>
-
-                    {mainPrice && <p className="text-xs font-medium text-gray-700 mt-0.5">{mainPrice}</p>}
+                {/* Price */}
+                <div className="flex items-center justify-between pb-2">
+                    {mainPrice ? (
+                        <p className="text-sm font-semibold text-gray-900">{mainPrice}</p>
+                    ) : (
+                        <p className="text-xs text-gray-400 font-medium">Price upon request</p>
+                    )}
                 </div>
-            </div>
 
-            {/* Variant toggles */}
-            {hasVariants && (
-                <div className="mt-2 pt-2 border-t border-gray-100">
-                    <button
-                        onClick={(e) => { e.preventDefault(); setShowVariants(!showVariants); }}
-                        className="flex items-center justify-between w-full text-xs text-gray-500 hover:text-gray-700"
-                    >
-                        <span>{variants.length} size{variants.length > 1 ? 's' : ''} available</span>
-                        <span className="text-gray-400">{showVariants ? '▲' : '▼'}</span>
-                    </button>
-
-                    {showVariants && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                            {variants.map((v: any) => (
+                {/* Variant toggles - Optional: Only show if needed or make it cleaner */}
+                {hasVariants && (
+                    <div className="pt-2 border-t border-gray-50/50">
+                        <div className="flex flex-wrap gap-1">
+                            {variants.slice(0, 5).map((v: any) => (
                                 <Link
                                     key={v.id}
-                                    href={`${productUrl}?variant=${v.id}`}
-                                    className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-200 text-gray-700"
+                                    href={`${productUrl}-${slugify(v.size || v.name)}`}
+                                    className="px-1.5 py-0.5 text-[10px] bg-gray-50 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-900 border border-transparent hover:border-gray-200 transition-all font-medium"
                                 >
                                     {v.size}
                                 </Link>
                             ))}
+                            {variants.length > 5 && (
+                                <span className="text-[10px] text-gray-400 flex items-center">+{variants.length - 5}</span>
+                            )}
                         </div>
-                    )}
-                </div>
-            )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

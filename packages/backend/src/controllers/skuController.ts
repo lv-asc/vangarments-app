@@ -16,7 +16,7 @@ export class SKUController {
             }
 
             const { brandId } = req.params;
-            const { name, code, collection, line, lineId, category, description, materials, images, metadata, retailPriceBrl, retailPriceUsd, retailPriceEur, parentSkuId, releaseDate, careInstructions } = req.body;
+            const { name, code, collection, line, lineId, category, description, materials, images, metadata, retailPriceBrl, retailPriceUsd, retailPriceEur, parentSkuId, releaseDate, careInstructions, officialItemLink } = req.body;
 
             let targetBrandId = brandId;
             let brand = await BrandAccountModel.findById(brandId);
@@ -83,7 +83,8 @@ export class SKUController {
                 retailPriceEur,
                 parentSkuId,
                 releaseDate,
-                careInstructions
+                careInstructions,
+                officialItemLink
             });
 
             res.status(201).json({ message: 'SKU created successfully', sku });
@@ -143,6 +144,7 @@ export class SKUController {
                         retailPriceBrl: v.retailPriceBrl,
                         retailPriceUsd: v.retailPriceUsd,
                         retailPriceEur: v.retailPriceEur,
+                        officialItemLink: v.officialItemLink,
                         images: v.images || []
                     }));
 
@@ -593,15 +595,29 @@ export class SKUController {
      */
     static async searchSKUs(req: Request, res: Response): Promise<void> {
         try {
-            const { term, brandId, parentsOnly = 'true' } = req.query;
-
-            if (!term) {
-                res.status(400).json({ error: 'Search term required' });
-                return;
-            }
+            const {
+                term = '',
+                brandId,
+                styleId,
+                patternId,
+                fitId,
+                genderId,
+                apparelId,
+                materialId,
+                lineId,
+                collection,
+                sizeId,
+                years,
+                months,
+                days,
+                parentsOnly = 'true',
+                limit = 100,
+                page = 1
+            } = req.query;
 
             const searchTerm = term as string;
             const filterParents = parentsOnly === 'true';
+            const offset = (Number(page) - 1) * Number(limit);
 
             // Fetch all matching SKUs
             let query = `
@@ -642,6 +658,59 @@ export class SKUController {
             if (brandId) {
                 query += ` AND si.brand_id = $${paramIndex++}`;
                 values.push(brandId);
+            }
+
+            if (styleId) {
+                query += ` AND si.category->>'styleId' = $${paramIndex++}`;
+                values.push(styleId);
+            }
+            if (patternId) {
+                query += ` AND si.category->>'patternId' = $${paramIndex++}`;
+                values.push(patternId);
+            }
+            if (fitId) {
+                query += ` AND si.category->>'fitId' = $${paramIndex++}`;
+                values.push(fitId);
+            }
+            if (genderId) {
+                query += ` AND si.category->>'genderId' = $${paramIndex++}`;
+                values.push(genderId);
+            }
+            if (apparelId) {
+                query += ` AND si.category->>'apparelId' = $${paramIndex++}`;
+                values.push(apparelId);
+            }
+            if (materialId) {
+                query += ` AND si.category->>'materialId' = $${paramIndex++}`;
+                values.push(materialId);
+            }
+            if (sizeId) {
+                query += ` AND si.metadata->>'sizeId' = $${paramIndex++}`;
+                values.push(sizeId);
+            }
+            if (lineId) {
+                query += ` AND si.line_id = $${paramIndex++}`;
+                values.push(lineId);
+            }
+            if (collection) {
+                query += ` AND si.collection = $${paramIndex++}`;
+                values.push(collection);
+            }
+
+            if (years) {
+                const yearArray = (years as string).split(',');
+                query += ` AND EXTRACT(YEAR FROM si.release_date) = ANY($${paramIndex++})`;
+                values.push(yearArray.map(y => parseInt(y)));
+            }
+            if (months) {
+                const monthArray = (months as string).split(',');
+                query += ` AND EXTRACT(MONTH FROM si.release_date) = ANY($${paramIndex++})`;
+                values.push(monthArray.map(m => parseInt(m)));
+            }
+            if (days) {
+                const dayArray = (days as string).split(',');
+                query += ` AND EXTRACT(DAY FROM si.release_date) = ANY($${paramIndex++})`;
+                values.push(dayArray.map(d => parseInt(d)));
             }
 
             // Search logic: Match SKU name, Code, Brand Name, or Line Name
@@ -988,6 +1057,34 @@ export class SKUController {
             res.json({ message: 'SKU permanently deleted' });
         } catch (error) {
             console.error('Permanent delete SKU error:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    /**
+     * Get available release date options (years, months, days)
+     */
+    static async getReleaseDateOptions(req: Request, res: Response): Promise<void> {
+        try {
+            const query = `
+                SELECT 
+                    ARRAY_AGG(DISTINCT EXTRACT(YEAR FROM release_date) ORDER BY EXTRACT(YEAR FROM release_date) DESC) as years,
+                    ARRAY_AGG(DISTINCT EXTRACT(MONTH FROM release_date) ORDER BY EXTRACT(MONTH FROM release_date) ASC) as months,
+                    ARRAY_AGG(DISTINCT EXTRACT(DAY FROM release_date) ORDER BY EXTRACT(DAY FROM release_date) ASC) as days
+                FROM sku_items
+                WHERE release_date IS NOT NULL AND deleted_at IS NULL
+            `;
+            const result = await db.query(query);
+            const options = result.rows[0] || { years: [], months: [], days: [] };
+
+            // Handle potential nulls from ARRAY_AGG if table is empty
+            res.json({
+                years: options.years ? options.years.filter((y: any) => y !== null) : [],
+                months: options.months ? options.months.filter((m: any) => m !== null) : [],
+                days: options.days ? options.days.filter((d: any) => d !== null) : []
+            });
+        } catch (error) {
+            console.error('Get release date options error:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     }

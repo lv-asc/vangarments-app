@@ -144,7 +144,7 @@ export function Header() {
   }
 
   const searchEntities = [
-    { name: 'Items', href: '/search?tab=item', icon: ShoppingBagIcon },
+    { name: 'Items', href: '/items', icon: ShoppingBagIcon },
     { name: 'Brands', href: '/brands', icon: FireIcon },
     { name: 'Stores', href: '/stores', icon: BuildingStorefrontIcon },
     { name: 'Users', href: '/search?tab=user', icon: UsersIcon },

@@ -43,13 +43,44 @@ export async function generateMetadata(
         const url = `${baseURL}/skus/search?${searchParams.toString()}`;
         console.log(`[Metadata] Fetching from: ${url}`);
 
-        const response = await fetch(url, {
+        let response = await fetch(url, {
             cache: 'no-store'
         });
 
         if (response.ok) {
-            const result = await response.json();
+            let result = await response.json();
             console.log(`[Metadata] Found ${result.skus?.length || 0} SKUs`);
+
+            // If no results, try stripping size suffix (e.g. -xl, -l, -s)
+            if (!result.skus || result.skus.length === 0) {
+                const parts = slug.split('-');
+                if (parts.length > 1) {
+                    const potentialSize = parts[parts.length - 1];
+                    // Check if potential size is a common size
+                    if (/^(x{0,3}s|x{0,4}l|m|[0-9]+)$/i.test(potentialSize)) {
+                        parts.pop();
+                        const potentialBase = parts.join('-');
+                        // Try to extract meaningful parts again from the base
+                        const baseSlugParts = potentialBase.split('-');
+                        const baseMeaningfulParts = baseSlugParts.filter(part =>
+                            part.length > 2 && !['asc', 'sk', 'ct', 'rf', 'teh', 'tsh', 'bk', 'm'].includes(part.toLowerCase())
+                        );
+                        const baseSearchTerm = baseMeaningfulParts.join(' ');
+
+                        const baseParams = new URLSearchParams({
+                            term: baseSearchTerm || potentialBase,
+                            parentsOnly: 'true'
+                        });
+
+                        const baseUrl = `${baseURL}/skus/search?${baseParams.toString()}`;
+                        console.log(`[Metadata] Retrying with stripped suffix from: ${baseUrl}`);
+                        const baseResponse = await fetch(baseUrl, { cache: 'no-store' });
+                        if (baseResponse.ok) {
+                            result = await baseResponse.json();
+                        }
+                    }
+                }
+            }
 
             if (result.skus && result.skus.length > 0) {
                 const product = result.skus[0];

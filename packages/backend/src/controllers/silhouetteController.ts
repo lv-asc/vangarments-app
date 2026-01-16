@@ -21,13 +21,43 @@ export class SilhouetteController {
                 JOIN vufs_attribute_values a ON s.apparel_id = a.id
                 JOIN vufs_fits f ON s.fit_id = f.id
                 WHERE s.deleted_at IS NULL
+                  AND s.variant IS NOT NULL
+                  AND s.name NOT LIKE '%#%'
             `;
             const values: any[] = [];
             let paramIndex = 1;
 
+            let targetBrandId = brandId as string;
+
             if (brandId) {
+                // Check if this ID exists in brand_accounts
+                const brandCheck = await db.query('SELECT id FROM brand_accounts WHERE id = $1', [brandId]);
+
+                if (brandCheck.rows.length === 0) {
+                    // It might be a VUFS Brand ID (reference data). 
+                    // Try to find the Brand Account by name from the VUFS Brand.
+                    const vufsBrandRes = await db.query('SELECT name FROM vufs_brands WHERE id = $1', [brandId]);
+
+                    if (vufsBrandRes.rows.length > 0) {
+                        const vufsName = vufsBrandRes.rows[0].name;
+                        // Try to find existing Brand Account by Name
+                        const accountRes = await db.query("SELECT id FROM brand_accounts WHERE brand_info->>'name' = $1", [vufsName]);
+
+                        if (accountRes.rows.length > 0) {
+                            targetBrandId = accountRes.rows[0].id;
+                        } else {
+                            // If no brand account exists for this VUFS brand, we can't return silhouettes 
+                            // (silhouettes are always linked to a Brand Account)
+                            res.json({ silhouettes: [] });
+                            return;
+                        }
+                    }
+                }
+            }
+
+            if (targetBrandId) {
                 query += ` AND s.brand_id = $${paramIndex++}`;
-                values.push(brandId);
+                values.push(targetBrandId);
             }
             if (apparelId) {
                 query += ` AND s.apparel_id = $${paramIndex++}`;

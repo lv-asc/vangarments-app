@@ -741,7 +741,7 @@ export default function ApparelManagement() {
                                     <label className="block text-sm font-medium text-gray-700">Height (cm)</label>
                                     <input
                                         type="number"
-                                        step="0.1"
+                                        step="1"
                                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                                         value={formData['height-cm'] || ''}
                                         onChange={(e) => setFormData({ ...formData, 'height-cm': e.target.value })}
@@ -751,7 +751,7 @@ export default function ApparelManagement() {
                                     <label className="block text-sm font-medium text-gray-700">Length (cm)</label>
                                     <input
                                         type="number"
-                                        step="0.1"
+                                        step="1"
                                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                                         value={formData['length-cm'] || ''}
                                         onChange={(e) => setFormData({ ...formData, 'length-cm': e.target.value })}
@@ -761,7 +761,7 @@ export default function ApparelManagement() {
                                     <label className="block text-sm font-medium text-gray-700">Width (cm)</label>
                                     <input
                                         type="number"
-                                        step="0.1"
+                                        step="1"
                                         className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                                         value={formData['width-cm'] || ''}
                                         onChange={(e) => setFormData({ ...formData, 'width-cm': e.target.value })}

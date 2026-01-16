@@ -33,6 +33,13 @@ export interface SKUItem {
     parentSkuId?: string;
     releaseDate?: Date | null;
     careInstructions?: string;
+    officialItemLink?: string;
+    brand?: {
+        name: string;
+        logo?: string;
+        slug?: string;
+    };
+
 }
 
 export interface CreateSKUItemData {
@@ -62,6 +69,7 @@ export interface CreateSKUItemData {
     parentSkuId?: string;
     releaseDate?: Date;
     careInstructions?: string;
+    officialItemLink?: string;
 }
 
 export interface UpdateSKUItemData {
@@ -89,6 +97,8 @@ export interface UpdateSKUItemData {
     retailPriceEur?: number;
     releaseDate?: Date | null;
     careInstructions?: string;
+    officialItemLink?: string;
+
 }
 
 export class SKUItemModel {
@@ -97,9 +107,10 @@ export class SKUItemModel {
             INSERT INTO sku_items(
                 brand_id, name, code, collection, line, line_id,
                 category, description, materials, images, videos, metadata,
-                retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id, release_date, care_instructions
+                retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id, release_date, care_instructions,
+                official_item_link
             )
-            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
             RETURNING *
         `;
 
@@ -121,7 +132,8 @@ export class SKUItemModel {
             data.retailPriceEur,
             data.parentSkuId || null,
             data.releaseDate || null,
-            data.careInstructions || null
+            data.careInstructions || null,
+            data.officialItemLink || null
         ];
 
         const result = await db.query(query, values);
@@ -205,17 +217,26 @@ export class SKUItemModel {
         return result.rows.map(row => this.mapRowToSKUItem(row));
     }
 
-    static async search(queryText: string, limit: number = 20, offset: number = 0): Promise<{ skus: SKUItem[], total: number }> {
-        const query = `
-            SELECT si.*, 
-                   ba.brand_info->>'name' as brand_name,
-                   ba.brand_info->>'logo' as brand_logo,
-                   bl.name as line_name, 
-                   bl.logo as line_logo,
-                   COUNT(*) OVER() as total_count
-            FROM sku_items si
-            JOIN brand_accounts ba ON si.brand_id = ba.id
-            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+    static async search(
+        queryText: string,
+        limit: number = 20,
+        offset: number = 0,
+        filters?: {
+            brandId?: string;
+            styleId?: string;
+            patternId?: string;
+            fitId?: string;
+            genderId?: string;
+            apparelId?: string;
+            materialId?: string;
+            lineId?: string;
+            collection?: string;
+        }
+    ): Promise<{ skus: SKUItem[], total: number }> {
+        const values: any[] = [`%${queryText}%`, limit, offset];
+        let paramIndex = 4;
+
+        let whereClauses = `
             WHERE si.deleted_at IS NULL
             AND (
                 si.name ILIKE $1 
@@ -223,21 +244,72 @@ export class SKUItemModel {
                 OR si.collection ILIKE $1
                 OR ba.brand_info->>'name' ILIKE $1
             )
+        `;
+
+        if (filters?.brandId) {
+            whereClauses += ` AND si.brand_id = $${paramIndex++}`;
+            values.push(filters.brandId);
+        }
+        if (filters?.styleId) {
+            whereClauses += ` AND si.category->>'styleId' = $${paramIndex++}`;
+            values.push(filters.styleId);
+        }
+        if (filters?.patternId) {
+            whereClauses += ` AND si.category->>'patternId' = $${paramIndex++}`;
+            values.push(filters.patternId);
+        }
+        if (filters?.fitId) {
+            whereClauses += ` AND si.category->>'fitId' = $${paramIndex++}`;
+            values.push(filters.fitId);
+        }
+        if (filters?.genderId) {
+            whereClauses += ` AND si.category->>'genderId' = $${paramIndex++}`;
+            values.push(filters.genderId);
+        }
+        if (filters?.apparelId) {
+            whereClauses += ` AND si.category->>'apparelId' = $${paramIndex++}`;
+            values.push(filters.apparelId);
+        }
+        if (filters?.materialId) {
+            whereClauses += ` AND si.category->>'materialId' = $${paramIndex++}`;
+            values.push(filters.materialId);
+        }
+        if (filters?.lineId) {
+            whereClauses += ` AND si.line_id = $${paramIndex++}`;
+            values.push(filters.lineId);
+        }
+        if (filters?.collection) {
+            whereClauses += ` AND si.collection = $${paramIndex++}`;
+            values.push(filters.collection);
+        }
+
+        const query = `
+            SELECT si.*, 
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'logo' as brand_logo,
+                   ba.brand_info->>'slug' as brand_slug,
+                   bl.name as line_name, 
+                   bl.logo as line_logo,
+                   COUNT(*) OVER() as total_count
+            FROM sku_items si
+            JOIN brand_accounts ba ON si.brand_id = ba.id
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            ${whereClauses}
             ORDER BY si.created_at DESC
             LIMIT $2 OFFSET $3
         `;
 
-        const result = await db.query(query, [`%${queryText}%`, limit, offset]);
+        const result = await db.query(query, values);
 
         const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
         const skus = result.rows.map(row => {
             const sku = this.mapRowToSKUItem(row);
-            // Attach generic brand info just in case
-            // Note: mapRowToSKUItem doesn't inherently attach brand name unless changed or extended
-            // We can return generic SKUItem, the caller will need brandId resolutions or we augment SKUItem type?
-            // For now just returning SKUItem is fine, findById joins brand info via brandApi usually or separate call.
-            // But mapRowToSKUItem doesn't map brand_name. 
-            // We'll trust the ID is enough or the frontend fetches brand.
+            // Attach brand info
+            sku.brand = {
+                name: row.brand_name,
+                logo: row.brand_logo,
+                // Adding slug here as it might be useful
+            };
             return sku;
         });
 
@@ -265,6 +337,7 @@ export class SKUItemModel {
         if (data.retailPriceEur !== undefined) { updates.push(`retail_price_eur = $${paramIndex++} `); values.push(data.retailPriceEur); }
         if (data.releaseDate !== undefined) { updates.push(`release_date = $${paramIndex++} `); values.push(data.releaseDate); }
         if (data.careInstructions !== undefined) { updates.push(`care_instructions = $${paramIndex++} `); values.push(data.careInstructions); }
+        if (data.officialItemLink !== undefined) { updates.push(`official_item_link = $${paramIndex++} `); values.push(data.officialItemLink); }
 
         if (updates.length === 0) return this.findById(id);
 
@@ -425,7 +498,8 @@ export class SKUItemModel {
             deletedAt: row.deleted_at,
             parentSkuId: row.parent_sku_id,
             releaseDate: row.release_date,
-            careInstructions: row.care_instructions
+            careInstructions: row.care_instructions,
+            officialItemLink: row.official_item_link
         };
 
         if (row.line_name || row.line_logo || row.line_id) {

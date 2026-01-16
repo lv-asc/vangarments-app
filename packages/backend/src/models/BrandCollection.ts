@@ -134,8 +134,8 @@ export class BrandCollectionModel {
       SELECT bc.*, 
              (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
       FROM brand_collections bc
-      JOIN brand_accounts ba ON bc.brand_id = ba.id
-      WHERE ba.vufs_brand_id = $1
+      LEFT JOIN brand_accounts ba ON bc.brand_id = ba.id
+      WHERE ba.vufs_brand_id = $1 OR bc.brand_id = $1
     `;
 
         if (publishedOnly) {
