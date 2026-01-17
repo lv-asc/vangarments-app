@@ -166,18 +166,64 @@ export default function SilhouetteManagement() {
                 measurements: formData.measurements
             };
 
+            // Helpers to get names for the UI update
+            const brand = brands.find(b => b.id === formData.brandId);
+            const apparel = apparels.find(a => a.id === formData.apparelId);
+            const fit = fits.find(f => f.id === formData.fitId);
+
+            const brandName = brand?.brandInfo?.name || brand?.name;
+            const apparelName = apparel?.name;
+            const fitName = fit?.name;
+
             if (editingSilhouette) {
-                await apiClient.updateSilhouette(editingSilhouette.id, payload);
+                const updated = await apiClient.updateSilhouette(editingSilhouette.id, payload);
                 toast.success('Silhouette updated successfully');
+
+                // Update local state manually
+                setSilhouettes(prev => prev.map(s => s.id === editingSilhouette.id ? {
+                    ...s,
+                    ...updated, // In case backend returns the object
+                    brand_id: formData.brandId,
+                    apparel_id: formData.apparelId,
+                    fit_id: formData.fitId,
+                    variant: formData.variant,
+                    pom_ids: formData.selectedPomIds,
+                    size_ids: formData.selectedSizeIds,
+                    measurements: formData.measurements,
+                    brand_name: brandName,
+                    apparel_name: apparelName,
+                    fit_name: fitName
+                } : s));
             } else {
-                await apiClient.createSilhouette(payload);
+                const created = await apiClient.createSilhouette(payload);
                 toast.success('Silhouette created successfully');
+
+                // Add to local state manually
+                const newSilhouette = {
+                    ...created, // Assuming backend returns the created object with ID
+                    id: created.id || created.silhouette?.id, // Fallback if structure varies
+                    brand_id: formData.brandId,
+                    apparel_id: formData.apparelId,
+                    fit_id: formData.fitId,
+                    variant: formData.variant,
+                    pom_ids: formData.selectedPomIds,
+                    size_ids: formData.selectedSizeIds,
+                    measurements: formData.measurements,
+                    brand_name: brandName,
+                    apparel_name: apparelName,
+                    fit_name: fitName
+                };
+
+                // Add to the START of the list
+                setSilhouettes(prev => [newSilhouette, ...prev]);
             }
 
             setShowModal(false);
             setEditingSilhouette(null);
             setFormData({ brandId: '', apparelId: '', fitId: '', variant: '', selectedSizeIds: [], selectedPomIds: [], measurements: {} });
-            fetchData();
+
+            // Optional: Background re-fetch to ensure consistency without blocking UI
+            // fetchData(); 
         } catch (error: any) {
             console.error('Failed to save silhouette', error);
             toast.error(error.message || 'Failed to save silhouette');
@@ -311,9 +357,6 @@ export default function SilhouetteManagement() {
                         placeholder="Filter by Brand"
                     />
                 </div>
-                <Button variant="secondary" onClick={fetchData} title="Refresh">
-                    <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
             </div>
 
             <div className="bg-white rounded-xl border overflow-hidden">
@@ -609,7 +652,8 @@ export default function SilhouetteManagement() {
                                                                         <div className="relative">
                                                                             <input
                                                                                 type="number"
-                                                                                step="1"
+                                                                                step="any"
+                                                                                onKeyDown={(e) => e.stopPropagation()}
                                                                                 placeholder="0"
                                                                                 className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 pr-8 text-center"
                                                                                 value={currentValue?.value || ''}
@@ -665,11 +709,12 @@ export default function SilhouetteManagement() {
                                                                     <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
                                                                         <input
                                                                             type="number"
-                                                                            step="1"
+                                                                            step="any"
                                                                             placeholder="0"
+                                                                            onKeyDown={(e) => e.stopPropagation()}
                                                                             value={gradeValues[pomId] || ''}
                                                                             onChange={(e) => setGradeValues({ ...gradeValues, [pomId]: e.target.value })}
-                                                                            className="w-10 bg-transparent text-xs font-semibold text-gray-900 focus:outline-none text-center"
+                                                                            className="w-16 bg-transparent text-xs font-semibold text-gray-900 focus:outline-none text-center"
                                                                         />
                                                                         <div className="w-px h-4 bg-gray-300 mx-0.5" />
                                                                         <button

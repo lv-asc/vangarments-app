@@ -13,6 +13,7 @@ import {
 import SKUCard from '@/components/ui/SKUCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { FollowEntityButton } from '@/components/social/FollowEntityButton';
+import { FollowList } from '@/components/social/FollowList';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { SocialIcon } from '@/components/ui/social-icons';
 import { getSocialLinkLabel, isWebsitePlatform } from '@/lib/socialLinkUtils';
@@ -24,8 +25,6 @@ import {
     Squares2X2Icon
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
-
-// Helper removed in favor of imported util
 import { getImageUrl } from '@/lib/utils';
 
 interface OrgProfileProps {
@@ -37,10 +36,15 @@ interface OrgProfileProps {
 export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfileProps) {
     const { user } = useAuth();
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items' | 'followers'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'lookbooks' | 'collections' | 'items' | 'followers' | 'following'>('overview');
     const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
     const [catalogItems, setCatalogItems] = useState<any[]>([]);
     const [loadingItems, setLoadingItems] = useState(false);
+
+    // Social State
+    const [followers, setFollowers] = useState<any[]>([]);
+    const [following, setFollowing] = useState<any[]>([]);
+    const [loadingSocial, setLoadingSocial] = useState(false);
 
     const { brand, team, lookbooks, collections, followerCount } = profile;
     const brandInfo = brand.brandInfo;
@@ -90,6 +94,12 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
         if (activeTab === 'items' && catalogItems.length === 0 && !loadingItems) {
             loadCatalog();
         }
+        if (activeTab === 'followers' && followers.length === 0 && !loadingSocial) {
+            loadFollowers();
+        }
+        if (activeTab === 'following' && following.length === 0 && !loadingSocial) {
+            loadFollowing();
+        }
     }, [activeTab]);
 
     const loadCatalog = async () => {
@@ -98,11 +108,36 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
             const data = await brandApi.getBrandCatalog(brand.id);
             setCatalogItems(data.items || []);
         } catch (err) {
-            console.error('Failed to load brand catalog:', err);
+            console.error('Failed to load catalog:', err);
         } finally {
             setLoadingItems(false);
         }
     };
+
+    const loadFollowers = async () => {
+        try {
+            setLoadingSocial(true);
+            const data = await brandApi.getEntityFollowers(businessType, brand.id);
+            setFollowers(data.followers || []);
+        } catch (err) {
+            console.error('Failed to load followers:', err);
+        } finally {
+            setLoadingSocial(false);
+        }
+    };
+
+    const loadFollowing = async () => {
+        try {
+            setLoadingSocial(true);
+            const data = await brandApi.getEntityFollowing(businessType, brand.id);
+            setFollowing(data.following || []);
+        } catch (err) {
+            console.error('Failed to load following:', err);
+        } finally {
+            setLoadingSocial(false);
+        }
+    };
+
 
     const currentBanner = banners[currentBannerIndex];
 
@@ -190,10 +225,6 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                             />
                                             <button
                                                 onClick={() => {
-                                                    // Route to entity DM
-                                                    // For entities, we use the brand ID or slug if conversation already exists
-                                                    // but startConversation works with usernames. 
-                                                    // For now, consistent with how UserProfileLayout does it or use entity path.
                                                     router.push(`/messages/${brand.id}`);
                                                 }}
                                                 className="inline-flex items-center gap-2 px-3 py-1 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
@@ -203,41 +234,27 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                             </button>
                                         </div>
                                     ) : (
-                                        <a
-                                            href="/login"
-                                            className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 transition-colors"
-                                        >
-                                            Follow
-                                        </a>
+                                        <div className="flex items-center gap-2">
+                                            <a
+                                                href="/login"
+                                                className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+                                            >
+                                                Follow
+                                            </a>
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Bio */}
-                                <p className="text-gray-600 mb-4 max-w-2xl">
-                                    {profileData.bio || brandInfo.description || `No description available for this ${displayTypeLabel.toLowerCase()}.`}
-                                </p>
-
-                                {/* Meta Info */}
-                                <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                                    {profileData.foundedDate && (
-                                        <span className="flex items-center gap-1">
-                                            <span>📅</span>
-                                            <span>Founded {new Date(profileData.foundedDate).getFullYear()}</span>
-                                        </span>
-                                    )}
-                                    {profileData.foundedBy && (
-                                        <span className="flex items-center gap-1">
-                                            <span>👤</span>
-                                            <span>by {profileData.foundedBy}</span>
-                                        </span>
-                                    )}
-                                </div>
+                                {profileData.bio && (
+                                    <p className="text-gray-600 mt-4 max-w-2xl text-sm leading-relaxed">
+                                        {profileData.bio}
+                                    </p>
+                                )}
 
                                 {/* Social Links */}
                                 {(() => {
-                                    const rawLinks = (profileData.socialLinks && profileData.socialLinks.length > 0)
-                                        ? profileData.socialLinks
-                                        : (brandInfo.socialLinks || []);
+                                    const rawLinks = brandInfo.socialLinks || [];
 
                                     const displayLinks = [...rawLinks];
                                     // Case-insensitive check for existing website link
@@ -265,221 +282,236 @@ export default function OrgProfile({ profile, slug, orgTypeLabel }: OrgProfilePr
                                         </div>
                                     );
                                 })()}
-                            </div>
 
-                            {/* Stats */}
-                            <div className="flex md:flex-col gap-6 md:gap-4 text-center md:text-right">
-                                <button onClick={() => setActiveTab('followers')} className="group text-center md:text-right">
-                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
-                                        <UsersIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
-                                        {followerCount || 0}
+                                {/* Metadata - Founded, Followers */}
+                                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-sm text-gray-500">
+                                    {profileData.foundedDate && (
+                                        <span className="flex items-center gap-1.5">
+                                            <span>📅</span>
+                                            Founded {new Date(profileData.foundedDate).getFullYear()}
+                                        </span>
+                                    )}
+                                    {profileData.foundedBy && (
+                                        <span className="flex items-center gap-1.5">
+                                            <span>👤</span>
+                                            By {profileData.foundedBy}
+                                        </span>
+                                    )}
+                                    {/* Stats - Clickable to switch tabs */}
+                                    <div className="flex items-center gap-4">
+                                        <button
+                                            onClick={() => setActiveTab('followers')}
+                                            className="flex items-center gap-1.5 group hover:text-blue-600 transition-colors"
+                                        >
+                                            <UsersIcon className="w-4 h-4 group-hover:text-blue-600" />
+                                            <span className="font-medium text-gray-900 group-hover:text-blue-600">{profile.followerCount || 0}</span> followers
+                                        </button>
+
+                                        <button
+                                            onClick={() => setActiveTab('following')}
+                                            className="flex items-center gap-1.5 group hover:text-blue-600 transition-colors"
+                                        >
+                                            <UserGroupIcon className="w-4 h-4 group-hover:text-blue-600" />
+                                            <span className="font-medium text-gray-900 group-hover:text-blue-600">{profile.followingCount || 0}</span> following
+                                        </button>
                                     </div>
-                                    <div className="text-sm text-gray-500">Followers</div>
-                                </button>
-                                <button onClick={() => setActiveTab('items')} className="group text-center md:text-right">
-                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
-                                        <ShoppingBagIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
-                                        {brand.analytics.totalCatalogItems}
-                                    </div>
-                                    <div className="text-sm text-gray-500">Items</div>
-                                </button>
-                                <button onClick={() => setActiveTab('team')} className="group text-center md:text-right">
-                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
-                                        <UserGroupIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
-                                        {team.length}
-                                    </div>
-                                    <div className="text-sm text-gray-500">Team</div>
-                                </button>
-                                <button onClick={() => setActiveTab('collections')} className="group text-center md:text-right">
-                                    <div className="flex items-center md:justify-end gap-1.5 font-bold text-2xl text-gray-900 group-hover:text-blue-600 transition-colors">
-                                        <Squares2X2Icon className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
-                                        {collections.length}
-                                    </div>
-                                    <div className="text-sm text-gray-500">Collections</div>
-                                </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Tabs */}
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-                <div className="border-b border-gray-200">
-                    <nav className="flex gap-8" aria-label="Tabs">
-                        {(['overview', 'items', 'followers', 'team', 'lookbooks', 'collections'] as const).map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                            >
-                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                {tab === 'followers' && <span className="ml-2 text-gray-400">({followerCount || 0})</span>}
-                                {tab === 'items' && <span className="ml-2 text-gray-400">({brand.analytics.totalCatalogItems})</span>}
-                                {tab === 'team' && <span className="ml-2 text-gray-400">({team.length})</span>}
-                                {tab === 'lookbooks' && <span className="ml-2 text-gray-400">({lookbooks.length})</span>}
-                                {tab === 'collections' && <span className="ml-2 text-gray-400">({collections.length})</span>}
-                            </button>
-                        ))}
-                    </nav>
-                </div>
+                {/* Tabs */}
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+                    <div className="border-b border-gray-200">
+                        <nav className="flex gap-8 overflow-x-auto pb-px" aria-label="Tabs">
+                            {(['overview', 'items', 'team', 'lookbooks', 'collections', 'followers', 'following'] as const).map((tab) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab
+                                        ? 'border-gray-900 text-gray-900'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                        }`}
+                                >
+                                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
 
-                {/* Tab Content */}
-                <div className="py-8">
-                    {activeTab === 'overview' && (
-                        <div className="space-y-8">
-                            {/* Assets */}
-                            {profileData.additionalLogos && profileData.additionalLogos.length > 0 && (
-                                <section>
-                                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Assets</h2>
-                                    <div className="flex flex-wrap gap-4">
-                                        {profileData.additionalLogos.map((logoUrl, index) => {
-                                            const meta = profileData.logoMetadata?.find(m => m.url === logoUrl);
-                                            return (
-                                                <div key={index} className="flex flex-col gap-2 items-center group">
-                                                    <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-transparent group-hover:border-gray-200 transition-colors">
-                                                        <img
-                                                            src={getImageUrl(logoUrl)}
-                                                            alt={meta?.name || `Logo ${index + 1}`}
-                                                            className="max-w-full max-h-full object-contain"
-                                                        />
+                    {/* Tab Content */}
+                    <div className="py-8">
+                        {activeTab === 'overview' && (
+                            <div className="space-y-8">
+                                {/* Assets */}
+                                {profileData.additionalLogos && profileData.additionalLogos.length > 0 && (
+                                    <section>
+                                        <h2 className="text-xl font-semibold text-gray-900 mb-4">Assets</h2>
+                                        <div className="flex flex-wrap gap-4">
+                                            {profileData.additionalLogos.map((logoUrl, index) => {
+                                                const meta = profileData.logoMetadata?.find(m => m.url === logoUrl);
+                                                return (
+                                                    <div key={index} className="flex flex-col gap-2 items-center group">
+                                                        <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-2 border border-transparent group-hover:border-gray-200 transition-colors">
+                                                            <img
+                                                                src={getImageUrl(logoUrl)}
+                                                                alt={meta?.name || `Logo ${index + 1}`}
+                                                                className="max-w-full max-h-full object-contain"
+                                                            />
+                                                        </div>
+                                                        {meta?.name && (
+                                                            <span className="text-xs text-gray-500 font-medium">{meta.name}</span>
+                                                        )}
                                                     </div>
-                                                    {meta?.name && (
-                                                        <span className="text-xs text-gray-500 font-medium">{meta.name}</span>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </section>
-                            )}
+                                                );
+                                            })}
+                                        </div>
+                                    </section>
+                                )}
 
-                            {/* Team Preview */}
-                            {team.length > 0 && (
-                                <section>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="text-xl font-semibold text-gray-900">Team</h2>
-                                        <button onClick={() => setActiveTab('team')} className="text-blue-600 hover:underline text-sm">
-                                            View all →
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                        {team.slice(0, 6).map((member) => (
-                                            <TeamMemberCard key={member.id} member={member} />
-                                        ))}
-                                    </div>
-                                </section>
-                            )}
+                                {/* Team Preview */}
+                                {team.length > 0 && (
+                                    <section>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h2 className="text-xl font-semibold text-gray-900">Team</h2>
+                                            <button onClick={() => setActiveTab('team')} className="text-blue-600 hover:underline text-sm">
+                                                View all →
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                            {team.slice(0, 6).map((member) => (
+                                                <TeamMemberCard key={member.id} member={member} />
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
 
-                            {/* Lookbooks Preview */}
-                            {lookbooks.length > 0 && (
-                                <section>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="text-xl font-semibold text-gray-900">Lookbooks</h2>
-                                        <button onClick={() => setActiveTab('lookbooks')} className="text-blue-600 hover:underline text-sm">
-                                            View all →
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {lookbooks.slice(0, 3).map((lookbook) => (
-                                            <LookbookCard key={lookbook.id} lookbook={lookbook} slug={slug} businessType={businessType} />
-                                        ))}
-                                    </div>
-                                </section>
-                            )}
+                                {/* Lookbooks Preview */}
+                                {lookbooks.length > 0 && (
+                                    <section>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h2 className="text-xl font-semibold text-gray-900">Lookbooks</h2>
+                                            <button onClick={() => setActiveTab('lookbooks')} className="text-blue-600 hover:underline text-sm">
+                                                View all →
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {lookbooks.slice(0, 3).map((lookbook) => (
+                                                <LookbookCard key={lookbook.id} lookbook={lookbook} slug={slug} businessType={businessType} />
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
 
-                            {/* Collections Preview */}
-                            {collections.length > 0 && (
-                                <section>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="text-xl font-semibold text-gray-900">Collections</h2>
-                                        <button onClick={() => setActiveTab('collections')} className="text-blue-600 hover:underline text-sm">
-                                            View all →
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {collections.slice(0, 3).map((collection) => (
-                                            <CollectionCard key={collection.id} collection={collection} slug={slug} businessType={businessType} />
-                                        ))}
-                                    </div>
-                                </section>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'team' && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                            {team.map((member) => (
-                                <TeamMemberCard key={member.id} member={member} />
-                            ))}
-                            {team.length === 0 && (
-                                <p className="col-span-full text-center text-gray-500 py-12">No team members listed yet.</p>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'lookbooks' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {lookbooks.map((lookbook) => (
-                                <LookbookCard key={lookbook.id} lookbook={lookbook} slug={slug} businessType={businessType} />
-                            ))}
-                            {lookbooks.length === 0 && (
-                                <p className="col-span-full text-center text-gray-500 py-12">No lookbooks published yet.</p>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'collections' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {collections.map((collection) => (
-                                <CollectionCard key={collection.id} collection={collection} slug={slug} businessType={businessType} />
-                            ))}
-                            {collections.length === 0 && (
-                                <p className="col-span-full text-center text-gray-500 py-12">No collections published yet.</p>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'items' && (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-xl font-semibold text-gray-900">Items Catalog</h2>
-                                <span className="text-sm text-gray-500">{brand.analytics.totalCatalogItems} items available</span>
+                                {/* Collections Preview */}
+                                {collections.length > 0 && (
+                                    <section>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h2 className="text-xl font-semibold text-gray-900">Collections</h2>
+                                            <button onClick={() => setActiveTab('collections')} className="text-blue-600 hover:underline text-sm">
+                                                View all →
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {collections.slice(0, 3).map((collection) => (
+                                                <CollectionCard key={collection.id} collection={collection} slug={slug} businessType={businessType} />
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
                             </div>
+                        )}
 
-                            {loadingItems ? (
+                        {activeTab === 'team' && (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                {team.map((member) => (
+                                    <TeamMemberCard key={member.id} member={member} />
+                                ))}
+                                {team.length === 0 && (
+                                    <p className="col-span-full text-center text-gray-500 py-12">No team members listed yet.</p>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'lookbooks' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {lookbooks.map((lookbook) => (
+                                    <LookbookCard key={lookbook.id} lookbook={lookbook} slug={slug} businessType={businessType} />
+                                ))}
+                                {lookbooks.length === 0 && (
+                                    <p className="col-span-full text-center text-gray-500 py-12">No lookbooks published yet.</p>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'collections' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {collections.map((collection) => (
+                                    <CollectionCard key={collection.id} collection={collection} slug={slug} businessType={businessType} />
+                                ))}
+                                {collections.length === 0 && (
+                                    <p className="col-span-full text-center text-gray-500 py-12">No collections published yet.</p>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'items' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-semibold text-gray-900">Items Catalog</h2>
+                                    <span className="text-sm text-gray-500">{brand.analytics.totalCatalogItems} items available</span>
+                                </div>
+
+                                {loadingItems ? (
+                                    <div className="flex justify-center py-20">
+                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                                    </div>
+                                ) : catalogItems.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {catalogItems.map((item) => (
+                                            <SKUCard
+                                                key={item.id}
+                                                item={{ ...(item.item || item), brand: brand.brandInfo }}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
+                                        <ShoppingBagIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                        <h3 className="text-lg font-semibold text-gray-900">No items found</h3>
+                                        <p className="text-gray-500 mt-2">This brand hasn't added any items to their catalog yet.</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'followers' && (
+                            loadingSocial ? (
                                 <div className="flex justify-center py-20">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                                 </div>
-                            ) : catalogItems.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    {catalogItems.map((item) => (
-                                        <SKUCard
-                                            key={item.id}
-                                            item={{ ...(item.item || item), brand: brand.brandInfo }}
-                                        />
-                                    ))}
+                            ) : (
+                                <FollowList
+                                    items={followers}
+                                    emptyMessage={`No followers yet.`}
+                                />
+                            )
+                        )}
+
+                        {activeTab === 'following' && (
+                            loadingSocial ? (
+                                <div className="flex justify-center py-20">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                                 </div>
                             ) : (
-                                <div className="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-                                    <ShoppingBagIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                    <h3 className="text-lg font-semibold text-gray-900">No items found</h3>
-                                    <p className="text-gray-500 mt-2">This brand hasn't added any items to their catalog yet.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'followers' && (
-                        <div className="text-center py-20 bg-white rounded-xl border border-gray-100 shadow-sm">
-                            <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900">Followers</h3>
-                            <p className="text-gray-500 mt-2">Explore the community following this {displayTypeLabel.toLowerCase()}.</p>
-                        </div>
-                    )}
+                                <FollowList
+                                    items={following}
+                                    emptyMessage={`Not following anyone yet.`}
+                                />
+                            )
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

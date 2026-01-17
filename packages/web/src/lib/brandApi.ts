@@ -119,12 +119,13 @@ class BrandApi {
     }
   }
 
-  async getBrands(params?: { limit?: number; page?: number; search?: string; businessType?: string }): Promise<any[]> {
+  async getBrands(params?: { limit?: number; page?: number; search?: string; businessType?: string; country?: string }): Promise<any[]> {
     const queryParams = new URLSearchParams();
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.search) queryParams.append('q', params.search);
     if (params?.businessType) queryParams.append('businessType', params.businessType);
+    if (params?.country) queryParams.append('country', params.country);
 
     const response = await apiClient.get<any>(`/brands/search?${queryParams.toString()}`);
     return response.data?.brands || response.brands || [];
@@ -276,9 +277,26 @@ class BrandApi {
 
   // ============ BRAND PROFILE ============
 
-  async getFullProfile(brandId: string): Promise<BrandFullProfile> {
-    const result = await apiClient.get<any>(`/brands/${brandId}/profile`);
-    return result;
+  async getBrandProfile(brandId: string): Promise<BrandFullProfile> {
+    const response = await apiClient.get<BrandFullProfile>(`/brands/${brandId}/profile`);
+    return response;
+  }
+
+  async getNationalities(): Promise<string[]> {
+    const response = await apiClient.get<{ success: boolean, nationalities: string[] }>('/brands/nationalities');
+    return response.nationalities || [];
+  }
+
+  async getBrandsLines(brandIds: string[]): Promise<any[]> {
+    if (!brandIds.length) return [];
+    const response = await apiClient.get<{ success: boolean, lines: any[] }>(`/brands/lines-bulk?ids=${brandIds.join(',')}`);
+    return response.lines || [];
+  }
+
+  async getBrandsCollections(brandIds: string[]): Promise<any[]> {
+    if (!brandIds.length) return [];
+    const response = await apiClient.get<{ success: boolean, collections: any[] }>(`/brands/collections-bulk?ids=${brandIds.join(',')}`);
+    return response.collections || [];
   }
 
   async updateProfileData(brandId: string, data: BrandProfileData): Promise<BrandAccount> {
@@ -384,6 +402,36 @@ class BrandApi {
     const result = await apiClient.put<any>(`/brands/${brandId}/verify`, { status, notes: reason });
     return result.brand || result;
   }
+
+  // ============ SOCIAL / FOLLOWERS ============
+
+  async followEntity(entityType: string, entityId: string, actingAs?: { type: string; id: string }): Promise<void> {
+    await apiClient.post(`/entities/${entityType}/${entityId}/follow`, { actingAs });
+  }
+
+  async unfollowEntity(entityType: string, entityId: string, actingAs?: { type: string; id: string }): Promise<void> {
+    await apiClient.delete(`/entities/${entityType}/${entityId}/follow`, { data: { actingAs } });
+  }
+
+  async getEntityFollowers(entityType: string, entityId: string, page = 1, limit = 20): Promise<{ followers: any[]; total: number; hasMore: boolean }> {
+    const result = await apiClient.get<any>(`/entities/${entityType}/${entityId}/followers?page=${page}&limit=${limit}`);
+    return result;
+  }
+
+  async getEntityFollowing(entityType: string, entityId: string, page = 1, limit = 20, targetType?: string): Promise<{ following: any[]; total: number; hasMore: boolean }> {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    if (targetType) params.append('targetType', targetType);
+
+    const result = await apiClient.get<any>(`/entities/${entityType}/${entityId}/following?${params}`);
+    return result;
+  }
+
+  async checkEntityFollowStatus(entityType: string, entityId: string): Promise<{ isFollowing: boolean; isFollower: boolean }> {
+    const result = await apiClient.get<any>(`/entities/${entityType}/${entityId}/follow-status`);
+    return result;
+  }
 }
 
 // ============ TYPE EXPORTS ============
@@ -416,6 +464,7 @@ export interface BrandTeamMember {
     name: string;
     avatarUrl?: string;
     username?: string;
+    verificationStatus?: 'verified' | 'rejected' | 'pending' | 'unverified';
   };
 }
 
@@ -475,6 +524,7 @@ export interface BrandFullProfile {
   lookbooks: BrandLookbook[];
   collections: BrandCollection[];
   followerCount: number;
+  followingCount: number;
 }
 
 export type { BrandAccount, CatalogItem };

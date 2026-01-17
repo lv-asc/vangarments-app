@@ -365,7 +365,7 @@ export class BrandController {
    */
   async searchBrands(req: Request, res: Response): Promise<void> {
     try {
-      const { q: query = '', verificationStatus, partnershipTier, businessType, page = 1, limit = 1000 } = req.query;
+      const { q: query = '', verificationStatus, partnershipTier, businessType, country, page = 1, limit = 1000 } = req.query;
 
       // Sync VUFS brands before searching to ensure list is up to date
       // We do this asynchronously without awaiting to not slow down the response significantly
@@ -377,6 +377,7 @@ export class BrandController {
       if (verificationStatus) filters.verificationStatus = verificationStatus;
       if (partnershipTier) filters.partnershipTier = partnershipTier;
       if (businessType) filters.businessType = businessType;
+      if (country) filters.country = country;
 
       const results = await brandService.searchBrands(
         query as string,
@@ -748,6 +749,46 @@ export class BrandController {
           message: error.message,
         },
       });
+    }
+  }
+
+  /**
+   * Get all active brand nationalities
+   */
+  async getNationalities(req: Request, res: Response): Promise<void> {
+    try {
+      const nationalities = await brandService.getNationalities();
+      res.json({ success: true, nationalities });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'GET_NATIONALITIES_FAILED', message: error.message } });
+    }
+  }
+
+  /**
+   * Get lines for a set of brands
+   */
+  async getBrandsLines(req: Request, res: Response): Promise<void> {
+    try {
+      const ids = req.query.ids as string;
+      const brandIds = ids ? ids.split(',') : [];
+      const lines = await brandService.getBrandsLines(brandIds);
+      res.json({ success: true, lines });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'GET_BRANDS_LINES_FAILED', message: error.message } });
+    }
+  }
+
+  /**
+   * Get collections for a set of brands
+   */
+  async getBrandsCollections(req: Request, res: Response): Promise<void> {
+    try {
+      const ids = req.query.ids as string;
+      const brandIds = ids ? ids.split(',') : [];
+      const collections = await brandService.getBrandsCollections(brandIds);
+      res.json({ success: true, collections });
+    } catch (error: any) {
+      res.status(500).json({ error: { code: 'GET_BRANDS_COLLECTIONS_FAILED', message: error.message } });
     }
   }
 }

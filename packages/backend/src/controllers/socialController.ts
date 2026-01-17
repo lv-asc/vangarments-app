@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../utils/auth';
 import { EntityFollowModel, EntityType } from '../models/EntityFollow';
 import { NotificationModel } from '../models/Notification';
 import { UserModel } from '../models/User';
+import { BrandTeamModel } from '../models/BrandTeam';
 
 const socialService = new SocialService();
 
@@ -166,9 +167,42 @@ export class SocialController {
   async followUser(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { userId: followingId } = req.params;
-      const followerId = req.user!.id;
+      const { actingAs, followerId: explicitFollowerId, followerType: explicitFollowerType } = req.body;
+      const userId = req.user!.id;
 
-      if (followerId === followingId) {
+      // Handle "Acting As" an entity (Brand follows User)
+      if (actingAs) {
+        const followerId = actingAs.id;
+        const followerType = actingAs.type;
+
+        if (followerType === 'brand' || followerType === 'store' || followerType === 'supplier') {
+          const isMember = await BrandTeamModel.isMember(followerId, userId);
+          if (!isMember) {
+            res.status(403).json({
+              error: { code: 'UNAUTHORIZED_ACTION', message: 'You are not authorized to act as this entity' }
+            });
+            return;
+          }
+        }
+
+        if (followerId === followingId) {
+          res.status(400).json({ error: { code: 'SELF_FOLLOW_NOT_ALLOWED', message: 'Cannot follow yourself' } });
+          return;
+        }
+
+        // Use EntityFollowModel when follower is an Entity
+        const follow = await EntityFollowModel.follow({
+          followerId,
+          followerType,
+          entityType: 'user', // Target is User
+          entityId: followingId,
+        });
+
+        res.status(201).json({ success: true, data: { follow } });
+        return;
+      }
+
+      if (userId === followingId) {
         res.status(400).json({
           error: {
             code: 'SELF_FOLLOW_NOT_ALLOWED',
@@ -178,12 +212,12 @@ export class SocialController {
         return;
       }
 
-      const follow = await socialService.followUser(followerId, followingId);
+      const follow = await socialService.followUser(userId, followingId);
 
       // Create notification if follow is accepted (public profile)
       if (follow.status === 'accepted') {
         // Get follower details for the notification
-        const follower = await UserModel.findById(followerId);
+        const follower = await UserModel.findById(userId);
         const followerName = follower?.username || 'Someone';
 
         await NotificationModel.create({
@@ -192,7 +226,7 @@ export class SocialController {
           title: 'New Follower',
           message: `${followerName} started following you`,
           link: `/u/${followerName}`,
-          actorId: followerId,
+          actorId: userId,
         });
       }
 
@@ -216,9 +250,40 @@ export class SocialController {
   async unfollowUser(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { userId: followingId } = req.params;
-      const followerId = req.user!.id;
+      const { actingAs } = req.body;
+      const userId = req.user!.id;
 
-      const success = await socialService.unfollowUser(followerId, followingId);
+      if (actingAs) {
+        const followerId = actingAs.id;
+        const followerType = actingAs.type;
+
+        if (followerType === 'brand' || followerType === 'store' || followerType === 'supplier') {
+          const isMember = await BrandTeamModel.isMember(followerId, userId);
+          if (!isMember) {
+            res.status(403).json({
+              error: { code: 'UNAUTHORIZED_ACTION', message: 'You are not authorized to act as this entity' }
+            });
+            return;
+          }
+        }
+
+        const success = await EntityFollowModel.unfollow(
+          followerId,
+          followerType,
+          'user',
+          followingId
+        );
+
+        if (!success) {
+          res.status(404).json({ error: { code: 'FOLLOW_NOT_FOUND', message: 'Follow relationship not found' } });
+          return;
+        }
+
+        res.json({ success: true, message: 'Successfully unfollowed user' });
+        return;
+      }
+
+      const success = await socialService.unfollowUser(userId, followingId);
 
       if (!success) {
         res.status(404).json({
@@ -613,9 +678,30 @@ export class SocialController {
   async followEntity(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { entityType, entityId } = req.params;
-      const followerId = req.user!.id;
+      const { actingAs, followerId: explicitFollowerId, followerType: explicitFollowerType } = req.body;
+      const userId = req.user!.id;
 
-      // Prevent users from following themselves as entities
+      let followerId = userId;
+      let followerType: EntityType = 'user';
+
+      // Handle "Acting As" an entity (e.g. Brand)
+      if (actingAs) {
+        followerId = actingAs.id;
+        followerType = actingAs.type;
+
+        // Verify permission (e.g. Check if user is on the brand team)
+        if (followerType === 'brand' || followerType === 'store' || followerType === 'supplier') {
+          const isMember = await BrandTeamModel.isMember(followerId, userId);
+          if (!isMember) {
+            res.status(403).json({
+              error: { code: 'UNAUTHORIZED_ACTION', message: 'You are not authorized to act as this entity' }
+            });
+            return;
+          }
+        }
+      }
+
+      // Prevent self-follow
       if (followerId === entityId) {
         res.status(400).json({
           error: {
@@ -628,6 +714,7 @@ export class SocialController {
 
       const follow = await EntityFollowModel.follow({
         followerId,
+        followerType,
         entityType: entityType as EntityType,
         entityId,
       });
@@ -652,10 +739,30 @@ export class SocialController {
   async unfollowEntity(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { entityType, entityId } = req.params;
-      const followerId = req.user!.id;
+      const { actingAs } = req.body;
+      const userId = req.user!.id;
+
+      let followerId = userId;
+      let followerType: EntityType = 'user';
+
+      if (actingAs) {
+        followerId = actingAs.id;
+        followerType = actingAs.type;
+
+        if (followerType === 'brand' || followerType === 'store' || followerType === 'supplier') {
+          const isMember = await BrandTeamModel.isMember(followerId, userId);
+          if (!isMember) {
+            res.status(403).json({
+              error: { code: 'UNAUTHORIZED_ACTION', message: 'You are not authorized to act as this entity' }
+            });
+            return;
+          }
+        }
+      }
 
       const success = await EntityFollowModel.unfollow(
         followerId,
+        followerType,
         entityType as EntityType,
         entityId
       );
@@ -733,15 +840,28 @@ export class SocialController {
       const { entityType, entityId } = req.params;
       const followerId = req.user!.id;
 
+      // Check if User follows Entity
       const isFollowing = await EntityFollowModel.isFollowing(
         followerId,
+        'user',
         entityType as EntityType,
         entityId
       );
 
+      // Check if Entity follows User (for "Friends" status)
+      const isFollower = await EntityFollowModel.isFollowing(
+        entityId,
+        entityType as EntityType,
+        'user',
+        followerId
+      );
+
       res.json({
         success: true,
-        data: { isFollowing },
+        data: {
+          isFollowing,
+          isFollower
+        },
       });
     } catch (error: any) {
       res.status(500).json({
@@ -767,6 +887,7 @@ export class SocialController {
 
       const result = await EntityFollowModel.getFollowing(
         userId,
+        'user', // Follower is user
         entityType as EntityType | undefined,
         limitNum,
         offset,
@@ -776,9 +897,9 @@ export class SocialController {
       res.json({
         success: true,
         data: {
-          entities: result.entities,
+          entities: result.following,
           total: result.total,
-          hasMore: offset + result.entities.length < result.total,
+          hasMore: offset + result.following.length < result.total,
           pagination: {
             page: pageNum,
             limit: limitNum,
@@ -789,6 +910,49 @@ export class SocialController {
       res.status(500).json({
         error: {
           code: 'GET_USER_FOLLOWING_ENTITIES_FAILED',
+          message: error.message,
+        },
+      });
+    }
+  }
+
+  /**
+   * Get what an entity is following
+   */
+  async getEntityFollowing(req: Request, res: Response): Promise<void> {
+    try {
+      const { entityType, entityId } = req.params;
+      const { targetType, page = 1, limit = 50, q = '' } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      const result = await EntityFollowModel.getFollowing(
+        entityId,
+        entityType as EntityType,
+        targetType as EntityType | undefined,
+        limitNum,
+        offset,
+        q as string
+      );
+
+      res.json({
+        success: true,
+        data: {
+          following: result.following,
+          total: result.total,
+          hasMore: offset + result.following.length < result.total,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+          },
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: {
+          code: 'GET_ENTITY_FOLLOWING_FAILED',
           message: error.message,
         },
       });

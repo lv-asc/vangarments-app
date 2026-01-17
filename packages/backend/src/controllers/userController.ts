@@ -1023,6 +1023,42 @@ export class UserController {
     }
   }
 
+  /**
+   * Get public users for the directory
+   * Does NOT require admin roles.
+   */
+  static async getPublicUsers(req: Request, res: Response) {
+    try {
+      const { search, page = 1, limit = 20 } = req.query;
+
+      const filters = {
+        search: search as string,
+        limit: parseInt(limit as string),
+        offset: (parseInt(page as string) - 1) * parseInt(limit as string),
+      };
+
+      const { users, total } = await UserModel.searchPublicUsers(filters);
+
+      res.json({
+        success: true,
+        users,
+        pagination: {
+          total,
+          page: parseInt(page as string),
+          limit: parseInt(limit as string),
+        }
+      });
+    } catch (error) {
+      console.error('Get public users error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching public users',
+        },
+      });
+    }
+  }
+
 
 
   static async getUserById(req: AuthenticatedRequest, res: Response) {

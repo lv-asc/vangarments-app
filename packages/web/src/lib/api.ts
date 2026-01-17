@@ -623,8 +623,8 @@ class ApiClient {
     return response.data || response.user;
   }
 
-  async searchUsers(query: string, limit = 5): Promise<any[]> {
-    const response = await this.request<any>(`/users?search=${encodeURIComponent(query)}&limit=${limit}`);
+  async searchUsers(query: string, limit = 20): Promise<any[]> {
+    const response = await this.request<any>(`/users/search?search=${encodeURIComponent(query)}&limit=${limit}`);
     return (response as any).users || response.data || [];
   }
 
@@ -635,7 +635,7 @@ class ApiClient {
 
   async getAllEntities(): Promise<any[]> {
     const response = await this.request<any>('/admin/all-entities');
-    return (response as any).data?.entities || response.entities || [];
+    return (response as any).data?.entities || (response as any).entities || [];
   }
 
   async updateEntityVerification(entityId: string, status: string, entityType: string): Promise<void> {
@@ -1669,12 +1669,14 @@ class ApiClient {
   }
 
   async getSKU(id: string) {
-    const response = await this.request<any>(`/skus/skus/${id}`);
-    return (response as any).data || response;
+    const response = await this.request<any>(`/skus/${id}`);
+    const data = (response as any).data || response;
+    // Backend returns { sku: { ... } }, so we need to unwrap it if present
+    return data.sku || data;
   }
 
   async updateSKU(id: string, updateData: any) {
-    const response = await this.request<any>(`/skus/skus/${id}`, {
+    const response = await this.request<any>(`/skus/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updateData)
     });
@@ -1682,7 +1684,7 @@ class ApiClient {
   }
 
   async deleteSKU(id: string) {
-    const response = await this.request<any>(`/skus/skus/${id}`, {
+    const response = await this.request<any>(`/skus/${id}`, {
       method: 'DELETE'
     });
     return (response as any).data || response;
@@ -1866,9 +1868,10 @@ class ApiClient {
     return (response as any).data || response as T;
   }
 
-  async delete<T>(endpoint: string): Promise<T> {
+  async delete<T>(endpoint: string, data?: any): Promise<T> {
     const response = await this.request<T>(endpoint, {
       method: 'DELETE',
+      body: data ? JSON.stringify(data) : undefined,
     });
     return (response as any).data || response as T;
   }
@@ -1902,20 +1905,7 @@ class ApiClient {
     return response.data?.isFollowing || false;
   }
 
-  /**
-   * Get entities the current user is following
-   */
-  async getFollowingEntities(
-    userId: string,
-    entityType?: 'brand' | 'store' | 'supplier' | 'page',
-    page = 1,
-    limit = 50
-  ): Promise<{ entities: any[]; total: number; hasMore: boolean }> {
-    const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
-    if (entityType) params.append('entityType', entityType);
-    const response = await this.request<any>(`/social/users/${userId}/following-entities?${params}`);
-    return response.data || response;
-  }
+
 
   /**
    * Get followers of an entity

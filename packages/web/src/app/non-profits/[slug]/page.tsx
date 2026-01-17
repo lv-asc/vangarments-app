@@ -31,7 +31,7 @@ export default function NonProfitProfilePage() {
     const loadProfile = async () => {
         try {
             setLoading(true);
-            const data = await brandApi.getFullProfile(slug);
+            const data = await brandApi.getBrandProfile(slug);
 
             // Redirect if this is not a non-profit
             if (data.brand.brandInfo.businessType !== 'non_profit') {

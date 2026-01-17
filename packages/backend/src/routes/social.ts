@@ -310,4 +310,23 @@ router.get(
   socialController.getUserFollowingEntities.bind(socialController)
 );
 
+router.get(
+  '/entities/:entityType/:entityId/following',
+  userIdValidation, // Reusing similar validation, but should probably be entityTypeValidation + pagination
+  [
+    param('entityType')
+      .isIn(['brand', 'store', 'supplier', 'page']) // entities following things
+      .withMessage('Entity type must be brand, store, supplier, or page'),
+    param('entityId').isUUID().withMessage('Entity ID must be a valid UUID'),
+    ...paginationValidation,
+    query('targetType')
+      .optional()
+      .isIn(['user', 'brand', 'store', 'supplier', 'page'])
+      .withMessage('Target type must be valid'),
+    query('q').optional().isString(),
+  ],
+  validateRequest,
+  socialController.getEntityFollowing.bind(socialController)
+);
+
 export default router;

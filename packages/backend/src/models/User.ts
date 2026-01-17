@@ -432,6 +432,59 @@ export class UserModel {
     return { users, total };
   }
 
+  /**
+   * Search for users with aggregated statistics (followers, posts)
+   * This is a public search endpoint.
+   */
+  static async searchPublicUsers(filters: { search?: string; limit?: number; offset?: number } = {}): Promise<{ users: (UserProfile & { stats: { followers: number; posts: number } })[], total: number }> {
+    const { search, limit = 20, offset = 0 } = filters;
+    const params: any[] = [];
+    const conditions: string[] = ["u.status = 'active'"];
+
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(u.username ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length})`);
+    }
+
+    const whereClause = 'WHERE ' + conditions.join(' AND ');
+
+    const query = `
+      SELECT u.*, 
+             array_agg(DISTINCT ur.role) as roles, 
+             count(*) OVER() as full_count,
+             (SELECT COUNT(*)::int FROM user_follows uf WHERE uf.following_id = u.id AND uf.status = 'accepted') as followers_count,
+             (SELECT COUNT(*)::int FROM social_posts sp WHERE sp.user_id = u.id AND sp.visibility = 'public') as posts_count
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      ${whereClause}
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.verification_status, u.last_seen_at, u.created_at, u.updated_at
+      ORDER BY followers_count DESC, u.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
+
+    params.push(limit, offset);
+
+    const result = await db.query(query, params);
+
+    if (result.rows.length === 0) {
+      return { users: [], total: 0 };
+    }
+
+    const total = parseInt(result.rows[0].full_count);
+    const users = result.rows.map(row => {
+      const user = this.mapToUserProfile(row);
+      return {
+        ...user,
+        stats: {
+          followers: row.followers_count || 0,
+          posts: row.posts_count || 0
+        }
+      };
+    });
+
+    return { users, total };
+  }
+
   public static mapToUserProfile(row: any): UserProfile {
     const profile = typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile;
     const measurements = row.measurements ?

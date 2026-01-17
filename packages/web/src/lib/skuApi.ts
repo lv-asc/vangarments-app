@@ -67,28 +67,32 @@ export const skuApi = {
         sizeId?: string;
         lineId?: string;
         collection?: string;
+        nationality?: string;
         years?: string;
         months?: string;
         days?: string;
         parentsOnly?: boolean;
         limit?: number;
+        offset?: number;
         page?: number;
     }): Promise<{ skus: SKUItem[], total: number }> => {
         const params = new URLSearchParams();
         if (term) params.append('term', term);
-        if (options?.brandId) params.append('brandId', options.brandId);
-        if (options?.styleId) params.append('styleId', options.styleId);
-        if (options?.patternId) params.append('patternId', options.patternId);
-        if (options?.fitId) params.append('fitId', options.fitId);
-        if (options?.genderId) params.append('genderId', options.genderId);
-        if (options?.apparelId) params.append('apparelId', options.apparelId);
-        if (options?.materialId) params.append('materialId', options.materialId);
-        if (options?.sizeId) params.append('sizeId', options.sizeId);
-        if (options?.lineId) params.append('lineId', options.lineId);
-        if (options?.collection) params.append('collection', options.collection);
-        if (options?.years) params.append('years', options.years);
-        if (options?.months) params.append('months', options.months);
-        if (options?.days) params.append('days', options.days);
+
+        // Append all filter options
+        if (options) {
+            const filterKeys = [
+                'brandId', 'styleId', 'patternId', 'fitId', 'genderId',
+                'apparelId', 'materialId', 'sizeId', 'lineId', 'collection',
+                'nationality', 'years', 'months', 'days'
+            ];
+            filterKeys.forEach(key => {
+                const value = options[key as keyof typeof options];
+                if (value !== undefined && value !== '') {
+                    params.append(key, String(value));
+                }
+            });
+        }
 
         const parentsOnly = options?.parentsOnly !== undefined ? options.parentsOnly : true;
         params.append('parentsOnly', parentsOnly.toString());
@@ -107,7 +111,7 @@ export const skuApi = {
     },
 
     getRelatedSKUs: async (skuId: string, type: 'collection' | 'brand', limit = 8): Promise<SKUItem[]> => {
-        const response = await apiClient.get<SKUItem[]>(`/skus/skus/${skuId}/related?type=${type}&limit=${limit}`);
+        const response = await apiClient.get<SKUItem[]>(`/skus/${skuId}/related?type=${type}&limit=${limit}`);
         return response;
     },
 

@@ -23,92 +23,96 @@ export async function generateMetadata(
         // SKU search endpoint is now public for SEO/metadata purposes
         const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-        // Extract meaningful search terms from the slug
-        // Slug format: brand-product-code or product-name-with-dashes
-        // Try to extract product name keywords (skip common short words, brand codes, etc.)
-        const slugParts = slug.split('-');
-        const meaningfulParts = slugParts.filter(part =>
-            part.length > 2 && !['asc', 'sk', 'ct', 'rf', 'teh', 'tsh', 'bk', 'm'].includes(part.toLowerCase())
-        );
-
-        // Create search term from meaningful parts
-        const searchTerm = meaningfulParts.join(' ');
-        console.log(`[Metadata] Extracted search term: "${searchTerm}" from slug parts: ${JSON.stringify(meaningfulParts)}`);
-
-        const searchParams = new URLSearchParams({
-            term: searchTerm || slug,
+        // Initial search using the full slug (handles codes and direct matches)
+        const initialParams = new URLSearchParams({
+            term: slug,
             parentsOnly: 'true'
         });
 
-        const url = `${baseURL}/skus/search?${searchParams.toString()}`;
-        console.log(`[Metadata] Fetching from: ${url}`);
+        const initialUrl = `${baseURL}/skus/search?${initialParams.toString()}`;
+        console.log(`[Metadata] Initial fetch from: ${initialUrl}`);
 
-        let response = await fetch(url, {
-            cache: 'no-store'
-        });
+        let response = await fetch(initialUrl, { cache: 'no-store' });
+        let result = response.ok ? await response.json() : { skus: [] };
 
-        if (response.ok) {
-            let result = await response.json();
-            console.log(`[Metadata] Found ${result.skus?.length || 0} SKUs`);
+        // If no results, try the keyword-extracted search
+        if (!result.skus || result.skus.length === 0) {
+            const slugParts = slug.split('-');
+            const meaningfulParts = slugParts.filter(part =>
+                part.length > 2 && !['asc', 'sk', 'ct', 'rf', 'teh', 'tsh', 'bk', 'm'].includes(part.toLowerCase())
+            );
 
-            // If no results, try stripping size suffix (e.g. -xl, -l, -s)
-            if (!result.skus || result.skus.length === 0) {
-                const parts = slug.split('-');
-                if (parts.length > 1) {
-                    const potentialSize = parts[parts.length - 1];
-                    // Check if potential size is a common size
-                    if (/^(x{0,3}s|x{0,4}l|m|[0-9]+)$/i.test(potentialSize)) {
-                        parts.pop();
-                        const potentialBase = parts.join('-');
-                        // Try to extract meaningful parts again from the base
-                        const baseSlugParts = potentialBase.split('-');
-                        const baseMeaningfulParts = baseSlugParts.filter(part =>
-                            part.length > 2 && !['asc', 'sk', 'ct', 'rf', 'teh', 'tsh', 'bk', 'm'].includes(part.toLowerCase())
-                        );
-                        const baseSearchTerm = baseMeaningfulParts.join(' ');
+            const searchTerm = meaningfulParts.join(' ');
+            if (searchTerm && searchTerm !== slug) {
+                const searchParams = new URLSearchParams({
+                    term: searchTerm,
+                    parentsOnly: 'true'
+                });
 
-                        const baseParams = new URLSearchParams({
-                            term: baseSearchTerm || potentialBase,
-                            parentsOnly: 'true'
-                        });
+                const url = `${baseURL}/skus/search?${searchParams.toString()}`;
+                console.log(`[Metadata] Retrying with search term: "${searchTerm}" from: ${url}`);
 
-                        const baseUrl = `${baseURL}/skus/search?${baseParams.toString()}`;
-                        console.log(`[Metadata] Retrying with stripped suffix from: ${baseUrl}`);
-                        const baseResponse = await fetch(baseUrl, { cache: 'no-store' });
-                        if (baseResponse.ok) {
-                            result = await baseResponse.json();
-                        }
+                response = await fetch(url, { cache: 'no-store' });
+                if (response.ok) {
+                    result = await response.json();
+                }
+            }
+        }
+
+        // Final fallback: strip size suffix if still no results
+        if (!result.skus || result.skus.length === 0) {
+            const parts = slug.split('-');
+            if (parts.length > 1) {
+                const potentialSize = parts[parts.length - 1];
+                if (/^(x{0,3}s|x{0,4}l|m|[0-9]+)$/i.test(potentialSize)) {
+                    parts.pop();
+                    const potentialBase = parts.join('-');
+                    const baseParams = new URLSearchParams({
+                        term: potentialBase,
+                        parentsOnly: 'true'
+                    });
+
+                    const baseUrl = `${baseURL}/skus/search?${baseParams.toString()}`;
+                    console.log(`[Metadata] Retrying with base SKU: "${potentialBase}" from: ${baseUrl}`);
+                    const baseResponse = await fetch(baseUrl, { cache: 'no-store' });
+                    if (baseResponse.ok) {
+                        result = await baseResponse.json();
                     }
                 }
             }
+        }
 
-            if (result.skus && result.skus.length > 0) {
-                const product = result.skus[0];
-                const title = stripSizeSuffix(product.name);
-                console.log(`[Metadata] Setting title to: ${title}`);
+        if (result.skus && result.skus.length > 0) {
+            const product = result.skus[0];
+            const title = stripSizeSuffix(product.name);
+            console.log(`[Metadata] Setting title to: ${title}`);
 
-                return {
+            return {
+                title: title,
+                description: product.description || `Buy ${title} on Vangarments`,
+                openGraph: {
                     title: title,
                     description: product.description || `Buy ${title} on Vangarments`,
-                    openGraph: {
-                        title: title,
-                        description: product.description || `Buy ${title} on Vangarments`,
-                        images: product.images?.[0]?.url ? [product.images[0].url] : [],
-                    }
-                };
-            } else {
-                console.log(`[Metadata] No SKUs found for term: "${searchTerm || slug}"`);
-            }
+                    images: product.images?.[0]?.url ? [product.images[0].url] : [],
+                }
+            };
         } else {
-            console.log(`[Metadata] API Error: ${response.status}`);
+            console.log(`[Metadata] No SKUs found for slug: "${slug}"`);
         }
     } catch (error) {
         console.error('[Metadata] Exception:', error);
     }
 
-    console.log(`[Metadata] Falling back to "Product"`);
+    // Fallback: Format the slug into a readable title
+    const fallbackTitle = slug
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+    console.log(`[Metadata] Falling back to formatted slug: "${fallbackTitle}"`);
     return {
-        title: 'Product',
+        title: fallbackTitle,
+        description: `View details for ${fallbackTitle} on Vangarments`
     };
 }
 

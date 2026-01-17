@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { skuApi } from '@/lib/skuApi';
 import { apiClient } from '@/lib/api';
-import { getImageUrl } from '@/lib/utils';
+import { getImageUrl, slugify } from '@/lib/utils';
 import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon, HeartIcon, PlusIcon, CheckIcon, CalendarIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
@@ -99,14 +99,11 @@ export default function ProductPageClient() {
                 let searchSlug = productSlug;
                 let detectedSizeSuffix = '';
 
-                // Helper to slugify consistent with others
-                const toSlug = (text: string) => text.toString().toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
-
                 // 1. First attempt: direct search
                 // This handles:
                 // - Normal parent/child SKU codes (if they match the slug)
                 // - Standalone SKUs
-                let result = await skuApi.searchSKUs(searchSlug, undefined, true);
+                let result = await skuApi.searchSKUs(searchSlug, { parentsOnly: true });
 
                 // 2. Second attempt: if no results, try stripping valid size suffixes
                 // This handles: /items/product-name-size turned into search for "product-name"
@@ -117,7 +114,7 @@ export default function ProductPageClient() {
                         const potentialBase = parts.join('-');
 
                         // Try searching for the base name/code
-                        const baseResult = await skuApi.searchSKUs(potentialBase, undefined, true);
+                        const baseResult = await skuApi.searchSKUs(potentialBase, { parentsOnly: true });
                         if (baseResult.skus && baseResult.skus.length > 0) {
                             result = baseResult;
                             detectedSizeSuffix = potentialSize || '';
@@ -131,59 +128,37 @@ export default function ProductPageClient() {
                     // Ideally we could also check if slugify(sku.code) matches productSlug
                     let matchingProduct = result.skus[0];
 
-                    if (matchingProduct) {
-                        // Check if this is a variant (has parentSkuId but no variants)
-                        // This can happen if the URL contains a variant's code
-                        if (matchingProduct.parentSkuId && (!matchingProduct.variants || matchingProduct.variants.length === 0)) {
-                            // Try to find the parent by searching without parentsOnly
-                            // The parent should be in the same search result but grouped differently
-                            const parentSearch = result.skus.find((sku: any) =>
-                                sku.id === matchingProduct.parentSkuId ||
-                                (sku.variants && sku.variants.some((v: any) => v.id === matchingProduct.id))
-                            );
-                            if (parentSearch) {
-                                matchingProduct = parentSearch;
-                            }
-                        }
-
+                    // Ensure we have a valid product with an ID
+                    if (!matchingProduct || !matchingProduct.id) {
+                        toast.error('Product not found');
+                        router.push('/search');
+                        return;
                     }
 
-                    // FALLBACK: If we found a parent but no variants (because search by code didn't match children),
-                    // try searching by name to find the variants.
-                    if (matchingProduct && (!matchingProduct.variants || matchingProduct.variants.length === 0)) {
+                    // Check if this is a variant (has parentSkuId but no variants)
+                    // This can happen if the URL contains a variant's code
+                    if (matchingProduct.parentSkuId && (!matchingProduct.variants || matchingProduct.variants.length === 0)) {
+                        // Try to find the parent by searching without parentsOnly
+                        // The parent should be in the same search result but grouped differently
+                        const parentSearch = result.skus.find((sku: any) =>
+                            sku.id === matchingProduct.parentSkuId ||
+                            (sku.variants && sku.variants.some((v: any) => v.id === matchingProduct.id))
+                        );
+                        if (parentSearch) {
+                            matchingProduct = parentSearch;
+                        }
+                    }
+
+                    // FALLBACK: Always fetch full product details to ensure we have all variants
+                    // Search endpoint might limit variants or not return them all depending on query
+                    if (matchingProduct && matchingProduct.id) {
                         try {
-                            // Search by name, parentsOnly=false to get everything
-                            const variantSearch = await skuApi.searchSKUs(matchingProduct.name, undefined, false);
-
-                            // Filter for items that are children of this parent
-                            if (variantSearch.skus && variantSearch.skus.length > 0) {
-                                const foundVariants = variantSearch.skus.filter((v: any) =>
-                                    v.parentSkuId === matchingProduct.id
-                                );
-
-                                if (foundVariants.length > 0) {
-                                    // Transform raw SKU data to match variant format
-                                    const transformedVariants = foundVariants.map((v: any) => {
-                                        const meta = typeof v.metadata === 'string' ? JSON.parse(v.metadata) : v.metadata || {};
-                                        return {
-                                            ...v,
-                                            size: meta.sizeName || meta.size || v.name,
-                                            sizeId: meta.sizeId,
-                                            sizeSortOrder: v.sizeSortOrder || meta.sizeOrder || 999,
-                                            color: meta.colorName || meta.color,
-                                            retailPriceBrl: v.retailPriceBrl || v.retail_price_brl,
-                                            images: typeof v.images === 'string' ? JSON.parse(v.images) : v.images || []
-                                        };
-                                    });
-
-                                    // Sort variants by size order
-                                    transformedVariants.sort((a, b) => (a.sizeSortOrder || 999) - (b.sizeSortOrder || 999));
-
-                                    matchingProduct.variants = transformedVariants;
-                                }
+                            const fullProduct = await apiClient.getSKU(matchingProduct.id);
+                            if (fullProduct && fullProduct.id) {
+                                matchingProduct = fullProduct;
                             }
-                        } catch (err) {
-                            console.log('Failed to fetch variants by name fallback', err);
+                        } catch (e) {
+                            console.error('Failed to fetch full product details:', e);
                         }
                     }
 
@@ -198,7 +173,7 @@ export default function ProductPageClient() {
                     // 2. If we detected a size suffix in the slug, try to match it
                     else if (detectedSizeSuffix && matchingProduct.variants) {
                         const matchedVariant = matchingProduct.variants.find((v: any) =>
-                            toSlug(v.size || v.name) === detectedSizeSuffix
+                            slugify(v.size || v.name) === detectedSizeSuffix
                         );
                         if (matchedVariant) {
                             setSelectedVariant(matchedVariant);
@@ -245,11 +220,11 @@ export default function ProductPageClient() {
                     const bSlug = matchingProduct.brand?.slug || (matchingProduct.brand?.name ? slugify(matchingProduct.brand.name) : 'brand');
                     addVisit({
                         id: matchingProduct.id,
-                        name: matchingProduct.name,
+                        name: matchingProduct.name || 'Unknown Product',
                         logo: matchingProduct.images?.[0]?.url || matchingProduct.images?.[0]?.imageUrl,
                         businessType: 'item',
                         type: 'item',
-                        slug: matchingProduct.code ? slugify(matchingProduct.code) : slugify(matchingProduct.name),
+                        slug: matchingProduct.code ? slugify(matchingProduct.code) : (matchingProduct.name ? slugify(matchingProduct.name) : 'unknown'),
                         brandName: matchingProduct.brand?.name,
                         brandSlug: bSlug,
                         visitedAt: Date.now()
@@ -874,17 +849,4 @@ export default function ProductPageClient() {
     );
 }
 
-/**
- * Helper function to slugify strings for URLs
- */
-function slugify(text: string): string {
-    return text
-        .toString()
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^\w-]+/g, '')
-        .replace(/--+/g, '-')
-        .replace(/^-+/, '')
-        .replace(/-+$/, '');
-}
+

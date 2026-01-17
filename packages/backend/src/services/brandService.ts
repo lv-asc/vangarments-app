@@ -449,6 +449,7 @@ export class BrandService {
       verificationStatus?: 'verified' | 'pending' | 'rejected';
       partnershipTier?: 'basic' | 'premium' | 'enterprise';
       businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
+      country?: string;
     } = {},
     page = 1,
     limit = 20
@@ -671,5 +672,43 @@ export class BrandService {
     });
 
     await Promise.all(deletePromises);
+  }
+  async getNationalities(): Promise<string[]> {
+    const query = `
+      SELECT DISTINCT brand_info->>'country' as country
+      FROM brand_accounts
+      WHERE deleted_at IS NULL AND brand_info->>'country' IS NOT NULL
+      ORDER BY country ASC
+    `;
+    const result = await db.query(query);
+    return result.rows.map(row => row.country);
+  }
+
+  async getBrandsLines(brandIds: string[]): Promise<any[]> {
+    if (!brandIds.length) return [];
+    const query = `
+      SELECT bl.*, ba.brand_info->>'name' as brand_name
+      FROM brand_lines bl
+      JOIN brand_accounts ba ON bl.brand_id = ba.id OR bl.brand_id = ba.vufs_brand_id
+      WHERE (ba.id = ANY($1) OR ba.vufs_brand_id = ANY($1))
+      AND bl.deleted_at IS NULL
+      ORDER BY bl.name ASC
+    `;
+    const result = await db.query(query, [brandIds]);
+    return result.rows;
+  }
+
+  async getBrandsCollections(brandIds: string[]): Promise<any[]> {
+    if (!brandIds.length) return [];
+    const query = `
+      SELECT bc.*, ba.brand_info->>'name' as brand_name
+      FROM brand_collections bc
+      JOIN brand_accounts ba ON bc.brand_id = ba.id OR bc.brand_id = ba.vufs_brand_id
+      WHERE (ba.id = ANY($1) OR ba.vufs_brand_id = ANY($1))
+      AND bc.is_published = true
+      ORDER BY bc.name ASC
+    `;
+    const result = await db.query(query, [brandIds]);
+    return result.rows;
   }
 }

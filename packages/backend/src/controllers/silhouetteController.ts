@@ -13,6 +13,7 @@ export class SilhouetteController {
     static async listSilhouettes(req: Request, res: Response): Promise<void> {
         try {
             const { brandId, apparelId, fitId } = req.query;
+            console.log('[API] listSilhouettes called with:', { brandId, apparelId, fitId });
             let query = `
                 SELECT s.*, b.brand_info->>'name' as brand_name, 
                        a.name as apparel_name, f.name as fit_name
@@ -21,8 +22,6 @@ export class SilhouetteController {
                 JOIN vufs_attribute_values a ON s.apparel_id = a.id
                 JOIN vufs_fits f ON s.fit_id = f.id
                 WHERE s.deleted_at IS NULL
-                  AND s.variant IS NOT NULL
-                  AND s.name NOT LIKE '%#%'
             `;
             const values: any[] = [];
             let paramIndex = 1;
@@ -70,7 +69,10 @@ export class SilhouetteController {
 
             query += ` ORDER BY s.created_at DESC`;
 
+            console.log('[API] listSilhouettes executing query:', query);
+            console.log('[API] listSilhouettes values:', values);
             const result = await db.query(query, values);
+            console.log('[API] listSilhouettes found rows:', result.rows.length);
             res.json({ silhouettes: result.rows });
         } catch (error) {
             console.error('List silhouettes error:', error);
@@ -104,14 +106,30 @@ export class SilhouetteController {
             const apparelName = apparelResult.rows[0].name;
             const fitName = fitResult.rows[0].name;
 
-            // Find how many silhouettes already exist for this combination to determine the number
-            const countResult = await db.query(`
-                SELECT COUNT(*) FROM brand_silhouettes 
-                WHERE brand_id = $1 AND apparel_id = $2 AND fit_id = $3
-            `, [brandId, apparelId, fitId]);
+            // Check for duplicates (same Brand + Apparel + Fit + Variant)
+            let duplicateCheckQuery = `
+                SELECT id FROM brand_silhouettes 
+                WHERE brand_id = $1 AND apparel_id = $2 AND fit_id = $3 AND deleted_at IS NULL
+            `;
+            const duplicateCheckValues = [brandId, apparelId, fitId];
 
-            const nextNumber = parseInt(countResult.rows[0].count) + 1;
-            const name = `${brandName} ${fitName} ${apparelName} #${nextNumber}`;
+            if (variant) {
+                duplicateCheckQuery += ` AND variant = $4`;
+                duplicateCheckValues.push(variant);
+            } else {
+                duplicateCheckQuery += ` AND variant IS NULL`;
+            }
+
+            const duplicateCheck = await db.query(duplicateCheckQuery, duplicateCheckValues);
+            if (duplicateCheck.rows.length > 0) {
+                res.status(409).json({ error: 'A silhouette with this combination already exists' });
+                return;
+            }
+
+            // Build name using format: Brand Apparel Fit (Variant)
+            const name = variant
+                ? `${brandName} ${apparelName} ${fitName} (${variant})`
+                : `${brandName} ${apparelName} ${fitName}`;
 
             const result = await db.query(`
                 INSERT INTO brand_silhouettes (brand_id, apparel_id, fit_id, name, variant, pom_ids, size_ids, measurements)
@@ -132,16 +150,39 @@ export class SilhouetteController {
     static async updateSilhouette(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const { name, variant, pomIds, sizeIds, measurements } = req.body;
+            const { variant, pomIds, sizeIds, measurements } = req.body;
 
-            const updates: string[] = [];
-            const values: any[] = [];
-            let paramIndex = 1;
+            // First, fetch the current silhouette to get brand/apparel/fit IDs
+            const currentSilhouette = await db.query(
+                'SELECT brand_id, apparel_id, fit_id FROM brand_silhouettes WHERE id = $1 AND deleted_at IS NULL',
+                [id]
+            );
 
-            if (name) {
-                updates.push(`name = $${paramIndex++}`);
-                values.push(name);
+            if (currentSilhouette.rows.length === 0) {
+                res.status(404).json({ error: 'Silhouette not found' });
+                return;
             }
+
+            const { brand_id, apparel_id, fit_id } = currentSilhouette.rows[0];
+
+            // Get names for regenerating the silhouette name
+            const brandResult = await db.query(`SELECT brand_info->>'name' as name FROM brand_accounts WHERE id = $1`, [brand_id]);
+            const apparelResult = await db.query(`SELECT name FROM vufs_attribute_values WHERE id = $1`, [apparel_id]);
+            const fitResult = await db.query(`SELECT name FROM vufs_fits WHERE id = $1`, [fit_id]);
+
+            const brandName = brandResult.rows[0]?.name || 'Unknown Brand';
+            const apparelName = apparelResult.rows[0]?.name || 'Unknown Apparel';
+            const fitName = fitResult.rows[0]?.name || 'Unknown Fit';
+
+            // Build the new name using the correct format
+            const newName = variant
+                ? `${brandName} ${apparelName} ${fitName} (${variant})`
+                : `${brandName} ${apparelName} ${fitName}`;
+
+            const updates: string[] = ['name = $1'];
+            const values: any[] = [newName];
+            let paramIndex = 2;
+
             if (variant !== undefined) {
                 updates.push(`variant = $${paramIndex++}`);
                 values.push(variant);

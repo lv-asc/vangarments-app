@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
+import { brandApi } from '@/lib/brandApi';
+import { CheckIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 type EntityType = 'brand' | 'store' | 'supplier' | 'page';
 
@@ -20,7 +21,10 @@ export function FollowEntityButton({
     size = 'md',
     onFollowChange,
 }: FollowEntityButtonProps) {
-    const [isFollowing, setIsFollowing] = useState(false);
+    const [status, setStatus] = useState<{ isFollowing: boolean; isFollower: boolean }>({
+        isFollowing: false,
+        isFollower: false
+    });
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
 
@@ -29,36 +33,47 @@ export function FollowEntityButton({
     }, [entityType, entityId]);
 
     const checkFollowStatus = async () => {
+        if (!entityId || !entityType) return;
+
         try {
-            const following = await apiClient.isFollowingEntity(entityType, entityId);
-            setIsFollowing(following);
+            // Using brandApi because it has the updated signature, assuming apiClient maps to it or is similar
+            // But verify if we should use brandApi or apiClient. 
+            // The file imported apiClient before. brandApi wraps it. 
+            // The updated method is in brandApi.
+            const result = await brandApi.checkEntityFollowStatus(entityType, entityId);
+            setStatus(result);
         } catch (error) {
-            console.error('Failed to check follow status:', error);
+            console.error('[FollowEntityButton] Failed to check status:', error);
+            setStatus({ isFollowing: false, isFollower: false });
         } finally {
             setLoading(false);
         }
     };
 
-    const handleToggleFollow = async () => {
+    const handleToggleFollow = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         if (actionLoading) return;
 
         setActionLoading(true);
         try {
-            if (isFollowing) {
-                await apiClient.unfollowEntity(entityType, entityId);
-                setIsFollowing(false);
+            if (status.isFollowing) {
+                await brandApi.unfollowEntity(entityType, entityId);
+                setStatus(prev => ({ ...prev, isFollowing: false }));
                 onFollowChange?.(false);
             } else {
-                await apiClient.followEntity(entityType, entityId);
-                setIsFollowing(true);
+                await brandApi.followEntity(entityType, entityId);
+                setStatus(prev => ({ ...prev, isFollowing: true }));
                 onFollowChange?.(true);
             }
         } catch (error: any) {
-            console.error('Failed to toggle follow:', error);
-            // If unauthorized, user needs to log in
+            console.error('[FollowEntityButton] Toggle failed:', error);
             if (error.status === 401) {
-                // Could redirect to login or show modal
+                // TODO: Trigger login modal
                 alert('Please log in to follow');
+            } else {
+                alert('Action failed. Please try again.');
             }
         } finally {
             setActionLoading(false);
@@ -82,15 +97,19 @@ export function FollowEntityButton({
         );
     }
 
+    const isMutual = status.isFollowing && status.isFollower;
+    const buttonText = isMutual ? 'Friends' : status.isFollowing ? 'Following' : 'Follow';
+
     return (
         <button
             onClick={handleToggleFollow}
             disabled={actionLoading}
             className={`
+                flex items-center gap-1.5
                 ${sizeClasses[size]}
                 rounded-lg font-medium transition-all duration-200
-                ${isFollowing
-                    ? 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                ${status.isFollowing
+                    ? 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
                     : 'bg-gray-900 text-white hover:bg-gray-800'
                 }
                 ${actionLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -98,28 +117,17 @@ export function FollowEntityButton({
             `}
         >
             {actionLoading ? (
-                <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                        />
-                        <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                    </svg>
-                </span>
-            ) : isFollowing ? (
-                <span className="group-hover:hidden">Following</span>
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : status.isFollowing ? (
+                <>
+                    <CheckIcon className="w-4 h-4" />
+                    <span>{buttonText}</span>
+                </>
             ) : (
-                'Follow'
+                <>
+                    <UserPlusIcon className="w-4 h-4" />
+                    <span>{buttonText}</span>
+                </>
             )}
         </button>
     );

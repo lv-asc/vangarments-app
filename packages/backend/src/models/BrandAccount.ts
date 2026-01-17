@@ -213,6 +213,7 @@ export class BrandAccountModel {
       partnershipTier?: 'basic' | 'premium' | 'enterprise';
       businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
       search?: string;
+      country?: string;
     } = {},
     limit = 20,
     offset = 0
@@ -241,6 +242,12 @@ export class BrandAccountModel {
         whereConditions.push(`ba.brand_info->>'businessType' = $${paramIndex++}`);
         values.push(filters.businessType);
       }
+    }
+
+    if (filters.country) {
+      const countries = filters.country.split(',');
+      whereConditions.push(`ba.brand_info->>'country' = ANY($${paramIndex++})`);
+      values.push(countries);
     }
 
     if (filters.search) {
@@ -388,12 +395,13 @@ export class BrandAccountModel {
     return result.rows.length > 0 ? this.mapRowToBrandAccount(result.rows[0]) : null;
   }
 
-  static async getFullProfile(brandId: string): Promise<{
+  static async getBrandProfile(brandId: string): Promise<{
     brand: BrandAccount;
     team: any[];
     lookbooks: any[];
     collections: any[];
     followerCount: number;
+    followingCount: number;
   } | null> {
     const brand = await this.findBySlugOrId(brandId);
     if (!brand) return null;
@@ -408,14 +416,15 @@ export class BrandAccountModel {
     const businessType = brand.brandInfo.businessType || 'brand';
     const entityType = businessType === 'store' ? 'store' : 'brand';
 
-    const [team, lookbooks, collections, followerCount] = await Promise.all([
+    const [team, lookbooks, collections, followerCount, followingCount] = await Promise.all([
       BrandTeamModel.getTeamMembers(brand.id, true), // Public only - use resolved ID
       BrandLookbookModel.findByBrand(brand.id, true), // Published only - use resolved ID
       BrandCollectionModel.findByBrand(brand.id, true), // Published only - use resolved ID
-      EntityFollowModel.getFollowerCount(entityType, brand.id)
+      EntityFollowModel.getFollowerCount(entityType, brand.id),
+      EntityFollowModel.getFollowingCount(brand.id)
     ]);
 
-    return { brand, team, lookbooks, collections, followerCount };
+    return { brand, team, lookbooks, collections, followerCount, followingCount };
   }
 
   static async getAnalytics(brandId: string): Promise<{

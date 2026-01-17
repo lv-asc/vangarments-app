@@ -33,7 +33,7 @@ export default function StoreProfilePage() {
     const loadProfile = async () => {
         try {
             setLoading(true);
-            const data = await brandApi.getFullProfile(slug);
+            const data = await brandApi.getBrandProfile(slug);
 
             // Add to recent visits
             if (data?.brand) {
@@ -42,6 +42,7 @@ export default function StoreProfilePage() {
                     name: data.brand.brandInfo.name,
                     logo: data.brand.brandInfo.logo,
                     businessType: data.brand.brandInfo.businessType || 'store',
+                    type: 'store',
                     slug: data.brand.brandInfo.slug || slug,
                     verificationStatus: data.brand.verificationStatus
                 });

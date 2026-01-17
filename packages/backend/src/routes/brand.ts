@@ -263,6 +263,11 @@ router.get(
   brandController.searchBrands.bind(brandController)
 );
 
+// New brand filtering options
+router.get('/nationalities', brandController.getNationalities.bind(brandController));
+router.get('/lines-bulk', brandController.getBrandsLines.bind(brandController));
+router.get('/collections-bulk', brandController.getBrandsCollections.bind(brandController));
+
 // List/Search brands (Root GET)
 router.get(
   '/',
@@ -448,7 +453,7 @@ router.get(
   '/:brandId/profile',
   brandIdValidation,
   validateRequest,
-  brandProfileController.getFullProfile.bind(brandProfileController)
+  brandProfileController.getBrandProfile.bind(brandProfileController)
 );
 
 // Update profile data (bio, social links, etc.)

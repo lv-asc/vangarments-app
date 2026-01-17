@@ -33,11 +33,14 @@ ON CONFLICT DO NOTHING;
 -- Add condition_id to wardrobe_items table (if not exists)
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'wardrobe_items' AND column_name = 'condition_id'
-    ) THEN
-        ALTER TABLE wardrobe_items ADD COLUMN condition_id UUID REFERENCES wardrobe_conditions(id);
-        CREATE INDEX IF NOT EXISTS idx_wardrobe_items_condition ON wardrobe_items(condition_id);
+    -- Only try to alter wardrobe_items if it exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'wardrobe_items') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'wardrobe_items' AND column_name = 'condition_id'
+        ) THEN
+            ALTER TABLE wardrobe_items ADD COLUMN condition_id UUID REFERENCES wardrobe_conditions(id);
+            CREATE INDEX IF NOT EXISTS idx_wardrobe_items_condition ON wardrobe_items(condition_id);
+        END IF;
     END IF;
 END $$;

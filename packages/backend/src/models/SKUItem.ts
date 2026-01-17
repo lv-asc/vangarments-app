@@ -142,7 +142,13 @@ export class SKUItemModel {
 
     static async findById(id: string): Promise<SKUItem | null> {
         const query = `
-            SELECT si.*, bl.name as line_name, bl.logo as line_logo,
+            SELECT si.*, 
+                   bl.name as line_name, bl.logo as line_logo,
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'logo' as brand_logo,
+                   ba.brand_info->>'slug' as brand_slug,
+                   bc.name as collection_name,
+                   bc.cover_image_url as collection_cover_image,
                    s.name as style_name,
                    p.name as pattern_name,
                    f.name as fit_name,
@@ -151,6 +157,19 @@ export class SKUItemModel {
                    m.name as material_name
             FROM sku_items si
             LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            LEFT JOIN brand_accounts ba ON si.brand_id = ba.id
+            LEFT JOIN brand_collections bc ON si.collection = bc.name 
+                AND (
+                    bc.brand_id IN (
+                        SELECT id FROM brand_accounts sub_ba 
+                        WHERE sub_ba.brand_info->>'name' = ba.brand_info->>'name'
+                    )
+                    OR
+                    bc.brand_id IN (
+                        SELECT id FROM vufs_brands vb
+                        WHERE vb.name = ba.brand_info->>'name'
+                    )
+                )
             LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
             LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
             LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid
@@ -161,6 +180,37 @@ export class SKUItemModel {
             `;
         const result = await db.query(query, [id]);
         return result.rows.length > 0 ? this.mapRowToSKUItem(result.rows[0]) : null;
+    }
+
+    static async findVariants(parentId: string): Promise<SKUItem[]> {
+        const query = `
+            SELECT si.*, 
+                   bl.name as line_name, bl.logo as line_logo,
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'logo' as brand_logo,
+                   ba.brand_info->>'slug' as brand_slug,
+                   bc.name as collection_name,
+                   bc.cover_image_url as collection_cover_image
+            FROM sku_items si
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            LEFT JOIN brand_accounts ba ON si.brand_id = ba.id
+            LEFT JOIN brand_collections bc ON si.collection = bc.name 
+                AND (
+                    bc.brand_id IN (
+                        SELECT id FROM brand_accounts sub_ba 
+                        WHERE sub_ba.brand_info->>'name' = ba.brand_info->>'name'
+                    )
+                    OR
+                    bc.brand_id IN (
+                        SELECT id FROM vufs_brands vb
+                        WHERE vb.name = ba.brand_info->>'name'
+                    )
+                )
+            WHERE si.parent_sku_id = $1 AND si.deleted_at IS NULL
+            ORDER BY si.created_at ASC
+        `;
+        const result = await db.query(query, [parentId]);
+        return result.rows.map(row => this.mapRowToSKUItem(row));
     }
 
     static async findByBrandId(brandId: string, filters?: {
@@ -507,6 +557,22 @@ export class SKUItemModel {
                 id: row.line_id,
                 name: row.line_name,
                 logo: row.line_logo
+            };
+        }
+
+        if (row.brand_name || row.brand_logo) {
+            item.brand = {
+                name: row.brand_name,
+                logo: row.brand_logo,
+                slug: row.brand_slug
+            };
+        }
+
+        if (row.collection_name || row.collection_cover_image) {
+            // @ts-ignore
+            item.collectionInfo = {
+                name: row.collection_name,
+                coverImage: row.collection_cover_image
             };
         }
 

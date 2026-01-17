@@ -45,7 +45,7 @@ export default function BrandProfileEditPage() {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const data = await brandApi.getFullProfile(brandId);
+      const data = await brandApi.getBrandProfile(brandId);
       setProfile(data);
       initializeFormData(data);
     } catch (err: any) {

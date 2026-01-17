@@ -13,6 +13,7 @@ router.put('/preferences/notifications', AuthUtils.authenticateToken, UserContro
 router.post('/activity', AuthUtils.authenticateToken, UserController.updateActivity);
 
 // Public user routes
+router.get('/search', UserController.getPublicUsers);
 router.get('/', AuthUtils.authenticateToken, UserController.getAllUsers);
 router.get('/team-memberships', AuthUtils.authenticateToken, UserController.getAllTeamMemberships);
 router.get('/my-memberships', AuthUtils.authenticateToken, UserController.getMyMemberships);

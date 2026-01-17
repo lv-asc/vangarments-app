@@ -1,10 +1,11 @@
 import { db } from '../database/connection';
 
-export type EntityType = 'brand' | 'store' | 'supplier' | 'non_profit' | 'page';
+export type EntityType = 'brand' | 'store' | 'supplier' | 'non_profit' | 'page' | 'user';
 
 export interface EntityFollow {
     id: string;
     followerId: string;
+    followerType: EntityType;
     entityType: EntityType;
     entityId: string;
     createdAt: Date;
@@ -12,6 +13,7 @@ export interface EntityFollow {
 
 export interface CreateEntityFollowData {
     followerId: string;
+    followerType?: EntityType; // Default 'user'
     entityType: EntityType;
     entityId: string;
 }
@@ -22,61 +24,62 @@ export class EntityFollowModel {
      */
     static async follow(data: CreateEntityFollowData): Promise<EntityFollow> {
         const { followerId, entityType, entityId } = data;
+        const followerType = data.followerType || 'user'; // Default to user if not provided
 
         // Check if already following
-        const existing = await this.findByIds(followerId, entityType, entityId);
+        const existing = await this.findByIds(followerId, followerType, entityType, entityId);
         if (existing) {
             throw new Error('Already following this entity');
         }
 
         const query = `
-            INSERT INTO entity_follows (follower_id, entity_type, entity_id)
-            VALUES ($1, $2, $3)
+            INSERT INTO entity_follows (follower_id, follower_type, entity_type, entity_id)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
         `;
 
-        const result = await db.query(query, [followerId, entityType, entityId]);
+        const result = await db.query(query, [followerId, followerType, entityType, entityId]);
         return this.mapRowToEntityFollow(result.rows[0]);
     }
 
     /**
      * Remove a follow relationship
      */
-    static async unfollow(followerId: string, entityType: EntityType, entityId: string): Promise<boolean> {
+    static async unfollow(followerId: string, followerType: EntityType = 'user', entityType: EntityType, entityId: string): Promise<boolean> {
         const query = `
             DELETE FROM entity_follows 
-            WHERE follower_id = $1 AND entity_type = $2 AND entity_id = $3
+            WHERE follower_id = $1 AND follower_type = $2 AND entity_type = $3 AND entity_id = $4
         `;
-        const result = await db.query(query, [followerId, entityType, entityId]);
+        const result = await db.query(query, [followerId, followerType, entityType, entityId]);
         return (result.rowCount || 0) > 0;
     }
 
     /**
      * Find a specific follow relationship
      */
-    static async findByIds(followerId: string, entityType: EntityType, entityId: string): Promise<EntityFollow | null> {
+    static async findByIds(followerId: string, followerType: EntityType = 'user', entityType: EntityType, entityId: string): Promise<EntityFollow | null> {
         const query = `
             SELECT * FROM entity_follows
-            WHERE follower_id = $1 AND entity_type = $2 AND entity_id = $3
+            WHERE follower_id = $1 AND follower_type = $2 AND entity_type = $3 AND entity_id = $4
         `;
-        const result = await db.query(query, [followerId, entityType, entityId]);
+        const result = await db.query(query, [followerId, followerType, entityType, entityId]);
         return result.rows.length > 0 ? this.mapRowToEntityFollow(result.rows[0]) : null;
     }
 
     /**
-     * Check if a user is following an entity
+     * Check if a user/entity is following an entity
      */
-    static async isFollowing(followerId: string, entityType: EntityType, entityId: string): Promise<boolean> {
+    static async isFollowing(followerId: string, followerType: EntityType = 'user', entityType: EntityType, entityId: string): Promise<boolean> {
         const query = `
             SELECT 1 FROM entity_follows 
-            WHERE follower_id = $1 AND entity_type = $2 AND entity_id = $3
+            WHERE follower_id = $1 AND follower_type = $2 AND entity_type = $3 AND entity_id = $4
         `;
-        const result = await db.query(query, [followerId, entityType, entityId]);
+        const result = await db.query(query, [followerId, followerType, entityType, entityId]);
         return result.rows.length > 0;
     }
 
     /**
-     * Get all followers of an entity
+     * Get all followers of an entity (Users and other Entities)
      */
     static async getFollowers(
         entityType: EntityType,
@@ -85,11 +88,22 @@ export class EntityFollowModel {
         offset = 0
     ): Promise<{ followers: any[]; total: number }> {
         const query = `
-            SELECT ef.*, u.id as user_id, u.profile, u.username, u.verification_status,
+            SELECT ef.*,
+                   -- User Data
+                   u.id as user_id, u.profile as user_profile, u.username as user_username, 
+                   u.verification_status as user_verification_status,
                    (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
+
+                   -- Brand/Store/Etc Data
+                   ba.id as brand_id, ba.brand_info->>'name' as brand_name, 
+                   ba.brand_info->>'logo' as brand_logo, ba.brand_info->>'slug' as brand_slug,
+                   ba.verification_status as brand_verification_status,
+                   ba.brand_info->>'businessType' as brand_business_type,
+
                    COUNT(*) OVER() as total
             FROM entity_follows ef
-            JOIN users u ON ef.follower_id = u.id
+            LEFT JOIN users u ON ef.follower_type = 'user' AND ef.follower_id = u.id
+            LEFT JOIN brand_accounts ba ON ef.follower_type IN ('brand', 'store', 'supplier', 'non_profit') AND ef.follower_id = ba.id
             WHERE ef.entity_type = $1 AND ef.entity_id = $2
             ORDER BY ef.created_at DESC
             LIMIT $3 OFFSET $4
@@ -98,49 +112,80 @@ export class EntityFollowModel {
         const result = await db.query(query, [entityType, entityId, limit, offset]);
 
         return {
-            followers: result.rows.map(row => ({
-                id: row.user_id,
-                username: row.username,
-                profile: row.profile,
-                followedAt: row.created_at,
-                verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.verification_status || 'unverified'),
-                roles: row.user_roles || [],
-            })),
+            followers: result.rows.map(row => {
+                if (row.follower_type === 'user') {
+                    return {
+                        type: 'user',
+                        id: row.user_id,
+                        username: row.user_username,
+                        profile: row.user_profile,
+                        followedAt: row.created_at,
+                        verificationStatus: (row.user_roles && row.user_roles.includes('admin')) ? 'verified' : (row.user_verification_status || 'unverified'),
+                        roles: row.user_roles || [],
+                    };
+                } else {
+                    return {
+                        type: row.follower_type,
+                        id: row.brand_id,
+                        name: row.brand_name,
+                        logo: row.brand_logo,
+                        slug: row.brand_slug,
+                        businessType: row.brand_business_type,
+                        followedAt: row.created_at,
+                        verificationStatus: row.brand_verification_status || 'unverified',
+                    };
+                }
+            }),
             total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
         };
     }
 
     /**
-     * Get all entities a user is following
+     * Get all entities/users a user OR entity is following
      */
     static async getFollowing(
         followerId: string,
-        entityType?: EntityType,
+        followerType: EntityType = 'user',
+        targetEntityType?: EntityType,
         limit = 50,
         offset = 0,
         search?: string
-    ): Promise<{ entities: any[]; total: number }> {
+    ): Promise<{ following: any[]; total: number }> {
         let query = `
             SELECT ef.*, 
+                   -- Brand/Store/Etc Target
                    COALESCE(ba.brand_info->>'name', p.name) as entity_name,
                    COALESCE(ba.brand_info->>'logo', p.logo_url) as entity_logo,
                    COALESCE(ba.brand_info->>'slug', p.slug) as entity_slug,
                    ba.brand_info->>'businessType' as business_type,
+                   ba.verification_status as entity_verification_status,
+
+                   -- User Target
+                   u.username as user_username,
+                   u.profile as user_profile,
+                   u.verification_status as user_verification_status,
+                   
                    COUNT(*) OVER() as total
             FROM entity_follows ef
-            LEFT JOIN brand_accounts ba ON ef.entity_type IN ('brand', 'store', 'supplier') AND ef.entity_id = ba.id
+            LEFT JOIN brand_accounts ba ON ef.entity_type IN ('brand', 'store', 'supplier', 'non_profit') AND ef.entity_id = ba.id
             LEFT JOIN pages p ON ef.entity_type = 'page' AND ef.entity_id = p.id
-            WHERE ef.follower_id = $1
+            LEFT JOIN users u ON ef.entity_type = 'user' AND ef.entity_id = u.id
+            WHERE ef.follower_id = $1 AND ef.follower_type = $2
         `;
-        const params: any[] = [followerId];
+        const params: any[] = [followerId, followerType];
 
-        if (entityType) {
-            query += ` AND ef.entity_type = $2`;
-            params.push(entityType);
+        if (targetEntityType) {
+            query += ` AND ef.entity_type = $3`;
+            params.push(targetEntityType);
         }
 
         if (search) {
-            query += ` AND (COALESCE(ba.brand_info->>'name', p.name) ILIKE $${params.length + 1})`;
+            const searchParamIndex = params.length + 1;
+            query += ` AND (
+                COALESCE(ba.brand_info->>'name', p.name) ILIKE $${searchParamIndex} OR
+                u.username ILIKE $${searchParamIndex} OR
+                (u.profile->>'name') ILIKE $${searchParamIndex}
+            )`;
             params.push(`%${search}%`);
         }
 
@@ -150,7 +195,19 @@ export class EntityFollowModel {
         const result = await db.query(query, params);
 
         return {
-            entities: result.rows.map(row => {
+            following: result.rows.map(row => {
+                const isUserTarget = row.entity_type === 'user';
+
+                if (isUserTarget) {
+                    return {
+                        ...this.mapRowToEntityFollow(row),
+                        type: 'user',
+                        username: row.user_username,
+                        profile: row.user_profile,
+                        verificationStatus: row.user_verification_status || 'unverified'
+                    };
+                }
+
                 // Determine the actual entity type based on business_type
                 let actualEntityType = row.entity_type;
                 if (row.business_type === 'non_profit') {
@@ -160,9 +217,10 @@ export class EntityFollowModel {
                 return {
                     ...this.mapRowToEntityFollow(row),
                     entityType: actualEntityType,  // Override with actual type
-                    entityName: row.entity_name,
-                    entityLogo: row.entity_logo,
-                    entitySlug: row.entity_slug,
+                    name: row.entity_name,
+                    logo: row.entity_logo,
+                    slug: row.entity_slug,
+                    verificationStatus: row.entity_verification_status || 'unverified'
                 };
             }),
             total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
@@ -237,6 +295,7 @@ export class EntityFollowModel {
         return {
             id: row.id,
             followerId: row.follower_id,
+            followerType: row.follower_type || 'user',
             entityType: row.entity_type,
             entityId: row.entity_id,
             createdAt: row.created_at,

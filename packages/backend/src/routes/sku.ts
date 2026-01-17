@@ -14,15 +14,15 @@ router.get('/brands/:brandId/skus', authenticateToken, SKUController.getBrandSKU
 
 // SKU CRUD
 router.get('/', authenticateToken, SKUController.getAllSKUs);
-router.get('/skus/:id/related', SKUController.getRelatedSKUs); // Public
-router.get('/skus/:id', authenticateToken, SKUController.getSKU);
-router.patch('/skus/:id', authenticateToken, SKUController.updateSKU);
-router.delete('/skus/:id', authenticateToken, SKUController.deleteSKU);
+router.get('/:id/related', SKUController.getRelatedSKUs); // Public
+router.get('/:id', SKUController.getSKU);
+router.patch('/:id', authenticateToken, SKUController.updateSKU);
+router.delete('/:id', authenticateToken, SKUController.deleteSKU);
 
 // Trash management (Admin only)
 router.get('/trash', authenticateToken, SKUController.getDeletedSKUs);
-router.post('/skus/:id/restore', authenticateToken, SKUController.restoreSKU);
-router.delete('/skus/:id/permanent', authenticateToken, SKUController.permanentDeleteSKU);
+router.post('/:id/restore', authenticateToken, SKUController.restoreSKU);
+router.delete('/:id/permanent', authenticateToken, SKUController.permanentDeleteSKU);
 
 export default router;
 // Refreshed: 2025-12-23

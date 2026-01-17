@@ -31,7 +31,7 @@ export default function SupplierProfilePage() {
     const loadProfile = async () => {
         try {
             setLoading(true);
-            const data = await brandApi.getFullProfile(slug);
+            const data = await brandApi.getBrandProfile(slug);
 
             // Redirect if not a supplier
             if (data.brand.brandInfo.businessType === 'brand') {

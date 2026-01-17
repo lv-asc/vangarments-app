@@ -65,12 +65,13 @@ export class POMController {
     static async getApparelPOMs(req: Request, res: Response): Promise<void> {
         try {
             const { apparelId } = req.params;
+            console.log('[getApparelPOMs] Fetching mappings for:', apparelId);
 
             const result = await db.query(`
                 SELECT 
-                    pd.id, pd.code, pd.name, pd.description,
-                    pd.measurement_unit, pd.is_half_measurement, pd.default_tolerance,
-                    apm.is_required, apm.sort_order,
+                    apm.*,
+                    pd.code, pd.name, pd.description,
+                    pd.measurement_unit, pd.is_half_measurement,
                     pc.name as category_name
                 FROM apparel_pom_mappings apm
                 JOIN pom_definitions pd ON apm.pom_id = pd.id
@@ -80,8 +81,12 @@ export class POMController {
             `, [apparelId]);
 
             res.json({ poms: result.rows });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Get apparel POMs error:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code
+            });
             res.status(500).json({ error: 'Internal server error' });
         }
     }
@@ -153,6 +158,10 @@ export class POMController {
             const { skuId } = req.params;
             const { measurements } = req.body; // Array of { pomId, sizeId, value, tolerance? }
 
+            // DIAGNOSTIC LOGGING - Phase 1 Evidence Gathering
+            console.log('[saveSKUMeasurements] skuId:', skuId);
+            console.log('[saveSKUMeasurements] measurements:', JSON.stringify(measurements, null, 2));
+
             if (!Array.isArray(measurements)) {
                 res.status(400).json({ error: 'measurements must be an array' });
                 return;
@@ -160,17 +169,31 @@ export class POMController {
 
             // Upsert measurements
             for (const m of measurements) {
-                await db.query(`
-                    INSERT INTO sku_measurements (sku_id, pom_id, size_id, value, tolerance)
-                    VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (sku_id, pom_id, size_id) 
-                    DO UPDATE SET value = $4, tolerance = $5, updated_at = NOW()
-                `, [skuId, m.pomId, m.sizeId, m.value, m.tolerance || null]);
+                try {
+                    console.log(`[saveSKUMeasurements] Inserting: skuId=${skuId}, pomId=${m.pomId}, sizeId=${m.sizeId}, value=${m.value}, tolerance=${m.tolerance}`);
+                    await db.query(`
+                        INSERT INTO sku_measurements (sku_id, pom_id, size_id, value, tolerance)
+                        VALUES ($1, $2, $3, $4, $5)
+                        ON CONFLICT (sku_id, pom_id, size_id) 
+                        DO UPDATE SET value = $4, tolerance = $5, updated_at = NOW()
+                    `, [skuId, m.pomId, m.sizeId, m.value, m.tolerance || null]);
+                } catch (insertError: any) {
+                    console.error('[saveSKUMeasurements] Insert failed for measurement:', m);
+                    console.error('[saveSKUMeasurements] SQL Error:', insertError.message);
+                    console.error('[saveSKUMeasurements] SQL Code:', insertError.code);
+                    throw insertError; // Re-throw to trigger the outer catch
+                }
             }
 
             res.json({ message: 'SKU measurements saved successfully' });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Save SKU measurements error:', error);
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                detail: error.detail,
+                constraint: error.constraint
+            });
             res.status(500).json({ error: 'Internal server error' });
         }
     }

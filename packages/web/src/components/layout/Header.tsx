@@ -147,7 +147,7 @@ export function Header() {
     { name: 'Items', href: '/items', icon: ShoppingBagIcon },
     { name: 'Brands', href: '/brands', icon: FireIcon },
     { name: 'Stores', href: '/stores', icon: BuildingStorefrontIcon },
-    { name: 'Users', href: '/search?tab=user', icon: UsersIcon },
+    { name: 'Users', href: '/users', icon: UsersIcon },
     { name: 'Posts', href: '/search?tab=post', icon: ChatBubbleLeftRightIcon },
     { name: 'Pages', href: '/pages', icon: RectangleStackIcon },
     { name: 'Non Profits', href: '/non-profits', icon: HeartIcon },

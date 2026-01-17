@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
-import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import SearchableCombobox from '../ui/Combobox';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
@@ -88,6 +88,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [measurements, setMeasurements] = useState<Record<string, Record<string, { value: number; tolerance?: number }>>>({});
     const [showAsCircumference, setShowAsCircumference] = useState<Set<string>>(new Set());
     const [selectedPomIds, setSelectedPomIds] = useState<string[]>([]);
+    const [gradeValues, setGradeValues] = useState<Record<string, string>>({});
 
     // Image Tagging State
     const [taggingModal, setTaggingModal] = useState<{ isOpen: boolean; imageUrl: string; skuId: string }>({
@@ -102,7 +103,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
     // Form Data
     const [formData, setFormData] = useState({
-        brandId: '',
+        brandId: '', // VUFS Brand ID for dropdown display
+        brandAccountId: '', // Brand Account ID for API calls (silhouettes, etc.)
         lineId: '',
         collection: '', // Will store Name or ID
         modelName: '',
@@ -250,11 +252,23 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             }
 
             try {
+                // Use brandAccountId if available (when editing SKU), otherwise fall back to brandId (VUFS)
+                const brandIdForSilhouette = formData.brandAccountId || formData.brandId;
+
+                // DIAGNOSTIC: Log what we're sending
+                console.log('[fetchSilhouettes] === DIAGNOSTIC ===');
+                console.log('[fetchSilhouettes] formData.brandId:', formData.brandId);
+                console.log('[fetchSilhouettes] formData.brandAccountId:', formData.brandAccountId);
+                console.log('[fetchSilhouettes] brandIdForSilhouette:', brandIdForSilhouette);
+                console.log('[fetchSilhouettes] formData.apparelId:', formData.apparelId);
+                console.log('[fetchSilhouettes] formData.fitId:', formData.fitId);
+
                 const res = await apiClient.getSilhouettes({
-                    brandId: formData.brandId,
+                    brandId: brandIdForSilhouette,
                     apparelId: formData.apparelId,
                     fitId: formData.fitId
                 });
+                console.log('[fetchSilhouettes] API response:', res.silhouettes?.length, 'silhouettes found');
                 setAvailableSilhouettes(res.silhouettes || []);
             } catch (e) {
                 console.error('Failed to fetch silhouettes', e);
@@ -262,16 +276,23 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         };
 
         fetchSilhouettes();
-    }, [formData.brandId, formData.apparelId, formData.fitId]);
+    }, [formData.brandId, formData.brandAccountId, formData.apparelId, formData.fitId]);
 
-    // Apply silhouette POMs when selected
+    // Apply silhouette POMs and Measurements when selected
     useEffect(() => {
         if (!selectedSilhouetteId) return;
 
         const sil = availableSilhouettes.find(s => s.id === selectedSilhouetteId);
         if (sil && sil.pom_ids) {
             setSelectedPomIds(sil.pom_ids);
-            toast.success(`Applied silhouette: ${sil.name}`);
+
+            // Also apply measurements if available
+            if (sil.measurements) {
+                setMeasurements(sil.measurements);
+                toast.success(`Applied silhouette: ${sil.name} with measurements`);
+            } else {
+                toast.success(`Applied silhouette: ${sil.name}`);
+            }
         }
     }, [selectedSilhouetteId, availableSilhouettes]);
 
@@ -323,8 +344,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             getSluggifiedOrRef(fit, undefined),
             getSluggifiedOrRef(gender, undefined),
             getSluggifiedOrRef(apparel, undefined),
-            getSluggifiedOrRef(color, undefined),
-            getSluggifiedOrRef(size, undefined)
+            // Only include color/size for variants (when explicitly provided)
+            colorId ? getSluggifiedOrRef(color, undefined) : null,
+            sizeId ? getSluggifiedOrRef(size, undefined) : null
         ];
 
         return codeParts
@@ -660,6 +682,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
             setFormData({
                 brandId: resolvedBrandId,
+                brandAccountId: sku.brandId || sku.brand?.id || '', // Keep original Brand Account ID
                 lineId: resolvedLineId,
                 collection: sku.collection || '',
                 modelName: metadata.modelName || sku.name,
@@ -723,6 +746,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             setSelectedPomIds([]);
             setFormData({
                 brandId: '',
+                brandAccountId: '',
                 lineId: '',
                 collection: '',
                 modelName: '',
@@ -810,6 +834,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
         setFormData({
             brandId: resolvedBrandId,
+            brandAccountId: parentSku.brandId || firstVariant.brandId || '', // Keep original Brand Account ID
             lineId: resolvedLineId,
             collection: parentSku.collection || firstVariant.collection || '',
             modelName: metadata.modelName || parentSku.name, // Use parent's base name
@@ -940,16 +965,15 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 patternId: formData.patternId,
                 materialId: formData.materialId,
                 fitId: formData.fitId,
-                sizeId: sizeId,
-                colorId: colorId,
                 genderName: genders.find(g => g.id === formData.genderId)?.name || formData.genderId,
                 apparelName: apparels.find(c => c.id === formData.apparelId)?.name,
                 styleName: styles.find(c => c.id === formData.styleId)?.name,
                 patternName: patterns.find(p => p.id === formData.patternId)?.name,
                 fitName: fits.find(f => f.id === formData.fitId)?.name,
-                sizeName: sizeName, // Add explicit names
-                colorName: colorName,
-                nameConfig: formData.nameConfig
+                nameConfig: formData.nameConfig,
+                // Only include size/color for variant SKUs (not parents)
+                ...(sizeId ? { sizeId, sizeName } : {}),
+                ...(colorId ? { colorId, colorName } : {})
             },
             retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
             retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
@@ -1001,10 +1025,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                 patternId: formData.patternId,
                                 materialId: formData.materialId,
                                 fitId: formData.fitId,
-                                nameConfig: formData.nameConfig,
-                                releaseDate: formData.releaseDate ? new Date(formData.releaseDate) : null,
-                                careInstructions: formData.careInstructions
-                            }
+                                nameConfig: formData.nameConfig
+                            },
+                            // Move to root level for backend compatibility
+                            releaseDate: formData.releaseDate || null,
+                            careInstructions: formData.careInstructions || null,
+                            officialItemLink: formData.officialItemLink || null
                         };
                         await apiClient.updateSKU(variant.id, parentPayload as any);
 
@@ -1013,8 +1039,13 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                         if (variantSizeId && measurements) {
                             const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
                                 const m = (sizeValues as any)[variantSizeId];
-                                if (!m || m.value === undefined) return null;
-                                return { pomId, sizeId: variantSizeId, value: m.value, tolerance: m.tolerance };
+                                if (!m || m.value === undefined || m.value === null || isNaN(Number(m.value))) return null;
+                                return {
+                                    pomId,
+                                    sizeId: variantSizeId,
+                                    value: Number(m.value),
+                                    tolerance: m.tolerance && !isNaN(Number(m.tolerance)) ? Number(m.tolerance) : null
+                                };
                             }).filter(Boolean);
                             if (sizeMeasurements.length > 0) {
                                 await apiClient.saveSKUMeasurements(variant.id, sizeMeasurements as any);
@@ -1029,24 +1060,118 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 }
                 toast.success(`Updated ${updatedCount} variant SKU(s)`);
             } else if (editingSku) {
-                // Update main SKU
-                const colorId = formData.selectedColors[0] || null;
-                const sizeId = formData.selectedSizes[0] || null;
-                const payload = buildSKUPayload(colorId, sizeId, true);
-                await apiClient.updateSKU(editingSku.id, payload);
+                // Determine if this is a parent SKU edit (multiple sizes selected or has existing variants)
+                const isParentEdit = editingSku.parentSkuId === null &&
+                    (formData.selectedSizes.length > 1 || editingParentVariants.length > 0);
 
-                // Save measurements for this specific SKU
-                if (sizeId && measurements) {
-                    const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
-                        const m = (sizeValues as any)[sizeId];
-                        if (!m || m.value === undefined) return null;
-                        return { pomId, sizeId, value: m.value, tolerance: m.tolerance };
-                    }).filter(Boolean);
-                    if (sizeMeasurements.length > 0) {
-                        await apiClient.saveSKUMeasurements(editingSku.id, sizeMeasurements as any);
+                if (isParentEdit) {
+                    // Update parent SKU without size/color suffix
+                    const parentPayload = buildSKUPayload(null, null, true);
+                    await apiClient.updateSKU(editingSku.id, parentPayload);
+
+                    // Get existing variants - fetch from backend if not already loaded
+                    let variantsToCheck = editingParentVariants;
+                    if (variantsToCheck.length === 0) {
+                        // Fetch existing variants from the backend
+                        try {
+                            const parentData = await apiClient.getSKU(editingSku.id);
+                            variantsToCheck = parentData?.variants || [];
+                        } catch (e) {
+                            console.error('Failed to fetch parent variants:', e);
+                            variantsToCheck = [];
+                        }
                     }
+
+                    // Get existing variant sizes
+                    const existingVariantSizeIds = variantsToCheck
+                        .map((v: any) => v.metadata?.sizeId || v.sizeId)
+                        .filter(Boolean);
+
+                    // Create new variants for sizes that don't exist yet
+                    let createdCount = 0;
+                    for (const sizeId of formData.selectedSizes) {
+                        if (!existingVariantSizeIds.includes(sizeId)) {
+                            const colorId = formData.selectedColors[0] || null;
+                            const variantPayload = buildSKUPayload(colorId, sizeId, false);
+                            variantPayload.parentSkuId = editingSku.id;
+
+                            try {
+                                const result = await apiClient.createSKU(formData.brandId, variantPayload);
+
+                                // Save measurements for new variant
+                                if (result?.sku?.id && measurements) {
+                                    const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
+                                        const m = (sizeValues as any)[sizeId];
+                                        if (!m || m.value === undefined || m.value === null || isNaN(Number(m.value))) return null;
+                                        return {
+                                            pomId,
+                                            sizeId,
+                                            value: Number(m.value),
+                                            tolerance: m.tolerance && !isNaN(Number(m.tolerance)) ? Number(m.tolerance) : null
+                                        };
+                                    }).filter(Boolean);
+
+                                    if (sizeMeasurements.length > 0) {
+                                        await apiClient.saveSKUMeasurements(result.sku.id, sizeMeasurements as any);
+                                    }
+                                }
+                                createdCount++;
+                            } catch (err) {
+                                console.error('Failed to create variant for size:', sizeId, err);
+                            }
+                        }
+                    }
+
+                    // Also update measurements for existing variants
+                    for (const variant of variantsToCheck) {
+                        const variantSizeId = variant.metadata?.sizeId || variant.sizeId;
+                        if (variantSizeId && measurements) {
+                            const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
+                                const m = (sizeValues as any)[variantSizeId];
+                                if (!m || m.value === undefined || m.value === null || isNaN(Number(m.value))) return null;
+                                return {
+                                    pomId,
+                                    sizeId: variantSizeId,
+                                    value: Number(m.value),
+                                    tolerance: m.tolerance && !isNaN(Number(m.tolerance)) ? Number(m.tolerance) : null
+                                };
+                            }).filter(Boolean);
+
+                            if (sizeMeasurements.length > 0) {
+                                await apiClient.saveSKUMeasurements(variant.id, sizeMeasurements as any);
+                            }
+                        }
+                    }
+
+                    toast.success(createdCount > 0
+                        ? `SKU updated, ${createdCount} new variant(s) created`
+                        : 'SKU updated successfully');
+                } else {
+                    // Single variant SKU update (original logic)
+                    const colorId = formData.selectedColors[0] || null;
+                    const sizeId = formData.selectedSizes[0] || null;
+                    const payload = buildSKUPayload(colorId, sizeId, true);
+                    await apiClient.updateSKU(editingSku.id, payload);
+
+                    // Save measurements for this specific SKU
+                    if (sizeId && measurements) {
+                        const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
+                            const m = (sizeValues as any)[sizeId];
+                            if (!m || m.value === undefined || m.value === null || isNaN(Number(m.value))) return null;
+                            return {
+                                pomId,
+                                sizeId,
+                                value: Number(m.value),
+                                tolerance: m.tolerance && !isNaN(Number(m.tolerance)) ? Number(m.tolerance) : null
+                            };
+                        }).filter(Boolean);
+
+                        if (sizeMeasurements.length > 0) {
+                            await apiClient.saveSKUMeasurements(editingSku.id, sizeMeasurements as any);
+                        }
+                    }
+                    toast.success('SKU updated successfully');
                 }
-                toast.success('SKU updated successfully');
             } else {
                 // Bulk Create
                 const sizesToCreate = formData.selectedSizes.length > 0 ? formData.selectedSizes : [];
@@ -1079,8 +1204,15 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                 if (variantResult?.sku?.id && sizeId && measurements) {
                                     const sizeMeasurements = Object.entries(measurements).map(([pomId, sizeValues]) => {
                                         const m = (sizeValues as any)[sizeId];
-                                        if (!m || m.value === undefined) return null;
-                                        return { pomId, sizeId, value: m.value, tolerance: m.tolerance };
+
+                                        if (!m || m.value === undefined || m.value === null || isNaN(Number(m.value))) return null;
+
+                                        return {
+                                            pomId,
+                                            sizeId,
+                                            value: Number(m.value),
+                                            tolerance: m.tolerance && !isNaN(Number(m.tolerance)) ? Number(m.tolerance) : null
+                                        };
                                     }).filter(Boolean);
                                     if (sizeMeasurements.length > 0) {
                                         await apiClient.saveSKUMeasurements(variantResult.sku.id, sizeMeasurements as any);
@@ -1279,7 +1411,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                 <div className="w-7" /> /* Spacer */
                                             )}
                                             {/* Image Thumbnail */}
-                                            <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
+                                            <div className="h-32 w-32 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
                                                 {sku.images?.[0]?.url ? (
                                                     <>
                                                         <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
@@ -1289,9 +1421,11 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                             </div>
                                                         )}
                                                     </>
+                                                ) : sku.collectionInfo?.coverImage ? (
+                                                    <img src={sku.collectionInfo.coverImage} alt={sku.name} className="h-full w-full object-cover opacity-80" />
                                                 ) : (
                                                     <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                        <MagnifyingGlassIcon className="h-6 w-6" />
+                                                        <MagnifyingGlassIcon className="h-10 w-10" />
                                                     </div>
                                                 )}
                                             </div>
@@ -1299,7 +1433,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                 <div className="flex items-center gap-2">
                                                     <Link
                                                         href={`/items/${slugify(sku.code)}`}
-                                                        className="text-sm font-medium text-blue-600 truncate hover:underline"
+                                                        className="text-lg font-bold text-blue-600 truncate hover:underline"
                                                     >
                                                         {sku.name}
                                                     </Link>
@@ -1308,7 +1442,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     </span>
                                                     {sku.variants && sku.variants.length > 0 && (
                                                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                            +{sku.variants.length} variant{sku.variants.length > 1 ? 's' : ''}
+                                                            {sku.variants.length} Variant{sku.variants.length !== 1 ? 's' : ''}
                                                         </span>
                                                     )}
                                                 </div>
@@ -1384,15 +1518,17 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                 {sku.variants && sku.variants.length > 0 && expandedGroups.has(sku.id) && (
                                     sku.variants.map((variant: any) => (
                                         <li key={variant.id} className="block hover:bg-blue-50/50 bg-gray-50 border-l-4 border-blue-200">
-                                            <div className="px-4 py-3 sm:px-6 flex items-center justify-between pl-16">
+                                            <div className="px-4 py-3 sm:px-6 flex items-center justify-between pl-20">
                                                 <div className="flex items-center gap-4">
                                                     {/* Variant Image Thumbnail */}
-                                                    <div className="h-10 w-10 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                                    <div className="h-16 w-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
                                                         {variant.images?.[0]?.url ? (
                                                             <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
+                                                        ) : sku.collectionInfo?.coverImage ? (
+                                                            <img src={sku.collectionInfo.coverImage} alt={variant.name} className="h-full w-full object-cover opacity-60" />
                                                         ) : (
                                                             <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                                <MagnifyingGlassIcon className="h-4 w-4" />
+                                                                <MagnifyingGlassIcon className="h-6 w-6" />
                                                             </div>
                                                         )}
                                                     </div>
@@ -2258,7 +2394,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                     </div>
 
                                     {/* Measurements Section (Refactored: POM -> Sizes) */}
-                                    {formData.apparelId && apparelPOMs.length > 0 && formData.selectedSizes.length > 0 && (
+                                    {formData.apparelId && (apparelPOMs.length > 0 || selectedPomIds.length > 0) && (
                                         <div className="col-span-2 border-t pt-6 mt-6">
                                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                                                 <div>
@@ -2305,8 +2441,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             {/* List of Selected POMs */}
                                             <div className="space-y-6">
                                                 {selectedPomIds.map((pomId, index) => {
-                                                    const pom = apparelPOMs.find(p => (p.pom_id || p.id) === pomId);
-                                                    if (!pom) return null; // Should not happen
+                                                    const pom = apparelPOMs.find(p => (p.pom_id || p.id) === pomId) ||
+                                                        pomDefinitions.find(p => p.id === pomId);
+                                                    if (!pom) return null;
 
                                                     const measurementKey = String(pomId);
                                                     const isHalf = pom.is_half_measurement;
@@ -2371,7 +2508,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                                                 <div className="relative">
                                                                                     <input
                                                                                         type="number"
-                                                                                        step="1"
+                                                                                        step="any"
+                                                                                        onKeyDown={(e) => e.stopPropagation()}
                                                                                         placeholder="0"
                                                                                         className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 pr-8 text-center"
                                                                                         value={displayValue}
@@ -2406,6 +2544,76 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                                             </div>
                                                                         );
                                                                     })}
+
+                                                                    {/* Grade Increment Field */}
+                                                                    {formData.selectedSizes.length > 1 && (
+                                                                        <div className="flex flex-col justify-end min-w-[110px] group relative">
+                                                                            <div className="flex items-center justify-center gap-1 mb-1 relative group">
+                                                                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                                                                                    Grade
+                                                                                </label>
+                                                                                <InformationCircleIcon
+                                                                                    className="w-3.5 h-3.5 text-gray-300 hover:text-blue-500 cursor-help transition-colors"
+                                                                                />
+
+                                                                                {/* Tooltip */}
+                                                                                <div className="hidden group-hover:block absolute bottom-full right-0 mb-2 w-52 p-3 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl z-[200] text-center font-normal leading-relaxed border border-slate-700 pointer-events-none">
+                                                                                    <p>Enter an increment (e.g. 1.0) to auto-fill measurements for all larger sizes, starting from the value in the first size.</p>
+                                                                                    <div className="absolute top-full right-5 border-[6px] border-transparent border-t-slate-900"></div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                                                                                <input
+                                                                                    type="number"
+                                                                                    step="any"
+                                                                                    placeholder="0"
+                                                                                    onKeyDown={(e) => e.stopPropagation()}
+                                                                                    value={gradeValues[pom.pom_id] || ''}
+                                                                                    onChange={(e) => setGradeValues({ ...gradeValues, [pom.pom_id]: e.target.value })}
+                                                                                    className="w-16 bg-transparent text-xs font-semibold text-gray-900 focus:outline-none text-center"
+                                                                                />
+                                                                                <div className="w-px h-4 bg-gray-300 mx-0.5" />
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        const pomId = String(pom.pom_id);
+                                                                                        const increment = parseFloat(gradeValues[pomId] || '0');
+                                                                                        if (!increment || formData.selectedSizes.length < 2) {
+                                                                                            toast.error('Enter a grade increment value');
+                                                                                            return;
+                                                                                        }
+
+                                                                                        // Get first size value
+                                                                                        const firstSizeId = formData.selectedSizes[0];
+                                                                                        const firstValue = measurements[pomId]?.[firstSizeId]?.value;
+                                                                                        if (firstValue === undefined) {
+                                                                                            toast.error('Enter the first size value first');
+                                                                                            return;
+                                                                                        }
+
+                                                                                        // Apply grading to all subsequent sizes
+                                                                                        const newMeasurements = { ...measurements };
+                                                                                        if (!newMeasurements[pomId]) newMeasurements[pomId] = {};
+
+                                                                                        formData.selectedSizes.forEach((sizeId, index) => {
+                                                                                            if (index === 0) return; // Skip first size
+                                                                                            const gradedValue = firstValue + (increment * index);
+                                                                                            newMeasurements[pomId][sizeId] = {
+                                                                                                value: Math.round(gradedValue * 10) / 10, // Round to 1 decimal
+                                                                                                tolerance: pom.default_tolerance || 0.5
+                                                                                            };
+                                                                                        });
+
+                                                                                        setMeasurements(newMeasurements);
+                                                                                        toast.success(`Applied +${increment}cm grading`);
+                                                                                    }}
+                                                                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wider px-1"
+                                                                                >
+                                                                                    Apply
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>

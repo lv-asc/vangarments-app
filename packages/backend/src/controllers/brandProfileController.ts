@@ -9,10 +9,10 @@ export class BrandProfileController {
     /**
      * Get full brand profile with team, lookbooks, and collections
      */
-    async getFullProfile(req: Request, res: Response): Promise<void> {
+    async getBrandProfile(req: Request, res: Response): Promise<void> {
         try {
             const { brandId } = req.params;
-            const fullProfile = await BrandAccountModel.getFullProfile(brandId);
+            const fullProfile = await BrandAccountModel.getBrandProfile(brandId);
 
             if (!fullProfile) {
                 res.status(404).json({

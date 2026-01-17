@@ -237,7 +237,20 @@ export class SKUController {
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
                 LEFT JOIN brand_lines bl ON si.line_id = bl.id
-                LEFT JOIN brand_collections bc ON si.brand_id = bc.brand_id AND si.collection = bc.name
+                LEFT JOIN brand_collections bc ON si.collection = bc.name 
+                    AND (
+                        bc.brand_id = si.brand_id
+                        OR
+                        bc.brand_id IN (
+                            SELECT id FROM brand_accounts sub_ba 
+                            WHERE sub_ba.brand_info->>'name' = ba.brand_info->>'name'
+                        )
+                        OR
+                        bc.brand_id IN (
+                            SELECT id FROM vufs_brands vb
+                            WHERE vb.name = ba.brand_info->>'name'
+                        )
+                    )
                 WHERE si.deleted_at IS NULL
             `;
 
@@ -469,14 +482,47 @@ export class SKUController {
     static async getSKU(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const sku = await SKUItemModel.findById(id);
+            let sku = await SKUItemModel.findById(id);
 
             if (!sku) {
                 res.status(404).json({ error: 'SKU not found' });
                 return;
             }
 
-            res.json({ sku });
+            // If this is a variant, fetch the parent and its siblings
+            if (sku.parentSkuId) {
+                const parent = await SKUItemModel.findById(sku.parentSkuId);
+                if (parent) {
+                    const variants = await SKUItemModel.findVariants(sku.parentSkuId);
+                    // Map variants to include size/color info for the frontend selector
+                    const mappedVariants = variants.map(v => {
+                        const vMeta = v.metadata || {};
+                        return {
+                            ...v,
+                            size: vMeta.sizeName || vMeta.size || v.name,
+                            sizeId: vMeta.sizeId,
+                            color: vMeta.colorName || vMeta.color,
+                            colorId: vMeta.colorId
+                        };
+                    });
+                    res.json({ sku: { ...parent, variants: mappedVariants } });
+                    return;
+                }
+            }
+
+            // Fetch variants for parent/standalone SKU
+            const variants = await SKUItemModel.findVariants(sku.id);
+            const mappedVariants = variants.map(v => {
+                const vMeta = v.metadata || {};
+                return {
+                    ...v,
+                    size: vMeta.sizeName || vMeta.size || v.name,
+                    sizeId: vMeta.sizeId,
+                    color: vMeta.colorName || vMeta.color,
+                    colorId: vMeta.colorId
+                };
+            });
+            res.json({ sku: { ...sku, variants: mappedVariants } });
         } catch (error) {
             console.error('Get SKU error:', error);
             res.status(500).json({ error: 'Internal server error' });
@@ -607,6 +653,7 @@ export class SKUController {
                 lineId,
                 collection,
                 sizeId,
+                nationality,
                 years,
                 months,
                 days,
@@ -642,7 +689,20 @@ export class SKUController {
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
                 LEFT JOIN brand_lines bl ON si.line_id = bl.id
-                LEFT JOIN brand_collections bc ON si.brand_id = bc.brand_id AND si.collection = bc.name
+                LEFT JOIN brand_collections bc ON si.collection = bc.name 
+                    AND (
+                        bc.brand_id = si.brand_id
+                        OR
+                        bc.brand_id IN (
+                            SELECT id FROM brand_accounts sub_ba 
+                            WHERE sub_ba.brand_info->>'name' = ba.brand_info->>'name'
+                        )
+                        OR
+                        bc.brand_id IN (
+                            SELECT id FROM vufs_brands vb
+                            WHERE vb.name = ba.brand_info->>'name'
+                        )
+                    )
                 LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
                 LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
                 LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid
@@ -655,46 +715,62 @@ export class SKUController {
             const values: any[] = [];
             let paramIndex = 1;
 
+            // Multi-value filter support using PostgreSQL ANY()
             if (brandId) {
-                query += ` AND si.brand_id = $${paramIndex++}`;
-                values.push(brandId);
+                const brandIds = (brandId as string).split(',');
+                query += ` AND si.brand_id = ANY($${paramIndex++})`;
+                values.push(brandIds);
             }
 
             if (styleId) {
-                query += ` AND si.category->>'styleId' = $${paramIndex++}`;
-                values.push(styleId);
+                const styleIds = (styleId as string).split(',');
+                query += ` AND si.category->>'styleId' = ANY($${paramIndex++})`;
+                values.push(styleIds);
             }
             if (patternId) {
-                query += ` AND si.category->>'patternId' = $${paramIndex++}`;
-                values.push(patternId);
+                const patternIds = (patternId as string).split(',');
+                query += ` AND si.category->>'patternId' = ANY($${paramIndex++})`;
+                values.push(patternIds);
             }
             if (fitId) {
-                query += ` AND si.category->>'fitId' = $${paramIndex++}`;
-                values.push(fitId);
+                const fitIds = (fitId as string).split(',');
+                query += ` AND si.category->>'fitId' = ANY($${paramIndex++})`;
+                values.push(fitIds);
             }
             if (genderId) {
-                query += ` AND si.category->>'genderId' = $${paramIndex++}`;
-                values.push(genderId);
+                const genderIds = (genderId as string).split(',');
+                query += ` AND si.category->>'genderId' = ANY($${paramIndex++})`;
+                values.push(genderIds);
             }
             if (apparelId) {
-                query += ` AND si.category->>'apparelId' = $${paramIndex++}`;
-                values.push(apparelId);
+                const apparelIds = (apparelId as string).split(',');
+                query += ` AND si.category->>'apparelId' = ANY($${paramIndex++})`;
+                values.push(apparelIds);
             }
             if (materialId) {
-                query += ` AND si.category->>'materialId' = $${paramIndex++}`;
-                values.push(materialId);
+                const materialIds = (materialId as string).split(',');
+                query += ` AND si.category->>'materialId' = ANY($${paramIndex++})`;
+                values.push(materialIds);
             }
             if (sizeId) {
-                query += ` AND si.metadata->>'sizeId' = $${paramIndex++}`;
-                values.push(sizeId);
+                const sizeIds = (sizeId as string).split(',');
+                query += ` AND si.metadata->>'sizeId' = ANY($${paramIndex++})`;
+                values.push(sizeIds);
             }
             if (lineId) {
-                query += ` AND si.line_id = $${paramIndex++}`;
-                values.push(lineId);
+                const lineIds = (lineId as string).split(',');
+                query += ` AND si.line_id = ANY($${paramIndex++})`;
+                values.push(lineIds);
             }
             if (collection) {
-                query += ` AND si.collection = $${paramIndex++}`;
-                values.push(collection);
+                const collections = (collection as string).split(',');
+                query += ` AND si.collection = ANY($${paramIndex++})`;
+                values.push(collections);
+            }
+            if (nationality) {
+                const nationalities = (nationality as string).split(',');
+                query += ` AND ba.brand_info->>'country' = ANY($${paramIndex++})`;
+                values.push(nationalities);
             }
 
             if (years) {

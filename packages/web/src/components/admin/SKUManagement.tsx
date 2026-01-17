@@ -37,6 +37,7 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
     const [modalLoading, setModalLoading] = useState(false);
     const [editMode, setEditMode] = useState<'parent' | 'variant' | 'new'>('new');
     const [editingParentVariants, setEditingParentVariants] = useState<any[]>([]);
+    const [originalParentSizes, setOriginalParentSizes] = useState<string[]>([]); // Track original sizes for comparison
 
     // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState<{
@@ -89,7 +90,10 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
         generatedCode: '',
         retailPriceBrl: '' as string | number,
         retailPriceUsd: '' as string | number,
-        retailPriceEur: '' as string | number
+        retailPriceEur: '' as string | number,
+        releaseDate: '',
+        careInstructions: '',
+        officialItemLink: ''
     });
 
     useEffect(() => {
@@ -306,7 +310,10 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
                 generatedCode: sku.code,
                 retailPriceBrl: sku.retailPriceBrl || '',
                 retailPriceUsd: sku.retailPriceUsd || '',
-                retailPriceEur: sku.retailPriceEur || ''
+                retailPriceEur: sku.retailPriceEur || '',
+                releaseDate: sku.releaseDate ? new Date(sku.releaseDate).toISOString().split('T')[0] : '',
+                careInstructions: sku.careInstructions || '',
+                officialItemLink: sku.officialItemLink || ''
             });
         } else {
             setEditingSku(null);
@@ -324,7 +331,8 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
                     brandLineDisplay: 'brand-only', showCollection: false
                 },
                 generatedName: '', generatedCode: 'To be generated',
-                retailPriceBrl: '', retailPriceUsd: '', retailPriceEur: ''
+                retailPriceBrl: '', retailPriceUsd: '', retailPriceEur: '',
+                releaseDate: '', careInstructions: '', officialItemLink: ''
             });
         }
         setShowModal(true);
@@ -339,6 +347,12 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
         setEditMode('parent');
         setEditingParentVariants(parentSku.variants);
 
+        // Extract and store original sizes for comparison during save
+        const extractedSizes = Array.isArray(parentSku.variants)
+            ? Array.from(new Set(parentSku.variants.map((v: any) => v.metadata?.sizeId || v.sizeId).filter(Boolean))) as string[]
+            : [];
+        setOriginalParentSizes(extractedSizes);
+
         setFormData({
             lineId: firstVariant.lineId || firstVariant.lineInfo?.id || '',
             collection: firstVariant.collection || '',
@@ -349,7 +363,9 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
             patternId: metadata.patternId || '',
             materialId: metadata.materialId || '',
             fitId: metadata.fitId || '',
-            selectedSizes: [],
+            selectedSizes: Array.isArray(parentSku.variants)
+                ? Array.from(new Set(parentSku.variants.map((v: any) => v.metadata?.sizeId || v.sizeId).filter(Boolean)))
+                : [],
             selectedColors: [],
             description: firstVariant.description || '',
             images: [],
@@ -363,7 +379,10 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
             generatedCode: parentSku.code,
             retailPriceBrl: firstVariant.retailPriceBrl || '',
             retailPriceUsd: firstVariant.retailPriceUsd || '',
-            retailPriceEur: firstVariant.retailPriceEur || ''
+            retailPriceEur: firstVariant.retailPriceEur || '',
+            releaseDate: firstVariant.releaseDate ? new Date(firstVariant.releaseDate).toISOString().split('T')[0] : '',
+            careInstructions: firstVariant.careInstructions || '',
+            officialItemLink: firstVariant.officialItemLink || ''
         });
         setShowModal(true);
     };
@@ -419,7 +438,10 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
             },
             retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
             retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
-            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null
+            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null,
+            releaseDate: formData.releaseDate || null,
+            careInstructions: formData.careInstructions || null,
+            officialItemLink: formData.officialItemLink || null
         };
     };
 
@@ -429,31 +451,74 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
 
         try {
             if (editMode === 'parent' && editingParentVariants.length > 0) {
-                // Update all variants with common attributes
+                // Calculate which sizes to add/remove
+                const currentSizes = new Set(formData.selectedSizes);
+                const originalSizes = new Set(originalParentSizes);
+                const sizesToAdd = formData.selectedSizes.filter(s => !originalSizes.has(s));
+                const sizesToRemove = originalParentSizes.filter(s => !currentSizes.has(s));
+                const sizesToKeep = originalParentSizes.filter(s => currentSizes.has(s));
+
+                let updatedCount = 0;
+                let createdCount = 0;
+                let deletedCount = 0;
+
+                // Update existing variants that are being kept
                 for (const variant of editingParentVariants) {
-                    const payload = {
-                        lineId: formData.lineId || null,
-                        collection: formData.collection || null,
-                        description: formData.description,
-                        materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
-                        metadata: {
-                            ...variant.metadata,
-                            modelName: formData.modelName,
-                            genderId: formData.genderId,
-                            apparelId: formData.apparelId,
-                            styleId: formData.styleId,
-                            patternId: formData.patternId,
-                            materialId: formData.materialId,
-                            fitId: formData.fitId,
-                            nameConfig: formData.nameConfig
-                        },
-                        retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
-                        retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
-                        retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null
-                    };
-                    await apiClient.updateSKU(variant.id, payload);
+                    const variantSizeId = variant.metadata?.sizeId || variant.sizeId;
+                    if (sizesToKeep.includes(variantSizeId)) {
+                        const payload = {
+                            lineId: formData.lineId || null,
+                            collection: formData.collection || null,
+                            description: formData.description,
+                            materials: [materials.find(m => m.id === formData.materialId)?.name].filter(Boolean),
+                            metadata: {
+                                ...variant.metadata,
+                                modelName: formData.modelName,
+                                genderId: formData.genderId,
+                                apparelId: formData.apparelId,
+                                styleId: formData.styleId,
+                                patternId: formData.patternId,
+                                materialId: formData.materialId,
+                                fitId: formData.fitId,
+                                nameConfig: formData.nameConfig
+                            },
+                            retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
+                            retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
+                            retailPriceEur: formData.retailPriceEur ? Number(formData.retailPriceEur) : null,
+                            releaseDate: formData.releaseDate || null,
+                            careInstructions: formData.careInstructions || null,
+                            officialItemLink: formData.officialItemLink || null
+                        };
+                        await apiClient.updateSKU(variant.id, payload);
+                        updatedCount++;
+                    }
                 }
-                toast.success(`Updated ${editingParentVariants.length} variants`);
+
+                // Delete variants for unselected sizes
+                for (const variant of editingParentVariants) {
+                    const variantSizeId = variant.metadata?.sizeId || variant.sizeId;
+                    if (sizesToRemove.includes(variantSizeId)) {
+                        await apiClient.deleteSKU(variant.id);
+                        deletedCount++;
+                    }
+                }
+
+                // Create new variants for newly selected sizes
+                for (const sizeId of sizesToAdd) {
+                    const colorId = formData.selectedColors[0] || null;
+                    const payload = {
+                        ...buildSKUPayload(colorId, sizeId, false),
+                        parentSkuId: editingSku.id // Link to parent
+                    };
+                    await apiClient.createSKU(brandId, payload);
+                    createdCount++;
+                }
+
+                const messages: string[] = [];
+                if (updatedCount > 0) messages.push(`Updated ${updatedCount}`);
+                if (createdCount > 0) messages.push(`Created ${createdCount}`);
+                if (deletedCount > 0) messages.push(`Deleted ${deletedCount}`);
+                toast.success(messages.length > 0 ? messages.join(', ') + ' variant(s)' : 'No changes made');
             } else if (editingSku && editMode === 'variant') {
                 // Update single SKU
                 const colorId = formData.selectedColors[0] || null;
@@ -825,41 +890,45 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
                                         </React.Fragment>
                                     )}
 
-                                    {/* Sizes - Hidden in parent mode */}
-                                    {editMode !== 'parent' && (
-                                        <div className="col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                {editMode === 'new' ? 'Sizes (Select all that apply)' : 'Size'}
-                                            </label>
-                                            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-md bg-gray-50">
-                                                {sizes.map((size: any) => (
-                                                    <button
-                                                        key={size.id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (editMode === 'new') {
-                                                                const isSelected = formData.selectedSizes.includes(size.id);
-                                                                setFormData({
-                                                                    ...formData,
-                                                                    selectedSizes: isSelected
-                                                                        ? formData.selectedSizes.filter(id => id !== size.id)
-                                                                        : [...formData.selectedSizes, size.id]
-                                                                });
-                                                            } else {
-                                                                setFormData({ ...formData, selectedSizes: [size.id] });
-                                                            }
-                                                        }}
-                                                        className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${formData.selectedSizes.includes(size.id)
-                                                            ? 'bg-blue-500 text-white'
-                                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-                                                            }`}
-                                                    >
-                                                        {size.name}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                    {/* Sizes - Show in all modes, multi-select in new/parent mode */}
+                                    <div className="col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            {editMode === 'new' ? 'Sizes (Select all that apply)' :
+                                                editMode === 'parent' ? 'Size Variants (Add/Remove sizes)' : 'Size'}
+                                        </label>
+                                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-md bg-gray-50">
+                                            {sizes.map((size: any) => (
+                                                <button
+                                                    key={size.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (editMode === 'new' || editMode === 'parent') {
+                                                            const isSelected = formData.selectedSizes.includes(size.id);
+                                                            setFormData({
+                                                                ...formData,
+                                                                selectedSizes: isSelected
+                                                                    ? formData.selectedSizes.filter(id => id !== size.id)
+                                                                    : [...formData.selectedSizes, size.id]
+                                                            });
+                                                        } else {
+                                                            setFormData({ ...formData, selectedSizes: [size.id] });
+                                                        }
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${formData.selectedSizes.includes(size.id)
+                                                        ? 'bg-blue-500 text-white'
+                                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                                                        }`}
+                                                >
+                                                    {size.name}
+                                                </button>
+                                            ))}
                                         </div>
-                                    )}
+                                        {editMode === 'parent' && (
+                                            <p className="mt-1 text-xs text-gray-500">
+                                                Deselect sizes to delete variants, select new sizes to create variants.
+                                            </p>
+                                        )}
+                                    </div>
 
                                     {/* Colors - Hidden in parent mode */}
                                     {editMode !== 'parent' && (
@@ -913,6 +982,44 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
                                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                                         />
                                     </div>
+
+                                    {/* Additional Info - Release Date, Care Instructions, Official Link */}
+                                    {editMode !== 'parent' && (
+                                        <div className="col-span-2 border-t pt-4 mt-2">
+                                            <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Information</h4>
+                                            <div className="grid grid-cols-1 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700">Release Date</label>
+                                                    <input
+                                                        type="date"
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 sm:text-sm"
+                                                        value={formData.releaseDate}
+                                                        onChange={e => setFormData({ ...formData, releaseDate: e.target.value })}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700">Care Instructions</label>
+                                                    <textarea
+                                                        rows={2}
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 sm:text-sm"
+                                                        value={formData.careInstructions}
+                                                        onChange={e => setFormData({ ...formData, careInstructions: e.target.value })}
+                                                        placeholder="How to wash, dry, and maintain..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700">Official Item Link</label>
+                                                    <input
+                                                        type="url"
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 sm:text-sm"
+                                                        value={formData.officialItemLink}
+                                                        onChange={e => setFormData({ ...formData, officialItemLink: e.target.value })}
+                                                        placeholder="https://brand.com/products/item-slug"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Preview - Only for new */}
                                     {editMode === 'new' && (
