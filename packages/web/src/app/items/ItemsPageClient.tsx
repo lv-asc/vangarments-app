@@ -16,7 +16,8 @@ import {
     Square3Stack3DIcon,
     ArrowsPointingOutIcon,
     VariableIcon,
-    QueueListIcon
+    QueueListIcon,
+    CalendarIcon
 } from '@heroicons/react/24/outline';
 import { brandApi } from '@/lib/brandApi';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
@@ -27,6 +28,9 @@ interface Filters {
     patternId?: string;
     fitId?: string;
     genderId?: string;
+    subcategory1Id?: string;
+    subcategory2Id?: string;
+    subcategory3Id?: string;
     apparelId?: string;
     materialId?: string;
     sizeId?: string;
@@ -48,6 +52,9 @@ export default function ItemsPageClient() {
     // Filter Options
     const [options, setOptions] = useState({
         brands: [] as any[],
+        subcategory1: [] as VUFSAttributeValue[],
+        subcategory2: [] as VUFSAttributeValue[],
+        subcategory3: [] as VUFSAttributeValue[],
         apparelTypes: [] as VUFSAttributeValue[],
         styles: [] as VUFSAttributeValue[],
         patterns: [] as any[],
@@ -71,7 +78,15 @@ export default function ItemsPageClient() {
         brandCollections: true,
         apparel: true,
         gender: true,
-        releaseDate: false
+        releaseDate: false,
+        headerSub1: false,
+        headerSub2: false,
+        headerSub3: false,
+        headerApparel: false,
+        headerNationality: false,
+        headerBrand: false,
+        headerLine: false,
+        headerCollection: false
     });
 
     const toggleGroup = (group: string) => {
@@ -82,6 +97,9 @@ export default function ItemsPageClient() {
         try {
             const [
                 brandsRes,
+                sub1Res,
+                sub2Res,
+                sub3Res,
                 apparelRes,
                 stylesRes,
                 patternsRes,
@@ -94,6 +112,9 @@ export default function ItemsPageClient() {
                 nationalitiesRes
             ] = await Promise.all([
                 brandApi.getBrands({ limit: 50, businessType: 'brand' }), // Real brand accounts
+                vufsApi.getAttributeValues('subcategory-1'),
+                vufsApi.getAttributeValues('subcategory-2'),
+                vufsApi.getAttributeValues('subcategory-3'),
                 vufsApi.getAttributeValues('apparel'),
                 vufsApi.getAttributeValues('style'),
                 vufsApi.getPatterns(),
@@ -110,6 +131,9 @@ export default function ItemsPageClient() {
 
             setOptions({
                 brands: (brandsRes || []).sort(sortByName),
+                subcategory1: (sub1Res || []).sort(sortByName),
+                subcategory2: (sub2Res || []).sort(sortByName),
+                subcategory3: (sub3Res || []).sort(sortByName),
                 brandLines: [],
                 brandCollections: [],
                 apparelTypes: (apparelRes || []).sort(sortByName),
@@ -119,10 +143,7 @@ export default function ItemsPageClient() {
                 genders: (gendersRes || []).sort(sortByName),
                 materials: (materialsRes || []).sort(sortByName),
                 colors: (colorsRes || []).sort(sortByName),
-                sizes: (sizesRes || []).sort((a, b) => {
-                    // Custom sort for sizes might be better, but alphabetical for now
-                    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-                }),
+                sizes: (sizesRes || []), // Use order from API (sortOrder)
                 nationalities: (nationalitiesRes || []).sort(),
                 years: releaseDateOptions.years || [],
                 months: releaseDateOptions.months || [],
@@ -136,8 +157,48 @@ export default function ItemsPageClient() {
     const fetchSKUs = useCallback(async () => {
         setLoading(true);
         try {
+            // Resolve hierarchy to apparel IDs
+            let effectiveApparelId = filters.apparelId;
+
+            if (!effectiveApparelId) {
+                // If no specific apparel selected, check hierarchy
+                let validApparelIds: Set<string> | null = null;
+
+                if (filters.subcategory3Id) {
+                    const parentIds = filters.subcategory3Id.split(',');
+                    const apps = options.apparelTypes.filter(a => a.parentId && parentIds.includes(a.parentId));
+                    validApparelIds = new Set(apps.map(a => a.id));
+                } else if (filters.subcategory2Id) {
+                    const parentIds = filters.subcategory2Id.split(',');
+                    const sub3s = options.subcategory3.filter(s => s.parentId && parentIds.includes(s.parentId));
+                    const sub3Ids = new Set(sub3s.map(s => s.id));
+                    const apps = options.apparelTypes.filter(a => a.parentId && sub3Ids.has(a.parentId));
+                    validApparelIds = new Set(apps.map(a => a.id));
+                } else if (filters.subcategory1Id) {
+                    const parentIds = filters.subcategory1Id.split(',');
+                    const sub2s = options.subcategory2.filter(s => s.parentId && parentIds.includes(s.parentId));
+                    const sub2Ids = new Set(sub2s.map(s => s.id));
+                    const sub3s = options.subcategory3.filter(s => s.parentId && sub2Ids.has(s.parentId));
+                    const sub3Ids = new Set(sub3s.map(s => s.id));
+                    const apps = options.apparelTypes.filter(a => a.parentId && sub3Ids.has(a.parentId));
+                    validApparelIds = new Set(apps.map(a => a.id));
+                }
+
+                if (validApparelIds) {
+                    effectiveApparelId = Array.from(validApparelIds).join(',');
+                    if (validApparelIds.size === 0) {
+                        effectiveApparelId = 'NO_MATCHES';
+                    }
+                }
+            }
+
+            const searchFilters = { ...filters };
+            if (effectiveApparelId) {
+                searchFilters.apparelId = effectiveApparelId;
+            }
+
             const response = await skuApi.searchSKUs(searchQuery, {
-                ...filters,
+                ...searchFilters,
                 limit: 50,
                 parentsOnly: true
             });
@@ -147,7 +208,7 @@ export default function ItemsPageClient() {
         } finally {
             setLoading(false);
         }
-    }, [searchQuery, filters]);
+    }, [searchQuery, filters, options]);
 
     useEffect(() => {
         fetchFilterOptions();
@@ -160,7 +221,9 @@ export default function ItemsPageClient() {
         return () => clearTimeout(timer);
     }, [fetchSKUs]);
 
-    // Fetch dynamic lines and collections when brands are selected
+    // Dead code removed (useEffect for getDescendantApparelIds)
+
+    // ... Keeping dynamic brand options effect ...
     useEffect(() => {
         const fetchDynamicOptions = async () => {
             if (filters.brandId) {
@@ -184,7 +247,6 @@ export default function ItemsPageClient() {
                     brandLines: [],
                     brandCollections: []
                 }));
-                // Clear filters if brands are removed
                 if (filters.lineId || filters.collection) {
                     setFilters(prev => ({
                         ...prev,
@@ -199,10 +261,45 @@ export default function ItemsPageClient() {
     }, [filters.brandId]);
 
     const handleFilterChange = (key: keyof Filters, value: string | undefined) => {
-        setFilters(prev => ({
-            ...prev,
-            [key]: prev[key] === value ? undefined : value
-        }));
+        setFilters(prev => {
+            const next = { ...prev };
+
+            if (value === undefined) {
+                // Handling "All X" selection - Clear this level
+                // Decoupled: We probably shouldn't auto-clear children anymore if we want full independence?
+                // Actually, if I say "All Departments" (clearing department), I might expect to clear everything?
+                // The prompt says "Allow users to select options that aren't in the same prior selections".
+                // But clearing the "Department" filter implies removing that constraint.
+                // If I have "Clothing" selected, and I clear it, I probably still want my "Vest" selection?
+                // But generally "All X" acts as a reset or "show all".
+                // Let's keep the cascade clear for "All X" for now as it's a safe default for "Reset", 
+                // but we removed the Forward/Reverse logic.
+
+                if (key === 'subcategory1Id') {
+                    next.subcategory1Id = undefined;
+                    // next.subcategory2Id = undefined; // Decouple? Or keep cascade?
+                    // User said: "instead of auto-filling ... allow users to select options that aren't in the same prior selections"
+                    // If I clear Department, I probably just want to clear the Department filter.
+                    // If I have specific items selected, they should stay.
+                    // So let's REMOVE cascade clearing too for maximum independence?
+                    // "All Departments" simply means "Don't filter by Department".
+                } else {
+                    next[key] = undefined;
+                }
+
+                // Close dropdown
+                if (key === 'subcategory1Id') setExpandedGroups(p => ({ ...p, headerSub1: false }));
+                if (key === 'subcategory2Id') setExpandedGroups(p => ({ ...p, headerSub2: false }));
+                if (key === 'subcategory3Id') setExpandedGroups(p => ({ ...p, headerSub3: false }));
+                if (key === 'apparelId') setExpandedGroups(p => ({ ...p, headerApparel: false }));
+
+                return next;
+            }
+
+            // Normal filter (if value is provided) - though we use handleMultiFilterChange for selections now.
+            next[key] = value;
+            return next;
+        });
     };
 
     const handleMultiFilterChange = (key: keyof Filters, value: string) => {
@@ -380,7 +477,200 @@ export default function ItemsPageClient() {
         <div className="min-h-screen bg-white">
             {/* Brand Filters Header */}
             <div className="bg-white border-b border-gray-100 sticky top-16 z-30">
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+                    {/* Level 1: Category Hierarchy */}
+                    <div className="flex flex-wrap items-center gap-4">
+                        {/* Subcategory 1 (Department) */}
+                        <div
+                            className="relative group/filter"
+                            onMouseEnter={() => setExpandedGroups(prev => ({ ...prev, headerSub1: true }))}
+                            onMouseLeave={() => setExpandedGroups(prev => ({ ...prev, headerSub1: false }))}
+                        >
+                            <button
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${filters.subcategory1Id
+                                    ? 'bg-gray-900 text-white border-gray-900'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                    }`}
+                            >
+                                <span>{filters.subcategory1Id ? `${filters.subcategory1Id.split(',').length} Selected` : 'Department'}</span>
+                                <ChevronDownIcon className="h-4 w-4" />
+                            </button>
+                            {expandedGroups.headerSub1 && (
+                                <>
+                                    <div className="absolute top-full left-0 w-full h-2 z-40" />
+                                    <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-40 max-h-96 overflow-y-auto custom-scrollbar p-1">
+                                        <button
+                                            onClick={() => handleFilterChange('subcategory1Id', undefined)}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-500 hover:bg-gray-50 rounded-lg"
+                                        >
+                                            All Departments
+                                        </button>
+                                        {options.subcategory1.map(sub1 => {
+                                            const isSelected = filters.subcategory1Id?.split(',').includes(sub1.id);
+                                            return (
+                                                <button
+                                                    key={sub1.id}
+                                                    onClick={() => handleMultiFilterChange('subcategory1Id', sub1.id)}
+                                                    className={`w-full px-4 py-2.5 text-left text-sm rounded-lg hover:bg-gray-50 ${isSelected ? 'bg-gray-100 font-bold' : ''
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <span>{sub1.name}</span>
+                                                        {isSelected && <svg className="w-4 h-4 text-gray-900" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Subcategory 2 (Category) */}
+                        <div
+                            className="relative group/filter"
+                            onMouseEnter={() => setExpandedGroups(prev => ({ ...prev, headerSub2: true }))}
+                            onMouseLeave={() => setExpandedGroups(prev => ({ ...prev, headerSub2: false }))}
+                        >
+                            <button
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${filters.subcategory2Id
+                                    ? 'bg-gray-900 text-white border-gray-900'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                    }`}
+                            >
+                                <span>{filters.subcategory2Id ? `${filters.subcategory2Id.split(',').length} Selected` : 'Category'}</span>
+                                <ChevronDownIcon className="h-4 w-4" />
+                            </button>
+                            {expandedGroups.headerSub2 && (
+                                <>
+                                    <div className="absolute top-full left-0 w-full h-2 z-40" />
+                                    <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-40 max-h-96 overflow-y-auto custom-scrollbar p-1">
+                                        <button
+                                            onClick={() => handleFilterChange('subcategory2Id', undefined)}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-500 hover:bg-gray-50 rounded-lg"
+                                        >
+                                            All Categories
+                                        </button>
+                                        {options.subcategory2
+                                            .filter(s => filters.subcategory1Id ? filters.subcategory1Id.split(',').includes(s.parentId || '') : true)
+                                            .map(sub2 => {
+                                                const isSelected = filters.subcategory2Id?.split(',').includes(sub2.id);
+                                                return (
+                                                    <button
+                                                        key={sub2.id}
+                                                        onClick={() => handleMultiFilterChange('subcategory2Id', sub2.id)}
+                                                        className={`w-full px-4 py-2.5 text-left text-sm rounded-lg hover:bg-gray-50 ${isSelected ? 'bg-gray-100 font-bold' : ''
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span>{sub2.name}</span>
+                                                            {isSelected && <svg className="w-4 h-4 text-gray-900" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Subcategory 3 (Subcategory) */}
+                        <div
+                            className="relative group/filter"
+                            onMouseEnter={() => setExpandedGroups(prev => ({ ...prev, headerSub3: true }))}
+                            onMouseLeave={() => setExpandedGroups(prev => ({ ...prev, headerSub3: false }))}
+                        >
+                            <button
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${filters.subcategory3Id
+                                    ? 'bg-gray-900 text-white border-gray-900'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                    }`}
+                            >
+                                <span>{filters.subcategory3Id ? `${filters.subcategory3Id.split(',').length} Selected` : 'Subcategory'}</span>
+                                <ChevronDownIcon className="h-4 w-4" />
+                            </button>
+                            {expandedGroups.headerSub3 && (
+                                <>
+                                    <div className="absolute top-full left-0 w-full h-2 z-40" />
+                                    <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-40 max-h-96 overflow-y-auto custom-scrollbar p-1">
+                                        <button
+                                            onClick={() => handleFilterChange('subcategory3Id', undefined)}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-500 hover:bg-gray-50 rounded-lg"
+                                        >
+                                            All Subcategories
+                                        </button>
+                                        {options.subcategory3
+                                            .filter(s => filters.subcategory2Id ? filters.subcategory2Id.split(',').includes(s.parentId || '') : true)
+                                            .map(sub3 => {
+                                                const isSelected = filters.subcategory3Id?.split(',').includes(sub3.id);
+                                                return (
+                                                    <button
+                                                        key={sub3.id}
+                                                        onClick={() => handleMultiFilterChange('subcategory3Id', sub3.id)}
+                                                        className={`w-full px-4 py-2.5 text-left text-sm rounded-lg hover:bg-gray-50 ${isSelected ? 'bg-gray-100 font-bold' : ''
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span>{sub3.name}</span>
+                                                            {isSelected && <svg className="w-4 h-4 text-gray-900" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Apparel Type (Item) */}
+                        <div
+                            className="relative group/filter"
+                            onMouseEnter={() => setExpandedGroups(prev => ({ ...prev, headerApparel: true }))}
+                            onMouseLeave={() => setExpandedGroups(prev => ({ ...prev, headerApparel: false }))}
+                        >
+                            <button
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${filters.apparelId
+                                    ? 'bg-gray-900 text-white border-gray-900'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                                    }`}
+                            >
+                                <span>{filters.apparelId ? `${filters.apparelId.split(',').length} Selected` : 'Item'}</span>
+                                <ChevronDownIcon className="h-4 w-4" />
+                            </button>
+                            {expandedGroups.headerApparel && (
+                                <>
+                                    <div className="absolute top-full left-0 w-full h-2 z-40" />
+                                    <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-40 max-h-96 overflow-y-auto custom-scrollbar p-1">
+                                        <button
+                                            onClick={() => handleFilterChange('apparelId', undefined)}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-500 hover:bg-gray-50 rounded-lg"
+                                        >
+                                            All Items
+                                        </button>
+                                        {options.apparelTypes
+                                            .filter(a => filters.subcategory3Id ? filters.subcategory3Id.split(',').includes(a.parentId || '') : true)
+                                            .map(apparel => {
+                                                const isSelected = filters.apparelId?.split(',').includes(apparel.id);
+                                                return (
+                                                    <button
+                                                        key={apparel.id}
+                                                        onClick={() => handleMultiFilterChange('apparelId', apparel.id)}
+                                                        className={`w-full px-4 py-2.5 text-left text-sm rounded-lg hover:bg-gray-50 ${isSelected ? 'bg-gray-100 font-bold' : ''
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span>{apparel.name}</span>
+                                                            {isSelected && <svg className="w-4 h-4 text-gray-900" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="flex flex-col lg:flex-row lg:items-center gap-10">
                         {/* Brand Filter Dropdowns */}
                         <div className="flex flex-wrap items-start gap-10 flex-grow">
@@ -687,114 +977,6 @@ export default function ItemsPageClient() {
                     {/* Desktop Sidebar */}
                     <aside className="hidden md:block w-72 flex-shrink-0 space-y-2 sticky top-[120px] h-[calc(100vh-150px)] overflow-y-auto pr-4 custom-scrollbar">
 
-                        {/* Release Date Filters */}
-                        <div className="border-b border-gray-100 py-4">
-                            <button
-                                onClick={() => toggleGroup('releaseDate')}
-                                className="flex items-center justify-between w-full text-sm font-bold text-gray-900 mb-2 uppercase tracking-wider group"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <SparklesIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />
-                                    Release Date
-                                </div>
-                                <ChevronDownIcon className={`h-4 w-4 transition-transform ${expandedGroups.releaseDate ? '' : '-rotate-90'}`} />
-                            </button>
-
-                            {expandedGroups.releaseDate && (
-                                <div className="mt-4 space-y-6">
-                                    <div className="space-y-3">
-                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Years</h3>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {options.years.map(year => {
-                                                const isSelected = (filters.years?.split(',') || []).includes(year.toString());
-                                                return (
-                                                    <button
-                                                        key={year}
-                                                        onClick={() => handleMultiFilterChange('years', year.toString())}
-                                                        className={`px-2 py-2 rounded-lg text-xs font-bold transition-all border ${isSelected
-                                                            ? 'bg-gray-900 border-gray-900 text-white shadow-md'
-                                                            : 'bg-white border-gray-100 text-gray-600 hover:border-gray-900 hover:text-gray-900'
-                                                            }`}
-                                                    >
-                                                        {year}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Months</h3>
-                                            {!filters.years && (
-                                                <span className="text-[9px] text-gray-400 italic">Select year first</span>
-                                            )}
-                                        </div>
-                                        <div className={`space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar ${!filters.years ? 'opacity-40 pointer-events-none' : ''}`}>
-                                            {options.months.map(month => {
-                                                const isSelected = (filters.months?.split(',') || []).includes(month.toString());
-                                                return (
-                                                    <button
-                                                        key={month}
-                                                        disabled={!filters.years}
-                                                        onClick={() => handleMultiFilterChange('months', month.toString())}
-                                                        className={`flex items-center w-full px-2 py-1.5 rounded-md text-sm transition-colors ${isSelected
-                                                            ? 'bg-gray-900 text-white font-semibold'
-                                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-left'
-                                                            }`}
-                                                    >
-                                                        {monthNames[month - 1]}
-                                                        {isSelected && <XMarkIcon className="h-3 w-3 ml-auto" />}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Days</h3>
-                                            {(!filters.years || !filters.months) && (
-                                                <span className="text-[9px] text-gray-400 italic">Select year & month first</span>
-                                            )}
-                                        </div>
-                                        <div className={`grid grid-cols-4 gap-1 max-h-32 overflow-y-auto pr-2 custom-scrollbar ${(!filters.years || !filters.months) ? 'opacity-40 pointer-events-none' : ''}`}>
-                                            {options.days.map(day => {
-                                                const isSelected = (filters.days?.split(',') || []).includes(day.toString());
-                                                return (
-                                                    <button
-                                                        key={day}
-                                                        disabled={!filters.years || !filters.months}
-                                                        onClick={() => handleMultiFilterChange('days', day.toString())}
-                                                        className={`aspect-square flex items-center justify-center rounded-lg text-[10px] font-bold transition-all border ${isSelected
-                                                            ? 'bg-gray-900 border-gray-900 text-white shadow-md'
-                                                            : 'bg-white border-gray-100 text-gray-600 hover:border-gray-900'
-                                                            }`}
-                                                    >
-                                                        {day}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <FilterSection
-                            title="Apparel Type"
-                            groupKey="apparel"
-                            items={options.apparelTypes}
-                            filterKey="apparelId"
-                            icon={ShoppingBagIcon}
-                        />
-                        <FilterSection
-                            title="Styles"
-                            groupKey="styles"
-                            items={options.styles}
-                            filterKey="styleId"
-                            icon={Square3Stack3DIcon}
-                        />
                         <FilterSection
                             title="Genders"
                             groupKey="gender"
@@ -817,11 +999,18 @@ export default function ItemsPageClient() {
                             icon={ArrowsPointingOutIcon}
                         />
                         <FilterSection
+                            title="Styles"
+                            groupKey="styles"
+                            items={options.styles}
+                            filterKey="styleId"
+                            icon={TagIcon}
+                        />
+                        <FilterSection
                             title="Materials"
                             groupKey="materials"
                             items={options.materials}
                             filterKey="materialId"
-                            icon={VariableIcon}
+                            icon={Square3Stack3DIcon}
                         />
                         <FilterSection
                             title="Patterns"
@@ -830,6 +1019,102 @@ export default function ItemsPageClient() {
                             filterKey="patternId"
                             icon={SparklesIcon}
                         />
+
+                        {/* Release Dates */}
+                        <div className="py-2 border-b border-gray-100">
+                            <button
+                                onClick={() => toggleGroup('releaseDate')}
+                                className="flex items-center justify-between w-full py-2 group"
+                            >
+                                <span className="text-sm font-bold text-gray-900 group-hover:text-gray-600 flex items-center gap-2">
+                                    <CalendarIcon className="h-4 w-4 text-gray-400" />
+                                    Release Dates
+                                </span>
+                                {expandedGroups.releaseDate ? (
+                                    <ChevronDownIcon className="h-4 w-4 text-gray-400 transform rotate-180" />
+                                ) : (
+                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                )}
+                            </button>
+                            {expandedGroups.releaseDate && (
+                                <div className="space-y-4 pl-6 mt-2">
+                                    <div className="space-y-2">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Years</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {options.years.map(year => {
+                                                const isSelected = (filters.years?.split(',') || []).includes(year.toString());
+                                                return (
+                                                    <button
+                                                        key={year}
+                                                        onClick={() => handleMultiFilterChange('years', year.toString())}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${isSelected
+                                                            ? 'bg-gray-900 border-gray-900 text-white'
+                                                            : 'bg-gray-50 border-transparent text-gray-600'
+                                                            }`}
+                                                    >
+                                                        {year}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Months</h3>
+                                            {!filters.years && (
+                                                <span className="text-[9px] text-gray-400 italic">Select year first</span>
+                                            )}
+                                        </div>
+                                        <div className={`grid grid-cols-2 gap-2 ${!filters.years ? 'opacity-40 pointer-events-none' : ''}`}>
+                                            {options.months.map(month => {
+                                                const isSelected = (filters.months?.split(',') || []).includes(month.toString());
+                                                return (
+                                                    <button
+                                                        key={month}
+                                                        disabled={!filters.years}
+                                                        onClick={() => handleMultiFilterChange('months', month.toString())}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border truncate text-left ${isSelected
+                                                            ? 'bg-gray-900 border-gray-900 text-white'
+                                                            : 'bg-gray-50 border-transparent text-gray-600'
+                                                            }`}
+                                                    >
+                                                        {monthNames[month - 1]}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Days</h3>
+                                            {(!filters.years || !filters.months) && (
+                                                <span className="text-[9px] text-gray-400 italic">Select year & month first</span>
+                                            )}
+                                        </div>
+                                        <div className={`grid grid-cols-4 gap-2 ${(!filters.years || !filters.months) ? 'opacity-40 pointer-events-none' : ''}`}>
+                                            {options.days.map(day => {
+                                                const isSelected = (filters.days?.split(',') || []).includes(day.toString());
+                                                return (
+                                                    <button
+                                                        key={day}
+                                                        disabled={!filters.years || !filters.months}
+                                                        onClick={() => handleMultiFilterChange('days', day.toString())}
+                                                        className={`aspect-square flex items-center justify-center rounded-lg text-xs font-bold border ${isSelected
+                                                            ? 'bg-gray-900 border-gray-900 text-white'
+                                                            : 'bg-gray-50 border-transparent text-gray-600'
+                                                            }`}
+                                                    >
+                                                        {day}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </aside>
 
                     {/* Product Grid */}
@@ -941,7 +1226,7 @@ export default function ItemsPageClient() {
                                     </div>
                                 </div>
 
-                                <FilterSection title="Apparel Type" groupKey="apparel" items={options.apparelTypes} filterKey="apparelId" icon={ShoppingBagIcon} />
+                                {/* <FilterSection title="Apparel Type" groupKey="apparel" items={options.apparelTypes} filterKey="apparelId" icon={ShoppingBagIcon} /> */}
                                 <FilterSection title="Genders" groupKey="gender" items={options.genders} filterKey="genderId" icon={UsersIcon} />
                                 <FilterSection title="Sizes" groupKey="sizes" items={options.sizes} filterKey="sizeId" icon={QueueListIcon} />
                                 <FilterSection title="Styles" groupKey="styles" items={options.styles} filterKey="styleId" icon={Square3Stack3DIcon} />
