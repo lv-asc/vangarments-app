@@ -72,13 +72,13 @@ export default function ItemsPageClient() {
     });
 
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-        brands: true,
+        brands: false, // Default closed
         nationality: false,
-        brandLines: true,
-        brandCollections: true,
-        apparel: true,
-        gender: true,
-        releaseDate: false,
+        brandLines: false, // Default closed
+        brandCollections: false, // Default closed
+        apparel: false, // Default closed
+        gender: false, // Default closed
+        releaseDate: false, // Default closed
         headerSub1: false,
         headerSub2: false,
         headerSub3: false,
@@ -157,58 +157,38 @@ export default function ItemsPageClient() {
     const fetchSKUs = useCallback(async () => {
         setLoading(true);
         try {
-            // Resolve hierarchy to apparel IDs
-            let effectiveApparelId = filters.apparelId;
+            // Decoupled Hierarchy: We no longer calculate 'effectiveApparelId' here.
+            // We pass subcategory filters directly to the backend.
 
-            if (!effectiveApparelId) {
-                // If no specific apparel selected, check hierarchy
-                let validApparelIds: Set<string> | null = null;
-
-                if (filters.subcategory3Id) {
-                    const parentIds = filters.subcategory3Id.split(',');
-                    const apps = options.apparelTypes.filter(a => a.parentId && parentIds.includes(a.parentId));
-                    validApparelIds = new Set(apps.map(a => a.id));
-                } else if (filters.subcategory2Id) {
-                    const parentIds = filters.subcategory2Id.split(',');
-                    const sub3s = options.subcategory3.filter(s => s.parentId && parentIds.includes(s.parentId));
-                    const sub3Ids = new Set(sub3s.map(s => s.id));
-                    const apps = options.apparelTypes.filter(a => a.parentId && sub3Ids.has(a.parentId));
-                    validApparelIds = new Set(apps.map(a => a.id));
-                } else if (filters.subcategory1Id) {
-                    const parentIds = filters.subcategory1Id.split(',');
-                    const sub2s = options.subcategory2.filter(s => s.parentId && parentIds.includes(s.parentId));
-                    const sub2Ids = new Set(sub2s.map(s => s.id));
-                    const sub3s = options.subcategory3.filter(s => s.parentId && sub2Ids.has(s.parentId));
-                    const sub3Ids = new Set(sub3s.map(s => s.id));
-                    const apps = options.apparelTypes.filter(a => a.parentId && sub3Ids.has(a.parentId));
-                    validApparelIds = new Set(apps.map(a => a.id));
-                }
-
-                if (validApparelIds) {
-                    effectiveApparelId = Array.from(validApparelIds).join(',');
-                    if (validApparelIds.size === 0) {
-                        effectiveApparelId = 'NO_MATCHES';
-                    }
-                }
-            }
-
-            const searchFilters = { ...filters };
-            if (effectiveApparelId) {
-                searchFilters.apparelId = effectiveApparelId;
-            }
-
-            const response = await skuApi.searchSKUs(searchQuery, {
-                ...searchFilters,
-                limit: 50,
-                parentsOnly: true
+            const result = await skuApi.searchSKUs(searchQuery, {
+                brandId: filters.brandId,
+                styleId: filters.styleId,
+                patternId: filters.patternId,
+                fitId: filters.fitId,
+                genderId: filters.genderId,
+                apparelId: filters.apparelId, // Now contains ONLY explicitly selected items, not inferred ones
+                materialId: filters.materialId,
+                lineId: filters.lineId,
+                collection: filters.collection,
+                sizeId: filters.sizeId,
+                nationality: filters.nationality,
+                years: filters.years,
+                months: filters.months,
+                days: filters.days,
+                // Pass hierarchy filters to backend
+                subcategory1Id: filters.subcategory1Id,
+                subcategory2Id: filters.subcategory2Id,
+                subcategory3Id: filters.subcategory3Id,
+                parentsOnly: true,
+                limit: 50
             });
-            setSkus(response.skus || []);
+            setSkus(result.skus);
         } catch (error) {
-            console.error('Failed to fetch items:', error);
+            console.error('Failed to fetch SKUs', error);
         } finally {
             setLoading(false);
         }
-    }, [searchQuery, filters, options]);
+    }, [searchQuery, filters]); // Re-fetch when ANY filter changes
 
     useEffect(() => {
         fetchFilterOptions();
@@ -1021,23 +1001,19 @@ export default function ItemsPageClient() {
                         />
 
                         {/* Release Dates */}
-                        <div className="py-2 border-b border-gray-100">
+                        <div className="border-b border-gray-100 py-4">
                             <button
                                 onClick={() => toggleGroup('releaseDate')}
-                                className="flex items-center justify-between w-full py-2 group"
+                                className="flex items-center justify-between w-full text-sm font-bold text-gray-900 mb-2 uppercase tracking-wider group"
                             >
-                                <span className="text-sm font-bold text-gray-900 group-hover:text-gray-600 flex items-center gap-2">
-                                    <CalendarIcon className="h-4 w-4 text-gray-400" />
+                                <div className="flex items-center gap-2">
+                                    <CalendarIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />
                                     Release Dates
-                                </span>
-                                {expandedGroups.releaseDate ? (
-                                    <ChevronDownIcon className="h-4 w-4 text-gray-400 transform rotate-180" />
-                                ) : (
-                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                                )}
+                                </div>
+                                <ChevronDownIcon className={`h-4 w-4 transition-transform ${expandedGroups.releaseDate ? '' : '-rotate-90'}`} />
                             </button>
                             {expandedGroups.releaseDate && (
-                                <div className="space-y-4 pl-6 mt-2">
+                                <div className="space-y-4 pt-2">
                                     <div className="space-y-2">
                                         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Years</h3>
                                         <div className="flex flex-wrap gap-2">

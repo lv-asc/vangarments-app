@@ -613,7 +613,7 @@ export default function AdminPage() {
     // Items Order State
     const [sectionsOrder, setSectionsOrder] = useState<{ [key: string]: string[] }>({
         'Entities': ['entity_config', 'brands', 'stores', 'suppliers', 'non_profits', 'pages', 'verified_entities'],
-        'Product Catalog': ['categories', 'apparel', 'skus', 'colors', 'sizes', 'materials', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
+        'Product Catalog': ['categories', 'apparel', 'skus', 'sku_codes', 'colors', 'sizes', 'materials', 'compositions', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
         'Content & Platform': ['users', 'journalism', 'config']
     });
 
@@ -640,163 +640,7 @@ export default function AdminPage() {
 
     useEffect(() => {
         setIsClient(true);
-        const savedOrder = localStorage.getItem('admin_sections_order');
-        let currentOrder = {
-            'Entities': ['entity_config', 'brands', 'stores', 'suppliers', 'non_profits', 'pages', 'verified_entities'],
-            'Product Catalog': ['categories', 'apparel', 'skus', 'sku_codes', 'colors', 'sizes', 'materials', 'compositions', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
-            'Content & Platform': ['users', 'journalism', 'config']
-        };
-
-        if (savedOrder) {
-            try {
-                currentOrder = JSON.parse(savedOrder);
-            } catch (e) { console.error(e); }
-        }
-
-        // Migration: Remove 'vufs' and add 'media_labels' to saved order
-        const allIds = Object.values(currentOrder).flat();
-        let needsMigration = false;
-
-        if (!allIds.includes('sku_codes')) {
-            if (currentOrder['Product Catalog']) {
-                // Add after skus
-                const skusIndex = currentOrder['Product Catalog'].indexOf('skus');
-                if (skusIndex !== -1) {
-                    currentOrder['Product Catalog'].splice(skusIndex + 1, 0, 'sku_codes');
-                } else {
-                    currentOrder['Product Catalog'].push('sku_codes');
-                }
-            } else {
-                const firstKey = Object.keys(currentOrder)[0];
-                if (firstKey) currentOrder[firstKey].push('sku_codes');
-            }
-            needsMigration = true;
-        }
-
-
-        if (!allIds.includes('compositions')) {
-            if (currentOrder['Product Catalog']) {
-                const materialsIndex = currentOrder['Product Catalog'].indexOf('materials');
-                if (materialsIndex !== -1) {
-                    currentOrder['Product Catalog'].splice(materialsIndex + 1, 0, 'compositions');
-                } else {
-                    currentOrder['Product Catalog'].push('compositions');
-                }
-            } else {
-                const firstKey = Object.keys(currentOrder)[0];
-                if (firstKey) currentOrder[firstKey].push('compositions');
-            }
-            needsMigration = true;
-        }
-
-        if (allIds.includes('vufs')) {
-            // Remove vufs from all sections
-            Object.keys(currentOrder).forEach(sectionKey => {
-                currentOrder[sectionKey] = currentOrder[sectionKey].filter(id => id !== 'vufs');
-            });
-            needsMigration = true;
-        }
-
-        if (!allIds.includes('media_labels')) {
-            // Add media_labels to Product Catalog section
-            if (currentOrder['Product Catalog']) {
-                currentOrder['Product Catalog'].push('media_labels');
-            } else {
-                // Fallback if 'Product Catalog' was renamed
-                const firstKey = Object.keys(currentOrder)[0];
-                if (firstKey) currentOrder[firstKey].push('media_labels');
-            }
-            needsMigration = true;
-        }
-
-        // Ensure 'genders' is present (Fix for missing Genders card)
-        if (!allIds.includes('genders')) {
-            if (currentOrder['Product Catalog']) {
-                currentOrder['Product Catalog'].push('genders');
-            } else {
-                // Fallback if 'Product Catalog' was renamed or deleted
-                const firstKey = Object.keys(currentOrder)[0];
-                if (firstKey) currentOrder[firstKey].push('genders');
-            }
-            needsMigration = true;
-        }
-
-        // Ensure 'styles' is present
-        if (!allIds.includes('styles')) {
-            if (currentOrder['Product Catalog']) {
-                // Add after patterns
-                const patternsIndex = currentOrder['Product Catalog'].indexOf('patterns');
-                if (patternsIndex !== -1) {
-                    currentOrder['Product Catalog'].splice(patternsIndex + 1, 0, 'styles');
-                } else {
-                    currentOrder['Product Catalog'].push('styles');
-                }
-            } else {
-                const firstKey = Object.keys(currentOrder)[0];
-                if (firstKey) currentOrder[firstKey].push('styles');
-            }
-            needsMigration = true;
-        }
-
-        // Ensure 'conditions' is present
-        if (!allIds.includes('conditions')) {
-            if (currentOrder['Product Catalog']) {
-                // Add after genders
-                const gendersIndex = currentOrder['Product Catalog'].indexOf('genders');
-                if (gendersIndex !== -1) {
-                    currentOrder['Product Catalog'].splice(gendersIndex + 1, 0, 'conditions');
-                } else {
-                    currentOrder['Product Catalog'].push('conditions');
-                }
-            } else {
-                const firstKey = Object.keys(currentOrder)[0];
-                if (firstKey) currentOrder[firstKey].push('conditions');
-            }
-            needsMigration = true;
-        }
-
-        // Ensure 'entity_config' is present
-        if (!allIds.includes('entity_config')) {
-            if (currentOrder['Content & Platform']) {
-                // Add after config
-                const configIndex = currentOrder['Content & Platform'].indexOf('config');
-                if (configIndex !== -1) {
-                    currentOrder['Content & Platform'].splice(configIndex + 1, 0, 'entity_config');
-                } else {
-                    currentOrder['Content & Platform'].push('entity_config');
-                }
-            } else {
-                const lastKey = Object.keys(currentOrder).pop();
-                if (lastKey) currentOrder[lastKey].push('entity_config');
-            }
-            needsMigration = true;
-        }
-
-        // Save migrated order
-        if (needsMigration) {
-            localStorage.setItem('admin_sections_order', JSON.stringify(currentOrder));
-        }
-
-        setSectionsOrder(currentOrder);
-
-        const savedMetadata = localStorage.getItem('admin_sections_metadata');
-        if (savedMetadata) {
-            try { setSections(JSON.parse(savedMetadata)); } catch (e) { console.error(e); }
-        }
-        const savedItems = localStorage.getItem('admin_items_metadata');
-        if (savedItems) {
-            try {
-                let parsedItems = JSON.parse(savedItems);
-                // Migration: Remove vufs item and ensure media_labels is not overridden
-                if (parsedItems.vufs) {
-                    delete parsedItems.vufs;
-                    localStorage.setItem('admin_items_metadata', JSON.stringify(parsedItems));
-                }
-                // Merge saved items with default items, giving precedence to defaults for media_labels
-                setItems(prev => ({ ...prev, ...parsedItems, media_labels: prev.media_labels }));
-            } catch (e) { console.error(e); }
-        }
-    }, [defaultSections]); // Added defaultSections dependency (though it's constant)
+    }, []);
 
     useEffect(() => {
         if (!isLoading && (!user || !user.roles?.includes('admin'))) router.push('/');
@@ -812,7 +656,6 @@ export default function AdminPage() {
         if (!editingSectionKey) return;
         const newSections = sections.map(s => s.key === editingSectionKey ? { ...s, title: editForm.title, description: editForm.description } : s);
         setSections(newSections);
-        localStorage.setItem('admin_sections_metadata', JSON.stringify(newSections));
         setEditingSectionKey(null);
     };
 
@@ -835,7 +678,6 @@ export default function AdminPage() {
         const { sectionKey, ...itemToSave } = updatedItem;
         const newItems = { ...items, [itemToSave.id]: itemToSave };
         setItems(newItems);
-        localStorage.setItem('admin_items_metadata', JSON.stringify(newItems));
         setEditingItem(null);
     };
 
@@ -854,7 +696,6 @@ export default function AdminPage() {
         const newItems = { ...items };
         delete newItems[itemId];
         setItems(newItems);
-        localStorage.setItem('admin_items_metadata', JSON.stringify(newItems));
 
         // Remove from sections order
         const newOrder = { ...sectionsOrder };
@@ -862,7 +703,6 @@ export default function AdminPage() {
             newOrder[sectionKey] = newOrder[sectionKey].filter(id => id !== itemId);
         });
         setSectionsOrder(newOrder);
-        localStorage.setItem('admin_sections_order', JSON.stringify(newOrder));
         setDeleteConfirm({ isOpen: false, itemId: null, itemTitle: '' });
     };
 
@@ -873,9 +713,6 @@ export default function AdminPage() {
         const newSections = [...sections, { key: newKey, ...data }];
         setSections(newSections);
         setSectionsOrder(prev => ({ ...prev, [newKey]: [] }));
-
-        localStorage.setItem('admin_sections_metadata', JSON.stringify(newSections));
-        localStorage.setItem('admin_sections_order', JSON.stringify({ ...sectionsOrder, [newKey]: [] }));
     };
 
     const handleCreateItem = (data: any) => {
@@ -893,7 +730,6 @@ export default function AdminPage() {
         // Update Items
         const newItems = { ...items, [id]: newItem };
         setItems(newItems);
-        localStorage.setItem('admin_items_metadata', JSON.stringify(newItems));
 
         // Update Order
         const newOrder = {
@@ -901,7 +737,6 @@ export default function AdminPage() {
             [sectionKey]: [...(sectionsOrder[sectionKey] || []), id]
         };
         setSectionsOrder(newOrder);
-        localStorage.setItem('admin_sections_order', JSON.stringify(newOrder));
     };
 
     const findContainer = (id: string) => {
@@ -957,12 +792,9 @@ export default function AdminPage() {
             if (activeIndex !== overIndex) {
                 setSectionsOrder((prev) => {
                     const newState = { ...prev, [activeContainer]: arrayMove(prev[activeContainer], activeIndex, overIndex) };
-                    localStorage.setItem('admin_sections_order', JSON.stringify(newState));
                     return newState;
                 });
             }
-        } else {
-            localStorage.setItem('admin_sections_order', JSON.stringify(sectionsOrder));
         }
         setActiveId(null);
     };
@@ -972,7 +804,6 @@ export default function AdminPage() {
         if (!sourceSectionKey || sourceSectionKey === targetSectionKey) return;
         setSectionsOrder(prev => {
             const newOrder = { ...prev, [sourceSectionKey]: prev[sourceSectionKey].filter(id => id !== itemId), [targetSectionKey]: [...prev[targetSectionKey], itemId] };
-            localStorage.setItem('admin_sections_order', JSON.stringify(newOrder));
             return newOrder;
         });
     };

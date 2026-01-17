@@ -3,6 +3,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { MediaTag, TagType, TagSourceType, TagSearchResult } from '@vangarments/shared';
 import { tagApi } from '@/lib/tagApi';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import TagSearchModal from './TagSearchModal';
 import TagMarker from './TagMarker';
 import { PlusIcon, XMarkIcon, TagIcon } from '@heroicons/react/24/outline';
@@ -40,6 +42,18 @@ export default function ImageTagEditor({
     const [isLoading, setIsLoading] = useState(false);
     const imageRef = useRef<HTMLDivElement>(null);
 
+    // Description Modal State
+    const [descriptionModal, setDescriptionModal] = useState<{
+        isOpen: boolean;
+        entity: TagSearchResult | null;
+        description: string;
+    }>({
+        isOpen: false,
+        entity: null,
+        description: ''
+    });
+    const descriptionInputRef = useRef<HTMLInputElement>(null);
+
     // Handle click on image to place a tag
     const handleImageClick = useCallback(
         (e: React.MouseEvent<HTMLDivElement>) => {
@@ -61,12 +75,23 @@ export default function ImageTagEditor({
         [readOnly, isEditing]
     );
 
-    // Handle entity tag selection
-    const handleEntitySelect = async (result: TagSearchResult) => {
-        if (!pendingTag) return;
+    // Handle entity tag selection (Step 1: Open Description Modal)
+    const handleEntitySelect = (result: TagSearchResult) => {
+        setIsSearchModalOpen(false); // Close search modal first
+        setDescriptionModal({
+            isOpen: true,
+            entity: result,
+            description: ''
+        });
+        // Auto-focus input after modal opens
+        setTimeout(() => descriptionInputRef.current?.focus(), 100);
+    };
 
-        // Prompt for optional description
-        const description = prompt(`Add an optional description for ${result.name}:\n(e.g., "Designer", "Model", "Photographer")\n\nLeave empty if not needed:`);
+    // Handle Final Submission (Step 2: Create Tag)
+    const handleDescriptionSubmit = async () => {
+        if (!pendingTag || !descriptionModal.entity) return;
+
+        const { entity, description } = descriptionModal;
 
         setIsLoading(true);
         try {
@@ -76,9 +101,9 @@ export default function ImageTagEditor({
                 imageUrl,
                 positionX: pendingTag.positionX,
                 positionY: pendingTag.positionY,
-                tagType: result.type,
-                taggedEntityId: result.type === 'item' ? undefined : result.id,
-                taggedItemId: result.type === 'item' ? result.id : undefined,
+                tagType: entity.type,
+                taggedEntityId: entity.type === 'item' ? undefined : entity.id,
+                taggedItemId: entity.type === 'item' ? entity.id : undefined,
                 description: description?.trim() || undefined,
             };
 
@@ -86,13 +111,13 @@ export default function ImageTagEditor({
             const updatedTags = [...tags, newTag];
             setTags(updatedTags);
             onTagsChange?.(updatedTags);
-            toast.success(`Tagged ${result.name}${description ? ` as "${description}"` : ''}`);
+            toast.success(`Tagged ${entity.name}${description ? ` as "${description}"` : ''}`);
         } catch (error: any) {
             toast.error(error.message || 'Failed to add tag');
         } finally {
             setIsLoading(false);
             setPendingTag(null);
-            setIsSearchModalOpen(false);
+            setDescriptionModal({ isOpen: false, entity: null, description: '' });
         }
     };
 
@@ -231,6 +256,49 @@ export default function ImageTagEditor({
                 onSelectEntity={handleEntitySelect}
                 onSubmitLocation={handleLocationSubmit}
             />
+
+            {/* Description Input Modal */}
+            <Modal
+                isOpen={descriptionModal.isOpen}
+                onClose={() => setDescriptionModal({ ...descriptionModal, isOpen: false })}
+                title={`Details for ${descriptionModal.entity?.name}`}
+                size="sm"
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Role or Description (optional)
+                        </label>
+                        <input
+                            ref={descriptionInputRef}
+                            type="text"
+                            value={descriptionModal.description}
+                            onChange={(e) => setDescriptionModal({ ...descriptionModal, description: e.target.value })}
+                            placeholder='e.g., "Designer", "Model", "Photographer"'
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    handleDescriptionSubmit();
+                                }
+                            }}
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant="secondary"
+                            onClick={() => handleDescriptionSubmit()} // Submit empty description
+                        >
+                            Skip
+                        </Button>
+                        <Button
+                            variant="primary"
+                            onClick={handleDescriptionSubmit}
+                        >
+                            Save Tag
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

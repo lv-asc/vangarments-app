@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { getImageUrl } from '@/lib/utils';
 import { ShoppingBagIcon } from '@heroicons/react/24/outline';
+import { ApparelIcon } from '@/components/ui/ApparelIcons';
 
 interface SKUCardProps {
     item: any;
@@ -105,11 +106,16 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
                     </Link>
                 </div>
 
-                {/* Product Name */}
                 <Link href={productUrl} className="block">
-                    <h3 className="text-sm text-gray-600 font-medium truncate leading-tight hover:text-gray-900 transition-colors">
-                        {displayName}
-                    </h3>
+                    <div className="flex items-center gap-2 group/name">
+                        <ApparelIcon
+                            name={item.category?.level3 || item.category?.page || item.name}
+                            className="h-4 w-4 text-gray-400 group-hover/name:text-gray-900 transition-colors flex-shrink-0"
+                        />
+                        <h3 className="text-sm text-gray-600 font-medium truncate leading-tight group-hover/name:text-gray-900 transition-colors">
+                            {displayName}
+                        </h3>
+                    </div>
                 </Link>
 
                 {/* Price */}
