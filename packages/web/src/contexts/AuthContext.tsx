@@ -41,6 +41,20 @@ interface User {
   roles?: string[];
   createdAt: Date;
   updatedAt: Date;
+  googleId?: string;
+  facebookId?: string;
+  googleData?: {
+    email: string;
+    name: string;
+    picture: string;
+  };
+  facebookData?: {
+    email: string;
+    name: string;
+    picture: string;
+  };
+  googleSigninEnabled?: boolean;
+  facebookSigninEnabled?: boolean;
   linkedEntities?: {
     brands: Array<{ id: string; name: string; slug?: string; logo?: string }>;
     stores: Array<{ id: string; name: string; slug?: string; logo?: string }>;
@@ -57,6 +71,11 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
+  loginWithGoogle: () => void;
+  signUpWithGoogle: () => void;
+  loginWithFacebook: () => void;
+  signUpWithFacebook: () => void;
+  disconnectOAuth: (provider: 'google' | 'facebook') => Promise<void>;
   updateProfile: (userData: Partial<User>) => Promise<void>;
   refreshAuth: () => Promise<void>;
   activeRole: string | null;
@@ -134,6 +153,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initialize auth state
   const initAuth = useCallback(async () => {
     try {
+      // Check for token in URL (from OAuth redirect)
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get('token');
+        if (tokenFromUrl) {
+          apiClient.saveToken(tokenFromUrl);
+          // Remove token from URL to keep it clean
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      }
+
       if (apiClient.isAuthenticated) {
         const userData = await apiClient.getCurrentUser();
         setUser(userData);
@@ -231,6 +262,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithGoogle = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    window.location.href = `${apiUrl}/oauth/google/login`;
+  };
+
+  const signUpWithGoogle = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    window.location.href = `${apiUrl}/oauth/google/signup`;
+  };
+
+  const loginWithFacebook = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    window.location.href = `${apiUrl}/oauth/facebook/login`;
+  };
+
+  const signUpWithFacebook = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    window.location.href = `${apiUrl}/oauth/facebook/signup`;
+  };
+
+  const disconnectOAuth = async (provider: 'google' | 'facebook') => {
+    try {
+      setIsLoading(true);
+      await apiClient.disconnectOAuth(provider);
+      await refreshAuth();
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} account disconnected.`);
+    } catch (error) {
+      const message = handleApiError(error);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const updateProfile = async (profileData: Partial<User>) => {
     try {
       const updatedUser = await apiClient.updateProfile(profileData);
@@ -254,6 +319,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
+    loginWithGoogle,
+    signUpWithGoogle,
+    loginWithFacebook,
+    signUpWithFacebook,
+    disconnectOAuth,
     updateProfile,
     refreshAuth,
     activeRole,

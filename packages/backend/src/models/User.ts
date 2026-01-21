@@ -1,6 +1,6 @@
 import { db } from '../database/connection';
 import { AuthUtils } from '../utils/auth';
-import { UserProfile, UserMeasurements, FashionPreferences, Location, SocialLink } from '@vangarments/shared';
+import { UserProfile, UserMeasurements, FashionPreferences, Location, SocialLink, PrivacySettings } from '@vangarments/shared';
 
 export interface CreateUserData {
   cpf?: string; // Optional for OAuth users
@@ -14,9 +14,13 @@ export interface CreateUserData {
   location?: Location;
   username: string; // Ensure this is consistent
   telephone: string;
+  googleId?: string;
+  facebookId?: string;
+  googleData?: any;
+  facebookData?: any;
+  googleSigninEnabled?: boolean;
+  facebookSigninEnabled?: boolean;
 }
-
-
 
 export interface UpdateUserData {
   name?: string;
@@ -26,18 +30,23 @@ export interface UpdateUserData {
   profile?: any;
   socialLinks?: SocialLink[];
   password?: string;
-  privacySettings?: {
-    height: boolean;
-    weight: boolean;
-    birthDate: boolean;
-    gender: boolean;
-    telephone: boolean;
+  privacySettings?: PrivacySettings;
+  googleId?: string;
+  facebookId?: string;
+  googleData?: any;
+  facebookData?: any;
+  googleSigninEnabled?: boolean;
+  facebookSigninEnabled?: boolean;
+  cpf?: string;
+  notificationPreferences?: {
+    showNotificationBadge: boolean;
+    showMessageBadge: boolean;
   };
 }
 
 export class UserModel {
   static async create(userData: CreateUserData): Promise<UserProfile> {
-    const { cpf, email, passwordHash, name, birthDate, gender, location, username, telephone } = userData;
+    const { cpf, email, passwordHash, name, birthDate, gender, location, username, telephone, googleId, facebookId, googleData, facebookData, googleSigninEnabled, facebookSigninEnabled } = userData;
 
     const profile = {
       name,
@@ -50,12 +59,24 @@ export class UserModel {
     };
 
     const query = `
-      INSERT INTO users (cpf, email, password_hash, profile, username)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, cpf, email, profile, measurements, preferences, created_at, updated_at
+      INSERT INTO users (cpf, email, password_hash, profile, username, google_id, facebook_id, google_data, facebook_data, google_signin_enabled, facebook_signin_enabled)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
     `;
 
-    const result = await db.query(query, [cpf || null, email, passwordHash || null, JSON.stringify(profile), username]);
+    const result = await db.query(query, [
+      cpf || null,
+      email,
+      passwordHash || null,
+      JSON.stringify(profile),
+      username,
+      googleId || null,
+      facebookId || null,
+      googleData ? JSON.stringify(googleData) : null,
+      facebookData ? JSON.stringify(facebookData) : null,
+      googleSigninEnabled ?? true,
+      facebookSigninEnabled ?? true
+    ]);
     const user = result.rows[0];
 
     const mappedUser = this.mapToUserProfile(user);
@@ -161,6 +182,40 @@ export class UserModel {
     return this.mapToUserProfile(result.rows[0]);
   }
 
+  static async findByGoogleId(googleId: string): Promise<UserProfile | null> {
+    const query = `
+      SELECT u.*, array_agg(ur.role) as roles
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.google_id = $1
+      GROUP BY u.id
+    `;
+
+    const result = await db.query(query, [googleId]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapToUserProfile(result.rows[0]);
+  }
+
+  static async findByFacebookId(facebookId: string): Promise<UserProfile | null> {
+    const query = `
+      SELECT u.*, array_agg(ur.role) as roles
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.facebook_id = $1
+      GROUP BY u.id
+    `;
+
+    const result = await db.query(query, [facebookId]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapToUserProfile(result.rows[0]);
+  }
+
   static async getPasswordHash(userId: string): Promise<string | null> {
     const query = 'SELECT password_hash FROM users WHERE id = $1';
     const result = await db.query(query, [userId]);
@@ -208,6 +263,12 @@ export class UserModel {
       paramCount++;
     }
 
+    if (updateData.cpf) {
+      updates.push(`cpf = $${paramCount}`);
+      values.push(updateData.cpf);
+      paramCount++;
+    }
+
     if (updateData.measurements) {
       const currentMeasurements = currentUser.measurements || {};
       const updatedMeasurements = {
@@ -230,6 +291,42 @@ export class UserModel {
       paramCount++;
     }
 
+    if (updateData.googleId) {
+      updates.push(`google_id = $${paramCount}`);
+      values.push(updateData.googleId);
+      paramCount++;
+    }
+
+    if (updateData.facebookId) {
+      updates.push(`facebook_id = $${paramCount}`);
+      values.push(updateData.facebookId);
+      paramCount++;
+    }
+
+    if (updateData.googleData) {
+      updates.push(`google_data = $${paramCount}`);
+      values.push(JSON.stringify(updateData.googleData));
+      paramCount++;
+    }
+
+    if (updateData.facebookData) {
+      updates.push(`facebook_data = $${paramCount}`);
+      values.push(JSON.stringify(updateData.facebookData));
+      paramCount++;
+    }
+
+    if (updateData.hasOwnProperty('googleSigninEnabled')) {
+      updates.push(`google_signin_enabled = $${paramCount}`);
+      values.push(updateData.googleSigninEnabled);
+      paramCount++;
+    }
+
+    if (updateData.hasOwnProperty('facebookSigninEnabled')) {
+      updates.push(`facebook_signin_enabled = $${paramCount}`);
+      values.push(updateData.facebookSigninEnabled);
+      paramCount++;
+    }
+
     if (updateData.privacySettings) {
       const currentPrivacy = currentUser.privacySettings || {};
       const updatedPrivacy = {
@@ -238,6 +335,17 @@ export class UserModel {
       };
       updates.push(`privacy_settings = $${paramCount}`);
       values.push(JSON.stringify(updatedPrivacy));
+      paramCount++;
+    }
+
+    if (updateData.notificationPreferences) {
+      const currentNotifPref = (currentUser as any).notificationPreferences || {};
+      const updatedNotifPref = {
+        ...currentNotifPref,
+        ...updateData.notificationPreferences
+      };
+      updates.push(`notification_preferences = $${paramCount}`);
+      values.push(JSON.stringify(updatedNotifPref));
       paramCount++;
     }
 
@@ -250,7 +358,7 @@ export class UserModel {
       UPDATE users 
       SET ${updates.join(', ')}, updated_at = NOW()
       WHERE id = $${paramCount}
-      RETURNING id, cpf, email, profile, measurements, preferences, created_at, updated_at
+      RETURNING *
     `;
 
     const result = await db.query(query, values);
@@ -367,15 +475,15 @@ export class UserModel {
     return { success: true };
   }
 
-  static async findAll(filters: { search?: string; limit?: number; offset?: number; roles?: string[]; status?: string } = {}): Promise<{ users: UserProfile[], total: number }> {
-    const { search, limit = 20, offset = 0, roles, status } = filters;
+  static async findAll(filters: { search?: string; limit?: number; offset?: number; roles?: string[]; status?: string; verificationStatus?: string } = {}): Promise<{ users: UserProfile[], total: number }> {
+    const { search, limit = 20, offset = 0, roles, status, verificationStatus } = filters;
     const params: any[] = [];
     let whereClause = '';
     const conditions: string[] = [];
 
     if (search) {
       params.push(`%${search}%`);
-      conditions.push(`(u.email ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length})`);
+      conditions.push(`(u.email ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length} OR u.username ILIKE $${params.length})`);
     }
 
     if (roles && roles.length > 0) {
@@ -404,6 +512,15 @@ export class UserModel {
       conditions.push(`u.status != $${params.length}`);
     }
 
+    if (verificationStatus) {
+      if (verificationStatus === 'unverified') {
+        conditions.push(`(u.verification_status != 'verified' OR u.verification_status IS NULL)`);
+      } else {
+        params.push(verificationStatus);
+        conditions.push(`u.verification_status = $${params.length}`);
+      }
+    }
+
     if (conditions.length > 0) {
       whereClause = 'WHERE ' + conditions.join(' AND ');
     }
@@ -414,7 +531,13 @@ export class UserModel {
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       ${whereClause}
       GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.verification_status, u.last_seen_at, u.created_at, u.updated_at
-      ORDER BY u.created_at DESC
+      ORDER BY (
+        NULLIF(u.profile->>'avatarUrl', '') IS NOT NULL 
+        OR NULLIF(u.profile->>'profilePicture', '') IS NOT NULL 
+        OR NULLIF(u.profile->>'image', '') IS NOT NULL 
+        OR NULLIF(u.profile->>'profileImage', '') IS NOT NULL
+        OR NULLIF(u.profile->>'bannerUrl', '') IS NOT NULL
+      ) DESC, u.created_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
 
@@ -436,17 +559,34 @@ export class UserModel {
    * Search for users with aggregated statistics (followers, posts)
    * This is a public search endpoint.
    */
-  static async searchPublicUsers(filters: { search?: string; limit?: number; offset?: number } = {}): Promise<{ users: (UserProfile & { stats: { followers: number; posts: number } })[], total: number }> {
-    const { search, limit = 20, offset = 0 } = filters;
+  static async searchPublicUsers(filters: { search?: string; limit?: number; offset?: number; roles?: string[]; verificationStatus?: string } = {}): Promise<{ users: UserProfile[], total: number }> {
+    const { search, limit = 20, offset = 0, roles, verificationStatus } = filters;
     const params: any[] = [];
-    const conditions: string[] = ["u.status = 'active'"];
+    let whereClause = '';
+    const conditions: string[] = [];
 
     if (search) {
       params.push(`%${search}%`);
-      conditions.push(`(u.username ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length})`);
+      conditions.push(`(u.email ILIKE $${params.length} OR u.profile->>'name' ILIKE $${params.length} OR u.username ILIKE $${params.length})`);
     }
 
-    const whereClause = 'WHERE ' + conditions.join(' AND ');
+    if (roles && roles.length > 0) {
+      params.push(roles);
+      conditions.push(`EXISTS (SELECT 1 FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.role = ANY($${params.length}))`);
+    }
+
+    if (verificationStatus) {
+      params.push(verificationStatus);
+      conditions.push(`u.verification_status = $${params.length}`);
+    }
+
+    // Always filter for active users in public search
+    params.push('active');
+    conditions.push(`u.status = $${params.length}`);
+
+    if (conditions.length > 0) {
+      whereClause = 'WHERE ' + conditions.join(' AND ');
+    }
 
     const query = `
       SELECT u.*, 
@@ -487,19 +627,26 @@ export class UserModel {
 
   public static mapToUserProfile(row: any): UserProfile {
     const profile = typeof row.profile === 'string' ? JSON.parse(row.profile) : row.profile;
-    const measurements = row.measurements ?
-      (typeof row.measurements === 'string' ? JSON.parse(row.measurements) : row.measurements) : {};
-    const preferences = row.preferences ?
-      (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {};
-    const privacySettings = row.privacy_settings ?
-      (typeof row.privacy_settings === 'string' ? JSON.parse(row.privacy_settings) : row.privacy_settings) : {
-        height: false,
-        weight: false,
-        birthDate: false,
-        gender: false,
-        likedItems: true,
-        wishlists: true
-      };
+    const measurements = row.measurements ? (typeof row.measurements === 'string' ? JSON.parse(row.measurements) : row.measurements) : {};
+    const preferences = row.preferences ? (typeof row.preferences === 'string' ? JSON.parse(row.preferences) : row.preferences) : {};
+    const notificationPreferences = row.notification_preferences ? (typeof row.notification_preferences === 'string' ? JSON.parse(row.notification_preferences) : row.notification_preferences) : {
+      showNotificationBadge: true,
+      showMessageBadge: true
+    };
+    const privacySettings = row.privacy_settings ? (typeof row.privacy_settings === 'string' ? JSON.parse(row.privacy_settings) : row.privacy_settings) : {
+      height: 'private',
+      weight: 'private',
+      birthDate: 'private',
+      gender: 'public',
+      country: 'public',
+      state: 'public',
+      city: 'public',
+      wardrobe: 'public',
+      likedItems: 'public',
+      wishlist: 'public',
+      posts: 'public',
+      telephone: 'private'
+    };
 
     return {
       id: row.id,
@@ -509,7 +656,7 @@ export class UserModel {
       usernameLastChanged: row.username_last_changed ? new Date(row.username_last_changed) : undefined,
       personalInfo: {
         name: profile.name,
-        birthDate: new Date(profile.birthDate),
+        birthDate: profile.birthDate ? new Date(profile.birthDate) : undefined,
         location: profile.location || {},
         gender: profile.gender,
         genderOther: profile.genderOther,
@@ -522,7 +669,7 @@ export class UserModel {
       measurements: measurements,
       preferences: preferences,
       privacySettings: privacySettings,
-      badges: [], // Will be populated when badge system is implemented
+      badges: [],
       socialLinks: profile.socialLinks || [],
       roles: row.roles ? row.roles.filter((role: string) => role !== null) : [],
       status: row.status || 'active',
@@ -531,8 +678,15 @@ export class UserModel {
       lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
+      googleId: row.google_id,
+      facebookId: row.facebook_id,
+      googleData: typeof row.google_data === 'string' ? JSON.parse(row.google_data) : row.google_data,
+      facebookData: typeof row.facebook_data === 'string' ? JSON.parse(row.facebook_data) : row.facebook_data,
+      googleSigninEnabled: row.google_signin_enabled,
+      facebookSigninEnabled: row.facebook_signin_enabled,
+      notificationPreferences: notificationPreferences,
       _rawProfile: profile,
-    } as UserProfile & { roles?: string[], verificationStatus?: string, _rawProfile?: any, username?: string, usernameLastChanged?: Date, status: string, banExpiresAt?: Date, lastSeenAt?: Date };
+    } as any;
   }
 
   static async updateStatus(userId: string, status: string, banExpiresAt?: Date, banReason?: string): Promise<void> {
@@ -559,16 +713,9 @@ export class UserModel {
     const client = await db.getClient();
     try {
       await client.query('BEGIN');
-
-      // Delete user roles first (foreign key constraint)
       await client.query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
-
-      // Delete brand accounts (if any)
       await client.query('DELETE FROM brand_accounts WHERE user_id = $1', [userId]);
-
-      // Delete the user
       const result = await client.query('DELETE FROM users WHERE id = $1', [userId]);
-
       await client.query('COMMIT');
       return (result.rowCount || 0) > 0;
     } catch (e) {
@@ -600,11 +747,7 @@ export class UserModel {
   static async getVerificationStatus(userId: string): Promise<string | null> {
     const query = 'SELECT verification_status FROM users WHERE id = $1';
     const result = await db.query(query, [userId]);
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
+    if (result.rows.length === 0) return null;
     return result.rows[0].verification_status || 'unverified';
   }
 }

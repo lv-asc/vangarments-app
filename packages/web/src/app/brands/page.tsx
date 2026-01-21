@@ -7,6 +7,7 @@ import { getImageUrl } from '../../lib/utils';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { VerifiedBadge } from '../../components/ui/VerifiedBadge';
+import EntityFilterBar from '../../components/ui/EntityFilterBar';
 
 const MotionDiv = motion.div as any;
 
@@ -28,6 +29,11 @@ export default function BrandsDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filters, setFilters] = useState({
+    verificationStatus: '',
+    partnershipTier: '',
+    country: ''
+  });
 
   // Debounce search
   useEffect(() => {
@@ -40,18 +46,20 @@ export default function BrandsDirectoryPage() {
   // Load brands
   useEffect(() => {
     loadBrands();
-  }, [debouncedSearch]);
+  }, [debouncedSearch, filters]);
 
   const loadBrands = async () => {
     try {
       setLoading(true);
       const data = await brandApi.getBrands({
         search: debouncedSearch,
+        verificationStatus: filters.verificationStatus,
+        partnershipTier: filters.partnershipTier,
+        country: filters.country,
         limit: 50
       });
 
       // Filter out stores (keep brands, designers, manufacturers)
-      // Also optional: filter by verification status if desired, but user didn't explicitly ask to hide pending.
       const filteredBrands = data.filter(b => {
         const type = b.brandInfo?.businessType;
         return type !== 'store' && type !== 'non_profit';
@@ -92,6 +100,14 @@ export default function BrandsDirectoryPage() {
           </div>
         </div>
       </div>
+
+      {/* Filter Bar */}
+      <EntityFilterBar
+        filters={filters}
+        onFilterChange={setFilters}
+        showTier={true}
+        showCountry={true}
+      />
 
       {/* Brands Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

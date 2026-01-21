@@ -42,6 +42,11 @@ export default function ImageTagEditor({
     const [isLoading, setIsLoading] = useState(false);
     const imageRef = useRef<HTMLDivElement>(null);
 
+    // Sync tags state with existingTags prop
+    React.useEffect(() => {
+        setTags(existingTags);
+    }, [existingTags]);
+
     // Description Modal State
     const [descriptionModal, setDescriptionModal] = useState<{
         isOpen: boolean;
@@ -93,6 +98,16 @@ export default function ImageTagEditor({
 
         const { entity, description } = descriptionModal;
 
+        // Validation: Check for duplicates
+        const isDuplicate = tags.some(tag =>
+            (tag.taggedEntityId === entity.id) || (tag.taggedItemId === entity.id)
+        );
+
+        if (isDuplicate) {
+            toast.error(`"${entity.name}" is already tagged in this image.`);
+            return;
+        }
+
         setIsLoading(true);
         try {
             const tagRequest = {
@@ -121,9 +136,22 @@ export default function ImageTagEditor({
         }
     };
 
-    // Handle location input (for free-text location)
-    const handleLocationSubmit = async (locationName: string, locationAddress?: string) => {
-        if (!pendingTag || !locationName.trim()) return;
+    // Handle location input (now with coordinates from Google Maps)
+    const handleLocationSubmit = async (locationData: {
+        name: string;
+        address?: string;
+        lat?: number;
+        lng?: number;
+    }) => {
+        const { name, address, lat, lng } = locationData;
+        if (!pendingTag || !name.trim()) return;
+
+        // Validation: Limit to one location per image
+        const hasLocation = tags.some(tag => tag.tagType === 'location');
+        if (hasLocation) {
+            toast.error('Only one location per image is allowed.');
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -134,15 +162,17 @@ export default function ImageTagEditor({
                 positionX: pendingTag.positionX,
                 positionY: pendingTag.positionY,
                 tagType: 'location' as TagType,
-                locationName: locationName.trim(),
-                locationAddress: locationAddress?.trim(),
+                locationName: name.trim(),
+                locationAddress: address?.trim(),
+                locationLat: lat,
+                locationLng: lng,
             };
 
             const newTag = await tagApi.addTag(tagRequest);
             const updatedTags = [...tags, newTag];
             setTags(updatedTags);
             onTagsChange?.(updatedTags);
-            toast.success(`Added location: ${locationName}`);
+            toast.success(`Added location: ${name}`);
         } catch (error: any) {
             toast.error(error.message || 'Failed to add location');
         } finally {

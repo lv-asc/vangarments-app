@@ -52,7 +52,8 @@ export class MediaTagModel {
         ];
 
         const result = await db.query(query, values);
-        return this.mapRowToMediaTag(result.rows[0]);
+        const tag = this.mapRowToMediaTag(result.rows[0]);
+        return (await this.populateTagEntities([tag]))[0];
     }
 
     /**
@@ -356,10 +357,16 @@ export class MediaTagModel {
             const userResult = await db.query(userQuery, [searchPattern, query.toLowerCase(), `${query.toLowerCase()}%`, limit]);
             for (const row of userResult.rows) {
                 const profile = row.profile || {};
-                // Convert storage path to URL if needed
-                let profilePicUrl = profile.profilePicture;
+                // Use robust property check matching User.ts
+                let profilePicUrl = profile.avatarUrl || profile.profilePicture || profile.image || profile.profileImage;
+
                 if (profilePicUrl && !profilePicUrl.startsWith('http') && !profilePicUrl.startsWith('/api')) {
-                    profilePicUrl = `/api/storage/${profilePicUrl.startsWith('/') ? profilePicUrl.substring(1) : profilePicUrl}`;
+                    const path = profilePicUrl.startsWith('/') ? profilePicUrl.substring(1) : profilePicUrl;
+                    if (path.startsWith('storage/')) {
+                        profilePicUrl = '/' + path;
+                    } else {
+                        profilePicUrl = '/storage/' + path;
+                    }
                 }
                 results.push({
                     id: row.id,
@@ -398,22 +405,60 @@ export class MediaTagModel {
 
         // Search stores
         if (types.includes('store')) {
-            const storeQuery = `
-        SELECT id, name, slug
-        FROM stores
-        WHERE deleted_at IS NULL AND LOWER(name) LIKE $1
-        ORDER BY CASE WHEN LOWER(name) LIKE $2 THEN 0 ELSE 1 END
-        LIMIT $3
-      `;
-            const storeResult = await db.query(storeQuery, [searchPattern, `${query.toLowerCase()}%`, limit]);
-            for (const row of storeResult.rows) {
+            // 1. Search Brand Accounts with type 'store' (Has Logo)
+            const brandStoreQuery = `
+                SELECT id, brand_info, (brand_info->>'slug') as slug
+                FROM brand_accounts
+                WHERE deleted_at IS NULL
+                  AND params->>'businessType' = 'store'
+                  AND LOWER(brand_info->>'name') LIKE $1
+                ORDER BY CASE WHEN LOWER(brand_info->>'name') LIKE $2 THEN 0 ELSE 1 END
+                LIMIT $3
+            `;
+            // Note: need to fix the WHERE clause for businessType since it's inside brand_info
+            const brandStoreQueryCorrect = `
+                SELECT id, brand_info, (brand_info->>'slug') as slug
+                FROM brand_accounts
+                WHERE deleted_at IS NULL
+                  AND (brand_info->>'businessType' = 'store')
+                  AND LOWER(brand_info->>'name') LIKE $1
+                ORDER BY CASE WHEN LOWER(brand_info->>'name') LIKE $2 THEN 0 ELSE 1 END
+                LIMIT $3
+            `;
+
+            const brandStoreResult = await db.query(brandStoreQueryCorrect, [searchPattern, `${query.toLowerCase()}%`, limit]);
+            for (const row of brandStoreResult.rows) {
+                const brandInfo = row.brand_info || {};
                 results.push({
                     id: row.id,
                     type: 'store',
-                    name: row.name,
+                    name: brandInfo.name || 'Unknown Store',
                     slug: row.slug,
+                    imageUrl: brandInfo.logo,
                     subtitle: 'Store',
                 });
+            }
+
+            // 2. Search Legacy Stores (No Logo)
+            const storeQuery = `
+                SELECT id, name, slug
+                FROM stores
+                WHERE deleted_at IS NULL AND LOWER(name) LIKE $1
+                ORDER BY CASE WHEN LOWER(name) LIKE $2 THEN 0 ELSE 1 END
+                LIMIT $3
+            `;
+            const storeResult = await db.query(storeQuery, [searchPattern, `${query.toLowerCase()}%`, limit]);
+            for (const row of storeResult.rows) {
+                // Avoid duplicates if same ID exists (unlikely but safe)
+                if (!results.some(r => r.id === row.id)) {
+                    results.push({
+                        id: row.id,
+                        type: 'store',
+                        name: row.name,
+                        slug: row.slug,
+                        subtitle: 'Store',
+                    }); // Legacy stores have no logo
+                }
             }
         }
 
@@ -541,12 +586,26 @@ export class MediaTagModel {
                     if (result.rows.length > 0) {
                         const row = result.rows[0];
                         const profile = row.profile || {};
+
+                        // Use robust property check matching User.ts
+                        let profilePicUrl = profile.avatarUrl || profile.profilePicture || profile.image || profile.profileImage;
+                        if (profilePicUrl && !profilePicUrl.startsWith('http') && !profilePicUrl.startsWith('/api')) {
+                            const path = profilePicUrl.startsWith('/') ? profilePicUrl.substring(1) : profilePicUrl;
+                            if (path.startsWith('storage/')) {
+                                profilePicUrl = '/' + path;
+                            } else {
+                                profilePicUrl = '/storage/' + path;
+                            }
+                        }
+
                         entityInfo = {
                             id: row.id,
                             type: 'user',
                             name: profile.name || row.username,
                             slug: row.username,
-                            imageUrl: profile.profilePicture,
+                            imageUrl: profilePicUrl,
+                            // @ts-ignore - subtitle is optional in TaggedEntityInfo but useful for frontend
+                            subtitle: `@${row.username}`,
                         };
                     }
                 } else if (tag.tagType === 'brand') {
@@ -564,16 +623,33 @@ export class MediaTagModel {
                         };
                     }
                 } else if (tag.tagType === 'store') {
-                    const query = 'SELECT id, name, slug FROM stores WHERE id = $1';
-                    const result = await db.query(query, [tag.taggedEntityId]);
-                    if (result.rows.length > 0) {
-                        const row = result.rows[0];
+                    // 1. Try Brand Accounts (Has Logo)
+                    const brandStoreQuery = 'SELECT id, brand_info FROM brand_accounts WHERE id = $1';
+                    const brandStoreResult = await db.query(brandStoreQuery, [tag.taggedEntityId]);
+
+                    if (brandStoreResult.rows.length > 0) {
+                        const row = brandStoreResult.rows[0];
+                        const brandInfo = row.brand_info || {};
                         entityInfo = {
                             id: row.id,
                             type: 'store',
-                            name: row.name,
-                            slug: row.slug,
+                            name: brandInfo.name || 'Unknown Store',
+                            slug: brandInfo.slug,
+                            imageUrl: brandInfo.logo,
                         };
+                    } else {
+                        // 2. Try Legacy Stores (No Logo)
+                        const query = 'SELECT id, name, slug FROM stores WHERE id = $1';
+                        const result = await db.query(query, [tag.taggedEntityId]);
+                        if (result.rows.length > 0) {
+                            const row = result.rows[0];
+                            entityInfo = {
+                                id: row.id,
+                                type: 'store',
+                                name: row.name,
+                                slug: row.slug,
+                            };
+                        }
                     }
                 } else if (tag.tagType === 'page') {
                     const query = 'SELECT id, name, slug, logo_url FROM pages WHERE id = $1';

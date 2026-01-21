@@ -36,6 +36,43 @@ export class PageModel {
         return result.rows.map(this.mapRowToPage);
     }
 
+    static async findMany(filters: { search?: string; isVerified?: boolean; limit?: number; offset?: number } = {}): Promise<{ pages: Page[]; total: number }> {
+        const { search, isVerified, limit = 20, offset = 0 } = filters;
+        const whereConditions: string[] = ['deleted_at IS NULL'];
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        if (isVerified !== undefined) {
+            whereConditions.push(`is_verified = $${paramIndex++}`);
+            values.push(isVerified);
+        }
+
+        if (search) {
+            whereConditions.push(`(name ILIKE $${paramIndex} OR slug ILIKE $${paramIndex})`);
+            values.push(`%${search}%`);
+            paramIndex++;
+        }
+
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+        const query = `
+            SELECT *, COUNT(*) OVER() as total
+            FROM pages
+            ${whereClause}
+            ORDER BY (NULLIF(logo_url, '') IS NOT NULL OR NULLIF(banner_url, '') IS NOT NULL) DESC, name ASC
+            LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+        `;
+
+        values.push(limit, offset);
+
+        const result = await db.query(query, values);
+
+        return {
+            pages: result.rows.map(this.mapRowToPage),
+            total: result.rows.length > 0 ? parseInt(result.rows[0].total) : 0,
+        };
+    }
+
     static async findById(id: string): Promise<Page | null> {
         const query = 'SELECT * FROM pages WHERE id = $1 AND deleted_at IS NULL';
         const result = await db.query(query, [id]);

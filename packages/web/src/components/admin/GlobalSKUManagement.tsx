@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
+import { tagApi } from '@/lib/tagApi';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
 import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
@@ -96,6 +97,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         imageUrl: '',
         skuId: ''
     });
+    const [taggingTags, setTaggingTags] = useState<any[]>([]);
 
     // Silhouette/Modeling State
     const [availableSilhouettes, setAvailableSilhouettes] = useState<any[]>([]);
@@ -2683,15 +2685,25 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                 helperText="Upload high-quality images of the product."
                                                 onTagImage={(imageUrl) => {
                                                     if (editingSku?.id) {
-                                                        // Convert URL using same logic as MediaUploader's getUrl
+                                                        // Convert URL to canonical storage path
                                                         let convertedUrl = imageUrl;
                                                         if (!imageUrl.startsWith('http') && !imageUrl.startsWith('data:') && !imageUrl.startsWith('/api')) {
                                                             let path = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
                                                             if (path.startsWith('storage/')) {
                                                                 path = path.substring('storage/'.length);
                                                             }
-                                                            convertedUrl = `/api/storage/${path}`;
+                                                            // Map uploads/... -> storage/uploads/... to match getImageUrl
+                                                            convertedUrl = `/storage/${path}`;
+                                                        } else if (imageUrl.startsWith('/api/storage/')) {
+                                                            // Convert /api/storage/uploads/x -> /storage/uploads/x
+                                                            convertedUrl = imageUrl.replace('/api/storage/', '/storage/');
                                                         }
+                                                        // Fetch existing tags
+                                                        setTaggingTags([]); // Reset while loading
+                                                        tagApi.getTagsBySource('sku_image', editingSku.id, convertedUrl)
+                                                            .then(tags => setTaggingTags(tags))
+                                                            .catch(err => console.error('Failed to fetch tags', err));
+
                                                         setTaggingModal({ isOpen: true, imageUrl: convertedUrl, skuId: editingSku.id });
                                                     } else {
                                                         toast.error('Please save the SKU first before tagging images');
@@ -2757,6 +2769,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                     imageUrl={taggingModal.imageUrl}
                                     sourceType="sku_image"
                                     sourceId={taggingModal.skuId}
+                                    existingTags={taggingTags}
                                     className="max-h-[60vh] overflow-auto"
                                 />
                             </div>

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { MediaTagModel, CreateMediaTagData } from '../models/MediaTag';
 import { TagType, TagSourceType } from '@vangarments/shared';
+import { AuthenticatedRequest } from '../utils/auth';
 
 /**
  * Tag Controller - Unified endpoints for media tagging functionality
@@ -10,9 +11,9 @@ import { TagType, TagSourceType } from '@vangarments/shared';
  * Add a tag to an image
  * POST /api/tags
  */
-export async function addTag(req: Request, res: Response): Promise<void> {
+export async function addTag(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user?.userId;
         if (!userId) {
             res.status(401).json({ error: 'Authentication required' });
             return;
@@ -142,9 +143,9 @@ export async function getTag(req: Request, res: Response): Promise<void> {
  * Update a tag (position or approval status)
  * PATCH /api/tags/:tagId
  */
-export async function updateTag(req: Request, res: Response): Promise<void> {
+export async function updateTag(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user?.userId;
         if (!userId) {
             res.status(401).json({ error: 'Authentication required' });
             return;
@@ -185,9 +186,9 @@ export async function updateTag(req: Request, res: Response): Promise<void> {
  * Delete a tag
  * DELETE /api/tags/:tagId
  */
-export async function deleteTag(req: Request, res: Response): Promise<void> {
+export async function deleteTag(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-        const userId = (req as any).userId;
+        const userId = req.user?.userId;
         if (!userId) {
             res.status(401).json({ error: 'Authentication required' });
             return;

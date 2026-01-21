@@ -5,8 +5,29 @@ import { AuthenticatedRequest } from '../utils/auth';
 
 export const getAllPages = async (req: Request, res: Response) => {
     try {
-        const pages = await PageModel.findAll();
-        res.json(pages);
+        const { search, verificationStatus, page = 1, limit = 20 } = req.query;
+
+        const filters: any = {
+            search: search as string,
+            limit: parseInt(limit as string),
+            offset: (parseInt(page as string) - 1) * parseInt(limit as string),
+        };
+
+        if (verificationStatus !== undefined) {
+            filters.isVerified = verificationStatus === 'verified';
+        }
+
+        const { pages, total } = await PageModel.findMany(filters);
+
+        res.json({
+            success: true,
+            pages,
+            pagination: {
+                total,
+                page: parseInt(page as string),
+                limit: parseInt(limit as string),
+            }
+        });
     } catch (error) {
         console.error('Error fetching pages:', error);
         res.status(500).json({ message: 'Error fetching pages', error });

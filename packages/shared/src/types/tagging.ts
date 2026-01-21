@@ -34,6 +34,7 @@ export interface TaggedEntityInfo {
     name: string;
     slug?: string;
     imageUrl?: string;
+    subtitle?: string;
 }
 
 export interface TaggedItemInfo {

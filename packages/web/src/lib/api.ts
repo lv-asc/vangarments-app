@@ -62,6 +62,7 @@ class ApiClient {
     this.setupDefaultInterceptors();
   }
 
+
   private loadToken(): void {
     if (typeof window !== 'undefined') {
       // Try to get token from secure cookie first, then fallback to localStorage
@@ -69,7 +70,7 @@ class ApiClient {
     }
   }
 
-  private saveToken(token: string, roles?: string[]): void {
+  public saveToken(token: string, roles?: string[]): void {
     this.token = token;
     if (typeof window !== 'undefined') {
       // Store in secure cookie (preferred) and localStorage (fallback)
@@ -395,6 +396,12 @@ class ApiClient {
     }
   }
 
+  async disconnectOAuth(provider: 'google' | 'facebook'): Promise<void> {
+    await this.request(`/oauth/${provider}`, {
+      method: 'DELETE',
+    });
+  }
+
   async getCurrentUser(): Promise<any> {
     const response = await this.request<any>('/auth/profile');
     return response.user;
@@ -615,6 +622,10 @@ class ApiClient {
     bio?: string;
     socialLinks?: any[];
     roles?: string[];
+    cpf?: string;
+    personalInfo?: any;
+    googleSigninEnabled?: boolean;
+    facebookSigninEnabled?: boolean;
   }): Promise<any> {
     const response = await this.request<any>('/users/profile', {
       method: 'PUT',

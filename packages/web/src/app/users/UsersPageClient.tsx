@@ -7,6 +7,7 @@ import { getImageUrl, debounce } from '../../lib/utils';
 import { MagnifyingGlassIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VerifiedBadge } from '../../components/ui/VerifiedBadge';
+import EntityFilterBar from '../../components/ui/EntityFilterBar';
 
 const MotionDiv = motion.div as any;
 
@@ -15,6 +16,10 @@ export default function UsersDirectoryPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [filters, setFilters] = useState({
+        verificationStatus: '',
+        roles: [] as string[]
+    });
 
     // Debounce search
     const debouncedSearchHandler = useCallback(
@@ -31,13 +36,20 @@ export default function UsersDirectoryPage() {
     // Load users
     useEffect(() => {
         loadUsers();
-    }, [debouncedSearch]);
+    }, [debouncedSearch, filters]);
 
     const loadUsers = async () => {
         try {
             setLoading(true);
-            const userSearchParam = debouncedSearch ? `search=${encodeURIComponent(debouncedSearch)}&` : '';
-            const response = await apiClient.get(`/users/search?${userSearchParam}limit=50`);
+            const queryParams = new URLSearchParams();
+            if (debouncedSearch) queryParams.append('search', debouncedSearch);
+            if (filters.verificationStatus) queryParams.append('verificationStatus', filters.verificationStatus);
+            if (filters.roles && filters.roles.length > 0) {
+                filters.roles.forEach(role => queryParams.append('roles', role));
+            }
+            queryParams.append('limit', '50');
+
+            const response = await apiClient.get<any>(`/users/search?${queryParams.toString()}`);
             setUsers(response.users || response.data?.users || []);
         } catch (error) {
             console.error('Failed to load users', error);
@@ -97,6 +109,12 @@ export default function UsersDirectoryPage() {
                     </motion.div>
                 </div>
             </div>
+
+            <EntityFilterBar
+                filters={filters}
+                onFilterChange={setFilters}
+                showRoles={true}
+            />
 
             {/* Users Grid */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

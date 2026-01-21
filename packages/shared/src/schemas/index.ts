@@ -64,6 +64,27 @@ export const LocationSchema = z.object({
   cep: z.string().regex(/^\d{5}-?\d{3}$/, 'Invalid CEP format').optional(),
 });
 
+export const PrivacyVisibilityEnum = z.enum(['public', 'private', 'friends', 'custom']);
+
+export const PrivacySettingsSchema = z.object({
+  height: PrivacyVisibilityEnum,
+  weight: PrivacyVisibilityEnum,
+  birthDate: PrivacyVisibilityEnum,
+  gender: PrivacyVisibilityEnum,
+  country: PrivacyVisibilityEnum,
+  state: PrivacyVisibilityEnum,
+  city: PrivacyVisibilityEnum,
+  wardrobe: PrivacyVisibilityEnum,
+  likedItems: PrivacyVisibilityEnum,
+  wishlist: PrivacyVisibilityEnum,
+  posts: PrivacyVisibilityEnum,
+  telephone: PrivacyVisibilityEnum,
+  customRules: z.record(z.string(), z.object({
+    everyoneExcept: z.array(z.string()),
+    noOneExcept: z.array(z.string()),
+  })).optional(),
+});
+
 export const BrazilianAddressSchema = z.object({
   cep: z.string().regex(/^\d{5}-?\d{3}$/, 'Invalid CEP format'),
   state: z.string().length(2, 'State must be 2 characters'),
@@ -87,6 +108,23 @@ export const PreferencesSchema = z.object({
   priceRange: z.object({
     min: z.number().min(0),
     max: z.number().min(0),
+  }).optional(),
+  theme: z.enum(['light', 'dark', 'auto']).optional(),
+  language: z.string().optional(),
+  currency: z.string().optional(),
+  display: z.object({
+    itemsPerPage: z.number(),
+    defaultView: z.string(),
+    showPrices: z.boolean(),
+    showBrands: z.boolean(),
+    compactMode: z.boolean(),
+  }).optional(),
+  ai: z.object({
+    autoTagging: z.boolean(),
+    backgroundRemoval: z.boolean(),
+    outfitSuggestions: z.boolean(),
+    styleAnalysis: z.boolean(),
+    confidenceThreshold: z.number(),
   }).optional(),
 });
 

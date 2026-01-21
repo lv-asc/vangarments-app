@@ -209,7 +209,7 @@ export class BrandAccountModel {
 
   static async findMany(
     filters: {
-      verificationStatus?: 'pending' | 'verified' | 'rejected';
+      verificationStatus?: 'pending' | 'verified' | 'rejected' | 'unverified';
       partnershipTier?: 'basic' | 'premium' | 'enterprise';
       businessType?: 'brand' | 'store' | 'designer' | 'manufacturer';
       search?: string;
@@ -223,8 +223,12 @@ export class BrandAccountModel {
     let paramIndex = 1;
 
     if (filters.verificationStatus) {
-      whereConditions.push(`ba.verification_status = $${paramIndex++}`);
-      values.push(filters.verificationStatus);
+      if (filters.verificationStatus === 'unverified') {
+        whereConditions.push(`ba.verification_status != 'verified'`);
+      } else {
+        whereConditions.push(`ba.verification_status = $${paramIndex++}`);
+        values.push(filters.verificationStatus);
+      }
     }
 
     if (filters.partnershipTier) {
@@ -265,7 +269,11 @@ export class BrandAccountModel {
       FROM brand_accounts ba
       LEFT JOIN users u ON ba.user_id = u.id
       ${whereClause}
-      ORDER BY ba.created_at DESC
+      ORDER BY (
+        NULLIF(ba.brand_info->>'logo', '') IS NOT NULL 
+        OR NULLIF(ba.brand_info->>'banner', '') IS NOT NULL 
+        OR (ba.brand_info->'banners' IS NOT NULL AND jsonb_array_length(ba.brand_info->'banners') > 0)
+      ) DESC, ba.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
 

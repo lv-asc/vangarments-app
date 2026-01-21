@@ -22,6 +22,7 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
+    const [openDropdown, setOpenDropdown] = useState<'sizes' | 'colors' | null>(null);
 
     // VUFS Data Options
     const [vufsBrands, setVufsBrands] = useState<any[]>([]);
@@ -85,6 +86,26 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
             setCollections([]);
         }
     }, [formData.brandId]);
+
+    // Handle clicking outside of dropdowns to close them
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest('.relative')) {
+                setOpenDropdown(null);
+            }
+        };
+
+        if (openDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [openDropdown]);
 
     // Auto-generate Name logic
     useEffect(() => {
@@ -685,41 +706,138 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                     {/* Size(s) - Multi-Select */}
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {sizes.map(size => (
-                                                <button
-                                                    key={size.id}
-                                                    type="button"
-                                                    onClick={() => handleMultiSelect('sizes', size.id)}
-                                                    className={`px-3 py-1 rounded-full text-sm border ${formData.selectedSizes.includes(size.id)
-                                                        ? 'bg-blue-600 text-white border-blue-600'
-                                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                        } `}
-                                                >
-                                                    {size.name}
+                                        <div className="relative">
+                                            <div className="flex flex-wrap gap-2 mb-2">
+                                                {formData.selectedSizes.map((id: string) => {
+                                                    const size = sizes.find(s => s.id === id);
+                                                    return (
+                                                        <span key={id} className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs">
+                                                            {size?.name || id}
+                                                            <button type="button" onClick={() => handleMultiSelect('sizes', id)} className="ml-1 hover:text-blue-900 font-bold">&times;</button>
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Search and Select Sizes..."
+                                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 text-sm"
+                                                onFocus={() => setOpenDropdown('sizes')}
+                                                onChange={(e) => {
+                                                    const term = e.target.value.toLowerCase();
+                                                    const list = e.currentTarget.nextElementSibling?.nextElementSibling;
+                                                    if (list) {
+                                                        const labels = list.querySelectorAll('label');
+                                                        labels.forEach(l => {
+                                                            const txt = l.textContent?.toLowerCase() || '';
+                                                            (l as HTMLElement).style.display = txt.includes(term) ? 'flex' : 'none';
+                                                        });
+                                                    }
+                                                }}
+                                            />
+                                            {openDropdown === 'sizes' && (
+                                                <button type="button" onClick={() => setOpenDropdown(null)} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
                                                 </button>
-                                            ))}
+                                            )}
+                                            <div
+                                                className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                style={{ display: openDropdown === 'sizes' ? 'block' : 'none' }}
+                                            >
+                                                <div className="dropdown-list">
+                                                    {sizes.map(size => (
+                                                        <label key={size.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-b-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={formData.selectedSizes.includes(size.id)}
+                                                                onChange={(e) => { e.stopPropagation(); handleMultiSelect('sizes', size.id); }}
+                                                                className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                                                            />
+                                                            <span className="ml-3 text-sm text-gray-700">{size.name}</span>
+                                                            {formData.selectedSizes.includes(size.id) && (
+                                                                <svg className="ml-auto h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                </svg>
+                                                            )}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                    <button type="button" onClick={() => setOpenDropdown(null)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded">Done</button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
                                     {/* Color(s) - Multi-Select */}
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {colors.map(color => (
-                                                <button
-                                                    key={color.id}
-                                                    type="button"
-                                                    onClick={() => handleMultiSelect('colors', color.id)}
-                                                    className={`px-3 py-1 rounded-full text-sm border flex items-center gap-2 ${formData.selectedColors.includes(color.id)
-                                                        ? 'bg-gray-100 text-gray-900 border-blue-600 ring-1 ring-blue-600'
-                                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                        } `}
-                                                >
-                                                    <span className="w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: color.hex }}></span>
-                                                    {color.name}
+                                        <div className="relative">
+                                            <div className="flex flex-wrap gap-2 mb-2">
+                                                {formData.selectedColors.map((id: string) => {
+                                                    const color = colors.find(c => c.id === id);
+                                                    return (
+                                                        <span key={id} className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs gap-1 border border-gray-200">
+                                                            <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: color?.hex }}></span>
+                                                            {color?.name || id}
+                                                            <button type="button" onClick={() => handleMultiSelect('colors', id)} className="ml-1 hover:text-gray-900 font-bold">&times;</button>
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Search and Select Colors..."
+                                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 text-sm"
+                                                onFocus={() => setOpenDropdown('colors')}
+                                                onChange={(e) => {
+                                                    const term = e.target.value.toLowerCase();
+                                                    const list = e.currentTarget.nextElementSibling?.nextElementSibling;
+                                                    if (list) {
+                                                        const labels = list.querySelectorAll('label');
+                                                        labels.forEach(l => {
+                                                            const txt = l.textContent?.toLowerCase() || '';
+                                                            (l as HTMLElement).style.display = txt.includes(term) ? 'flex' : 'none';
+                                                        });
+                                                    }
+                                                }}
+                                            />
+                                            {openDropdown === 'colors' && (
+                                                <button type="button" onClick={() => setOpenDropdown(null)} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
+                                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
                                                 </button>
-                                            ))}
+                                            )}
+                                            <div
+                                                className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                style={{ display: openDropdown === 'colors' ? 'block' : 'none' }}
+                                            >
+                                                <div className="dropdown-list">
+                                                    {colors.map(color => (
+                                                        <label key={color.id} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-b-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={formData.selectedColors.includes(color.id)}
+                                                                onChange={(e) => { e.stopPropagation(); handleMultiSelect('colors', color.id); }}
+                                                                className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                                                            />
+                                                            <span className="ml-3 w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: color.hex }}></span>
+                                                            <span className="ml-2 text-sm text-gray-700">{color.name}</span>
+                                                            {formData.selectedColors.includes(color.id) && (
+                                                                <svg className="ml-auto h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                </svg>
+                                                            )}
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                    <button type="button" onClick={() => setOpenDropdown(null)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded">Done</button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 

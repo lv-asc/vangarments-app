@@ -8,6 +8,7 @@ import { PWAProvider } from '@/components/providers/PWAProvider';
 import { Header } from '@/components/layout/Header';
 import { RecentPagesProvider } from '@/components/providers/RecentPagesProvider';
 import { NotificationProvider } from '@/contexts/NotificationContext';
+import Script from 'next/script';
 
 
 
@@ -123,7 +124,11 @@ export default function RootLayout({
           </PWAProvider>
         </ErrorBoundary>
 
-        {/* Development Mode Initialization Script Removed */}
+        {/* Google Maps API */}
+        <Script
+          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );

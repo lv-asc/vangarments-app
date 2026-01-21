@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext } from 'react';
 import { AuthProvider, useAuth as useRealAuth, ActiveAccount } from './AuthContext';
+import { ThemeProvider } from './ThemeContext';
 
 export type { ActiveAccount };
 
@@ -25,11 +26,22 @@ export function useAuth() {
   return context;
 }
 
+function ThemeLoader({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return (
+    <ThemeProvider initialTheme={user?.preferences?.theme || 'auto'}>
+      {children}
+    </ThemeProvider>
+  );
+}
+
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <UnifiedAuthProvider>
-        {children}
+        <ThemeLoader>
+          {children}
+        </ThemeLoader>
       </UnifiedAuthProvider>
     </AuthProvider>
   );

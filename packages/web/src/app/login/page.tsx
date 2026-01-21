@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthWrapper';
 import { useNavigation } from '@/hooks/useNavigation';
+import { GoogleButton } from '@/components/auth/GoogleButton';
+import { FacebookButton } from '@/components/auth/FacebookButton';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,6 +16,20 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const { login } = useAuth();
   const { navigate } = useNavigation();
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+
+  React.useEffect(() => {
+    if (searchParams) {
+      const errorParam = searchParams.get('error');
+      if (errorParam === 'google_signin_disabled') {
+        setError('Google login is currently disabled for your account. Please log in with your email and password, or enable Google login in your account settings.');
+      } else if (errorParam === 'account_not_found') {
+        setError('Account not found. Please register first.');
+      } else if (errorParam === 'account_exists') {
+        setError('An account with this email already exists. Please log in instead.');
+      }
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,9 +68,22 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-[#00132d]/10">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-[#00132d] mb-2">Welcome Back</h1>
-            <p className="text-[#00132d]/70">Sign in to access your Vangarments account</p>
+            <p className="text-[#00132d]/70">Log in to access your Vangarments account</p>
 
 
+          </div>
+
+          <div className="mb-6 space-y-3">
+            <GoogleButton action="login" />
+            <FacebookButton action="login" />
+            <div className="relative mt-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -103,7 +132,7 @@ export default function LoginPage() {
               whileHover={{ scale: loading ? 1 : 1.02 }}
               whileTap={{ scale: loading ? 1 : 0.98 }}
             >
-              {loading ? 'Signing In...' : 'Sign In'}
+              {loading ? 'Logging in...' : 'Log in'}
             </motion.button>
           </form>
 

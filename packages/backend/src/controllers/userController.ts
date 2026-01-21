@@ -413,7 +413,7 @@ export class UserController {
         });
       }
 
-      const { name, bio, socialLinks, roles, username, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType, contactEmail, telephone } = req.body;
+      const { name, bio, socialLinks, roles, username, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType, contactEmail, telephone, googleSigninEnabled, facebookSigninEnabled, preferences } = req.body;
       console.log('DEBUG: updateBasicProfile req.body', { name, bio, privacySettings, measurements, birthDate, location, gender, genderOther, bodyType });
       const updateData: any = {};
       let usernameUpdateResult: { success: boolean; error?: string; daysRemaining?: number } | null = null;
@@ -453,6 +453,15 @@ export class UserController {
       if (location) {
         updateData.location = location;
       }
+      if (googleSigninEnabled !== undefined) {
+        updateData.googleSigninEnabled = googleSigninEnabled;
+      }
+      if (facebookSigninEnabled !== undefined) {
+        updateData.facebookSigninEnabled = facebookSigninEnabled;
+      }
+      if (preferences) {
+        updateData.preferences = preferences;
+      }
 
       if (gender || genderOther || bodyType || contactEmail || telephone) {
         updateData.profile = updateData.profile || {};
@@ -486,12 +495,7 @@ export class UserController {
 
       res.json({
         message: 'Profile updated successfully',
-        user: {
-          name: updatedUser.personalInfo.name,
-          bio: (updatedUser.personalInfo as any).bio,
-          username: (updatedUser as any).username,
-          roles: (updatedUser as any).roles
-        }
+        user: updatedUser
       });
 
     } catch (error) {
@@ -815,7 +819,7 @@ export class UserController {
         });
       }
 
-      const { favoriteColors, preferredBrands, styleProfile, priceRange } = req.body;
+      const { favoriteColors, preferredBrands, styleProfile, priceRange, theme, language, currency, display, ai } = req.body;
 
       // Validate price range
       if (priceRange && (priceRange.min < 0 || priceRange.max < priceRange.min)) {
@@ -832,6 +836,11 @@ export class UserController {
         preferredBrands: preferredBrands || [],
         styleProfile: styleProfile || [],
         priceRange: priceRange || { min: 0, max: 1000 },
+        theme,
+        language,
+        currency,
+        display,
+        ai,
         updatedAt: new Date().toISOString(),
       };
 
@@ -1029,13 +1038,21 @@ export class UserController {
    */
   static async getPublicUsers(req: Request, res: Response) {
     try {
-      const { search, page = 1, limit = 20 } = req.query;
+      const { search, roles, verificationStatus, page = 1, limit = 20 } = req.query;
 
-      const filters = {
+      const filters: any = {
         search: search as string,
         limit: parseInt(limit as string),
         offset: (parseInt(page as string) - 1) * parseInt(limit as string),
       };
+
+      if (roles) {
+        filters.roles = (roles as string).split(',');
+      }
+
+      if (verificationStatus) {
+        filters.verificationStatus = verificationStatus as string;
+      }
 
       const { users, total } = await UserModel.searchPublicUsers(filters);
 
@@ -1612,7 +1629,7 @@ export class UserController {
    * Verify user (admin only)
    * PUT /api/users/:id/verify
    */
-  static async verifyUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+  static async verifyUser(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user?.roles.includes('admin')) {
         return res.status(403).json({
@@ -1643,7 +1660,7 @@ export class UserController {
    * Unverify user (admin only)
    * PUT /api/users/:id/unverify
    */
-  static async unverifyUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+  static async unverifyUser(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.user?.roles.includes('admin')) {
         return res.status(403).json({

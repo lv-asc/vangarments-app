@@ -234,6 +234,12 @@ export class AuthController {
                 socialLinks: user.socialLinks,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
+                googleId: (user as any).googleId,
+                facebookId: (user as any).facebookId,
+                googleData: (user as any).googleData,
+                facebookData: (user as any).facebookData,
+                googleSigninEnabled: (user as any).googleSigninEnabled,
+                facebookSigninEnabled: (user as any).facebookSigninEnabled,
             };
 
             // Fetch linked entities
@@ -327,13 +333,20 @@ export class AuthController {
                 });
             }
 
-            const { name, location, measurements, preferences } = req.body;
+            const { name, location, measurements, preferences, cpf, birthDate, gender, genderOther, telephone } = req.body;
 
             const updatedUser = await UserModel.update(req.user.userId, {
                 name,
                 location,
                 measurements,
                 preferences,
+                cpf,
+                profile: {
+                    birthDate,
+                    gender,
+                    genderOther,
+                    telephone
+                }
             });
 
             if (!updatedUser) {

@@ -7,6 +7,7 @@ import { getImageUrl } from '../../lib/utils';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import { VerifiedBadge } from '../../components/ui/VerifiedBadge';
+import EntityFilterBar from '../../components/ui/EntityFilterBar';
 
 const MotionDiv = motion.div as any;
 
@@ -28,6 +29,11 @@ export default function StoresDirectoryPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [filters, setFilters] = useState({
+        verificationStatus: '',
+        partnershipTier: '',
+        country: ''
+    });
 
     // Debounce search
     useEffect(() => {
@@ -40,7 +46,7 @@ export default function StoresDirectoryPage() {
     // Load stores
     useEffect(() => {
         loadStores();
-    }, [debouncedSearch]);
+    }, [debouncedSearch, filters]);
 
     const loadStores = async () => {
         try {
@@ -48,10 +54,13 @@ export default function StoresDirectoryPage() {
             const data = await brandApi.getBrands({
                 search: debouncedSearch,
                 businessType: 'store',
+                verificationStatus: filters.verificationStatus,
+                partnershipTier: filters.partnershipTier,
+                country: filters.country,
                 limit: 50
             });
 
-            setStores(Array.isArray(data) ? data : data.brands || []);
+            setStores(data);
         } catch (error) {
             console.error('Failed to load stores', error);
         } finally {
@@ -86,6 +95,14 @@ export default function StoresDirectoryPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Filter Bar */}
+            <EntityFilterBar
+                filters={filters}
+                onFilterChange={setFilters}
+                showTier={true}
+                showCountry={true}
+            />
 
             {/* Stores Grid */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

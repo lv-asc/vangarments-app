@@ -18,7 +18,7 @@ interface TagSearchModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSelectEntity: (result: TagSearchResult) => void;
-    onSubmitLocation: (name: string, address?: string) => void;
+    onSubmitLocation: (data: { name: string; address?: string; lat?: number; lng?: number }) => void;
 }
 
 type TabType = 'entities' | 'items' | 'location';
@@ -44,7 +44,11 @@ export default function TagSearchModal({
     const [selectedTypes, setSelectedTypes] = useState<TagType[]>(['user', 'brand', 'store', 'page', 'supplier']);
     const [locationName, setLocationName] = useState('');
     const [locationAddress, setLocationAddress] = useState('');
+    const [locationLat, setLocationLat] = useState<number | undefined>();
+    const [locationLng, setLocationLng] = useState<number | undefined>();
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const locationInputRef = useRef<HTMLInputElement>(null);
+    const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
     const debounceRef = useRef<NodeJS.Timeout>();
 
     // Focus search input when modal opens
@@ -61,9 +65,55 @@ export default function TagSearchModal({
             setResults([]);
             setLocationName('');
             setLocationAddress('');
+            setLocationLat(undefined);
+            setLocationLng(undefined);
+            if (locationInputRef.current) {
+                locationInputRef.current.value = '';
+            }
             setActiveTab('entities');
         }
     }, [isOpen]);
+
+    // Initialize Google Maps Autocomplete
+    useEffect(() => {
+        if (activeTab === 'location' && isOpen && typeof window !== 'undefined' && window.google) {
+            const timer = setTimeout(() => {
+                if (!locationInputRef.current) return;
+
+                autocompleteRef.current = new window.google.maps.places.Autocomplete(locationInputRef.current, {
+                    fields: ['address_components', 'geometry', 'name', 'formatted_address'],
+                    types: ['establishment', 'geocode'],
+                });
+
+                autocompleteRef.current.addListener('place_changed', () => {
+                    const place = autocompleteRef.current?.getPlace();
+                    if (place) {
+                        const name = place.name || '';
+                        const address = place.formatted_address || '';
+
+                        // Manually update input value and state
+                        if (locationInputRef.current) {
+                            locationInputRef.current.value = name;
+                        }
+                        setLocationName(name);
+                        setLocationAddress(address);
+
+                        if (place.geometry && place.geometry.location) {
+                            setLocationLat(place.geometry.location.lat());
+                            setLocationLng(place.geometry.location.lng());
+                        }
+                    }
+                });
+            }, 100);
+
+            return () => {
+                if (window.google && window.google.maps && window.google.maps.event && locationInputRef.current) {
+                    window.google.maps.event.clearInstanceListeners(locationInputRef.current);
+                }
+                clearTimeout(timer);
+            };
+        }
+    }, [activeTab, isOpen]);
 
     // Debounced search
     const performSearch = useCallback(async (query: string) => {
@@ -117,7 +167,12 @@ export default function TagSearchModal({
     const handleLocationSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (locationName.trim()) {
-            onSubmitLocation(locationName, locationAddress);
+            onSubmitLocation({
+                name: locationName.trim(),
+                address: locationAddress?.trim(),
+                lat: locationLat,
+                lng: locationLng,
+            });
         }
     };
 
@@ -163,8 +218,8 @@ export default function TagSearchModal({
                         type="button"
                         onClick={() => setActiveTab('entities')}
                         className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'entities'
-                                ? 'text-blue-600 border-b-2 border-blue-600'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'text-blue-600 border-b-2 border-blue-600'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         People & Entities
@@ -173,8 +228,8 @@ export default function TagSearchModal({
                         type="button"
                         onClick={() => setActiveTab('items')}
                         className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'items'
-                                ? 'text-blue-600 border-b-2 border-blue-600'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'text-blue-600 border-b-2 border-blue-600'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Items
@@ -183,8 +238,8 @@ export default function TagSearchModal({
                         type="button"
                         onClick={() => setActiveTab('location')}
                         className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'location'
-                                ? 'text-blue-600 border-b-2 border-blue-600'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'text-blue-600 border-b-2 border-blue-600'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Location
@@ -217,8 +272,8 @@ export default function TagSearchModal({
                                             type="button"
                                             onClick={() => toggleEntityType(type)}
                                             className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-colors ${selectedTypes.includes(type)
-                                                    ? 'bg-blue-100 text-blue-700'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                 }`}
                                         >
                                             {icon}
@@ -279,38 +334,32 @@ export default function TagSearchModal({
                         <form onSubmit={handleLocationSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Location Name *
+                                    Search Location
                                 </label>
                                 <div className="relative">
                                     <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                     <input
+                                        ref={locationInputRef}
                                         type="text"
-                                        value={locationName}
                                         onChange={(e) => setLocationName(e.target.value)}
-                                        placeholder="e.g., Central Park, NYC"
+                                        placeholder="Search for a location..."
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         required
                                     />
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Address (optional)
-                                </label>
-                                <textarea
-                                    value={locationAddress}
-                                    onChange={(e) => setLocationAddress(e.target.value)}
-                                    placeholder="Full address or additional details"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                                    rows={2}
-                                />
-                            </div>
+                            {locationAddress && (
+                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Address</p>
+                                    <p className="text-sm text-gray-700">{locationAddress}</p>
+                                </div>
+                            )}
 
                             <button
                                 type="submit"
                                 disabled={!locationName.trim()}
-                                className="w-full py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                                className="w-full py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95"
                             >
                                 Add Location Tag
                             </button>

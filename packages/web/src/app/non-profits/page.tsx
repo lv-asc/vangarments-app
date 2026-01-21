@@ -6,6 +6,8 @@ import { brandApi } from '../../lib/brandApi';
 import { getImageUrl } from '../../lib/utils';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
+import EntityFilterBar from '../../components/ui/EntityFilterBar';
+import { VerifiedBadge } from '../../components/ui/VerifiedBadge';
 
 const MotionDiv = motion.div as any;
 
@@ -26,6 +28,11 @@ export default function NonProfitsDirectoryPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [filters, setFilters] = useState({
+        verificationStatus: '',
+        partnershipTier: '',
+        country: ''
+    });
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -36,7 +43,7 @@ export default function NonProfitsDirectoryPage() {
 
     useEffect(() => {
         loadNonProfits();
-    }, [debouncedSearch]);
+    }, [debouncedSearch, filters]);
 
     const loadNonProfits = async () => {
         try {
@@ -44,9 +51,12 @@ export default function NonProfitsDirectoryPage() {
             const data = await brandApi.getBrands({
                 search: debouncedSearch,
                 businessType: 'non_profit',
+                verificationStatus: filters.verificationStatus,
+                partnershipTier: filters.partnershipTier,
+                country: filters.country,
                 limit: 50
             });
-            setNonProfits(Array.isArray(data) ? data : data.brands || []);
+            setNonProfits(data);
         } catch (error) {
             console.error('Failed to load non-profits', error);
         } finally {
@@ -79,6 +89,13 @@ export default function NonProfitsDirectoryPage() {
                     </div>
                 </div>
             </div>
+
+            <EntityFilterBar
+                filters={filters}
+                onFilterChange={setFilters}
+                showTier={true}
+                showCountry={true}
+            />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 {loading ? (
@@ -155,15 +172,14 @@ function NonProfitCard({ org }: { org: any }) {
                 </div>
 
                 <div className="pt-10 pb-6 px-4 text-center flex-1 flex flex-col">
-                    <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
-                        {info.name}
-                    </h3>
-
-                    {org.verificationStatus === 'verified' && (
-                        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 mb-3 mx-auto">
-                            Verified Non-Profit
-                        </span>
-                    )}
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                            {info.name}
+                        </h3>
+                        {org.verificationStatus === 'verified' && (
+                            <VerifiedBadge size="sm" />
+                        )}
+                    </div>
 
                     <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
                         {info.description || 'Making a difference in the fashion industry.'}

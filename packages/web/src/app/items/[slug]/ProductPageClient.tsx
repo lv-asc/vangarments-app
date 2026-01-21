@@ -14,6 +14,9 @@ import { useRecentVisits } from '@/hooks/useRecentVisits';
 import { useAuth } from '@/hooks/useAuth';
 import ItemCarousel from '@/components/ui/ItemCarousel';
 import WishlistSelectionModal from '@/components/ui/WishlistSelectionModal';
+import { tagApi } from '@/lib/tagApi';
+import { ImageTagEditor } from '@/components/tagging';
+import { MediaTag } from '@vangarments/shared';
 
 interface Measurement {
     id: string;
@@ -58,6 +61,7 @@ export default function ProductPageClient() {
     const [collectionItems, setCollectionItems] = useState<any[]>([]);
     const [brandItems, setBrandItems] = useState<any[]>([]);
     const [isWishlistModalOpen, setIsWishlistModalOpen] = useState(false);
+    const [productTags, setProductTags] = useState<MediaTag[]>([]);
     const { addVisit } = useRecentVisits();
     const { user } = useAuth();
 
@@ -229,6 +233,14 @@ export default function ProductPageClient() {
                         brandSlug: bSlug,
                         visitedAt: Date.now()
                     });
+
+                    // Fetch tags for this product
+                    try {
+                        const tags = await tagApi.getTagsBySource('sku_image', matchingProduct.id);
+                        setProductTags(tags || []);
+                    } catch (e) {
+                        console.error('Failed to fetch product tags:', e);
+                    }
                 } else {
                     toast.error('Product not found');
                     router.push('/search');
@@ -353,11 +365,19 @@ export default function ProductPageClient() {
                             <div className="aspect-square rounded-lg bg-gray-100 overflow-hidden relative group">
                                 {currentImage ? (
                                     <>
-                                        <img
-                                            src={getImageUrl(currentImage.url || currentImage.imageUrl)}
-                                            alt={displayName}
-                                            className="w-full h-full object-cover cursor-pointer"
-                                            onClick={() => nextImage()}
+                                        <ImageTagEditor
+                                            imageUrl={getImageUrl(currentImage.url || currentImage.imageUrl)}
+                                            sourceType="sku_image"
+                                            sourceId={product.id}
+                                            existingTags={productTags.filter(t => {
+                                                const tagUrl = t.imageUrl;
+                                                const currentUrl = getImageUrl(currentImage.url || currentImage.imageUrl);
+                                                // Handle both /storage/... and /api/storage/... formats for safety
+                                                return tagUrl === currentUrl ||
+                                                    tagUrl.replace('/api/storage/', '/storage/') === currentUrl.replace('/api/storage/', '/storage/');
+                                            })}
+                                            readOnly={true}
+                                            className="w-full h-full"
                                         />
 
                                         {/* Carousel Navigation */}

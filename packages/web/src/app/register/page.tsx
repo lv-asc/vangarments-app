@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { EyeIcon, EyeSlashIcon, CheckIcon } from '@heroicons/react/24/outline';
@@ -11,6 +11,8 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { useNavigation } from '@/hooks/useNavigation';
 import { formatPhone } from '@/lib/masks';
+import { GoogleButton } from '@/components/auth/GoogleButton';
+import { FacebookButton } from '@/components/auth/FacebookButton';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -31,8 +33,21 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const { register } = useAuth();
   const { navigate } = useNavigation();
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+
+  useEffect(() => {
+    if (searchParams) {
+      const errorParam = searchParams.get('error');
+      if (errorParam === 'account_exists') {
+        setError('An account with this email already exists. Please log in instead.');
+      } else if (errorParam === 'account_not_found') {
+        setError('Account not found. Please register with Google/Facebook or fill the form.');
+      }
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -146,6 +161,24 @@ export default function RegisterPage() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="bg-white rounded-2xl shadow-xl p-8"
           >
+            {error && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+            <div className="mb-6 space-y-3">
+              <GoogleButton text="Sign up with Google" action="signup" />
+              <FacebookButton text="Sign up with Facebook" action="signup" />
+              <div className="relative mt-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Or sign up with email</span>
+                </div>
+              </div>
+            </div>
+
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -485,7 +518,7 @@ export default function RegisterPage() {
                 }}
                 className="font-medium text-pink-600 hover:text-pink-500"
               >
-                Faça login
+                Log in
               </Link>
             </p>
           </motion.div>

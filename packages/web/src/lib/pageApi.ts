@@ -46,8 +46,14 @@ export interface ICreatePageData {
 
 
 export const pageApi = {
-    getAll: async () => {
-        return api.get<IPage[]>('/pages');
+    getAll: async (params?: { limit?: number; page?: number; search?: string; verificationStatus?: string }) => {
+        const query = new URLSearchParams();
+        if (params?.limit) query.append('limit', params.limit.toString());
+        if (params?.page) query.append('page', params.page.toString());
+        if (params?.search) query.append('search', params.search);
+        if (params?.verificationStatus) query.append('verificationStatus', params.verificationStatus);
+
+        return api.get<{ pages: IPage[]; pagination?: { total: number; page: number; limit: number } }>(`/pages?${query.toString()}`);
     },
 
     getPage: async (idOrSlug: string) => {

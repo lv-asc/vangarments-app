@@ -119,16 +119,18 @@ class BrandApi {
     }
   }
 
-  async getBrands(params?: { limit?: number; page?: number; search?: string; businessType?: string; country?: string }): Promise<any[]> {
-    const queryParams = new URLSearchParams();
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
-    if (params?.page) queryParams.append('page', params.page.toString());
-    if (params?.search) queryParams.append('q', params.search);
-    if (params?.businessType) queryParams.append('businessType', params.businessType);
-    if (params?.country) queryParams.append('country', params.country);
+  async getBrands(params?: { limit?: number; page?: number; search?: string; businessType?: string; country?: string; verificationStatus?: string; partnershipTier?: string }): Promise<any[]> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.search) query.append('q', params.search);
+    if (params?.businessType) query.append('businessType', params.businessType);
+    if (params?.country) query.append('country', params.country);
+    if (params?.verificationStatus) query.append('verificationStatus', params.verificationStatus);
+    if (params?.partnershipTier) query.append('partnershipTier', params.partnershipTier);
 
-    const response = await apiClient.get<any>(`/brands/search?${queryParams.toString()}`);
-    return response.data?.brands || response.brands || [];
+    const response = await apiClient.get<any>(`/brands/search?${query.toString()}`);
+    return response.brands || [];
   }
 
   async getBrand(brandId: string): Promise<BrandAccount> {

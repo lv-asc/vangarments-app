@@ -22,20 +22,29 @@ export interface UserProfile {
   preferences: FashionPreferences;
   badges: Badge[];
   socialLinks: SocialLink[];
-  privacySettings?: {
-    height: boolean;
-    weight: boolean;
-    birthDate: boolean;
-    country?: boolean;
-    state?: boolean;
-    city?: boolean;
-    gender?: boolean;
-    telephone?: boolean;
-  };
+  privacySettings?: PrivacySettings;
   roles: UserRole[];
   status: 'active' | 'banned' | 'deactivated';
   verificationStatus?: 'unverified' | 'pending' | 'verified' | 'rejected';
   banExpiresAt?: Date;
+  googleId?: string;
+  facebookId?: string;
+  googleData?: {
+    email: string;
+    name: string;
+    picture: string;
+  };
+  facebookData?: {
+    email: string;
+    name: string;
+    picture: string;
+  };
+  googleSigninEnabled?: boolean;
+  facebookSigninEnabled?: boolean;
+  notificationPreferences?: {
+    showNotificationBadge: boolean;
+    showMessageBadge: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -158,6 +167,31 @@ export type UserRole =
   | 'store_owner'
   | 'fashion_designer';
 
+export type PrivacyVisibility = 'public' | 'private' | 'friends' | 'custom';
+
+export interface CustomPrivacy {
+  everyoneExcept: string[]; // List of user IDs
+  noOneExcept: string[]; // List of user IDs
+}
+
+export interface PrivacySettings {
+  height: PrivacyVisibility;
+  weight: PrivacyVisibility;
+  birthDate: PrivacyVisibility;
+  gender: PrivacyVisibility;
+  country: PrivacyVisibility;
+  state: PrivacyVisibility;
+  city: PrivacyVisibility;
+  wardrobe: PrivacyVisibility;
+  likedItems: PrivacyVisibility;
+  wishlist: PrivacyVisibility;
+  posts: PrivacyVisibility;
+  telephone: PrivacyVisibility;
+  customRules?: {
+    [key: string]: CustomPrivacy;
+  };
+}
+
 export interface Location {
   country: string;
   state: string;
@@ -194,6 +228,24 @@ export interface FashionPreferences {
     min: number;
     max: number;
   };
+  theme?: 'light' | 'dark' | 'auto';
+  language?: string;
+  currency?: string;
+  display?: {
+    itemsPerPage: number;
+    defaultView: string;
+    showPrices: boolean;
+    showBrands: boolean;
+    compactMode: boolean;
+  };
+  ai?: {
+    autoTagging: boolean;
+    backgroundRemoval: boolean;
+    outfitSuggestions: boolean;
+    styleAnalysis: boolean;
+    confidenceThreshold: number;
+  };
+  updatedAt?: string;
 }
 
 export interface Material {
