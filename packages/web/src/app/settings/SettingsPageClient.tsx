@@ -24,7 +24,6 @@ import { AppPreferences } from '@/components/profile/AppPreferences';
 import { PrivacySettings } from '@/components/profile/PrivacySettings';
 import { useEffect } from 'react';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { useAuth as useGlobalAuth } from '@/contexts/AuthContext';
 
 export default function SettingsPage() {
     const { user, isAuthenticated, logout, refreshAuth, disconnectOAuth, updateProfile } = useAuth();
@@ -60,7 +59,7 @@ export default function SettingsPage() {
             toast.error('Failed to connect account.');
             router.replace('/settings');
         }
-    }, [searchParams]);
+    }, [searchParams, refreshAuth, router]);
 
     // Auto-sync if googleId exists but googleData is missing
     useEffect(() => {
@@ -80,12 +79,11 @@ export default function SettingsPage() {
         if (isAuthenticated) {
             refreshAuth();
         }
-    }, [activeTab]);
+    }, [activeTab, isAuthenticated, refreshAuth]);
 
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-gray-50">
-
                 <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
                         <h1 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h1>
@@ -106,8 +104,6 @@ export default function SettingsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
-
-
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center space-x-4">
@@ -205,6 +201,23 @@ export default function SettingsPage() {
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user.googleData?.name || 'Google User'}</p>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.googleData?.email}</p>
+
+                                                    <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-gray-900 dark:text-white">Allow Log In with Google Account</p>
+                                                            <p className="text-xs text-gray-500">Enable sign-in via Google.</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => updateProfile({ googleSigninEnabled: !user.googleSigninEnabled })}
+                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${user.googleSigninEnabled !== false ? 'bg-[#00132d]' : 'bg-gray-200 dark:bg-gray-700'
+                                                                }`}
+                                                        >
+                                                            <span
+                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.googleSigninEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+                                                                    }`}
+                                                            />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <Button
                                                     variant="ghost"
@@ -267,6 +280,23 @@ export default function SettingsPage() {
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user.facebookData?.name || 'Facebook User'}</p>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.facebookData?.email}</p>
+
+                                                    <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-gray-900 dark:text-white">Allow Log In with Facebook Account</p>
+                                                            <p className="text-xs text-gray-500">Enable sign-in via Facebook.</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => updateProfile({ facebookSigninEnabled: !user.facebookSigninEnabled })}
+                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${user.facebookSigninEnabled !== false ? 'bg-[#1877F2]' : 'bg-gray-200 dark:bg-gray-700'
+                                                                }`}
+                                                        >
+                                                            <span
+                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.facebookSigninEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+                                                                    }`}
+                                                            />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <Button
                                                     variant="ghost"
