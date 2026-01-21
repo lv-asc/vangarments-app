@@ -29,6 +29,21 @@ export function AppPreferences() {
         }
     });
 
+    // Sync local state when user data loads or changes
+    useEffect(() => {
+        if (user?.preferences) {
+            setPrefs({
+                language: user.preferences.language ?? 'en-US',
+                currency: user.preferences.currency ?? 'USD',
+                theme: user.preferences.theme ?? 'auto',
+                display: {
+                    itemsPerPage: user.preferences.display?.itemsPerPage ?? 20,
+                    defaultView: user.preferences.display?.defaultView ?? 'grid'
+                }
+            });
+        }
+    }, [user]);
+
     const languages = [
         { code: 'en-US', name: 'English (US)' },
         { code: 'pt-BR', name: 'Português (Brasil)' },
@@ -57,7 +72,6 @@ export function AppPreferences() {
                     ...prefs
                 }
             });
-            setTheme(prefs.theme as any);
             toast.success('Preferences saved successfully');
         } catch (error) {
             toast.error('Failed to save preferences');
@@ -81,13 +95,18 @@ export function AppPreferences() {
                         return (
                             <button
                                 key={t.value}
-                                onClick={() => setPrefs({ ...prefs, theme: t.value })}
+                                onClick={() => {
+                                    setPrefs({ ...prefs, theme: t.value });
+                                    setTheme(t.value as any); // Instant preview
+                                }}
                                 className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all ${isActive
-                                    ? 'bg-[#00132d] border-[#00132d] text-white shadow-md'
-                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-400'
+                                    ? t.value === 'dark'
+                                        ? 'bg-[#00132d] border-[#00132d] text-white shadow-md'
+                                        : 'bg-[#fff7d7] border-[#00132d] text-[#00132d] shadow-md'
+                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-[#00132d]'
                                     }`}
                             >
-                                <Icon className={`h-6 w-6 mb-2 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                                <Icon className={`h-6 w-6 mb-2 ${isActive ? t.value === 'dark' ? 'text-white' : 'text-[#00132d]' : 'text-gray-400'}`} />
                                 <span className="text-sm font-medium">{t.name}</span>
                             </button>
                         );
