@@ -51,6 +51,7 @@ import accountRoutes from './accounts';
 import likesRoutes from './likes';
 import wishlistRoutes from './wishlists';
 import silhouetteRoutes from './silhouettes';
+import googleCalendarRoutes from './googleCalendarRoutes';
 
 const router = Router();
 
@@ -105,6 +106,7 @@ router.use('/accounts', accountRoutes); // Account switching system
 router.use('/likes', likesRoutes); // User likes system
 router.use('/wishlists', wishlistRoutes); // User wishlist system
 router.use('/silhouettes', silhouetteRoutes); // Brand silhouettes system
+router.use('/google-calendar', googleCalendarRoutes); // Google Calendar integration
 
 // Health check for API
 router.get('/health', (req, res) => {

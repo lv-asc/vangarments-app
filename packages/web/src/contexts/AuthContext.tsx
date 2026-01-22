@@ -47,11 +47,16 @@ interface User {
     email: string;
     name: string;
     picture: string;
+    gender?: string;
+    birthday?: any;
+    phone?: string;
   };
   facebookData?: {
     email: string;
     name: string;
     picture: string;
+    gender?: string;
+    birthday?: string;
   };
   googleSigninEnabled?: boolean;
   facebookSigninEnabled?: boolean;
@@ -235,6 +240,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const { user: newUser, token } = await apiClient.register(userData);
+
+      if (newUser.emailVerified === false) {
+        toast.success('Cadastro realizado! Verifique seu email para ativar a conta.');
+        return;
+      }
 
       setUser(newUser);
       toast.success('Conta criada com sucesso! Bem-vinda ao Vangarments!');

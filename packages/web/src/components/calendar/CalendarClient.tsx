@@ -26,6 +26,7 @@ import {
     MagnifyingGlassIcon,
     GlobeAmericasIcon
 } from '@heroicons/react/24/outline';
+import { PlusIcon as CalendarPlusIcon } from '@heroicons/react/24/solid';
 import { COUNTRIES } from '@/lib/constants';
 import {
     calendarApi,
@@ -33,6 +34,8 @@ import {
     CalendarEventType,
     EVENT_TYPE_LABELS,
     EVENT_TYPE_COLORS,
+    googleCalendarApi,
+    generateGoogleCalendarUrl,
 } from '@/lib/calendarApi';
 import { useAuth } from '@/contexts/AuthWrapper';
 
@@ -412,6 +415,8 @@ export function CalendarClient() {
                 onClose={() => setSelectedEvent(null)}
                 isSubscribed={selectedEvent ? subscriptions.includes(selectedEvent.id) : false}
                 onSubscribe={handleSubscribe}
+                token={token}
+                isAuthenticated={isAuthenticated}
             />
         </div>
     );
@@ -734,14 +739,21 @@ function EventDetailModal({
     isOpen,
     onClose,
     isSubscribed,
-    onSubscribe
+    onSubscribe,
+    token,
+    isAuthenticated
 }: {
     event: CalendarEvent | null;
     isOpen: boolean;
     onClose: () => void;
     isSubscribed: boolean;
     onSubscribe: (id: string) => void;
+    token: string | null;
+    isAuthenticated: boolean;
 }) {
+    const [isAddingToCalendar, setIsAddingToCalendar] = useState(false);
+    const [calendarMessage, setCalendarMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
     if (!event) return null;
 
     const Icon = EVENT_TYPE_ICONS[event.eventType] || TagIcon;
@@ -753,6 +765,51 @@ function EventDetailModal({
     });
 
     const allImages = event.images || (event.imageUrl ? [{ url: event.imageUrl, isPrimary: true }] : []);
+
+    const handleAddToGoogleCalendar = async () => {
+        if (!event) return;
+
+        setIsAddingToCalendar(true);
+        setCalendarMessage(null);
+
+        // If user is authenticated and has token, try API method first
+        if (isAuthenticated && token) {
+            try {
+                const result = await googleCalendarApi.addEvent(event.id, token);
+
+                if (result.success) {
+                    setCalendarMessage({ type: 'success', text: 'Event added to Google Calendar!' });
+                    // Auto-clear message after 3 seconds
+                    setTimeout(() => setCalendarMessage(null), 3000);
+                    setIsAddingToCalendar(false);
+                    return;
+                }
+
+                // If calendar not connected, fall back to URL method
+                if (result.code === 'CALENDAR_NOT_CONNECTED') {
+                    // Open Google Calendar URL
+                    const url = generateGoogleCalendarUrl(event);
+                    window.open(url, '_blank');
+                    setIsAddingToCalendar(false);
+                    return;
+                }
+
+                // Show error
+                setCalendarMessage({ type: 'error', text: result.error || 'Failed to add event' });
+            } catch (error) {
+                console.error('Error adding to Google Calendar:', error);
+                // Fall back to URL method
+                const url = generateGoogleCalendarUrl(event);
+                window.open(url, '_blank');
+            }
+        } else {
+            // Not authenticated - use direct URL method
+            const url = generateGoogleCalendarUrl(event);
+            window.open(url, '_blank');
+        }
+
+        setIsAddingToCalendar(false);
+    };
 
     return (
         <AnimatePresence>
@@ -931,37 +988,63 @@ function EventDetailModal({
                             </div>
 
                             {/* Actions */}
-                            <div className="flex items-center gap-3 mt-auto pt-6 border-t border-border">
-                                <button
-                                    onClick={() => onSubscribe(event.id)}
-                                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${isSubscribed
-                                        ? 'bg-muted text-foreground hover:bg-muted/80'
-                                        : 'bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20'
-                                        }`}
-                                >
-                                    {isSubscribed ? (
-                                        <>
-                                            <BellSlashIcon className="h-5 w-5" />
-                                            Subscribed
-                                        </>
-                                    ) : (
-                                        <>
-                                            <BellIcon className="h-5 w-5" />
-                                            Notify Me
-                                        </>
-                                    )}
-                                </button>
-                                {event.externalUrl && (
-                                    <a
-                                        href={event.externalUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-colors border border-border"
-                                        title="Official Link"
-                                    >
-                                        <LinkIcon className="h-5 w-5" />
-                                    </a>
+                            <div className="flex flex-col gap-3 mt-auto pt-6 border-t border-border">
+                                {/* Calendar message */}
+                                {calendarMessage && (
+                                    <div className={`px-4 py-2 rounded-lg text-sm font-medium text-center ${calendarMessage.type === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                        {calendarMessage.text}
+                                    </div>
                                 )}
+
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => onSubscribe(event.id)}
+                                        className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${isSubscribed
+                                            ? 'bg-muted text-foreground hover:bg-muted/80'
+                                            : 'bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20'
+                                            }`}
+                                    >
+                                        {isSubscribed ? (
+                                            <>
+                                                <BellSlashIcon className="h-5 w-5" />
+                                                Subscribed
+                                            </>
+                                        ) : (
+                                            <>
+                                                <BellIcon className="h-5 w-5" />
+                                                Notify Me
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Add to Google Calendar Button */}
+                                    <button
+                                        onClick={handleAddToGoogleCalendar}
+                                        disabled={isAddingToCalendar}
+                                        className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-colors border border-border disabled:opacity-50 group"
+                                        title="Add to Google Calendar"
+                                    >
+                                        {isAddingToCalendar ? (
+                                            <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <div className="bg-white rounded-full p-0.5">
+                                                <img src="/icons/google-calendar.png" alt="Google Calendar" className="h-4 w-4 object-contain" />
+                                            </div>
+                                        )}
+                                    </button>
+
+                                    {event.externalUrl && (
+                                        <a
+                                            href={event.externalUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-colors border border-border"
+                                            title="Official Link"
+                                        >
+                                            <LinkIcon className="h-5 w-5" />
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </motion.div>

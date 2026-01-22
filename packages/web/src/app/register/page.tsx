@@ -87,6 +87,9 @@ export default function RegisterPage() {
 
     setIsLoading(true);
 
+    const [isSuccess, setIsSuccess] = useState(false);
+
+    // ... (inside handleSubmit after register call)
     try {
       await register({
         name: formData.name,
@@ -101,12 +104,34 @@ export default function RegisterPage() {
         genderOther: formData.genderOther,
         bodyType: formData.bodyType as any,
       });
+      setIsSuccess(true);
     } catch (error) {
       // Error is handled by the useAuth hook
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-[#fff7d7] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
+            <CheckIcon className="h-10 w-10 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful!</h2>
+          <p className="text-gray-600 mb-6">
+            Please check your email ({formData.email}) to verify your account before logging in.
+          </p>
+          <Link href="/login">
+            <Button className="w-full">
+              Go to Login
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const passwordStrength = (password: string) => {
     let strength = 0;

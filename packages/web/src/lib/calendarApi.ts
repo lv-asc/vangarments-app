@@ -311,3 +311,110 @@ export const EVENT_TYPE_COLORS: Record<CalendarEventType, string> = {
     award: 'bg-yellow-500',
     media_release: 'bg-green-500',
 };
+
+// ============================================
+// Google Calendar Integration
+// ============================================
+
+// Check if user has Google Calendar connected
+export async function getGoogleCalendarStatus(token: string): Promise<{ connected: boolean; email?: string }> {
+    const response = await fetch(`${API_BASE_URL}/google-calendar/status`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    const data = await response.json();
+
+    if (!data.success) {
+        return { connected: false };
+    }
+
+    return data.data;
+}
+
+// Add event to Google Calendar via API
+export async function addToGoogleCalendar(eventId: string, token: string): Promise<{
+    success: boolean;
+    googleEventUrl?: string;
+    error?: string;
+    code?: string;
+}> {
+    const response = await fetch(`${API_BASE_URL}/google-calendar/add-event`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ eventId }),
+    });
+    const data = await response.json();
+
+    if (!data.success) {
+        return {
+            success: false,
+            error: data.error,
+            code: data.code,
+        };
+    }
+
+    return {
+        success: true,
+        googleEventUrl: data.data.googleEventUrl,
+    };
+}
+
+// Generate Google Calendar URL (fallback method - no OAuth needed)
+export function generateGoogleCalendarUrl(event: CalendarEvent): string {
+    const eventDate = new Date(event.eventDate);
+
+    // Build description
+    let description = event.description || '';
+    if (event.externalUrl) {
+        description += `\n\nMore info: ${event.externalUrl}`;
+    }
+    description += '\n\n—\nFrom Vangarments Calendar';
+
+    // Format dates
+    let dates: string;
+    if (event.eventTime) {
+        // Event with specific time
+        const [hours, minutes] = event.eventTime.split(':').map(Number);
+        eventDate.setHours(hours, minutes, 0, 0);
+
+        // End time: either endDate or 2 hours later
+        const endDate = event.endDate
+            ? new Date(event.endDate)
+            : new Date(eventDate.getTime() + 2 * 60 * 60 * 1000);
+
+        const formatDateTime = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        dates = `${formatDateTime(eventDate)}/${formatDateTime(endDate)}`;
+    } else {
+        // All-day event
+        const formatDate = (d: Date) => d.toISOString().split('T')[0].replace(/-/g, '');
+        const endDate = event.endDate
+            ? new Date(event.endDate)
+            : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+        dates = `${formatDate(eventDate)}/${formatDate(endDate)}`;
+    }
+
+    const params = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: event.title,
+        dates,
+        details: description.trim(),
+    });
+
+    if (event.location) {
+        params.append('location', event.location);
+    }
+
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// Updated calendarApi object with Google Calendar functions
+export const googleCalendarApi = {
+    getStatus: getGoogleCalendarStatus,
+    addEvent: addToGoogleCalendar,
+    generateUrl: generateGoogleCalendarUrl,
+};
+

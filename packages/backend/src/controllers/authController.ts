@@ -9,6 +9,8 @@ import { SupplierModel } from '../models/Supplier';
 import { PageModel } from '../models/Page';
 import { SocialPostModel } from '../models/SocialPost';
 import { BrandTeamModel } from '../models/BrandTeam';
+import { mailService } from '../services/MailService';
+import { v4 as uuidv4 } from 'uuid';
 
 export class AuthController {
     static async register(req: Request, res: Response) {
@@ -82,6 +84,10 @@ export class AuthController {
             // Hash password
             const passwordHash = await AuthUtils.hashPassword(password);
 
+            // Generate verification token
+            const emailVerificationToken = uuidv4();
+            const emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
             // Create user
             const user = await UserModel.create({
                 cpf: cleanCPF,
@@ -94,10 +100,21 @@ export class AuthController {
                 bodyType,
                 username,
                 telephone,
+                emailVerified: false,
+                emailVerificationToken,
+                emailVerificationExpiresAt
             });
 
             // Add default consumer role
             await UserModel.addRole(user.id, 'consumer');
+
+            // Send verification email
+            try {
+                await mailService.sendVerificationEmail(user.email, emailVerificationToken);
+            } catch (emailError) {
+                console.error('Failed to send verification email:', emailError);
+                // Continue registration, user can resend later
+            }
 
             // Generate JWT token
             const token = AuthUtils.generateToken({
@@ -146,6 +163,16 @@ export class AuthController {
                     error: {
                         code: 'INVALID_CREDENTIALS',
                         message: 'Invalid email or password',
+                    },
+                });
+            }
+
+            // Check if email is verified
+            if (!user.emailVerified) {
+                return res.status(403).json({
+                    error: {
+                        code: 'EMAIL_NOT_VERIFIED',
+                        message: 'Please verify your email address before logging in.',
                     },
                 });
             }
@@ -577,6 +604,107 @@ export class AuthController {
                 error: {
                     code: 'INTERNAL_SERVER_ERROR',
                     message: 'An error occurred while retrieving admin users',
+                },
+            });
+        }
+    }
+
+    static async verifyEmail(req: Request, res: Response) {
+        try {
+            const { token } = req.body;
+
+            if (!token) {
+                return res.status(400).json({
+                    error: {
+                        code: 'MISSING_TOKEN',
+                        message: 'Verification token is required',
+                    },
+                });
+            }
+
+            const user = await UserModel.findByVerificationToken(token);
+            if (!user) {
+                return res.status(400).json({
+                    error: {
+                        code: 'INVALID_TOKEN',
+                        message: 'Invalid or expired verification token',
+                    },
+                });
+            }
+
+            // Check if token expired
+            if ((user as any).emailVerificationExpiresAt && new Date((user as any).emailVerificationExpiresAt) < new Date()) {
+                return res.status(400).json({
+                    error: {
+                        code: 'TOKEN_EXPIRED',
+                        message: 'Verification token has expired',
+                    },
+                });
+            }
+
+            await UserModel.verifyEmail(user.id);
+
+            res.json({
+                message: 'Email verified successfully',
+            });
+        } catch (error) {
+            console.error('Verify email error:', error);
+            res.status(500).json({
+                error: {
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'An error occurred during email verification',
+                },
+            });
+        }
+    }
+
+    static async resendVerification(req: Request, res: Response) {
+        try {
+            const { email } = req.body;
+
+            if (!email) {
+                return res.status(400).json({
+                    error: {
+                        code: 'MISSING_EMAIL',
+                        message: 'Email is required',
+                    },
+                });
+            }
+
+            const user = await UserModel.findByEmail(email);
+            if (!user) {
+                return res.status(404).json({
+                    error: {
+                        code: 'USER_NOT_FOUND',
+                        message: 'User not found',
+                    },
+                });
+            }
+
+            if (user.emailVerified) {
+                return res.status(400).json({
+                    error: {
+                        code: 'ALREADY_VERIFIED',
+                        message: 'Email is already verified',
+                    },
+                });
+            }
+
+            const token = uuidv4();
+            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+            await UserModel.updateVerificationToken(user.id, token, expiresAt);
+            await mailService.sendVerificationEmail(user.email, token);
+
+            res.json({
+                message: 'Verification email sent successfully',
+            });
+        } catch (error) {
+            console.error('Resend verification error:', error);
+            res.status(500).json({
+                error: {
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'An error occurred while sending verification email',
                 },
             });
         }

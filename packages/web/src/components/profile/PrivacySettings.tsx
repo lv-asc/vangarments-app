@@ -101,8 +101,36 @@ export function PrivacySettings() {
     setExpandedField(null);
   };
 
+  const updateAllVisibility = (visibility: PrivacyVisibility) => {
+    setSettings(prev => {
+      const newSettings = { ...prev };
+      PRIVACY_FIELDS.forEach(field => {
+        newSettings[field.key as keyof PrivacySettingsType] = visibility as any;
+      });
+      return newSettings;
+    });
+    toast.success(`All fields set to ${visibility}`);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Bulk Update Section */}
+      <div className="bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl p-4 mb-6">
+        <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-3">Bulk Privacy Update</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {VISIBILITY_OPTIONS.filter(opt => opt.value !== 'custom').map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => updateAllVisibility(opt.value)}
+              className="flex items-center justify-center space-x-2 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:border-blue-400 dark:hover:border-blue-500 transition-colors shadow-sm"
+            >
+              <opt.icon className="w-3.5 h-3.5" />
+              <span>Set all to {opt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4">
         {PRIVACY_FIELDS.map((field) => {
           const currentVisibility = settings[field.key as keyof PrivacySettingsType] as PrivacyVisibility;

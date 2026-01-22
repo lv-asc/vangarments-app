@@ -14,9 +14,9 @@ export class SimpleOAuthController {
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(process.env.GOOGLE_CALLBACK_URL || '')}&` +
       `response_type=code&` +
-      `scope=email profile&` +
+      `scope=${encodeURIComponent('email profile openid https://www.googleapis.com/auth/user.birthday.read https://www.googleapis.com/auth/user.gender.read https://www.googleapis.com/auth/user.phonenumbers.read https://www.googleapis.com/auth/calendar')}&` +
       `state=${action}&` +
-      `prompt=select_account&` +
+      `prompt=consent&` +
       `access_type=offline`;
 
     res.redirect(googleAuthUrl);
@@ -63,9 +63,56 @@ export class SimpleOAuthController {
 
       const googleUser = await userResponse.json();
 
+      // Fetch extended info from People API
+      let extendedInfo: any = {};
+      try {
+        const peopleResponse = await fetch('https://people.googleapis.com/v1/people/me?personFields=birthdays,genders,phoneNumbers', {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+          },
+        });
+        extendedInfo = await peopleResponse.json();
+      } catch (e) {
+        console.error('Error fetching extended Google info:', e);
+      }
+
       if (!googleUser.email || !googleUser.id) {
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_email`);
       }
+
+      const birthDate = extendedInfo.birthdays?.[0]?.date;
+      const gender = extendedInfo.genders?.[0]?.value;
+      const phone = extendedInfo.phoneNumbers?.[0]?.value;
+
+      const formattedBirthDate = birthDate ? new Date(birthDate.year || 2000, (birthDate.month || 1) - 1, birthDate.day || 1) : null;
+
+      const syncData = {
+        googleId: googleUser.id,
+        googleData: {
+          email: googleUser.email,
+          name: googleUser.name,
+          picture: googleUser.picture,
+          gender,
+          birthday: birthDate,
+          phone,
+          // Store tokens for Google Calendar API access
+          calendarAccessToken: tokenData.access_token,
+          calendarRefreshToken: tokenData.refresh_token,
+          calendarTokenExpiry: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null
+        }
+      };
+
+      const newUserData = {
+        ...syncData,
+        name: googleUser.name,
+        profile: {
+          avatarUrl: googleUser.picture,
+          ...(formattedBirthDate && { birthDate: formattedBirthDate }),
+          ...(gender && { gender: gender === 'male' || gender === 'female' ? gender : 'other' }),
+          ...(gender === 'other' || (gender && gender !== 'male' && gender !== 'female') ? { genderOther: gender } : {}),
+          ...(phone && { telephone: phone })
+        }
+      };
 
       // 1. Try to find by Google ID first
       let user = await UserModel.findByGoogleId(googleUser.id);
@@ -80,15 +127,11 @@ export class SimpleOAuthController {
 
         if (user) {
           // Link existing user to Google ID and data
-          await UserModel.update(user.id, {
-            googleId: googleUser.id,
-            googleData: {
-              email: googleUser.email,
-              name: googleUser.name,
-              picture: googleUser.picture
-            }
-          });
+          await UserModel.update(user.id, syncData);
         }
+      } else {
+        // ALWAYS Update existing user with latest Google data on login
+        await UserModel.update(user.id, syncData);
       }
 
       // Handle action specific logic
@@ -107,16 +150,14 @@ export class SimpleOAuthController {
         user = await UserModel.create({
           email: googleUser.email,
           name: googleUser.name || 'Google User',
-          birthDate: new Date(), // Will be updated during onboarding
-          gender: 'not_specified', // Will be updated during onboarding
+          birthDate: formattedBirthDate || new Date(),
+          gender: gender === 'male' || gender === 'female' ? gender : 'not_specified',
+          genderOther: gender === 'other' || (gender && gender !== 'male' && gender !== 'female') ? gender : undefined,
           username: googleUser.email.split('@')[0] + Math.floor(Math.random() * 1000), // Temp username
-          telephone: '', // Will be updated during onboarding
+          telephone: phone || '',
           googleId: googleUser.id,
-          googleData: {
-            email: googleUser.email,
-            name: googleUser.name,
-            picture: googleUser.picture
-          }
+          googleData: syncData.googleData,
+          emailVerified: true
         });
 
         // Add default consumer role
@@ -157,7 +198,8 @@ export class SimpleOAuthController {
       `redirect_uri=${encodeURIComponent(process.env.FACEBOOK_CALLBACK_URL || '')}&` +
       `response_type=code&` +
       `state=${action}&` +
-      `scope=email`;
+      `scope=email,user_birthday,user_gender&` +
+      `auth_type=reauthenticate,rerequest`;
 
     res.redirect(facebookAuthUrl);
   }
@@ -194,12 +236,36 @@ export class SimpleOAuthController {
       }
 
       // Get user info from Facebook
-      const userResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email&access_token=${tokenData.access_token}`);
+      const userResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email,birthday,gender,picture.type(large)&access_token=${tokenData.access_token}`);
       const facebookUser = await userResponse.json();
 
       if (!facebookUser.email) {
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_email`);
       }
+
+      const formattedBirthDate = facebookUser.birthday ? new Date(facebookUser.birthday) : null;
+
+      const syncData = {
+        facebookId: facebookUser.id,
+        facebookData: {
+          email: facebookUser.email,
+          name: facebookUser.name,
+          picture: facebookUser.picture?.data?.url,
+          birthday: facebookUser.birthday,
+          gender: facebookUser.gender
+        }
+      };
+
+      const newUserData = {
+        ...syncData,
+        name: facebookUser.name,
+        profile: {
+          avatarUrl: facebookUser.picture?.data?.url,
+          ...(formattedBirthDate && { birthDate: formattedBirthDate }),
+          ...(facebookUser.gender && { gender: facebookUser.gender === 'male' || facebookUser.gender === 'female' ? facebookUser.gender : 'other' }),
+          ...(facebookUser.gender === 'other' || (facebookUser.gender && facebookUser.gender !== 'male' && facebookUser.gender !== 'female') ? { genderOther: facebookUser.gender } : {})
+        }
+      };
 
       // Check if user exists
       let user = await UserModel.findByEmail(facebookUser.email);
@@ -217,31 +283,36 @@ export class SimpleOAuthController {
 
       if (!user) {
         // Create new user with OAuth data
-        // Create new user with OAuth data
         user = await UserModel.create({
           email: facebookUser.email,
           name: facebookUser.name || 'Facebook User',
-          birthDate: new Date(), // Will be updated during onboarding
-          gender: 'not_specified', // Will be updated during onboarding
-          username: facebookUser.email.split('@')[0] + Math.floor(Math.random() * 1000), // Temp username
-          telephone: '', // Will be updated during onboarding
+          birthDate: formattedBirthDate || new Date(),
+          gender: facebookUser.gender || 'not_specified',
+          username: facebookUser.email.split('@')[0] + Math.floor(Math.random() * 1000),
+          telephone: '',
+          facebookId: facebookUser.id,
+          facebookData: syncData.facebookData,
+          emailVerified: true
         });
 
         // Add default consumer role
         await UserModel.addRole(user.id, 'consumer');
+      } else {
+        // Update existing user with latest data
+        user = await UserModel.update(user.id, syncData) as any;
       }
 
       // Generate JWT token
-      const roles = await UserModel.getUserRoles(user.id);
+      const roles = await UserModel.getUserRoles(user!.id);
       const token = AuthUtils.generateToken({
-        id: user.id,
-        userId: user.id,
-        email: user.email,
+        id: user!.id,
+        userId: user!.id,
+        email: user!.email,
         roles,
       });
 
       // Check if user needs onboarding
-      const needsOnboarding = !user.cpf || !user.personalInfo.birthDate;
+      const needsOnboarding = !user!.cpf || !user!.personalInfo.birthDate;
 
       const redirectUrl = needsOnboarding
         ? `${process.env.FRONTEND_URL}/onboarding?token=${token}&provider=facebook`
@@ -274,8 +345,9 @@ export class SimpleOAuthController {
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(process.env.GOOGLE_CALLBACK_URL?.replace('/callback', '/connect/callback') || '')}&` +
       `response_type=code&` +
-      `scope=email profile&` +
+      `scope=${encodeURIComponent('email profile openid https://www.googleapis.com/auth/user.birthday.read https://www.googleapis.com/auth/user.gender.read https://www.googleapis.com/auth/user.phonenumbers.read https://www.googleapis.com/auth/calendar')}&` +
       `state=${state}&` +
+      `prompt=consent&` +
       `access_type=offline`;
 
     res.redirect(googleAuthUrl);
@@ -322,9 +394,44 @@ export class SimpleOAuthController {
 
       const googleUser = await userResponse.json();
 
+      // Fetch extended info from People API
+      let extendedInfo: any = {};
+      try {
+        const peopleResponse = await fetch('https://people.googleapis.com/v1/people/me?personFields=birthdays,genders,phoneNumbers', {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+          },
+        });
+        extendedInfo = await peopleResponse.json();
+      } catch (e) {
+        console.error('Error fetching extended Google info:', e);
+      }
+
       if (!googleUser.id) {
         return res.redirect(`${process.env.FRONTEND_URL}/settings?error=no_google_id`);
       }
+
+      const birthDate = extendedInfo.birthdays?.[0]?.date;
+      const gender = extendedInfo.genders?.[0]?.value;
+      const phone = extendedInfo.phoneNumbers?.[0]?.value;
+
+      const formattedBirthDate = birthDate ? new Date(birthDate.year || 2000, (birthDate.month || 1) - 1, birthDate.day || 1) : null;
+
+      const syncData = {
+        googleId: googleUser.id,
+        googleData: {
+          email: googleUser.email,
+          name: googleUser.name,
+          picture: googleUser.picture,
+          gender,
+          birthday: birthDate,
+          phone,
+          // Store tokens for Google Calendar API access
+          calendarAccessToken: tokenData.access_token,
+          calendarRefreshToken: tokenData.refresh_token,
+          calendarTokenExpiry: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null
+        }
+      };
 
       // Check if this Google ID is already used by another user
       const existingUser = await UserModel.findByGoogleId(googleUser.id);
@@ -333,14 +440,7 @@ export class SimpleOAuthController {
       }
 
       // Link Google ID and data to user
-      await UserModel.update(userId as string, {
-        googleId: googleUser.id,
-        googleData: {
-          email: googleUser.email,
-          name: googleUser.name,
-          picture: googleUser.picture
-        }
-      });
+      await UserModel.update(userId as string, syncData);
 
       res.redirect(`${process.env.FRONTEND_URL}/settings?success=google_connected`);
     } catch (error) {
@@ -366,7 +466,8 @@ export class SimpleOAuthController {
       `redirect_uri=${encodeURIComponent(process.env.FACEBOOK_CALLBACK_URL?.replace('/callback', '/connect/callback') || '')}&` +
       `response_type=code&` +
       `state=${state}&` +
-      `scope=email`;
+      `scope=email,user_birthday,user_gender&` +
+      `auth_type=reauthenticate,rerequest`;
 
     console.log('Redirecting to Facebook:', facebookAuthUrl);
     res.redirect(facebookAuthUrl);
@@ -406,7 +507,7 @@ export class SimpleOAuthController {
       }
 
       // Get user info from Facebook
-      const userResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=${tokenData.access_token}`);
+      const userResponse = await fetch(`https://graph.facebook.com/me?fields=id,name,email,birthday,gender,picture.type(large)&access_token=${tokenData.access_token}`);
       const facebookUser = await userResponse.json();
 
       if (!facebookUser.id) {
@@ -419,15 +520,21 @@ export class SimpleOAuthController {
         return res.redirect(`${process.env.FRONTEND_URL}/settings?error=facebook_id_taken`);
       }
 
-      // Link Facebook ID and data to user
-      await UserModel.update(userId as string, {
+      const formattedBirthDate = facebookUser.birthday ? new Date(facebookUser.birthday) : null;
+
+      const syncData = {
         facebookId: facebookUser.id,
         facebookData: {
           email: facebookUser.email,
           name: facebookUser.name,
-          picture: facebookUser.picture?.data?.url
+          picture: facebookUser.picture?.data?.url,
+          birthday: facebookUser.birthday,
+          gender: facebookUser.gender
         }
-      });
+      };
+
+      // Link Facebook ID and data to user
+      await UserModel.update(userId as string, syncData);
 
       res.redirect(`${process.env.FRONTEND_URL}/settings?success=facebook_connected`);
     } catch (error) {

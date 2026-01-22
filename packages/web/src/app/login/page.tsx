@@ -14,6 +14,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const { login } = useAuth();
   const { navigate } = useNavigation();
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -42,10 +44,41 @@ export default function LoginPage() {
 
       await login(email, password);
       await navigate('/wardrobe');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+    } catch (err: any) {
+      if (err.message && err.message.includes('verify your email')) {
+        setNeedsVerification(true);
+        setError('Email not verified. Please check your inbox or resend the verification email.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Login failed');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+      const response = await fetch(`${apiUrl}/auth/resend-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to resend verification email');
+      }
+
+      alert('Verification email sent! Please check your inbox.');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -92,7 +125,16 @@ export default function LoginPage() {
               animate={{ opacity: 1, scale: 1 }}
               className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"
             >
-              {error}
+              <p>{error}</p>
+              {needsVerification && (
+                <button
+                  onClick={handleResendVerification}
+                  disabled={resendLoading}
+                  className="mt-2 text-xs font-semibold underline hover:text-red-900 disabled:opacity-50"
+                >
+                  {resendLoading ? 'Sending...' : 'Resend Verification Email'}
+                </button>
+              )}
             </motion.div>
           )}
 

@@ -1,36 +1,37 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthWrapper';
 import { Button } from '@/components/ui/Button';
 import {
     UserIcon,
-    BellIcon,
     ShieldCheckIcon,
     ArrowLeftIcon,
-    BuildingOffice2Icon,
     SparklesIcon,
-    BuildingStorefrontIcon,
-    DocumentTextIcon,
-    TruckIcon,
-    NewspaperIcon,
-    LockClosedIcon
+    LockClosedIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { ProfileSettings } from '@/components/profile/AccountPreferences';
 import { AppPreferences } from '@/components/profile/AppPreferences';
 import { PrivacySettings } from '@/components/profile/PrivacySettings';
-import { useEffect } from 'react';
+import { EmailStatus } from '@/components/profile/EmailStatus';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { SyncProfileModal } from '@/components/profile/SyncProfileModal';
 
 export default function SettingsPage() {
     const { user, isAuthenticated, logout, refreshAuth, disconnectOAuth, updateProfile } = useAuth();
-    const [activeTab, setActiveTab] = useState('profile');
+    const [activeTab, setActiveTab] = useState('account');
     const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
     const [disconnectProvider, setDisconnectProvider] = useState<'google' | 'facebook' | null>(null);
     const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+    // Sync Modal State
+    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+    const [syncProvider, setSyncProvider] = useState<'google' | 'facebook' | null>(null);
+    const [isSyncing, setIsSyncing] = useState(false);
+
     const searchParams = useSearchParams();
     const router = useRouter();
 
@@ -63,7 +64,7 @@ export default function SettingsPage() {
 
     // Auto-sync if googleId exists but googleData is missing
     useEffect(() => {
-        if (activeTab === 'connections' && user?.googleId && !user?.googleData) {
+        if (activeTab === 'account' && user?.googleId && !user?.googleData) {
             // Only auto-sync if we haven't tried in this session to avoid loops
             const hasAttemptedSync = sessionStorage.getItem('google_sync_attempted');
             if (!hasAttemptedSync) {
@@ -96,9 +97,8 @@ export default function SettingsPage() {
     }
 
     const tabs = [
-        { id: 'profile', name: 'Profile', icon: UserIcon },
+        { id: 'account', name: 'Account & Security', icon: LockClosedIcon },
         { id: 'preferences', name: 'Preferences', icon: SparklesIcon },
-        { id: 'connections', name: 'Connected Accounts', icon: LockClosedIcon },
         { id: 'privacy', name: 'Privacy', icon: ShieldCheckIcon },
     ];
 
@@ -150,10 +150,282 @@ export default function SettingsPage() {
 
                     {/* Content */}
                     <section className="flex-1 p-6 md:p-8">
-                        {activeTab === 'profile' && (
+                        {activeTab === 'account' && (
                             <div className="space-y-6">
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Profile Settings</h2>
-                                <ProfileSettings />
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Account & Security</h2>
+
+                                <EmailStatus />
+
+                                <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Connected Accounts</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Manage your linked social accounts for easier login.</p>
+
+                                    <div className="space-y-4">
+                                        {/* Google Account */}
+                                        {user?.googleId ? (
+                                            <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm p-6">
+                                                <div className="flex items-center justify-between mb-8">
+                                                    <div className="flex items-center space-x-2">
+                                                        <svg className="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05" />
+                                                            <path d="M12 4.36c1.61 0 3.09.56 4.23 1.64l3.18-3.18C17.46 1.05 14.97 0 12 0 7.7 0 3.99 2.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                                                        </svg>
+                                                        <span className="text-base font-bold text-gray-900 dark:text-white">Google Account</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-3">
+                                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800/50">
+                                                            Connected
+                                                        </span>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1 rounded-full text-xs font-bold border border-red-100 dark:border-red-900/30"
+                                                            onClick={() => {
+                                                                setDisconnectProvider('google');
+                                                                setIsDisconnectModalOpen(true);
+                                                            }}
+                                                        >
+                                                            Disconnect
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center space-x-5">
+                                                    <div className="relative">
+                                                        {user.googleData?.picture ? (
+                                                            <img src={user.googleData.picture} alt="" className="w-16 h-16 rounded-full border-2 border-white dark:border-gray-700 shadow-md" />
+                                                        ) : (
+                                                            <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center border-2 border-white dark:border-gray-800">
+                                                                <UserIcon className="w-8 h-8 text-gray-400" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user.googleData?.name || 'Google User'}</p>
+                                                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.googleData?.email}</p>
+
+                                                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                                                            {user.googleData?.gender && (
+                                                                <div className="flex items-center text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                                                                    <span className="font-medium mr-1">Gender:</span>
+                                                                    <span className="capitalize">{user.googleData.gender}</span>
+                                                                </div>
+                                                            )}
+                                                            {user.googleData?.birthday && (
+                                                                <div className="flex items-center text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                                                                    <span className="font-medium mr-1">Birthday:</span>
+                                                                    {user.googleData.birthday.day}/{user.googleData.birthday.month}/{user.googleData.birthday.year}
+                                                                </div>
+                                                            )}
+                                                            {user.googleData?.phone && (
+                                                                <div className="flex items-center text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                                                                    <span className="font-medium mr-1">Phone:</span> {user.googleData.phone}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900 dark:text-white">Allow Log In with Google Account</p>
+                                                                <p className="text-xs text-gray-500">Enable sign-in via Google.</p>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => updateProfile({ googleSigninEnabled: !user.googleSigninEnabled })}
+                                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${user.googleSigninEnabled !== false ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-700'
+                                                                    }`}
+                                                            >
+                                                                <span
+                                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.googleSigninEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+                                                                        }`}
+                                                                />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-4">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="md"
+                                                        onClick={() => {
+                                                            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+                                                            window.location.href = `${apiUrl}/oauth/google/connect?userId=${user?.id}`;
+                                                        }}
+                                                        className="flex-1 max-w-[240px] text-gray-600 hover:text-gray-700 bg-gray-50/50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                                                    >
+                                                        <ArrowPathIcon className="w-4 h-4 mr-2" />
+                                                        Update Account Info
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="md"
+                                                        onClick={() => {
+                                                            setSyncProvider('google');
+                                                            setIsSyncModalOpen(true);
+                                                        }}
+                                                        className="flex-1 max-w-[320px] text-blue-600 hover:text-blue-700 border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/10 hover:border-blue-300 dark:hover:border-blue-800"
+                                                    >
+                                                        <ArrowPathIcon className="w-4 h-4 mr-2" />
+                                                        <span className="flex items-center gap-1.5">
+                                                            Sync Info w/
+                                                            <img
+                                                                src="/assets/images/logo-header.svg"
+                                                                alt="Vangarments"
+                                                                className="h-3 w-auto object-contain opacity-80"
+                                                                style={{ filter: 'brightness(0)' }}
+                                                            />
+                                                        </span>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
+                                                <div className="flex items-center space-x-3 text-gray-600 dark:text-gray-400">
+                                                    <svg className="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" />
+                                                        <path d="M12 4.36c1.61 0 3.09.56 4.23 1.64l3.18-3.18C17.46 1.05 14.97 0 12 0 7.7 0 3.99 2.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                                    </svg>
+                                                    <span>Google Account</span>
+                                                </div>
+                                                <Button variant="outline" size="sm" onClick={() => {
+                                                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+                                                    window.location.href = `${apiUrl}/oauth/google/connect?userId=${user?.id}`;
+                                                }}>
+                                                    Connect
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        {/* Facebook Account */}
+                                        {user?.facebookId ? (
+                                            <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm p-6">
+                                                <div className="flex items-center justify-between mb-8">
+                                                    <div className="flex items-center space-x-2">
+                                                        <svg className="w-6 h-6 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
+                                                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                                                        </svg>
+                                                        <span className="text-base font-bold text-gray-900 dark:text-white">Facebook Account</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-3">
+                                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800/50">
+                                                            Connected
+                                                        </span>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1 rounded-full text-xs font-bold border border-red-100 dark:border-red-900/30"
+                                                            onClick={() => {
+                                                                setDisconnectProvider('facebook');
+                                                                setIsDisconnectModalOpen(true);
+                                                            }}
+                                                        >
+                                                            Disconnect
+                                                        </Button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center space-x-5">
+                                                    <div className="relative">
+                                                        {user.facebookData?.picture ? (
+                                                            <img src={user.facebookData.picture} alt="" className="w-16 h-16 rounded-full border-2 border-white dark:border-gray-700 shadow-md" />
+                                                        ) : (
+                                                            <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center border-2 border-white dark:border-gray-800">
+                                                                <UserIcon className="w-8 h-8 text-gray-400" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user.facebookData?.name || 'Facebook User'}</p>
+                                                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.facebookData?.email}</p>
+
+                                                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                                                            {user.facebookData?.gender && (
+                                                                <div className="flex items-center text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                                                                    <span className="font-medium mr-1">Gender:</span>
+                                                                    <span className="capitalize">{user.facebookData.gender}</span>
+                                                                </div>
+                                                            )}
+                                                            {user.facebookData?.birthday && (
+                                                                <div className="flex items-center text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                                                                    <span className="font-medium mr-1">Birthday:</span> {user.facebookData.birthday}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900 dark:text-white">Allow Log In with Facebook Account</p>
+                                                                <p className="text-xs text-gray-500">Enable sign-in via Facebook.</p>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => updateProfile({ facebookSigninEnabled: !user.facebookSigninEnabled })}
+                                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${user.facebookSigninEnabled !== false ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-700'
+                                                                    }`}
+                                                            >
+                                                                <span
+                                                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.facebookSigninEnabled !== false ? 'translate-x-6' : 'translate-x-1'
+                                                                        }`}
+                                                                />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-4">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="md"
+                                                        onClick={() => {
+                                                            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+                                                            window.location.href = `${apiUrl}/oauth/facebook/connect?userId=${user?.id}`;
+                                                        }}
+                                                        className="flex-1 max-w-[240px] text-gray-600 hover:text-gray-700 bg-gray-50/50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                                                    >
+                                                        <ArrowPathIcon className="w-4 h-4 mr-2" />
+                                                        Update Account Info
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="md"
+                                                        onClick={() => {
+                                                            setSyncProvider('facebook');
+                                                            setIsSyncModalOpen(true);
+                                                        }}
+                                                        className="flex-1 max-w-[320px] text-blue-600 hover:text-blue-700 border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/10 hover:border-blue-300 dark:hover:border-blue-800"
+                                                    >
+                                                        <ArrowPathIcon className="w-4 h-4 mr-2" />
+                                                        <span className="flex items-center gap-1.5">
+                                                            Sync Info w/
+                                                            <img
+                                                                src="/assets/images/logo-header.svg"
+                                                                alt="Vangarments"
+                                                                className="h-3 w-auto object-contain opacity-80"
+                                                                style={{ filter: 'brightness(0)' }}
+                                                            />
+                                                        </span>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
+                                                <div className="flex items-center space-x-3 text-gray-600 dark:text-gray-400">
+                                                    <svg className="w-6 h-6 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                                                    </svg>
+                                                    <span>Facebook Account</span>
+                                                </div>
+                                                <Button variant="outline" size="sm" onClick={() => {
+                                                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+                                                    window.location.href = `${apiUrl}/oauth/facebook/connect?userId=${user?.id}`;
+                                                }}>
+                                                    Connect
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -161,173 +433,6 @@ export default function SettingsPage() {
                             <div className="space-y-6">
                                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">App Preferences</h2>
                                 <AppPreferences />
-                            </div>
-                        )}
-
-                        {activeTab === 'connections' && (
-                            <div className="space-y-6">
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Connected Accounts</h2>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Manage your linked social accounts for easier login.</p>
-
-                                <div className="space-y-4">
-                                    {/* Google Account */}
-                                    {user?.googleId ? (
-                                        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm p-6">
-                                            <div className="flex items-center justify-between mb-6">
-                                                <div className="flex items-center space-x-2">
-                                                    <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05" />
-                                                        <path d="M12 4.36c1.61 0 3.09.56 4.23 1.64l3.18-3.18C17.46 1.05 14.97 0 12 0 7.7 0 3.99 2.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                                                    </svg>
-                                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Google Account</span>
-                                                </div>
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
-                                                    Connected
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center space-x-5">
-                                                <div className="relative">
-                                                    {user.googleData?.picture ? (
-                                                        <img src={user.googleData.picture} alt="" className="w-16 h-16 rounded-full border-2 border-white dark:border-gray-700 shadow-md" />
-                                                    ) : (
-                                                        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center border-2 border-white dark:border-gray-800">
-                                                            <UserIcon className="w-8 h-8 text-gray-400" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user.googleData?.name || 'Google User'}</p>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.googleData?.email}</p>
-
-                                                    <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
-                                                        <div>
-                                                            <p className="text-sm font-medium text-gray-900 dark:text-white">Allow Log In with Google Account</p>
-                                                            <p className="text-xs text-gray-500">Enable sign-in via Google.</p>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => updateProfile({ googleSigninEnabled: !user.googleSigninEnabled })}
-                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${user.googleSigninEnabled !== false ? 'bg-[#00132d]' : 'bg-gray-200 dark:bg-gray-700'
-                                                                }`}
-                                                        >
-                                                            <span
-                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.googleSigninEnabled !== false ? 'translate-x-6' : 'translate-x-1'
-                                                                    }`}
-                                                            />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                    onClick={() => {
-                                                        setDisconnectProvider('google');
-                                                        setIsDisconnectModalOpen(true);
-                                                    }}
-                                                >
-                                                    Disconnect
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
-                                            <div className="flex items-center space-x-3 text-gray-600 dark:text-gray-400">
-                                                <svg className="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" />
-                                                    <path d="M12 4.36c1.61 0 3.09.56 4.23 1.64l3.18-3.18C17.46 1.05 14.97 0 12 0 7.7 0 3.99 2.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                                                </svg>
-                                                <span>Google Account</span>
-                                            </div>
-                                            <Button variant="outline" size="sm" onClick={() => {
-                                                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-                                                window.location.href = `${apiUrl}/oauth/google/connect?userId=${user?.id}`;
-                                            }}>
-                                                Connect
-                                            </Button>
-                                        </div>
-                                    )}
-
-                                    {/* Facebook Account */}
-                                    {user?.facebookId ? (
-                                        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm p-6">
-                                            <div className="flex items-center justify-between mb-6">
-                                                <div className="flex items-center space-x-2">
-                                                    <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
-                                                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                                                    </svg>
-                                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Facebook Account</span>
-                                                </div>
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
-                                                    Connected
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center space-x-5">
-                                                <div className="relative">
-                                                    {user.facebookData?.picture ? (
-                                                        <img src={user.facebookData.picture} alt="" className="w-16 h-16 rounded-full border-2 border-white dark:border-gray-700 shadow-md" />
-                                                    ) : (
-                                                        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center border-2 border-white dark:border-gray-800">
-                                                            <UserIcon className="w-8 h-8 text-gray-400" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user.facebookData?.name || 'Facebook User'}</p>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.facebookData?.email}</p>
-
-                                                    <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
-                                                        <div>
-                                                            <p className="text-sm font-medium text-gray-900 dark:text-white">Allow Log In with Facebook Account</p>
-                                                            <p className="text-xs text-gray-500">Enable sign-in via Facebook.</p>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => updateProfile({ facebookSigninEnabled: !user.facebookSigninEnabled })}
-                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${user.facebookSigninEnabled !== false ? 'bg-[#1877F2]' : 'bg-gray-200 dark:bg-gray-700'
-                                                                }`}
-                                                        >
-                                                            <span
-                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.facebookSigninEnabled !== false ? 'translate-x-6' : 'translate-x-1'
-                                                                    }`}
-                                                            />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                    onClick={() => {
-                                                        setDisconnectProvider('facebook');
-                                                        setIsDisconnectModalOpen(true);
-                                                    }}
-                                                >
-                                                    Disconnect
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-800/50">
-                                            <div className="flex items-center space-x-3 text-gray-600 dark:text-gray-400">
-                                                <svg className="w-6 h-6 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                                                </svg>
-                                                <span>Facebook Account</span>
-                                            </div>
-                                            <Button variant="outline" size="sm" onClick={() => {
-                                                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-                                                window.location.href = `${apiUrl}/oauth/facebook/connect?userId=${user?.id}`;
-                                            }}>
-                                                Connect
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         )}
 
@@ -364,6 +469,30 @@ export default function SettingsPage() {
                 variant="danger"
                 isLoading={isDisconnecting}
             />
+
+            {user && (
+                <SyncProfileModal
+                    isOpen={isSyncModalOpen}
+                    onClose={() => setIsSyncModalOpen(false)}
+                    provider={syncProvider as 'google' | 'facebook'}
+                    currentProfile={user}
+                    providerData={syncProvider === 'google' ? user.googleData : user.facebookData}
+                    isLoading={isSyncing}
+                    onSync={async (updates) => {
+                        setIsSyncing(true);
+                        try {
+                            await updateProfile(updates);
+                            toast.success('Profile synced successfully!');
+                            setIsSyncModalOpen(false);
+                        } catch (error) {
+                            console.error('Sync error:', error);
+                            toast.error('Failed to sync profile');
+                        } finally {
+                            setIsSyncing(false);
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 }

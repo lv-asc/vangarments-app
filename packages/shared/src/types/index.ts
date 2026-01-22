@@ -41,6 +41,7 @@ export interface UserProfile {
   };
   googleSigninEnabled?: boolean;
   facebookSigninEnabled?: boolean;
+  emailVerified?: boolean;
   notificationPreferences?: {
     showNotificationBadge: boolean;
     showMessageBadge: boolean;

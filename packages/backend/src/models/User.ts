@@ -20,6 +20,9 @@ export interface CreateUserData {
   facebookData?: any;
   googleSigninEnabled?: boolean;
   facebookSigninEnabled?: boolean;
+  emailVerified?: boolean;
+  emailVerificationToken?: string | null;
+  emailVerificationExpiresAt?: Date | null;
 }
 
 export interface UpdateUserData {
@@ -59,8 +62,8 @@ export class UserModel {
     };
 
     const query = `
-      INSERT INTO users (cpf, email, password_hash, profile, username, google_id, facebook_id, google_data, facebook_data, google_signin_enabled, facebook_signin_enabled)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO users (cpf, email, password_hash, profile, username, google_id, facebook_id, google_data, facebook_data, google_signin_enabled, facebook_signin_enabled, email_verified, email_verification_token, email_verification_expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
 
@@ -75,7 +78,10 @@ export class UserModel {
       googleData ? JSON.stringify(googleData) : null,
       facebookData ? JSON.stringify(facebookData) : null,
       googleSigninEnabled ?? true,
-      facebookSigninEnabled ?? true
+      facebookSigninEnabled ?? true,
+      userData.emailVerified ?? false,
+      userData.emailVerificationToken || null,
+      userData.emailVerificationExpiresAt || null
     ]);
     const user = result.rows[0];
 
@@ -291,27 +297,27 @@ export class UserModel {
       paramCount++;
     }
 
-    if (updateData.googleId) {
+    if (updateData.hasOwnProperty('googleId')) {
       updates.push(`google_id = $${paramCount}`);
       values.push(updateData.googleId);
       paramCount++;
     }
 
-    if (updateData.facebookId) {
+    if (updateData.hasOwnProperty('facebookId')) {
       updates.push(`facebook_id = $${paramCount}`);
       values.push(updateData.facebookId);
       paramCount++;
     }
 
-    if (updateData.googleData) {
+    if (updateData.hasOwnProperty('googleData')) {
       updates.push(`google_data = $${paramCount}`);
-      values.push(JSON.stringify(updateData.googleData));
+      values.push(updateData.googleData ? JSON.stringify(updateData.googleData) : null);
       paramCount++;
     }
 
-    if (updateData.facebookData) {
+    if (updateData.hasOwnProperty('facebookData')) {
       updates.push(`facebook_data = $${paramCount}`);
-      values.push(JSON.stringify(updateData.facebookData));
+      values.push(updateData.facebookData ? JSON.stringify(updateData.facebookData) : null);
       paramCount++;
     }
 
@@ -684,6 +690,7 @@ export class UserModel {
       facebookData: typeof row.facebook_data === 'string' ? JSON.parse(row.facebook_data) : row.facebook_data,
       googleSigninEnabled: row.google_signin_enabled,
       facebookSigninEnabled: row.facebook_signin_enabled,
+      emailVerified: row.email_verified,
       notificationPreferences: notificationPreferences,
       _rawProfile: profile,
     } as any;
@@ -749,5 +756,40 @@ export class UserModel {
     const result = await db.query(query, [userId]);
     if (result.rows.length === 0) return null;
     return result.rows[0].verification_status || 'unverified';
+  }
+
+  static async findByVerificationToken(token: string): Promise<UserProfile | null> {
+    const query = `
+      SELECT u.*, array_agg(ur.role) as roles
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.email_verification_token = $1
+      GROUP BY u.id, u.cpf, u.email, u.username, u.username_last_changed, u.profile, u.privacy_settings, u.measurements, u.preferences, u.status, u.ban_expires_at, u.ban_reason, u.verification_status, u.last_seen_at, u.created_at, u.updated_at
+    `;
+
+    const result = await db.query(query, [token]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapToUserProfile(result.rows[0]);
+  }
+
+  static async verifyEmail(userId: string): Promise<void> {
+    const query = `
+      UPDATE users 
+      SET email_verified = TRUE, email_verification_token = NULL, email_verification_expires_at = NULL, updated_at = NOW()
+      WHERE id = $1
+    `;
+    await db.query(query, [userId]);
+  }
+
+  static async updateVerificationToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    const query = `
+      UPDATE users 
+      SET email_verification_token = $1, email_verification_expires_at = $2, updated_at = NOW()
+      WHERE id = $3
+    `;
+    await db.query(query, [token, expiresAt, userId]);
   }
 }
