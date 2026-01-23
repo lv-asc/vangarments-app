@@ -19,6 +19,7 @@ import SocialLinksEditor from '@/components/admin/SocialLinksEditor';
 import FoundationDateInput from '@/components/ui/FoundationDateInput';
 import { Modal } from '@/components/ui/Modal';
 import { useEntityConfiguration } from '@/hooks/useEntityConfiguration';
+import { useFormDraftPersistence } from '@/hooks/useFormDraftPersistence';
 
 export default function AdminEditSupplierPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -51,6 +52,17 @@ export default function AdminEditSupplierPage() {
         foundedDate: '',
         foundedDatePrecision: 'year' as 'year' | 'month' | 'day',
         socialLinks: [] as { platform: string; url: string }[]
+    });
+
+    // Draft persistence
+    const { clearDraft } = useFormDraftPersistence({
+        storageKey: `supplier-draft-${supplierId || 'new'}`,
+        data: formData,
+        setData: setFormData,
+        isLoading: loading,
+        isNew: false, // Always loading from server for existing entities
+        additionalData: { logos, banners },
+        additionalSetters: { logos: setLogos, banners: setBanners }
     });
 
     useEffect(() => {
@@ -216,6 +228,7 @@ export default function AdminEditSupplierPage() {
             });
 
             toast.success('Supplier updated successfully');
+            clearDraft(); // Clear draft on success
 
             if (supplierSlug) {
                 window.history.replaceState(null, '', `/admin/suppliers/${supplierSlug}`);

@@ -19,6 +19,13 @@ function stripSizeSuffix(name: string): string {
 }
 
 /**
+ * Strip color suffix from product name (e.g., "Asphalt T-Shirt (Black)" -> "Asphalt T-Shirt")
+ */
+function stripColorSuffix(name: string): string {
+    return name.replace(/\s*\([^)]+\)\s*$/i, '').trim();
+}
+
+/**
  * Universal SKU Card Component
  * Displays SKU items with variant grouping and consistent styling
  */
@@ -56,7 +63,20 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
     const mainPrice = formatPrice(item.retailPriceBrl);
 
     // Strip size suffix from display name
-    const displayName = stripSizeSuffix(item.name);
+    let displayName = stripSizeSuffix(item.name);
+
+    // Strip color suffix if product has variants but only 1 unique color
+    // This handles the case where "Child SKUs" (variants) shouldn't show color if they are the only color available
+    if (variants.length > 0) {
+        const uniqueColors = new Set(variants.map((v: any) => {
+            const match = v.name.match(/\(([^)]+)\)/);
+            return match ? match[1] : null;
+        }).filter(Boolean));
+
+        if (uniqueColors.size <= 1) {
+            displayName = stripColorSuffix(displayName);
+        }
+    }
 
     return (
         <div className="group block bg-white rounded-xl border border-transparent hover:border-gray-100 transition-all duration-300">

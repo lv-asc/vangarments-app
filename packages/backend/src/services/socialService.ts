@@ -165,16 +165,26 @@ export class SocialService {
   /**
    * Get user's followers
    */
-  async getFollowers(userId: string, page = 1, limit = 20, search?: string): Promise<{ users: UserProfile[]; hasMore: boolean }> {
+  async getFollowers(userId: string, page = 1, limit = 20, search?: string): Promise<{ users: UserProfile[]; entities?: any[]; hasMore: boolean }> {
     const offset = (page - 1) * limit;
-    const { users, total } = await UserFollowModel.getFollowers(userId, limit + 1, offset, search);
 
-    const hasMore = users.length > limit;
-    if (hasMore) {
-      users.pop();
-    }
+    // Fetch users following the user (user_follows table)
+    const { users, total: usersTotal } = await UserFollowModel.getFollowers(userId, limit + 1, offset, search);
 
-    return { users, hasMore };
+    // Fetch entities following the user (entity_follows table with entity_type='user')
+    // For now we fetch a few, usually entities following users is less common but possible
+    const { followers: followingEntities, total: entitiesTotal } = await EntityFollowModel.getFollowers('user', userId, limit + 1, offset);
+
+    const hasMore = users.length > limit || followingEntities.length > limit;
+
+    if (users.length > limit) users.pop();
+    if (followingEntities.length > limit) followingEntities.pop();
+
+    return {
+      users,
+      entities: followingEntities,
+      hasMore
+    };
   }
 
   /**

@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { skuApi } from '@/lib/skuApi';
 import { apiClient } from '@/lib/api';
 import { getImageUrl, slugify } from '@/lib/utils';
-import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon, HeartIcon, PlusIcon, CheckIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon, HeartIcon, PlusIcon, CheckIcon, CalendarIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
 import Link from 'next/link';
@@ -38,6 +38,14 @@ interface Measurement {
 function stripSizeSuffix(name: string): string {
     // Remove common size suffixes like [S], [M], [L], [XL], [XXL], [XS], [XXS], [XXXL] etc.
     return name.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim();
+}
+
+/**
+ * Strip color suffix from product name (e.g., "Asphalt T-Shirt (Black)" -> "Asphalt T-Shirt")
+ * Handles various parenthesis formats
+ */
+function stripColorSuffix(name: string): string {
+    return name.replace(/\s*\([^)]+\)\s*$/i, '').trim();
 }
 
 export default function ProductPageClient() {
@@ -333,7 +341,35 @@ export default function ProductPageClient() {
     const currentImage = displayImages[currentImageIndex] || displayImages.find((img: any) => img.isPrimary) || displayImages[0];
 
     // Strip size suffix from product name for display
-    const displayName = stripSizeSuffix(product.name);
+    let displayName = stripSizeSuffix(product.name);
+
+    // Determine if we should also strip the color suffix
+    // Only strip color if the product has variants and ALL variants share the same color (or there's effectively only 1 unique color)
+    if (product.variants && product.variants.length > 0) {
+        const uniqueColors = new Set(
+            product.variants
+                .map((v: any) => {
+                    const match = v.name.match(/\(([^)]+)\)/);
+                    return match ? match[1] : null;
+                })
+                .filter(Boolean)
+        );
+
+        if (uniqueColors.size <= 1) {
+            displayName = stripColorSuffix(displayName);
+        }
+    } else {
+        // Standalone product or no variants loaded - checking name pattern
+        // If it's a "Child SKU" (has parentSkuId) but for some reason variants array is empty (shouldn't happen with current logic), 
+        // we might want to respect the rule. But generally, if it's the *only* thing we know about, stripping color might be safer 
+        // if we assume single-SKU products don't need color in name. 
+        // However, user specified: "only if ... Parent SKU has other color variants". 
+        // If we can't find other variants, we can't prove there are others. Defaults to NOT stripping? 
+        // Actually, if a product is alone, "T-Shirt (Black)" implies color. 
+        // If I buy a "Red T-Shirt", it's "Red T-Shirt". 
+        // If I buy "Model X (Red)", it implies "Model X (Blue)" might exist.
+        // Let's stick to the "Variants Exist" check. If no variants array, we leave it as is.
+    }
 
     // Organize measurements by POM and size
     const uniquePOMs = Array.from(new Map(measurements.map(m => [m.pom_id, { id: m.pom_id, name: m.pom_name, code: m.pom_code, unit: m.measurement_unit }])).values());
@@ -533,6 +569,31 @@ export default function ProductPageClient() {
                                                     Official Site
                                                 </span>
                                             </a>
+                                        )}
+
+                                        {/* Sport Squad Badge */}
+                                        {product.sportSquad && (
+                                            <Link
+                                                href={`/sport-squads/${product.sportSquad.slug}`}
+                                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300 transition-all group"
+                                            >
+                                                <UserGroupIcon className="h-4 w-4 text-yellow-600" />
+                                                <span className="text-sm font-bold text-yellow-800 group-hover:text-yellow-900">
+                                                    {product.sportSquad.name}
+                                                </span>
+                                            </Link>
+                                        )}
+
+                                        {/* Jersey Number & Player Name */}
+                                        {(product.jerseyNumber || product.playerName) && (
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black text-white border border-black shadow-sm">
+                                                {product.jerseyNumber && (
+                                                    <span className="text-xs font-black italic">#{product.jerseyNumber}</span>
+                                                )}
+                                                {product.playerName && (
+                                                    <span className="text-xs font-bold uppercase tracking-tight">{product.playerName}</span>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
 
@@ -816,14 +877,14 @@ export default function ProductPageClient() {
                                                         </div>
                                                     )}
 
-                                                    {product.gender && (
+                                                    {product.sportSquad && (
                                                         <div className="flex items-center gap-3">
-                                                            <div className="p-2 bg-gray-100 rounded-lg">
-                                                                {React.createElement(getGenderIcon(product.gender), { className: "h-5 w-5 text-gray-600" })}
+                                                            <div className="p-2 bg-yellow-50 rounded-lg">
+                                                                <TrophyIcon className="h-5 w-5 text-yellow-600" />
                                                             </div>
                                                             <div>
-                                                                <p className="text-xs text-gray-500">Gender</p>
-                                                                <p className="text-sm font-medium text-gray-900 capitalize">{product.gender}</p>
+                                                                <p className="text-xs text-gray-500">Official Squad</p>
+                                                                <p className="text-sm font-bold text-gray-900">{product.sportSquad.name}</p>
                                                             </div>
                                                         </div>
                                                     )}

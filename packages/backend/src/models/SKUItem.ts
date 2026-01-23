@@ -39,7 +39,12 @@ export interface SKUItem {
         logo?: string;
         slug?: string;
     };
-
+    sportSquadId?: string;
+    jerseyNumber?: string;
+    playerName?: string;
+    apparelLine?: string;
+    itemStatus?: string;
+    sponsorRestrictionFlag?: boolean;
 }
 
 export interface CreateSKUItemData {
@@ -70,6 +75,12 @@ export interface CreateSKUItemData {
     releaseDate?: Date;
     careInstructions?: string;
     officialItemLink?: string;
+    sportSquadId?: string;
+    jerseyNumber?: string;
+    playerName?: string;
+    apparelLine?: string;
+    itemStatus?: string;
+    sponsorRestrictionFlag?: boolean;
 }
 
 export interface UpdateSKUItemData {
@@ -98,7 +109,12 @@ export interface UpdateSKUItemData {
     releaseDate?: Date | null;
     careInstructions?: string;
     officialItemLink?: string;
-
+    sportSquadId?: string;
+    jerseyNumber?: string;
+    playerName?: string;
+    apparelLine?: string;
+    itemStatus?: string;
+    sponsorRestrictionFlag?: boolean;
 }
 
 export class SKUItemModel {
@@ -108,9 +124,9 @@ export class SKUItemModel {
                 brand_id, name, code, collection, line, line_id,
                 category, description, materials, images, videos, metadata,
                 retail_price_brl, retail_price_usd, retail_price_eur, parent_sku_id, release_date, care_instructions,
-                official_item_link
+                official_item_link, sport_squad_id, jersey_number, player_name, apparel_line, item_status, sponsor_restriction_flag
             )
-            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
             RETURNING *
         `;
 
@@ -133,7 +149,13 @@ export class SKUItemModel {
             data.parentSkuId || null,
             data.releaseDate || null,
             data.careInstructions || null,
-            data.officialItemLink || null
+            data.officialItemLink || null,
+            data.sportSquadId || null,
+            data.jerseyNumber || null,
+            data.playerName || null,
+            data.apparelLine || null,
+            data.itemStatus || null,
+            data.sponsorRestrictionFlag || false
         ];
 
         const result = await db.query(query, values);
@@ -176,10 +198,71 @@ export class SKUItemModel {
             LEFT JOIN vufs_genders g ON g.id = NULLIF(si.category->>'genderId', '')::uuid
             LEFT JOIN vufs_attribute_values a ON a.id = NULLIF(si.category->>'apparelId', '')::uuid
             LEFT JOIN vufs_materials m ON m.id = NULLIF(si.category->>'materialId', '')::uuid
-            WHERE si.id = $1 AND si.deleted_at IS NULL
-            `;
+        WHERE si.id = $1 AND si.deleted_at IS NULL
+        `;
         const result = await db.query(query, [id]);
         return result.rows.length > 0 ? this.mapRowToSKUItem(result.rows[0]) : null;
+    }
+
+    /**
+     * Find SKU by Slug (Name or Code)
+     */
+    static async findBySlug(slug: string): Promise<SKUItem | null> {
+        // Try searching by exact code match first (case insensitive)
+        const codeQuery = `
+            SELECT si.*, 
+                   bl.name as line_name, bl.logo as line_logo,
+                   ba.brand_info->>'name' as brand_name,
+                   ba.brand_info->>'logo' as brand_logo,
+                   ba.brand_info->>'slug' as brand_slug,
+                   bc.name as collection_name,
+                   bc.cover_image_url as collection_cover_image,
+                   s.name as style_name,
+                   p.name as pattern_name,
+                   f.name as fit_name,
+                   g.name as gender_name,
+                   a.name as apparel_name,
+                   m.name as material_name
+            FROM sku_items si
+            LEFT JOIN brand_lines bl ON si.line_id = bl.id
+            LEFT JOIN brand_accounts ba ON si.brand_id = ba.id
+            LEFT JOIN brand_collections bc ON si.collection = bc.name 
+                AND bc.brand_id = ba.id
+            LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
+            LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
+            LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid
+            LEFT JOIN vufs_genders g ON g.id = NULLIF(si.category->>'genderId', '')::uuid
+            LEFT JOIN vufs_attribute_values a ON a.id = NULLIF(si.category->>'apparelId', '')::uuid
+            LEFT JOIN vufs_materials m ON m.id = NULLIF(si.category->>'materialId', '')::uuid
+            WHERE (LOWER(si.code) = LOWER($1) OR LOWER(si.name) = LOWER($1) OR 
+                  LOWER(REGEXP_REPLACE(si.name, '[^a-zA-Z0-9]', '-', 'g')) = LOWER($1))
+              AND si.deleted_at IS NULL
+            LIMIT 1
+        `;
+
+        const result = await db.query(codeQuery, [slug]);
+
+        if (result.rows.length > 0) {
+            return this.mapRowToSKUItem(result.rows[0]);
+        }
+
+        // HEURISTIC FALLBACK
+        const normalizedSlug = slug.replace(/-/g, '').toLowerCase();
+
+        const fallbackQuery = `
+            SELECT id FROM sku_items 
+            WHERE (LOWER(REPLACE(code, '-', '')) = $1 OR LOWER(REPLACE(name, ' ', '-')) = $2)
+              AND deleted_at IS NULL
+            LIMIT 1
+        `;
+
+        const fallbackRes = await db.query(fallbackQuery, [normalizedSlug, slug.toLowerCase()]);
+
+        if (fallbackRes.rows.length > 0) {
+            return this.findById(fallbackRes.rows[0].id);
+        }
+
+        return null;
     }
 
     static async findVariants(parentId: string): Promise<SKUItem[]> {
@@ -549,7 +632,13 @@ export class SKUItemModel {
             parentSkuId: row.parent_sku_id,
             releaseDate: row.release_date,
             careInstructions: row.care_instructions,
-            officialItemLink: row.official_item_link
+            officialItemLink: row.official_item_link,
+            sportSquadId: row.sport_squad_id,
+            jerseyNumber: row.jersey_number,
+            playerName: row.player_name,
+            apparelLine: row.apparel_line,
+            itemStatus: row.item_status,
+            sponsorRestrictionFlag: row.sponsor_restriction_flag
         };
 
         if (row.line_name || row.line_logo || row.line_id) {

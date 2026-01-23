@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { XMarkIcon, CameraIcon, LockClosedIcon, GlobeAltIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthWrapper';
+import { useAlert } from '@/contexts/AlertContext';
 import { apiClient } from '@/lib/api';
 
 interface ProfileEditModalProps {
@@ -14,6 +15,7 @@ interface ProfileEditModalProps {
 
 export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
   const { user, updateProfile } = useAuth();
+  const { showAlert } = useAlert();
   const [isLoading, setIsLoading] = useState(false);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
       onClose();
     } catch (error) {
       console.error('Failed to update profile:', error);
-      alert('Erro ao salvar perfil. Tente novamente.');
+      showAlert('Erro no Perfil', 'Erro ao salvar perfil. Tente novamente.');
     } finally {
       setIsLoading(false);
     }

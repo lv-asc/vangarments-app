@@ -559,6 +559,9 @@ export class SimpleOAuthController {
       } else if (provider === 'facebook') {
         updateData.facebookId = null;
         updateData.facebookData = null;
+      } else if (provider === 'apple') {
+        updateData.appleId = null;
+        updateData.appleData = null;
       } else {
         return res.status(400).json({ error: 'Invalid provider' });
       }
@@ -569,6 +572,219 @@ export class SimpleOAuthController {
     } catch (error) {
       console.error('OAuth disconnection error:', error);
       res.status(500).json({ error: 'Failed to disconnect account' });
+    }
+  }
+
+  /**
+   * Initiate Apple OAuth
+   */
+  static initiateAppleAuth(req: Request, res: Response) {
+    const action = req.path.includes('/signup') ? 'signup' : 'login';
+
+    const appleAuthUrl = `https://appleid.apple.com/auth/authorize?` +
+      `client_id=${process.env.APPLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(process.env.APPLE_CALLBACK_URL || '')}&` +
+      `response_type=code id_token&` +
+      `state=${action}&` +
+      `scope=${encodeURIComponent('name email')}&` +
+      `response_mode=form_post`;
+
+    res.redirect(appleAuthUrl);
+  }
+
+  /**
+   * Handle Apple OAuth callback
+   */
+  static async handleAppleCallback(req: Request, res: Response) {
+    try {
+      const { code, id_token, state: action, user: userJson } = req.body;
+
+      if (!id_token) {
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_failed`);
+      }
+
+      // In a real implementation, we should verify the id_token using Apple's public keys
+      // For now, we'll decode it to get the user info
+      // @ts-ignore
+      const jwt = require('jsonwebtoken');
+      const decodedToken = jwt.decode(id_token) as any;
+
+      if (!decodedToken || !decodedToken.sub) {
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_failed`);
+      }
+
+      const appleId = decodedToken.sub;
+      const email = decodedToken.email;
+
+      // Apple only sends the 'user' object (name) on the FIRST signup
+      let name = 'Apple User';
+      if (userJson) {
+        try {
+          const userData = JSON.parse(userJson);
+          if (userData.name) {
+            name = `${userData.name.firstName || ''} ${userData.name.lastName || ''}`.trim() || 'Apple User';
+          }
+        } catch (e) {
+          console.error('Error parsing Apple user data:', e);
+        }
+      }
+
+      if (!email) {
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_email`);
+      }
+
+      const syncData = {
+        appleId: appleId,
+        appleData: {
+          email,
+          name,
+        }
+      };
+
+      // 1. Try to find by Apple ID first
+      let user = await UserModel.findByAppleId(appleId);
+
+      if (user && (user as any).appleSigninEnabled === false) {
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=apple_signin_disabled`);
+      }
+
+      // 2. If not found, try to find by email
+      if (!user) {
+        user = await UserModel.findByEmail(email);
+
+        if (user) {
+          // Link existing user to Apple ID and data
+          await UserModel.update(user.id, syncData);
+        }
+      } else {
+        // ALWAYS Update existing user with latest Apple data on login
+        await UserModel.update(user.id, syncData);
+      }
+
+      // Handle action specific logic
+      if (action === 'signup' && user) {
+        // User tried to signup but already exists
+        return res.redirect(`${process.env.FRONTEND_URL}/register?error=account_exists`);
+      }
+
+      if (action === 'login' && !user) {
+        // User tried to login but doesn't exist
+        return res.redirect(`${process.env.FRONTEND_URL}/login?error=account_not_found`);
+      }
+
+      if (!user) {
+        // 3. Create new user with OAuth data
+        user = await UserModel.create({
+          email: email,
+          name: name,
+          birthDate: new Date(),
+          gender: 'not_specified',
+          username: email.split('@')[0] + Math.floor(Math.random() * 1000),
+          telephone: '',
+          appleId: appleId,
+          appleData: syncData.appleData,
+          emailVerified: true
+        });
+
+        // Add default consumer role
+        await UserModel.addRole(user.id, 'consumer');
+      }
+
+      // Generate JWT token
+      const roles = await UserModel.getUserRoles(user.id);
+      const token = AuthUtils.generateToken({
+        id: user.id,
+        userId: user.id,
+        email: user.email,
+        roles,
+      });
+
+      // Check if user needs onboarding
+      const needsOnboarding = !user.cpf || !user.personalInfo.birthDate;
+
+      const redirectUrl = needsOnboarding
+        ? `${process.env.FRONTEND_URL}/onboarding?token=${token}&provider=apple`
+        : `${process.env.FRONTEND_URL}/wardrobe?token=${token}`;
+
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Apple OAuth callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_error`);
+    }
+  }
+
+  /**
+   * Initiate Apple Connect (for logged in users)
+   */
+  static initiateAppleConnect(req: Request, res: Response) {
+    const state = req.query.userId as string;
+
+    const appleAuthUrl = `https://appleid.apple.com/auth/authorize?` +
+      `client_id=${process.env.APPLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(process.env.APPLE_CALLBACK_URL || '')}&` +
+      `response_type=code id_token&` +
+      `state=${state}&` +
+      `scope=${encodeURIComponent('name email')}&` +
+      `response_mode=form_post`;
+
+    res.redirect(appleAuthUrl);
+  }
+
+  /**
+   * Handle Apple Connect callback
+   */
+  static async handleAppleConnectCallback(req: Request, res: Response) {
+    try {
+      const { code, id_token, state: userId, user: userJson } = req.body;
+
+      if (!id_token || !userId) {
+        return res.redirect(`${process.env.FRONTEND_URL}/settings?error=connect_failed`);
+      }
+
+      // @ts-ignore
+      const jwt = require('jsonwebtoken');
+      const decodedToken = jwt.decode(id_token) as any;
+
+      if (!decodedToken || !decodedToken.sub) {
+        return res.redirect(`${process.env.FRONTEND_URL}/settings?error=connect_failed`);
+      }
+
+      const appleId = decodedToken.sub;
+      const email = decodedToken.email;
+
+      let name = 'Apple User';
+      if (userJson) {
+        try {
+          const userData = JSON.parse(userJson);
+          if (userData.name) {
+            name = `${userData.name.firstName || ''} ${userData.name.lastName || ''}`.trim() || 'Apple User';
+          }
+        } catch (e) {
+          console.error('Error parsing Apple user data:', e);
+        }
+      }
+
+      const syncData = {
+        appleId: appleId,
+        appleData: {
+          email,
+          name,
+        }
+      };
+
+      // Check if this Apple ID is already used by another user
+      const existingUser = await UserModel.findByAppleId(appleId);
+      if (existingUser && existingUser.id !== userId) {
+        return res.redirect(`${process.env.FRONTEND_URL}/settings?error=apple_id_taken`);
+      }
+
+      // Link Apple ID and data to user
+      await UserModel.update(userId as string, syncData);
+
+      res.redirect(`${process.env.FRONTEND_URL}/settings?success=apple_connected`);
+    } catch (error) {
+      console.error('Apple Connect callback error:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/settings?error=connect_error`);
     }
   }
 }

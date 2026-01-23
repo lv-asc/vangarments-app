@@ -97,6 +97,8 @@ export async function getTagsBySource(req: Request, res: Response): Promise<void
             return;
         }
 
+        console.log(`[TagController] Fetching tags for sourceType=${sourceType}, sourceId=${sourceId}, imageUrl=${imageUrl}`);
+
         let tags;
         if (imageUrl) {
             tags = await MediaTagModel.findByImage(
@@ -111,6 +113,7 @@ export async function getTagsBySource(req: Request, res: Response): Promise<void
             );
         }
 
+        console.log(`[TagController] Found ${tags.length} tags`);
         res.json({ data: tags });
     } catch (error) {
         console.error('Error getting tags:', error);
@@ -195,22 +198,26 @@ export async function deleteTag(req: AuthenticatedRequest, res: Response): Promi
         }
 
         const { tagId } = req.params;
+        console.log(`[TagController] Attempting to delete tag ${tagId} by user ${userId}`);
 
         // Check tag exists and user is authorized
         const existingTag = await MediaTagModel.findById(tagId);
         if (!existingTag) {
+            console.log(`[TagController] Tag ${tagId} not found`);
             res.status(404).json({ error: 'Tag not found' });
             return;
         }
 
         // Only tag creator can delete
         if (existingTag.createdBy !== userId) {
+            console.log(`[TagController] User ${userId} not authorized to delete tag created by ${existingTag.createdBy}`);
             // TODO: Also allow source owner (lookbook owner, post owner) to delete
             res.status(403).json({ error: 'Not authorized to delete this tag' });
             return;
         }
 
-        await MediaTagModel.delete(tagId);
+        const success = await MediaTagModel.delete(tagId);
+        console.log(`[TagController] Delete result for ${tagId}: ${success}`);
         res.json({ message: 'Tag deleted successfully' });
     } catch (error) {
         console.error('Error deleting tag:', error);

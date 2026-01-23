@@ -9,7 +9,7 @@ interface SyncProfileModalProps {
     onClose: () => void;
     onSync: (selectedFields: any) => Promise<void>;
     currentProfile: UserProfile;
-    provider: 'google' | 'facebook';
+    provider: 'google' | 'facebook' | 'apple';
     providerData: any;
     isLoading?: boolean;
 }
@@ -47,7 +47,13 @@ export function SyncProfileModal({
         const updates: any = {};
 
         if (selectedFields.has('name')) updates.name = providerData.name;
-        if (selectedFields.has('avatar')) updates.profile = { ...updates.profile, avatarUrl: providerData.picture };
+        if (selectedFields.has('avatar')) {
+            if (provider === 'apple') {
+                // Apple doesn't provide avatarUrl
+            } else {
+                updates.profile = { ...updates.profile, avatarUrl: providerData.picture };
+            }
+        }
 
         if (selectedFields.has('birthday')) {
             let birthDate = providerData.birthday;
@@ -107,7 +113,7 @@ export function SyncProfileModal({
         if (!providerData) return null;
         switch (key) {
             case 'name': return providerData.name;
-            case 'avatar': return providerData.picture; // or picture.data.url for FB
+            case 'avatar': return provider === 'apple' ? null : providerData.picture;
             case 'birthday': return providerData.birthday;
             case 'gender': return providerData.gender;
             case 'phone': return providerData.phone;
@@ -190,7 +196,7 @@ export function SyncProfileModal({
                                         </Dialog.Title>
                                         <div className="mt-2">
                                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                Select the information you want to update from your {provider === 'google' ? 'Google' : 'Facebook'} account.
+                                                Select the information you want to update from your {provider === 'google' ? 'Google' : provider === 'apple' ? 'Apple' : 'Facebook'} account.
                                                 Existing information will be overwritten.
                                             </p>
                                         </div>
@@ -203,7 +209,7 @@ export function SyncProfileModal({
                                                     <div className="grid grid-cols-12 gap-4 pb-2 border-b border-gray-100 dark:border-gray-800 text-xs font-semibold text-gray-500 uppercase tracking-wider px-3">
                                                         <div className="col-span-5">Vangarments</div>
                                                         <div className="col-span-2 text-center"></div>
-                                                        <div className="col-span-5 text-right">{provider === 'google' ? 'Google' : 'Facebook'}</div>
+                                                        <div className="col-span-5 text-right">{provider === 'google' ? 'Google' : provider === 'apple' ? 'Apple' : 'Facebook'}</div>
                                                     </div>
 
                                                     {availableFields.map((field) => {

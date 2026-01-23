@@ -3,6 +3,7 @@
 import React, { createContext, useContext } from 'react';
 import { AuthProvider, useAuth as useRealAuth, ActiveAccount } from './AuthContext';
 import { ThemeProvider } from './ThemeContext';
+import { AlertProvider } from './AlertContext';
 
 export type { ActiveAccount };
 
@@ -38,11 +39,13 @@ function ThemeLoader({ children }: { children: React.ReactNode }) {
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <UnifiedAuthProvider>
-        <ThemeLoader>
-          {children}
-        </ThemeLoader>
-      </UnifiedAuthProvider>
+      <AlertProvider>
+        <UnifiedAuthProvider>
+          <ThemeLoader>
+            {children}
+          </ThemeLoader>
+        </UnifiedAuthProvider>
+      </AlertProvider>
     </AuthProvider>
   );
 }

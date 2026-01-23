@@ -15,6 +15,28 @@ import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 import { ImageTagEditor } from '@/components/tagging';
 import { getImageUrl } from '@/lib/utils';
 
+/**
+ * Strip color suffix from product name (e.g., "Asphalt T-Shirt (Black)" -> "Asphalt T-Shirt")
+ */
+const stripColorSuffix = (name: string): string => {
+    return name.replace(/\s*\([^)]+\)\s*$/i, '').trim();
+};
+
+const getVariantDisplayName = (variant: any, siblings: any[] = []) => {
+    let name = variant.name;
+    if (siblings && siblings.length > 0) {
+        const uniqueColors = new Set(siblings.map(v => {
+            const match = v.name.match(/\(([^)]+)\)/);
+            return match ? match[1] : null;
+        }).filter(Boolean));
+
+        if (uniqueColors.size <= 1) {
+            name = stripColorSuffix(name);
+        }
+    }
+    return name;
+};
+
 interface GlobalSKUManagementProps {
 }
 
@@ -1353,10 +1375,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 </div>
                 <div className="flex items-center gap-2">
                     {!showTrash && (
-                        <Button onClick={() => openModal()}>
-                            <PlusIcon className="h-5 w-5 mr-2" />
-                            New SKU
-                        </Button>
+                        <Link href="/admin/skus/create">
+                            <Button>
+                                <PlusIcon className="h-5 w-5 mr-2" />
+                                New SKU
+                            </Button>
+                        </Link>
                     )}
                 </div>
             </div>
@@ -1486,13 +1510,13 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             {/* Show edit button for virtual parents */}
                                             {sku.isVirtualParent && (
                                                 <>
-                                                    <button
-                                                        onClick={() => openParentModal(sku)}
+                                                    <Link
+                                                        href={`/admin/skus/${sku.id}`}
                                                         className="p-2 text-blue-500 hover:text-blue-700"
                                                         title="Edit parent (updates all variants)"
                                                     >
                                                         <PencilIcon className="h-5 w-5" />
-                                                    </button>
+                                                    </Link>
                                                     <button
                                                         onClick={() => handleDelete(sku.id)}
                                                         className="p-2 text-red-500 hover:text-red-700"
@@ -1505,9 +1529,9 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             {/* Show edit/delete for real SKUs, not virtual parents */}
                                             {!sku.isVirtualParent && (
                                                 <>
-                                                    <button onClick={() => openModal(sku)} className="p-2 text-blue-500 hover:text-blue-700">
+                                                    <Link href={`/admin/skus/${sku.id}`} className="p-2 text-blue-500 hover:text-blue-700">
                                                         <PencilIcon className="h-5 w-5" />
-                                                    </button>
+                                                    </Link>
                                                     <button onClick={() => handleDelete(sku.id)} className="p-2 text-red-500 hover:text-red-700">
                                                         <TrashIcon className="h-5 w-5" />
                                                     </button>
@@ -1536,7 +1560,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     </div>
                                                     <div>
                                                         <div className="flex items-center gap-2">
-                                                            <p className="text-sm text-gray-700 truncate">{variant.name}</p>
+                                                            <p className="text-sm text-gray-700 truncate">{getVariantDisplayName(variant, sku.variants)}</p>
                                                             <span className="px-1.5 inline-flex text-xs leading-5 font-medium rounded bg-gray-100 text-gray-600">
                                                                 {variant.code}
                                                             </span>
@@ -2666,7 +2690,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                             }}
                                                             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                                         />
-                                                        <span className="ml-3 text-sm text-gray-900">{variant.name}</span>
+                                                        <span className="ml-3 text-sm text-gray-900">{getVariantDisplayName(variant, relatedVariants)}</span>
                                                         <span className="ml-auto text-xs text-gray-500">{variant.code}</span>
                                                     </label>
                                                 ))}

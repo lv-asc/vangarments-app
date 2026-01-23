@@ -261,8 +261,8 @@ router.get(
 // Entity follow routes (for following brands, stores, suppliers, pages)
 const entityTypeValidation = [
   param('entityType')
-    .isIn(['brand', 'store', 'supplier', 'page'])
-    .withMessage('Entity type must be brand, store, supplier, or page'),
+    .isIn(['brand', 'store', 'supplier', 'page', 'sport_org'])
+    .withMessage('Entity type must be brand, store, supplier, page, or sport_org'),
   param('entityId').isUUID().withMessage('Entity ID must be a valid UUID'),
 ];
 
@@ -303,8 +303,8 @@ router.get(
   userIdValidation,
   query('entityType')
     .optional()
-    .isIn(['brand', 'store', 'supplier', 'page'])
-    .withMessage('Entity type must be brand, store, supplier, or page'),
+    .isIn(['brand', 'store', 'supplier', 'page', 'sport_org'])
+    .withMessage('Entity type must be brand, store, supplier, page, or sport_org'),
   paginationValidation,
   validateRequest,
   socialController.getUserFollowingEntities.bind(socialController)
@@ -315,8 +315,8 @@ router.get(
   userIdValidation, // Reusing similar validation, but should probably be entityTypeValidation + pagination
   [
     param('entityType')
-      .isIn(['brand', 'store', 'supplier', 'page']) // entities following things
-      .withMessage('Entity type must be brand, store, supplier, or page'),
+      .isIn(['brand', 'store', 'supplier', 'page', 'sport_org']) // entities following things
+      .withMessage('Entity type must be brand, store, supplier, page, or sport_org'),
     param('entityId').isUUID().withMessage('Entity ID must be a valid UUID'),
     ...paginationValidation,
     query('targetType')

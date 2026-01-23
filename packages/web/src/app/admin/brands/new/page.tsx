@@ -13,6 +13,7 @@ import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
 import CountrySelector from '@/components/ui/CountrySelector';
+import { useFormDraftPersistence } from '@/hooks/useFormDraftPersistence';
 
 export default function AdminNewBrandPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -35,6 +36,15 @@ export default function AdminNewBrandPage() {
         country: '',
         tags: [] as string[],
         skuRef: ''
+    });
+
+    // Draft persistence
+    const { clearDraft } = useFormDraftPersistence({
+        storageKey: 'brand-draft-new',
+        data: formData,
+        setData: setFormData,
+        isLoading: loadingUsers,
+        isNew: true
     });
 
     useEffect(() => {
@@ -129,6 +139,7 @@ export default function AdminNewBrandPage() {
             });
 
             toast.success('Brand created successfully');
+            clearDraft(); // Clear draft on success
             router.push('/admin/brands');
         } catch (error: any) {
             console.error('Failed to create brand', error);

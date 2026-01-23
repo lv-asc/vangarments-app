@@ -35,7 +35,8 @@ import {
     PlusIcon,
     QrCodeIcon,
     TrashIcon,
-    ShieldCheckIcon
+    ShieldCheckIcon,
+    TrophyIcon
 } from '@heroicons/react/24/outline';
 import {
     DndContext,
@@ -86,7 +87,8 @@ const ICON_MAP: { [key: string]: React.ElementType } = {
     SunIcon,
     UserGroupIcon,
     QrCodeIcon,
-    ShieldCheckIcon
+    ShieldCheckIcon,
+    TrophyIcon
 };
 
 const GRADIENT_OPTIONS = [
@@ -130,6 +132,7 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
     pages: { id: 'pages', title: 'Pages', description: 'Manage publication pages (Vogue, etc.)', href: '/admin/pages', iconName: 'BookOpenIcon', gradient: 'from-violet-500 to-purple-500' },
     journalism: { id: 'journalism', title: 'Journalism', description: 'Manage News, Columns, and Articles.', href: '/admin/journalism', iconName: 'NewspaperIcon', gradient: 'from-slate-600 to-gray-700' },
     verified_entities: { id: 'verified_entities', title: 'Entity Verifications', description: 'Manage Entity Verification Status.', href: '/admin/entity-verifications', iconName: 'ShieldCheckIcon', gradient: 'from-blue-600 to-indigo-600' },
+    sport_orgs: { id: 'sport_orgs', title: 'Sport Organizations', description: 'Manage Sports Institutions, Departments, and Squads.', href: '/admin/sport-orgs', iconName: 'TrophyIcon', gradient: 'from-yellow-500 to-amber-600' },
     config: { id: 'config', title: 'System Configuration', description: 'Global settings and system parameters.', href: '/admin/configuration', iconName: 'Cog6ToothIcon', gradient: 'from-gray-600 to-gray-800' },
     entity_config: { id: 'entity_config', title: 'Entity Configuration', description: 'Configure entity features and labels.', href: '/admin/entities/configuration', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-indigo-500 to-purple-600' },
     silhouettes: { id: 'silhouettes', title: 'Silhouettes', description: 'Manage default POM templates for brands.', href: '/admin/silhouettes', iconName: 'AdjustmentsHorizontalIcon', gradient: 'from-violet-500 to-indigo-600' }
@@ -612,7 +615,7 @@ export default function AdminPage() {
 
     // Items Order State
     const [sectionsOrder, setSectionsOrder] = useState<{ [key: string]: string[] }>({
-        'Entities': ['entity_config', 'brands', 'stores', 'suppliers', 'non_profits', 'pages', 'verified_entities'],
+        'Entities': ['entity_config', 'brands', 'stores', 'suppliers', 'non_profits', 'sport_orgs', 'pages', 'verified_entities'],
         'Product Catalog': ['categories', 'apparel', 'skus', 'sku_codes', 'colors', 'sizes', 'materials', 'compositions', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
         'Content & Platform': ['users', 'journalism', 'config']
     });

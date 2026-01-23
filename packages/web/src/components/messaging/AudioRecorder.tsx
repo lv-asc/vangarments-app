@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { MicrophoneIcon, StopIcon, TrashIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { useAlert } from '@/contexts/AlertContext';
 
 interface AudioRecorderProps {
     onRecordingComplete: (file: File) => void;
@@ -9,6 +10,7 @@ interface AudioRecorderProps {
 }
 
 export default function AudioRecorder({ onRecordingComplete, onCancel }: AudioRecorderProps) {
+    const { showAlert } = useAlert();
     const [isRecording, setIsRecording] = useState(false);
     const [duration, setDuration] = useState(0);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -57,7 +59,7 @@ export default function AudioRecorder({ onRecordingComplete, onCancel }: AudioRe
             }, 1000);
         } catch (error) {
             console.error('Error starting recording:', error);
-            alert('Could not access microphone');
+            showAlert('Mic Access Denied', 'Could not access microphone');
             onCancel();
         }
     };

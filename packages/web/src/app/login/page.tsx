@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthWrapper';
 import { useNavigation } from '@/hooks/useNavigation';
 import { GoogleButton } from '@/components/auth/GoogleButton';
 import { FacebookButton } from '@/components/auth/FacebookButton';
+import { AppleButton } from '@/components/auth/AppleButton';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -109,6 +110,7 @@ export default function LoginPage() {
           <div className="mb-6 space-y-3">
             <GoogleButton action="login" />
             <FacebookButton action="login" />
+            {/* <AppleButton action="login" /> -- Requires Paid Apple Developer Account */}
             <div className="relative mt-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-200" />

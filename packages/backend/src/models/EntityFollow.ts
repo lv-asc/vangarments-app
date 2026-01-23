@@ -1,6 +1,6 @@
 import { db } from '../database/connection';
 
-export type EntityType = 'brand' | 'store' | 'supplier' | 'non_profit' | 'page' | 'user';
+export type EntityType = 'brand' | 'store' | 'supplier' | 'non_profit' | 'page' | 'user' | 'sport_org';
 
 export interface EntityFollow {
     id: string;
@@ -94,16 +94,19 @@ export class EntityFollowModel {
                    u.verification_status as user_verification_status,
                    (SELECT array_agg(role) FROM user_roles ur WHERE ur.user_id = u.id) as user_roles,
 
-                   -- Brand/Store/Etc Data
-                   ba.id as brand_id, ba.brand_info->>'name' as brand_name, 
-                   ba.brand_info->>'logo' as brand_logo, ba.brand_info->>'slug' as brand_slug,
-                   ba.verification_status as brand_verification_status,
-                   ba.brand_info->>'businessType' as brand_business_type,
+                   -- Brand/Store/SportOrg Data
+                   COALESCE(ba.id, so.id) as entity_id_derived,
+                   COALESCE(ba.brand_info->>'name', so.name) as entity_name_derived,
+                   COALESCE(ba.brand_info->>'logo', so.master_logo) as entity_logo_derived,
+                   COALESCE(ba.brand_info->>'slug', so.slug) as entity_slug_derived,
+                   COALESCE(ba.verification_status, 'unverified') as entity_verification_status_derived,
+                   COALESCE(ba.brand_info->>'businessType', 'sport_org') as entity_business_type_derived,
 
                    COUNT(*) OVER() as total
             FROM entity_follows ef
             LEFT JOIN users u ON ef.follower_type = 'user' AND ef.follower_id = u.id
             LEFT JOIN brand_accounts ba ON ef.follower_type IN ('brand', 'store', 'supplier', 'non_profit') AND ef.follower_id = ba.id
+            LEFT JOIN sport_orgs so ON ef.follower_type = 'sport_org' AND ef.follower_id = so.id
             WHERE ef.entity_type = $1 AND ef.entity_id = $2
             ORDER BY ef.created_at DESC
             LIMIT $3 OFFSET $4
@@ -126,13 +129,13 @@ export class EntityFollowModel {
                 } else {
                     return {
                         type: row.follower_type,
-                        id: row.brand_id,
-                        name: row.brand_name,
-                        logo: row.brand_logo,
-                        slug: row.brand_slug,
-                        businessType: row.brand_business_type,
+                        id: row.entity_id_derived,
+                        name: row.entity_name_derived,
+                        logo: row.entity_logo_derived,
+                        slug: row.entity_slug_derived,
+                        businessType: row.entity_business_type_derived,
                         followedAt: row.created_at,
-                        verificationStatus: row.brand_verification_status || 'unverified',
+                        verificationStatus: row.entity_verification_status_derived,
                     };
                 }
             }),
@@ -153,13 +156,13 @@ export class EntityFollowModel {
     ): Promise<{ following: any[]; total: number }> {
         let query = `
             SELECT ef.*, 
-                   -- Brand/Store/Etc Target
-                   COALESCE(ba.brand_info->>'name', p.name) as entity_name,
-                   COALESCE(ba.brand_info->>'logo', p.logo_url) as entity_logo,
-                   COALESCE(ba.brand_info->>'slug', p.slug) as entity_slug,
-                   ba.brand_info->>'businessType' as business_type,
-                   ba.verification_status as entity_verification_status,
-
+                   -- Brand/Store/SportOrg Target
+                   COALESCE(ba.brand_info->>'name', p.name, so.name) as entity_name,
+                   COALESCE(ba.brand_info->>'logo', p.logo_url, so.master_logo) as entity_logo,
+                   COALESCE(ba.brand_info->>'slug', p.slug, so.slug) as entity_slug,
+                   COALESCE(ba.brand_info->>'businessType', 'sport_org') as business_type,
+                   COALESCE(ba.verification_status, 'unverified') as entity_verification_status,
+ 
                    -- User Target
                    u.username as user_username,
                    u.profile as user_profile,
@@ -170,6 +173,7 @@ export class EntityFollowModel {
             LEFT JOIN brand_accounts ba ON ef.entity_type IN ('brand', 'store', 'supplier', 'non_profit') AND ef.entity_id = ba.id
             LEFT JOIN pages p ON ef.entity_type = 'page' AND ef.entity_id = p.id
             LEFT JOIN users u ON ef.entity_type = 'user' AND ef.entity_id = u.id
+            LEFT JOIN sport_orgs so ON ef.entity_type = 'sport_org' AND ef.entity_id = so.id
             WHERE ef.follower_id = $1 AND ef.follower_type = $2
         `;
         const params: any[] = [followerId, followerType];
@@ -182,7 +186,7 @@ export class EntityFollowModel {
         if (search) {
             const searchParamIndex = params.length + 1;
             query += ` AND (
-                COALESCE(ba.brand_info->>'name', p.name) ILIKE $${searchParamIndex} OR
+                COALESCE(ba.brand_info->>'name', p.name, so.name) ILIKE $${searchParamIndex} OR
                 u.username ILIKE $${searchParamIndex} OR
                 (u.profile->>'name') ILIKE $${searchParamIndex}
             )`;

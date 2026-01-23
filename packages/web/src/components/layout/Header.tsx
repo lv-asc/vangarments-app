@@ -150,6 +150,7 @@ export function Header() {
     { name: 'Users', href: '/users', icon: UsersIcon },
     { name: 'Posts', href: '/search?tab=post', icon: ChatBubbleLeftRightIcon },
     { name: 'Pages', href: '/pages', icon: RectangleStackIcon },
+    { name: 'Sport ORGs', href: '/sport-orgs', icon: UserGroupIcon },
     { name: 'Non Profits', href: '/non-profits', icon: HeartIcon },
     { name: 'Suppliers', href: '/suppliers', icon: ClipboardDocumentCheckIcon },
   ];

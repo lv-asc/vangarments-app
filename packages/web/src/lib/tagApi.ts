@@ -17,8 +17,7 @@ class TagApiClient {
      * Add a tag to an image
      */
     async addTag(request: CreateMediaTagRequest): Promise<MediaTag> {
-        const response = await apiClient.post<{ data: MediaTag }>('/tags', request);
-        return (response as any).data;
+        return apiClient.post<MediaTag>('/tags', request);
     }
 
     /**
@@ -34,11 +33,9 @@ class TagApiClient {
             sourceId,
             ...(imageUrl && { imageUrl }),
         });
-        const response = await apiClient.get<{ data: MediaTag[] }>(`/tags?${params.toString()}`);
-        console.log('[TagApi] getTagsBySource response:', response);
-        const tags = (response as any).data || [];
-        console.log('[TagApi] Parsed tags:', tags);
-        return tags;
+        const tags = await apiClient.get<MediaTag[]>(`/tags?${params.toString()}`);
+        console.log('[TagApi] getTagsBySource tags:', tags);
+        return tags || [];
     }
 
     /**

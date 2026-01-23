@@ -13,6 +13,7 @@ import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
 import Link from 'next/link';
 import { COUNTRIES, BRAND_TAGS } from '@/lib/constants';
 import CountrySelector from '@/components/ui/CountrySelector';
+import { useFormDraftPersistence } from '@/hooks/useFormDraftPersistence';
 
 export default function AdminNewStorePage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -34,6 +35,15 @@ export default function AdminNewStorePage() {
         partnershipTier: 'basic',
         country: '',
         tags: [] as string[]
+    });
+
+    // Draft persistence
+    const { clearDraft } = useFormDraftPersistence({
+        storageKey: 'store-draft-new',
+        data: formData,
+        setData: setFormData,
+        isLoading: loadingUsers,
+        isNew: true
     });
 
     useEffect(() => {
@@ -127,6 +137,7 @@ export default function AdminNewStorePage() {
             });
 
             toast.success('Store created successfully');
+            clearDraft(); // Clear draft on success
             router.push('/admin/stores');
         } catch (error: any) {
             console.error('Failed to create store', error);

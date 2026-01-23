@@ -333,7 +333,19 @@ export async function getGoogleCalendarStatus(token: string): Promise<{ connecte
 }
 
 // Add event to Google Calendar via API
-export async function addToGoogleCalendar(eventId: string, token: string): Promise<{
+export async function addToGoogleCalendar(
+    eventId: string,
+    token: string,
+    eventDetails?: {
+        title: string;
+        description?: string;
+        startDate: string;
+        endDate?: string;
+        location?: string;
+        startTime?: string;
+        endTime?: string;
+    }
+): Promise<{
     success: boolean;
     googleEventUrl?: string;
     error?: string;
@@ -345,7 +357,7 @@ export async function addToGoogleCalendar(eventId: string, token: string): Promi
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ eventId }),
+        body: JSON.stringify({ eventId, eventDetails }),
     });
     const data = await response.json();
 
@@ -417,4 +429,60 @@ export const googleCalendarApi = {
     addEvent: addToGoogleCalendar,
     generateUrl: generateGoogleCalendarUrl,
 };
+// ============================================
+// Apple Calendar Integration
+// ============================================
 
+// Check if user has Apple Calendar connected
+export async function getAppleCalendarStatus(token: string): Promise<{ connected: boolean; email?: string }> {
+    const response = await fetch(`${API_BASE_URL}/apple-calendar/status`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    const data = await response.json();
+
+    if (!data.success) {
+        return { connected: false };
+    }
+
+    return data.data;
+}
+
+// Add event to Apple Calendar via API
+export async function addToAppleCalendar(
+    eventId: string,
+    token: string,
+    eventDetails?: any
+): Promise<{
+    success: boolean;
+    error?: string;
+    code?: string;
+    data?: {
+        icsContent: string;
+        filename: string;
+    };
+}> {
+    const response = await fetch(`${API_BASE_URL}/apple-calendar/add-event`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ eventId, eventDetails }),
+    });
+    const data = await response.json();
+
+    return {
+        success: data.success,
+        error: data.error,
+        code: data.code,
+        data: data.data
+    };
+}
+
+// Updated calendarApi object with Apple Calendar functions
+export const appleCalendarApi = {
+    getStatus: getAppleCalendarStatus,
+    addEvent: addToAppleCalendar,
+};

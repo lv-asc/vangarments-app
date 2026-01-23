@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import TagSearchModal from './TagSearchModal';
 import TagMarker from './TagMarker';
-import { PlusIcon, XMarkIcon, TagIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 interface ImageTagEditorProps {
@@ -35,7 +35,7 @@ export default function ImageTagEditor({
     className = '',
 }: ImageTagEditorProps) {
     const [tags, setTags] = useState<MediaTag[]>(existingTags);
-    const [showTags, setShowTags] = useState(true);
+    // const [showTags, setShowTags] = useState(true); // Removed as requested
     const [isEditing, setIsEditing] = useState(false);
     const [pendingTag, setPendingTag] = useState<PendingTag | null>(null);
     const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -52,10 +52,12 @@ export default function ImageTagEditor({
         isOpen: boolean;
         entity: TagSearchResult | null;
         description: string;
+        tagIdToUpdate?: string;
     }>({
         isOpen: false,
         entity: null,
-        description: ''
+        description: '',
+        tagIdToUpdate: undefined as string | undefined // Add this to track editing state
     });
     const descriptionInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,45 +96,83 @@ export default function ImageTagEditor({
 
     // Handle Final Submission (Step 2: Create Tag)
     const handleDescriptionSubmit = async () => {
-        if (!pendingTag || !descriptionModal.entity) return;
+        if (!descriptionModal.entity) return;
 
-        const { entity, description } = descriptionModal;
+        const { entity, description, tagIdToUpdate } = descriptionModal;
 
         // Validation: Check for duplicates
-        const isDuplicate = tags.some(tag =>
-            (tag.taggedEntityId === entity.id) || (tag.taggedItemId === entity.id)
-        );
+        const isDuplicate = tags.some(tag => {
+            if (entity.type === 'item') {
+                return tag.tagType === 'item' && tag.taggedItemId === entity.id;
+            } else {
+                return tag.tagType === entity.type && tag.taggedEntityId === entity.id;
+            }
+        });
 
         if (isDuplicate) {
             toast.error(`"${entity.name}" is already tagged in this image.`);
             return;
         }
 
-        setIsLoading(true);
-        try {
-            const tagRequest = {
-                sourceType,
-                sourceId,
-                imageUrl,
-                positionX: pendingTag.positionX,
-                positionY: pendingTag.positionY,
-                tagType: entity.type,
-                taggedEntityId: entity.type === 'item' ? undefined : entity.id,
-                taggedItemId: entity.type === 'item' ? entity.id : undefined,
-                description: description?.trim() || undefined,
-            };
 
-            const newTag = await tagApi.addTag(tagRequest);
-            const updatedTags = [...tags, newTag];
-            setTags(updatedTags);
-            onTagsChange?.(updatedTags);
-            toast.success(`Tagged ${entity.name}${description ? ` as "${description}"` : ''}`);
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to add tag');
-        } finally {
-            setIsLoading(false);
-            setPendingTag(null);
-            setDescriptionModal({ isOpen: false, entity: null, description: '' });
+        // Check if we are updating or adding new
+        if (tagIdToUpdate) {
+            setIsLoading(true);
+            try {
+                // If updating, we only support description updates technically, 
+                // but if entity changed (not possible in current UI flow as we open modal with entity),
+                // we'd need to handle that.
+                // The current flow for "Edit" just re-opens the description modal with the EXISTING entity.
+
+                const updateRequest = {
+                    description: description?.trim() || undefined
+                } as any; // Cast to any to avoid type mismatch if UpdateMediaTagRequest is incomplete in shared lib
+
+                const updatedTag = await tagApi.updateTag(tagIdToUpdate, updateRequest);
+
+                const updatedTags = tags.map(t => t.id === tagIdToUpdate ? updatedTag : t);
+                setTags(updatedTags);
+                onTagsChange?.(updatedTags);
+                toast.success(`Updated tag for ${entity.name}`);
+            } catch (error: any) {
+                toast.error(error.message || 'Failed to update tag');
+            } finally {
+                setIsLoading(false);
+                setDescriptionModal({ isOpen: false, entity: null, description: '', tagIdToUpdate: undefined });
+            }
+        } else {
+            // Creating NEW tag
+            if (!pendingTag) return;
+
+            setIsLoading(true);
+            try {
+                const tagRequest = {
+                    sourceType,
+                    sourceId,
+                    imageUrl,
+                    positionX: pendingTag.positionX,
+                    positionY: pendingTag.positionY,
+                    tagType: entity.type,
+                    taggedEntityId: entity.type === 'item' ? undefined : entity.id,
+                    taggedItemId: entity.type === 'item' ? entity.id : undefined,
+                    description: description?.trim() || undefined,
+                };
+
+                const newTag = await tagApi.addTag(tagRequest);
+                if (!newTag || !newTag.id) {
+                    throw new Error('Server returned an invalid tag object');
+                }
+                const updatedTags = [...tags, newTag];
+                setTags(updatedTags);
+                onTagsChange?.(updatedTags);
+                toast.success(`Tagged ${entity.name}${description ? ` as "${description}"` : ''}`);
+            } catch (error: any) {
+                toast.error(error.message || 'Failed to add tag');
+            } finally {
+                setIsLoading(false);
+                setPendingTag(null);
+                setDescriptionModal({ isOpen: false, entity: null, description: '', tagIdToUpdate: undefined });
+            }
         }
     };
 
@@ -169,6 +209,9 @@ export default function ImageTagEditor({
             };
 
             const newTag = await tagApi.addTag(tagRequest);
+            if (!newTag || !newTag.id) {
+                throw new Error('Server returned an invalid tag object');
+            }
             const updatedTags = [...tags, newTag];
             setTags(updatedTags);
             onTagsChange?.(updatedTags);
@@ -195,6 +238,29 @@ export default function ImageTagEditor({
         }
     };
 
+    // Handle tag editing
+    const handleEditTag = (tag: MediaTag) => {
+        // Construct a TagSearchResult-like object from the tag
+        // This allows us to reuse the Description Modal
+        const entity: TagSearchResult = {
+            id: tag.taggedEntityId || tag.taggedItemId || '',
+            name: tag.taggedEntity?.name || tag.taggedItem?.name || 'Unknown',
+            type: tag.tagType,
+            imageUrl: tag.taggedEntity?.imageUrl || tag.taggedItem?.imageUrl,
+            subtitle: tag.taggedEntity?.subtitle
+        };
+
+        setDescriptionModal({
+            isOpen: true,
+            entity,
+            description: tag.description || '',
+            tagIdToUpdate: tag.id
+        });
+
+        // Auto-focus input
+        setTimeout(() => descriptionInputRef.current?.focus(), 100);
+    };
+
     // Cancel pending tag
     const handleCancelPending = () => {
         setPendingTag(null);
@@ -217,12 +283,19 @@ export default function ImageTagEditor({
                     draggable={false}
                 />
 
-                {/* Existing tags */}
-                {showTags && tags.map((tag) => (
+                {!readOnly && (
+                    <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded z-10 pointer-events-none">
+                        {isEditing ? 'Click image to add tag' : 'Click + to add tags'}
+                    </div>
+                )}
+
+                {/* Existing tags - Always show */}
+                {tags.filter(tag => !!tag && !!tag.id).map((tag) => (
                     <TagMarker
                         key={tag.id}
                         tag={tag}
-                        onDelete={!readOnly && isEditing ? () => handleDeleteTag(tag.id) : undefined}
+                        onDelete={!readOnly ? () => handleDeleteTag(tag.id) : undefined}
+                        onEdit={!readOnly ? () => handleEditTag(tag) : undefined}
                     />
                 ))}
 
@@ -248,16 +321,7 @@ export default function ImageTagEditor({
             {/* Controls */}
             {!readOnly && (
                 <div className="absolute top-2 right-2 flex gap-2 z-10">
-                    {/* Toggle tags visibility */}
-                    <button
-                        type="button"
-                        onClick={() => setShowTags(!showTags)}
-                        className={`p-2 rounded-full ${showTags ? 'bg-white text-gray-800' : 'bg-gray-800/60 text-white'
-                            } shadow-md transition-colors`}
-                        title={showTags ? 'Hide tags' : 'Show tags'}
-                    >
-                        <TagIcon className="w-5 h-5" />
-                    </button>
+                    {/* Toggle tags visibility - REMOVED */}{/* Toggle tags visibility - REMOVED */}
 
                     {/* Toggle edit mode */}
                     <button
@@ -290,7 +354,7 @@ export default function ImageTagEditor({
             {/* Description Input Modal */}
             <Modal
                 isOpen={descriptionModal.isOpen}
-                onClose={() => setDescriptionModal({ ...descriptionModal, isOpen: false })}
+                onClose={() => setDescriptionModal({ ...descriptionModal, isOpen: false, tagIdToUpdate: undefined })}
                 title={`Details for ${descriptionModal.entity?.name}`}
                 size="sm"
             >

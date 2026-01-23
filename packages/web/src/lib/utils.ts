@@ -102,34 +102,41 @@ export function getImageUrl(path: string | undefined | null, size?: 'sm' | 'md' 
     cleanPath = cleanPath.substring('api/'.length); // Becomes storage/...
   }
 
-  // Handle direct uploads folder references (often returned by upload endpoint)
-  // Map uploads/... -> storage/uploads/...
+  // Handle images folder references (often stored in DB as relative path)
+  if (cleanPath.startsWith('images/')) {
+    cleanPath = `storage/${cleanPath}`;
+  }
+
+  // Handle uploads folder references
   if (cleanPath.startsWith('uploads/')) {
     cleanPath = `storage/${cleanPath}`;
   }
 
-  // If it is a storage path, return relative URL /storage/...
-  // This will be proxied by Next.js to the backend
+  // If it's just a raw filename (e.g. "uuid.png"), assume it's in storage/social or similar
+  // but to be safe, if it doesn't have a folder prefix, it's likely problematic.
+  // However, most uploads go to storage/images/... or storage/uploads/...
+  // If it doesn't start with storage/, and it's not a known public asset, assume storage/
+  if (!cleanPath.startsWith('storage/') && !cleanPath.startsWith('assets/') && !cleanPath.includes('/')) {
+    // If it's a UUID-like filename without path, it's almost certainly a storage file
+    if (/^[0-9a-f-]{36}\.[a-z0-9]+$/i.test(cleanPath)) {
+      cleanPath = `storage/images/social/${cleanPath}`; // Fallback to social category
+    } else {
+      cleanPath = `storage/${cleanPath}`;
+    }
+  }
+
+  // Final check: if it is a storage path, return relative URL /storage/...
   if (cleanPath.startsWith('storage/')) {
     return `/${cleanPath}`;
   }
 
   // Fallback for non-storage paths (e.g. public assets)
-  // Final fallback for paths that might be public assets or CDN paths
   const cdnBaseUrl = process.env.NEXT_PUBLIC_CDN_URL || '';
-  const sizeParam = size ? `?w=${getSizeWidth(size)}` : '';
 
-  // If CDN_URL is provided, use it. Otherwise, assume it's a public asset relative to root.
   if (cdnBaseUrl) {
-    const url = `${cdnBaseUrl}/${cleanPath}${sizeParam}`;
-    console.log('[getImageUrl] CDN path:', path, '->', url);
-    return url;
+    return `${cdnBaseUrl}/${cleanPath}${size ? `?w=${getSizeWidth(size)}` : ''}`;
   } else {
-    // If it's just a filename "image.jpg", and we don't know where it is...
-    // Maybe assume public? context dependent.
-    const finalPath = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-    console.log('[getImageUrl] Fallback path (public/relative):', path, '->', finalPath);
-    return finalPath;
+    return `/${cleanPath}`;
   }
 }
 

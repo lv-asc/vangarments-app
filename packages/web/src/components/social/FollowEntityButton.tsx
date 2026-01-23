@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { brandApi } from '@/lib/brandApi';
 import { CheckIcon, UserPlusIcon } from '@heroicons/react/24/outline';
+import { useAlert } from '@/contexts/AlertContext';
 
-type EntityType = 'brand' | 'store' | 'supplier' | 'page';
+type EntityType = 'brand' | 'store' | 'supplier' | 'page' | 'sport_org';
 
 interface FollowEntityButtonProps {
     entityType: EntityType;
@@ -21,6 +22,7 @@ export function FollowEntityButton({
     size = 'md',
     onFollowChange,
 }: FollowEntityButtonProps) {
+    const { showAlert } = useAlert();
     const [status, setStatus] = useState<{ isFollowing: boolean; isFollower: boolean }>({
         isFollowing: false,
         isFollower: false
@@ -71,9 +73,9 @@ export function FollowEntityButton({
             console.error('[FollowEntityButton] Toggle failed:', error);
             if (error.status === 401) {
                 // TODO: Trigger login modal
-                alert('Please log in to follow');
+                showAlert('Login Required', 'Please log in to follow');
             } else {
-                alert('Action failed. Please try again.');
+                showAlert('Follow Failed', 'Action failed. Please try again.');
             }
         } finally {
             setActionLoading(false);

@@ -362,6 +362,7 @@ export class SocialController {
         success: true,
         data: {
           users: result.users,
+          entities: result.entities,
           hasMore: result.hasMore,
           pagination: {
             page: parseInt(page as string),
@@ -681,6 +682,8 @@ export class SocialController {
       const { actingAs, followerId: explicitFollowerId, followerType: explicitFollowerType } = req.body;
       const userId = req.user!.id;
 
+      console.log(`[DEBUG] followEntity: entityType=${entityType}, entityId=${entityId}, userId=${userId}`);
+
       let followerId = userId;
       let followerType: EntityType = 'user';
 
@@ -719,11 +722,14 @@ export class SocialController {
         entityId,
       });
 
+      console.log(`[DEBUG] followEntity success: followId=${follow.id}`);
+
       res.status(201).json({
         success: true,
         data: { follow },
       });
     } catch (error: any) {
+      console.error(`[DEBUG] followEntity FAILED: ${error.message}`, error);
       res.status(400).json({
         error: {
           code: 'FOLLOW_ENTITY_FAILED',

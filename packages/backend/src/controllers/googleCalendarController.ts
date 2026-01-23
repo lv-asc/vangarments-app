@@ -161,64 +161,122 @@ export class GoogleCalendarController {
                 });
             }
 
-            // Get the Vangarments event
-            const event = await CalendarEventModel.findById(eventId);
-
-            if (!event) {
-                return res.status(404).json({ success: false, error: 'Event not found' });
-            }
-
             // Format event for Google Calendar
-            const eventDate = new Date(event.eventDate);
-            const hasTime = !!event.eventTime;
+            let googleEvent: GoogleCalendarEvent;
+            const { eventDetails } = req.body;
 
-            let startDateTime: string;
-            let endDateTime: string;
+            if (eventDetails) {
+                // Use provided event details
+                const { title, description, startDate, endDate, location, startTime, endTime } = eventDetails;
 
-            if (hasTime) {
-                // Parse time (expected format: "HH:mm" or "HH:mm:ss")
-                const [hours, minutes] = event.eventTime!.split(':').map(Number);
-                eventDate.setHours(hours, minutes, 0, 0);
-                startDateTime = eventDate.toISOString();
+                let startDateTime: string;
+                let endDateTime: string;
+                const hasTime = !!startTime; // check if time is provided
 
-                // Default to 2 hours duration if no end date
-                const endDate = event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 2 * 60 * 60 * 1000);
-                endDateTime = endDate.toISOString();
+                if (hasTime) {
+                    // Combine date and time
+                    // Start
+                    const startD = new Date(startDate);
+                    const [sHours, sMinutes] = startTime.split(':').map(Number);
+                    startD.setHours(sHours, sMinutes, 0, 0);
+                    startDateTime = startD.toISOString();
+
+                    // End
+                    const endD = new Date(endDate || startDate);
+                    if (endTime) {
+                        const [eHours, eMinutes] = endTime.split(':').map(Number);
+                        endD.setHours(eHours, eMinutes, 0, 0);
+                    } else {
+                        // Default 1 hour
+                        endD.setTime(startD.getTime() + 60 * 60 * 1000);
+                    }
+                    endDateTime = endD.toISOString();
+                } else {
+                    // All day
+                    startDateTime = new Date(startDate).toISOString().split('T')[0];
+                    const endD = new Date(endDate || startDate);
+                    // Google all-day end date is exclusive, so add 1 day if it's the same day
+                    if (endDate === startDate || !endDate) {
+                        endD.setDate(endD.getDate() + 1);
+                    }
+                    endDateTime = endD.toISOString().split('T')[0];
+                }
+
+                googleEvent = {
+                    summary: title,
+                    description: description || '',
+                    start: hasTime
+                        ? { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' }
+                        : { date: startDateTime },
+                    end: hasTime
+                        ? { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' }
+                        : { date: endDateTime },
+                    location: location,
+                    source: {
+                        title: 'Vangarments Calendar',
+                        url: `${process.env.FRONTEND_URL}/calendar`,
+                    },
+                };
+
             } else {
-                // All-day event
-                startDateTime = eventDate.toISOString().split('T')[0];
-                const endDate = event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
-                endDateTime = endDate.toISOString().split('T')[0];
+                // Fetch from DB using eventId (Legacy/Direct behavior)
+                const event = await CalendarEventModel.findById(eventId);
+                if (!event) {
+                    return res.status(404).json({ success: false, error: 'Event not found' });
+                }
+
+                // Format event for Google Calendar
+                const eventDate = new Date(event.eventDate);
+                const hasTime = !!event.eventTime;
+
+                let startDateTime: string;
+                let endDateTime: string;
+
+                if (hasTime) {
+                    // Parse time (expected format: "HH:mm" or "HH:mm:ss")
+                    const [hours, minutes] = event.eventTime!.split(':').map(Number);
+                    eventDate.setHours(hours, minutes, 0, 0);
+                    startDateTime = eventDate.toISOString();
+
+                    // Default to 2 hours duration if no end date
+                    const endDate = event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 2 * 60 * 60 * 1000);
+                    endDateTime = endDate.toISOString();
+                } else {
+                    // All-day event
+                    startDateTime = eventDate.toISOString().split('T')[0];
+                    const endDate = event.endDate ? new Date(event.endDate) : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+                    endDateTime = endDate.toISOString().split('T')[0];
+                }
+
+                // Build description with event details
+                let description = event.description || '';
+
+                if (event.brand) {
+                    description += `\n\nBrand: ${event.brand.brand_name || event.brand.name}`;
+                }
+
+                if (event.externalUrl) {
+                    description += `\n\nMore info: ${event.externalUrl}`;
+                }
+
+                description += `\n\n—\nAdded from Vangarments Calendar`;
+
+                googleEvent = {
+                    summary: event.title,
+                    description: description.trim(),
+                    start: hasTime
+                        ? { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' }
+                        : { date: startDateTime },
+                    end: hasTime
+                        ? { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' }
+                        : { date: endDateTime },
+                    location: event.location,
+                    source: {
+                        title: 'Vangarments Calendar',
+                        url: `${process.env.FRONTEND_URL}/calendar`,
+                    },
+                };
             }
-
-            // Build description with event details
-            let description = event.description || '';
-
-            if (event.brand) {
-                description += `\n\nBrand: ${event.brand.brand_name || event.brand.name}`;
-            }
-
-            if (event.externalUrl) {
-                description += `\n\nMore info: ${event.externalUrl}`;
-            }
-
-            description += `\n\n—\nAdded from Vangarments Calendar`;
-
-            const googleEvent: GoogleCalendarEvent = {
-                summary: event.title,
-                description: description.trim(),
-                start: hasTime
-                    ? { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' }
-                    : { date: startDateTime },
-                end: hasTime
-                    ? { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' }
-                    : { date: endDateTime },
-                location: event.location,
-                source: {
-                    title: 'Vangarments Calendar',
-                    url: `${process.env.FRONTEND_URL}/calendar`,
-                },
-            };
 
             // Create event in Google Calendar
             const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {

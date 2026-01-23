@@ -13,6 +13,7 @@ export default function FollowersPage() {
     const { user } = useAuth();
     const toast = useToast();
     const [followers, setFollowers] = useState<any[]>([]);
+    const [entities, setEntities] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -26,6 +27,7 @@ export default function FollowersPage() {
             setLoading(true);
             const data = await apiClient.getFollowers(user.id, 1, 100, query);
             setFollowers(data.users || []);
+            setEntities(data.entities || []);
             setError(null);
         } catch (err: any) {
             console.error('Failed to load followers:', err);
@@ -43,9 +45,45 @@ export default function FollowersPage() {
         return () => clearTimeout(timer);
     }, [searchQuery, loadFollowers]);
 
-    const filteredFollowers = useMemo(() => {
-        return followers; // Server-side search result
-    }, [followers]);
+    const filteredContent = useMemo(() => {
+        const normalizedUsers = followers.map(u => ({
+            id: u.id,
+            type: 'user',
+            name: u.personalInfo?.name || u.username,
+            username: u.username,
+            subtitle: `@${u.username}`,
+            image: u.personalInfo?.avatarUrl,
+            link: `/u/${u.username}`,
+            verificationStatus: u.verificationStatus
+        }));
+
+        const normalizedEntities = entities.map(e => ({
+            id: e.id,
+            type: e.type, // Entity type from EntityFollowModel.getFollowers
+            name: e.name || 'Unnamed Entity',
+            subtitle: e.type.charAt(0).toUpperCase() + e.type.slice(1).replace('_', '-'),
+            image: e.logo,
+            link: `/${e.type === 'brand' ? 'brands' : e.type === 'store' ? 'stores' : e.type === 'non_profit' ? 'non-profits' : e.type === 'sport_org' ? 'sport-orgs' : 'pages'}/${e.slug || e.id}`,
+            verificationStatus: e.verificationStatus
+        }));
+
+        const results = [...normalizedUsers, ...normalizedEntities];
+        const grouped: Record<string, any[]> = {};
+
+        results.forEach(item => {
+            const typeLabel = item.type === 'user' ? 'Users' :
+                item.type === 'brand' ? 'Brands' :
+                    item.type === 'store' ? 'Stores' :
+                        item.type === 'supplier' ? 'Suppliers' :
+                            item.type === 'non_profit' ? 'Non-Profits' :
+                                item.type === 'sport_org' ? 'Sport ORGs' : 'Pages';
+
+            if (!grouped[typeLabel]) grouped[typeLabel] = [];
+            grouped[typeLabel].push(item);
+        });
+
+        return grouped;
+    }, [followers, entities]);
 
     const handleRemoveFollower = (follower: any) => {
         setFollowerToRemove(follower);
@@ -119,57 +157,59 @@ export default function FollowersPage() {
                     </div>
                 )}
 
-                <div>
-                    <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 px-1">Users</h2>
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                        {filteredFollowers.length === 0 ? (
-                            <div className="p-12 text-center text-gray-500 italic">
-                                {searchQuery ? `No followers found matching "${searchQuery}"` : "No followers yet."}
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-gray-50">
-                                {filteredFollowers.map((follower) => (
-                                    <div
-                                        key={follower.id}
-                                        className="flex items-center p-4 hover:bg-gray-50 transition-colors group"
-                                    >
-                                        <Link
-                                            href={`/u/${follower.username}`}
-                                            className="flex items-center flex-1 min-w-0"
+                <div className="space-y-8">
+                    {Object.keys(filteredContent).length === 0 ? (
+                        <div className="bg-white rounded-xl p-12 text-center text-gray-500 border border-gray-100 italic">
+                            {searchQuery ? `No followers found matching "${searchQuery}"` : "No followers yet."}
+                        </div>
+                    ) : (
+                        Object.entries(filteredContent).map(([groupName, items]) => (
+                            <div key={groupName}>
+                                <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 px-1">{groupName}</h2>
+                                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                                    {items.map((item) => (
+                                        <div
+                                            key={`${item.type}-${item.id}`}
+                                            className="flex items-center p-4 hover:bg-gray-50 transition-colors group"
                                         >
-                                            <div className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-50 border border-gray-100 mr-4 flex-shrink-0">
-                                                {follower.personalInfo?.avatarUrl ? (
-                                                    <img
-                                                        src={getImageUrl(follower.personalInfo.avatarUrl)}
-                                                        alt={follower.personalInfo?.name || follower.username}
-                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-lg">
-                                                        {(follower.personalInfo?.name || follower.username || '').charAt(0).toUpperCase()}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1.5">
-                                                    <h3 className="font-semibold text-gray-900 truncate">{follower.personalInfo?.name || follower.username}</h3>
-                                                    {follower.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                                            <Link
+                                                href={item.link}
+                                                className="flex items-center flex-1 min-w-0"
+                                            >
+                                                <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-50 border border-gray-100 mr-4 flex-shrink-0" style={{ borderRadius: item.type === 'user' ? '9999px' : '0.5rem' }}>
+                                                    {item.image ? (
+                                                        <img
+                                                            src={getImageUrl(item.image)}
+                                                            alt={item.name}
+                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-lg">
+                                                            {item.name.charAt(0).toUpperCase()}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <p className="text-sm text-gray-500 truncate">@{follower.username}</p>
-                                            </div>
-                                        </Link>
-                                        <button
-                                            onClick={() => handleRemoveFollower(follower)}
-                                            disabled={removingFollowerId === follower.id}
-                                            className="ml-4 px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {removingFollowerId === follower.id ? 'Removing...' : 'Remove'}
-                                        </button>
-                                    </div>
-                                ))}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <h3 className="font-semibold text-gray-900 truncate">{item.name}</h3>
+                                                        {item.verificationStatus === 'verified' && <VerifiedBadge size="sm" />}
+                                                    </div>
+                                                    <p className="text-sm text-gray-500 truncate">{item.subtitle}</p>
+                                                </div>
+                                            </Link>
+                                            <button
+                                                onClick={() => handleRemoveFollower(item)}
+                                                disabled={removingFollowerId === item.id}
+                                                className="ml-4 px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {removingFollowerId === item.id ? 'Removing...' : 'Remove'}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        )}
-                    </div>
+                        ))
+                    )}
                 </div>
             </div>
 
@@ -179,7 +219,7 @@ export default function FollowersPage() {
                     <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-2">Remove Follower?</h3>
                         <p className="text-gray-600 mb-6">
-                            Are you sure you want to remove <span className="font-semibold">{followerToRemove.personalInfo?.name || followerToRemove.username}</span> from your followers? They won't be notified.
+                            Are you sure you want to remove <span className="font-semibold">{followerToRemove.name || followerToRemove.username}</span> from your followers? They won't be notified.
                         </p>
                         <div className="flex gap-3 justify-end">
                             <button

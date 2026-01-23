@@ -13,6 +13,7 @@ import {
     XMarkIcon,
     Cog6ToothIcon
 } from '@heroicons/react/24/outline';
+import { useAlert } from '@/contexts/AlertContext';
 import { calendarApi, CalendarEvent, CalendarEventType, CalendarEventTypeRecord } from '@/lib/calendarApi';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +26,7 @@ import SearchableCombobox from '../ui/Combobox';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 export default function CalendarAdmin() {
+    const { showAlert, showConfirm } = useAlert();
     const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -174,24 +176,31 @@ export default function CalendarAdmin() {
             if (!tokens) throw new Error('No authentication token found');
             await calendarApi.syncSKUs(tokens);
             await fetchEvents();
-            alert('Sync completed successfully!');
+            showAlert('Sync Success', 'Calendar synchronization completed successfully!');
         } catch (error) {
             console.error('Error syncing SKUs:', error);
-            alert('Failed to sync: ' + (error instanceof Error ? error.message : 'Unknown error'));
+            showAlert('Sync Failed', 'Failed to sync: ' + (error instanceof Error ? error.message : 'Unknown error'));
         } finally {
             setIsSyncing(false);
         }
     };
 
     const handleDeleteEvent = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this event?')) return;
-        try {
-            const tokens = Cookies.get('auth_token') || localStorage.getItem('auth_token') || '';
-            await calendarApi.deleteEvent(id, tokens);
-            setEvents(events.filter(e => e.id !== id));
-        } catch (error) {
-            console.error('Error deleting event:', error);
-        }
+        showConfirm(
+            'Delete Event',
+            'Are you sure you want to delete this event? This action cannot be undone.',
+            async () => {
+                try {
+                    const tokens = Cookies.get('auth_token') || localStorage.getItem('auth_token') || '';
+                    await calendarApi.deleteEvent(id, tokens);
+                    setEvents(events.filter(e => e.id !== id));
+                    toast.success('Event deleted');
+                } catch (error) {
+                    console.error('Error deleting event:', error);
+                    toast.error('Failed to delete event');
+                }
+            }
+        );
     };
 
     const openModal = (event?: CalendarEvent) => {

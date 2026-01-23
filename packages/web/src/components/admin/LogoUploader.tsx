@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { TrashIcon, StarIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { processImageFiles } from '@/utils/heicConverter';
+import { getImageUrl } from '@/lib/utils';
 
 import {
     DndContext,
@@ -40,6 +41,7 @@ interface LogoUploaderProps {
     helperText?: string;
     showNameInput?: boolean;
     itemLabel?: string;
+    maxItems?: number;
 }
 
 interface SortableLogoItemProps {
@@ -168,7 +170,8 @@ export default function LogoUploader({
     emptyStateMessage = "No logos uploaded yet",
     helperText = "The first image is the main one. Drag to reorder.",
     showNameInput = true,
-    itemLabel = "Logo"
+    itemLabel = "Logo",
+    maxItems
 }: LogoUploaderProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
@@ -194,16 +197,6 @@ export default function LogoUploader({
         })
     );
 
-    const getImageUrl = (url: string) => {
-        if (!url) return '';
-        if (url.startsWith('http') || url.startsWith('data:')) return url;
-        if (url.startsWith('/api')) return url;
-        let path = url.startsWith('/') ? url.substring(1) : url;
-        if (path.startsWith('storage/')) {
-            path = path.substring('storage/'.length);
-        }
-        return `/api/storage/${path}`;
-    };
 
     const emitChange = (newItems: LogoItem[]) => {
         if (isStringArray) {
@@ -343,8 +336,8 @@ export default function LogoUploader({
                     />
                     <button
                         type="button"
-                        disabled={uploading}
-                        className={`inline-flex items-center px-3 py-2 border border-blue-600 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${uploading ? 'opacity-75 cursor-wait' : ''}`}
+                        disabled={uploading || (maxItems !== undefined && logos.length >= maxItems)}
+                        className={`inline-flex items-center px-3 py-2 border border-blue-600 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${(uploading || (maxItems !== undefined && logos.length >= maxItems)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {uploading ? 'Uploading...' : buttonLabel}
                     </button>

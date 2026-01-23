@@ -9,6 +9,14 @@ function stripSizeSuffix(name: string): string {
     return name.replace(/\s*\[(X{0,3}S|X{0,4}L|M|[0-9]+)\]\s*$/i, '').trim();
 }
 
+/**
+ * Strip color suffix from product name (e.g., "Asphalt T-Shirt (Black)" -> "Asphalt T-Shirt")
+ * Handles various parenthesis formats
+ */
+function stripColorSuffix(name: string): string {
+    return name.replace(/\s*\([^)]+\)\s*$/i, '').trim();
+}
+
 type Props = {
     params: { slug: string }
     searchParams: { [key: string]: string | string[] | undefined }
@@ -84,7 +92,26 @@ export async function generateMetadata(
 
         if (result.skus && result.skus.length > 0) {
             const product = result.skus[0];
-            const title = stripSizeSuffix(product.name);
+            let title = stripSizeSuffix(product.name);
+
+            // Logic to strip color if only 1 color variant exists
+            // Since search result might not include all variants, we try to detect based on what we have
+            // or conservatively strip if it looks like a single item.
+            // If the search returned variants (siblings), we can check them.
+            if (product.variants && product.variants.length > 0) {
+                const uniqueColors = new Set(
+                    product.variants
+                        .map((v: any) => {
+                            const match = v.name.match(/\(([^)]+)\)/);
+                            return match ? match[1] : null;
+                        })
+                        .filter(Boolean)
+                );
+                if (uniqueColors.size <= 1) {
+                    title = stripColorSuffix(title);
+                }
+            }
+
             console.log(`[Metadata] Setting title to: ${title}`);
 
             return {

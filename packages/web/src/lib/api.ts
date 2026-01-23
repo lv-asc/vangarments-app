@@ -396,7 +396,7 @@ class ApiClient {
     }
   }
 
-  async disconnectOAuth(provider: 'google' | 'facebook'): Promise<void> {
+  async disconnectOAuth(provider: 'google' | 'facebook' | 'apple'): Promise<void> {
     await this.request(`/oauth/${provider}`, {
       method: 'DELETE',
     });
@@ -417,6 +417,32 @@ class ApiClient {
     }
     this.saveToken(response.token);
     return response.token;
+  }
+
+  // Apple Calendar Methods
+  async getAppleCalendarStatus(): Promise<{ success: boolean; data: { connected: boolean; email: string | null } }> {
+    return this.request('/apple-calendar/status') as any;
+  }
+
+  async connectAppleCalendar(email: string, appPassword: string): Promise<{ success: boolean; message: string }> {
+    return this.request('/apple-calendar/connect', {
+      method: 'POST',
+      body: JSON.stringify({ email, appPassword }),
+    }) as any;
+  }
+
+  async addEventToAppleCalendar(eventId: string, eventDetails?: any): Promise<{ success: boolean; data: any }> {
+    return this.request('/apple-calendar/add-event', {
+      method: 'POST',
+      body: JSON.stringify({ eventId, eventDetails }),
+    }) as any;
+  }
+
+  async syncSKUs(brandId?: string): Promise<any> {
+    const url = brandId ? `/calendar/sync-skus?brandId=${brandId}` : '/calendar/sync-skus';
+    return this.request(url, {
+      method: 'POST',
+    });
   }
 
   // CPF formatting helper
@@ -562,7 +588,7 @@ class ApiClient {
     return response.data;
   }
 
-  async getFollowers(userId: string, page = 1, limit = 20, q?: string): Promise<{ users: any[]; hasMore: boolean }> {
+  async getFollowers(userId: string, page = 1, limit = 20, q?: string): Promise<{ users: any[]; entities: any[]; hasMore: boolean }> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),

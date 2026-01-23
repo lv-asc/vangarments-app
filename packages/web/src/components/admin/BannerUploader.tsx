@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { TrashIcon, StarIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { processImageFiles } from '@/utils/heicConverter';
+import { getImageUrl } from '@/lib/utils';
 
 import {
     DndContext,
@@ -206,18 +207,6 @@ export default function BannerUploader({
         })
     );
 
-    const getImageUrl = (url: string) => {
-        if (!url) return '';
-        if (url.startsWith('http') || url.startsWith('data:')) return url;
-        // Fix for double /api if simple path
-        if (url.startsWith('/api') && !url.includes('/api/storage')) return url;
-
-        let path = url.startsWith('/') ? url.substring(1) : url;
-        if (path.startsWith('storage/')) {
-            path = path.substring('storage/'.length);
-        }
-        return `/api/storage/${path}`;
-    };
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;

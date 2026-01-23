@@ -60,6 +60,12 @@ interface User {
   };
   googleSigninEnabled?: boolean;
   facebookSigninEnabled?: boolean;
+  appleId?: string;
+  appleData?: {
+    email: string;
+    name: string;
+  };
+  appleSigninEnabled?: boolean;
   linkedEntities?: {
     brands: Array<{ id: string; name: string; slug?: string; logo?: string }>;
     stores: Array<{ id: string; name: string; slug?: string; logo?: string }>;
@@ -73,6 +79,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  token: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
@@ -80,7 +87,9 @@ interface AuthContextType {
   signUpWithGoogle: () => void;
   loginWithFacebook: () => void;
   signUpWithFacebook: () => void;
-  disconnectOAuth: (provider: 'google' | 'facebook') => Promise<void>;
+  loginWithApple: () => void;
+  signUpWithApple: () => void;
+  disconnectOAuth: (provider: 'google' | 'facebook' | 'apple') => Promise<void>;
   updateProfile: (userData: Partial<User>) => Promise<void>;
   refreshAuth: () => Promise<void>;
   activeRole: string | null;
@@ -117,6 +126,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeRole, setActiveRoleState] = useState<string | null>(null);
   const [activeAccount, setActiveAccountState] = useState<ActiveAccount | null>(null);
@@ -173,12 +183,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (apiClient.isAuthenticated) {
         const userData = await apiClient.getCurrentUser();
         setUser(userData);
+        setToken(apiClient.getToken());
       }
     } catch (error) {
       console.error('Auth initialization failed:', error);
       // Don't show error toast on init, just clear auth state
       if (isAuthError(error)) {
         setUser(null);
+        setToken(null);
       }
     } finally {
       setIsLoading(false);
@@ -191,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth events
     const handleAuthExpired = () => {
       setUser(null);
+      setToken(null);
       toast.error('Sua sessão expirou. Faça login novamente.');
       router.push('/login');
     };
@@ -216,9 +229,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
 
-      const { user: userData, token } = await apiClient.login(email, password);
+      const { user: userData, token: userToken } = await apiClient.login(email, password);
 
       setUser(userData);
+      setToken(userToken);
       toast.success('Login realizado com sucesso!');
       router.push('/wardrobe');
     } catch (error) {
@@ -247,6 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(newUser);
+      setToken(apiClient.getToken());
       toast.success('Conta criada com sucesso! Bem-vinda ao Vangarments!');
       router.push('/wardrobe');
     } catch (error) {
@@ -262,11 +277,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiClient.logout();
       setUser(null);
+      setToken(null);
       toast.success('Logout realizado com sucesso!');
       router.push('/');
     } catch (error) {
       // Always clear user state even if logout request fails
       setUser(null);
+      setToken(null);
       console.error('Logout error:', error);
       router.push('/');
     }
@@ -292,7 +309,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = `${apiUrl}/oauth/facebook/signup`;
   };
 
-  const disconnectOAuth = async (provider: 'google' | 'facebook') => {
+  const loginWithApple = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    window.location.href = `${apiUrl}/oauth/apple/login`;
+  };
+
+  const signUpWithApple = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    window.location.href = `${apiUrl}/oauth/apple/signup`;
+  };
+
+  const disconnectOAuth = async (provider: 'google' | 'facebook' | 'apple') => {
     try {
       setIsLoading(true);
       await apiClient.disconnectOAuth(provider);
@@ -326,6 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     isLoading,
     isAuthenticated,
+    token,
     login,
     register,
     logout,
@@ -333,6 +361,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUpWithGoogle,
     loginWithFacebook,
     signUpWithFacebook,
+    loginWithApple,
+    signUpWithApple,
     disconnectOAuth,
     updateProfile,
     refreshAuth,

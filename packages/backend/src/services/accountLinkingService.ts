@@ -3,7 +3,7 @@ import { db } from '../database/connection';
 export interface SocialAccountLink {
   id: string;
   userId: string;
-  platform: 'instagram' | 'tiktok' | 'pinterest' | 'twitter' | 'linkedin';
+  platform: 'instagram' | 'tiktok' | 'pinterest' | 'twitter' | 'linkedin' | 'apple';
   platformUserId: string;
   platformUsername: string;
   profileUrl: string;
@@ -21,7 +21,7 @@ export interface SocialAccountLink {
 }
 
 export interface AccountLinkingRequest {
-  platform: 'instagram' | 'tiktok' | 'pinterest' | 'twitter' | 'linkedin';
+  platform: 'instagram' | 'tiktok' | 'pinterest' | 'twitter' | 'linkedin' | 'apple';
   platformUsername: string;
   linkType: 'bio_link' | 'profile_verification' | 'content_sync';
   isPublic?: boolean;
@@ -45,7 +45,7 @@ export class AccountLinkingService {
 
     // Verify the social account exists and get profile info
     const profileInfo = await this.verifyAndFetchProfile(platform, platformUsername);
-    
+
     const query = `
       INSERT INTO social_account_links (
         user_id, platform, platform_user_id, platform_username,
@@ -206,7 +206,7 @@ export class AccountLinkingService {
 
     // Generate a unique bio link (similar to VSCO)
     const bioLink = `https://vangarments.com/u/${userId}`;
-    
+
     // Generate QR code URL (would integrate with QR code service)
     const qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(bioLink)}`;
 
@@ -233,7 +233,7 @@ export class AccountLinkingService {
     socialScore: number;
   }> {
     const links = await this.getUserSocialAccountLinks(userId);
-    
+
     const totalFollowers = links.reduce((sum, link) => {
       return sum + (link.metadata.followerCount || 0);
     }, 0);
@@ -302,7 +302,7 @@ export class AccountLinkingService {
     `;
 
     const result = await db.query(query);
-    
+
     let totalLinkedAccounts = 0;
     let totalVerified = 0;
     let totalPublic = 0;
@@ -338,13 +338,14 @@ export class AccountLinkingService {
   }> {
     // This would normally integrate with actual social media APIs
     // For now, return mock data based on platform
-    
+
     const baseUrls = {
       instagram: 'https://instagram.com/',
       tiktok: 'https://tiktok.com/@',
       pinterest: 'https://pinterest.com/',
       twitter: 'https://twitter.com/',
       linkedin: 'https://linkedin.com/in/',
+      apple: 'https://appleid.apple.com/',
     };
 
     const profileUrl = baseUrls[platform as keyof typeof baseUrls] + username;

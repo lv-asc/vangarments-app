@@ -477,12 +477,24 @@ export class SKUController {
 
 
     /**
-     * Get a single SKU by ID
+     * Get a single SKU by ID or Slug
      */
     static async getSKU(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            let sku = await SKUItemModel.findById(id);
+            let sku: any = null;
+
+            // Check if ID is UUID
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+            if (isUUID) {
+                sku = await SKUItemModel.findById(id);
+            } else {
+                // Try to find by Slug (derived from name or code)
+                // Since we don't have a dedicated slug column yet, we search by name or code
+                // This is a temporary solution until we add a strict slug column
+                sku = await SKUItemModel.findBySlug(id);
+            }
 
             if (!sku) {
                 res.status(404).json({ error: 'SKU not found' });

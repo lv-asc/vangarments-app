@@ -9,11 +9,13 @@ import {
     TagIcon,
     MapPinIcon,
     XMarkIcon,
+    PencilIcon,
 } from '@heroicons/react/24/solid';
 
 interface TagMarkerProps {
     tag: MediaTag;
     onDelete?: () => void;
+    onEdit?: () => void;
     onClick?: () => void;
 }
 
@@ -38,7 +40,7 @@ function getTagIcon(tagType: string) {
 
 // Get the link URL for a tagged entity
 function getTagLink(tag: MediaTag): string | null {
-    if (tag.tagType === 'location') return null;
+    if ((tag.tagType as string) === 'location') return null;
 
     if (tag.tagType === 'location') return null;
 
@@ -99,8 +101,32 @@ function getTagSubtitle(tag: MediaTag): string | null {
     return null;
 }
 
-export default function TagMarker({ tag, onDelete, onClick }: TagMarkerProps) {
+export default function TagMarker({ tag, onDelete, onEdit, onClick }: TagMarkerProps) {
     const [isHovered, setIsHovered] = useState(false);
+    const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    const handleMouseEnter = () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+        setIsHovered(true);
+    };
+
+    const handleMouseLeave = () => {
+        timeoutRef.current = setTimeout(() => {
+            setIsHovered(false);
+        }, 300);
+    };
+
+    // Cleanup on unmount
+    React.useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
 
     const link = getTagLink(tag);
     const displayName = getTagDisplayName(tag);
@@ -138,6 +164,20 @@ export default function TagMarker({ tag, onDelete, onClick }: TagMarkerProps) {
                 )}
             </div>
 
+            {onEdit && (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onEdit();
+                    }}
+                    className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-blue-500 transition-colors"
+                >
+                    <PencilIcon className="w-4 h-4" />
+                </button>
+            )}
+
             {/* Delete button */}
             {onDelete && (
                 <button
@@ -162,8 +202,8 @@ export default function TagMarker({ tag, onDelete, onClick }: TagMarkerProps) {
                 left: `${tag.positionX}%`,
                 top: `${tag.positionY}%`,
             }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
         >
             {/* Marker dot */}
             <div
@@ -177,7 +217,14 @@ export default function TagMarker({ tag, onDelete, onClick }: TagMarkerProps) {
                         : 'bg-black/60 text-white hover:bg-black/80'}
           border-2 border-white shadow-lg
         `}
-                onClick={onClick}
+                onClick={(e) => {
+                    if (onEdit) {
+                        e.stopPropagation();
+                        onEdit();
+                    } else if (onClick) {
+                        onClick();
+                    }
+                }}
             >
                 {icon}
             </div>
@@ -196,7 +243,7 @@ export default function TagMarker({ tag, onDelete, onClick }: TagMarkerProps) {
                     style={{ left: tag.positionX > 70 ? 'auto' : '50%' }}
                 >
                     {/* Wrap tooltip in link if available and not in edit mode */}
-                    {link && !onDelete ? (
+                    {link && !onDelete && !onEdit ? (
                         <Link href={link} className="block hover:bg-gray-50 transition-colors">
                             {tooltipContent}
                         </Link>

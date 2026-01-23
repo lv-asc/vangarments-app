@@ -20,6 +20,14 @@ router.get('/facebook/callback', SimpleOAuthController.handleFacebookCallback);
 router.get('/facebook/connect', SimpleOAuthController.initiateFacebookConnect);
 router.get('/facebook/connect/callback', SimpleOAuthController.handleFacebookConnectCallback);
 
+// Apple OAuth routes
+router.get('/apple', SimpleOAuthController.initiateAppleAuth);
+router.get('/apple/login', SimpleOAuthController.initiateAppleAuth);
+router.get('/apple/signup', SimpleOAuthController.initiateAppleAuth);
+router.post('/apple/callback', SimpleOAuthController.handleAppleCallback); // Apple uses POST for form_post
+router.get('/apple/connect', SimpleOAuthController.initiateAppleConnect);
+router.post('/apple/connect/callback', SimpleOAuthController.handleAppleConnectCallback);
+
 // General OAuth management
 router.delete('/:provider', AuthUtils.authenticateToken, SimpleOAuthController.disconnectOAuth);
 

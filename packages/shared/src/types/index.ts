@@ -41,6 +41,12 @@ export interface UserProfile {
   };
   googleSigninEnabled?: boolean;
   facebookSigninEnabled?: boolean;
+  appleId?: string;
+  appleData?: {
+    email: string;
+    name: string;
+  };
+  appleSigninEnabled?: boolean;
   emailVerified?: boolean;
   notificationPreferences?: {
     showNotificationBadge: boolean;
@@ -307,3 +313,6 @@ export * from './vufs';
 
 // Re-export tagging types
 export * from './tagging';
+
+// Re-export sport org types
+export * from './sportOrg';

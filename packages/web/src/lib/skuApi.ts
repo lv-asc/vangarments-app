@@ -14,15 +14,32 @@ export interface SKUItem {
     retailPriceUsd?: number;
     retailPriceEur?: number;
     officialItemLink?: string;
+    parentSkuId?: string;
+    sportSquadId?: string;
+    sportSquad?: {
+        name: string;
+        slug: string;
+    };
+    jerseyNumber?: string;
+    playerName?: string;
 
     images: Array<{
         url: string;
         isPrimary: boolean;
         labelId?: string;
     }>;
+    variants?: Array<{
+        id: string;
+        size: string;
+        name: string;
+        sku?: string;
+        retailPriceBrl?: number;
+        sizeId?: string;
+    }>;
     brand?: {
         name: string;
         logo?: string;
+        slug?: string;
     };
     category: {
         level1: string;

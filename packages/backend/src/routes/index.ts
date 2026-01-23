@@ -52,6 +52,8 @@ import likesRoutes from './likes';
 import wishlistRoutes from './wishlists';
 import silhouetteRoutes from './silhouettes';
 import googleCalendarRoutes from './googleCalendarRoutes';
+import appleCalendarRoutes from './appleCalendarRoutes';
+import sportOrgRoutes from './sportOrgs';
 
 const router = Router();
 
@@ -107,6 +109,8 @@ router.use('/likes', likesRoutes); // User likes system
 router.use('/wishlists', wishlistRoutes); // User wishlist system
 router.use('/silhouettes', silhouetteRoutes); // Brand silhouettes system
 router.use('/google-calendar', googleCalendarRoutes); // Google Calendar integration
+router.use('/apple-calendar', appleCalendarRoutes); // Apple Calendar integration
+router.use('/sport-orgs', sportOrgRoutes); // Sport ORG competition system
 
 // Health check for API
 router.get('/health', (req, res) => {

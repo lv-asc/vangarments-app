@@ -21,6 +21,33 @@ export class MediaTagModel {
      * Create a new media tag
      */
     static async create(data: CreateMediaTagData): Promise<MediaTag> {
+        // Check for duplicates
+        let duplicateCheckQuery = `
+            SELECT id FROM media_tags
+            WHERE source_type = $1
+              AND source_id = $2
+              AND image_url = $3
+        `;
+        const checkValues: any[] = [data.sourceType, data.sourceId, data.imageUrl];
+        let paramIndex = 4;
+
+        if (data.tagType === 'item') {
+            duplicateCheckQuery += ` AND tagged_item_id = $${paramIndex++}`;
+            checkValues.push(data.taggedItemId);
+        } else if (data.tagType === 'location') {
+            duplicateCheckQuery += ` AND location_name = $${paramIndex++}`;
+            checkValues.push(data.locationName);
+        } else {
+            // Entity tags
+            duplicateCheckQuery += ` AND tagged_entity_id = $${paramIndex++} AND tag_type = $${paramIndex++}`;
+            checkValues.push(data.taggedEntityId, data.tagType);
+        }
+
+        const duplicateResult = await db.query(duplicateCheckQuery, checkValues);
+        if (duplicateResult.rows.length > 0) {
+            throw new Error('Duplicate tag: This entity is already tagged in this image.');
+        }
+
         const query = `
       INSERT INTO media_tags (
         source_type, source_id, image_url,

@@ -98,6 +98,9 @@ export const BADGE_TYPES = {
 // Re-export VUFS constants
 export * from './vufs';
 
+// Re-export sport org constants
+export * from './sportOrg';
+
 export const API_ENDPOINTS = {
   AUTH: {
     REGISTER: '/api/v1/auth/register',

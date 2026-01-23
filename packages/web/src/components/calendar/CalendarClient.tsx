@@ -24,7 +24,8 @@ import {
     BuildingStorefrontIcon,
     BriefcaseIcon,
     MagnifyingGlassIcon,
-    GlobeAmericasIcon
+    GlobeAmericasIcon,
+    ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import { PlusIcon as CalendarPlusIcon } from '@heroicons/react/24/solid';
 import { COUNTRIES } from '@/lib/constants';
@@ -35,9 +36,15 @@ import {
     EVENT_TYPE_LABELS,
     EVENT_TYPE_COLORS,
     googleCalendarApi,
+    appleCalendarApi,
     generateGoogleCalendarUrl,
 } from '@/lib/calendarApi';
 import { useAuth } from '@/contexts/AuthWrapper';
+import { AddToGoogleCalendarModal } from './AddToGoogleCalendarModal';
+import { AddToAppleCalendarModal } from './AddToAppleCalendarModal';
+import { ConnectAppleCalendarModal } from '@/components/profile/ConnectAppleCalendarModal';
+
+import { toast } from 'react-hot-toast';
 
 const MONTHS = [
     { value: 0, label: 'TODOS' },
@@ -753,6 +760,10 @@ function EventDetailModal({
 }) {
     const [isAddingToCalendar, setIsAddingToCalendar] = useState(false);
     const [calendarMessage, setCalendarMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+    const [isAppleCalendarModalOpen, setIsAppleCalendarModalOpen] = useState(false);
+    const [isAppleDetailsModalOpen, setIsAppleDetailsModalOpen] = useState(false);
+    const [appleModalMode, setAppleModalMode] = useState<'sync' | 'download'>('sync');
 
     if (!event) return null;
 
@@ -766,7 +777,11 @@ function EventDetailModal({
 
     const allImages = event.images || (event.imageUrl ? [{ url: event.imageUrl, isPrimary: true }] : []);
 
-    const handleAddToGoogleCalendar = async () => {
+    const handleAddToGoogleCalendar = () => {
+        setIsCalendarModalOpen(true);
+    };
+
+    const handleConfirmAddToCalendar = async (details: any) => {
         if (!event) return;
 
         setIsAddingToCalendar(true);
@@ -775,37 +790,114 @@ function EventDetailModal({
         // If user is authenticated and has token, try API method first
         if (isAuthenticated && token) {
             try {
-                const result = await googleCalendarApi.addEvent(event.id, token);
+                const result = await googleCalendarApi.addEvent(event.id, token, details);
 
                 if (result.success) {
                     setCalendarMessage({ type: 'success', text: 'Event added to Google Calendar!' });
-                    // Auto-clear message after 3 seconds
                     setTimeout(() => setCalendarMessage(null), 3000);
                     setIsAddingToCalendar(false);
+                    setIsCalendarModalOpen(false);
                     return;
                 }
 
-                // If calendar not connected, fall back to URL method
                 if (result.code === 'CALENDAR_NOT_CONNECTED') {
-                    // Open Google Calendar URL
-                    const url = generateGoogleCalendarUrl(event);
+                    // Fall back to URL method with CUSTOM details
+                    const url = googleCalendarApi.generateUrl({ ...event, ...details });
                     window.open(url, '_blank');
                     setIsAddingToCalendar(false);
+                    setIsCalendarModalOpen(false);
                     return;
                 }
 
-                // Show error
                 setCalendarMessage({ type: 'error', text: result.error || 'Failed to add event' });
             } catch (error) {
                 console.error('Error adding to Google Calendar:', error);
-                // Fall back to URL method
-                const url = generateGoogleCalendarUrl(event);
+                const url = googleCalendarApi.generateUrl({ ...event, ...details });
                 window.open(url, '_blank');
             }
         } else {
-            // Not authenticated - use direct URL method
-            const url = generateGoogleCalendarUrl(event);
+            // Not authenticated - use direct URL method with CUSTOM details
+            const url = googleCalendarApi.generateUrl({ ...event, ...details });
             window.open(url, '_blank');
+        }
+
+        setIsAddingToCalendar(false);
+        setIsCalendarModalOpen(false);
+    };
+
+    const handleAddToAppleCalendar = async () => {
+        if (!event) return;
+
+        setIsAddingToCalendar(true);
+        setCalendarMessage(null);
+
+        if (isAuthenticated && token) {
+            try {
+                const status = await appleCalendarApi.getStatus(token);
+                if (status.connected) {
+                    setAppleModalMode('sync');
+                    setIsAppleDetailsModalOpen(true);
+                } else {
+                    setIsAppleCalendarModalOpen(true);
+                }
+            } catch (error) {
+                console.error('Error checking Apple Calendar status:', error);
+                setCalendarMessage({ type: 'error', text: 'Connection failed' });
+            }
+        } else {
+            toast.error('Please login to sync with Apple Calendar');
+        }
+
+        setIsAddingToCalendar(false);
+    };
+
+    const handleDownloadIcs = () => {
+        if (!event) return;
+        setAppleModalMode('download');
+        setIsAppleDetailsModalOpen(true);
+    };
+
+    const handleConfirmAddToAppleCalendar = async (details: any) => {
+        if (!event) return;
+
+        setIsAddingToCalendar(true);
+        setCalendarMessage(null);
+
+        // For Apple Calendar, we always generate an ICS file now
+        // We use the authenticated endpoint to generate it securely
+        if (isAuthenticated && token) {
+            try {
+                // If syncing, we would ideally do a server-side sync.
+                // But for now we rely on the ICS download which works 100%.
+                const result = await appleCalendarApi.addEvent(event.id, token, details);
+
+                if (result.success && result.data) {
+                    // Trigger download
+                    const blob = new Blob([result.data.icsContent], { type: 'text/calendar;charset=utf-8' });
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', result.data.filename || 'event.ics');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    if (appleModalMode === 'sync') {
+                        setCalendarMessage({ type: 'success', text: 'Event synced to Calendar!' });
+                    } else {
+                        setCalendarMessage({ type: 'success', text: 'Event downloaded!' });
+                    }
+                    setTimeout(() => setCalendarMessage(null), 3000);
+                    setIsAppleDetailsModalOpen(false);
+                } else {
+                    setCalendarMessage({ type: 'error', text: result.error || 'Failed to generate event' });
+                }
+            } catch (error) {
+                console.error('Error generating Apple Calendar event:', error);
+                setCalendarMessage({ type: 'error', text: 'Generation failed' });
+            }
+        } else {
+            toast.error('Please login to download Apple Calendar event');
         }
 
         setIsAddingToCalendar(false);
@@ -1018,20 +1110,61 @@ function EventDetailModal({
                                     </button>
 
                                     {/* Add to Google Calendar Button */}
-                                    <button
-                                        onClick={handleAddToGoogleCalendar}
-                                        disabled={isAddingToCalendar}
-                                        className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-colors border border-border disabled:opacity-50 group"
-                                        title="Add to Google Calendar"
-                                    >
-                                        {isAddingToCalendar ? (
-                                            <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                                        ) : (
-                                            <div className="bg-white rounded-full p-0.5">
-                                                <img src="/icons/google-calendar.png" alt="Google Calendar" className="h-4 w-4 object-contain" />
-                                            </div>
-                                        )}
-                                    </button>
+                                    <div className="relative group/tooltip">
+                                        <button
+                                            onClick={handleAddToGoogleCalendar}
+                                            disabled={isAddingToCalendar}
+                                            className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-colors border border-border disabled:opacity-50 group"
+                                            title="Add to Google Calendar"
+                                        >
+                                            {isAddingToCalendar ? (
+                                                <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <div className="bg-white rounded-full p-0.5">
+                                                    <img src="/icons/google-calendar.png" alt="Google Calendar" className="h-4 w-4 object-contain" />
+                                                </div>
+                                            )}
+                                        </button>
+                                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[120] font-medium">
+                                            + to Google
+                                        </div>
+                                    </div>
+
+                                    {/* Add to Apple Calendar Button */}
+                                    <div className="relative group/tooltip">
+                                        <button
+                                            onClick={handleAddToAppleCalendar}
+                                            disabled={isAddingToCalendar}
+                                            className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-colors border border-border disabled:opacity-50 group"
+                                            title="Add to Apple Calendar"
+                                        >
+                                            {isAddingToCalendar && appleModalMode === 'sync' ? (
+                                                <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <div className="bg-transparent rounded-full p-0">
+                                                    <img src="/icons/apple-calendar-real.png" alt="Apple Calendar" className="h-5 w-5 object-contain" />
+                                                </div>
+                                            )}
+                                        </button>
+                                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[120] font-medium">
+                                            + to Apple
+                                        </div>
+                                    </div>
+
+                                    {/* Download Generic ICS Button */}
+                                    <div className="relative group/tooltip">
+                                        <button
+                                            onClick={handleDownloadIcs}
+                                            disabled={isAddingToCalendar}
+                                            className="p-3 bg-muted rounded-xl hover:bg-muted/80 transition-colors border border-border disabled:opacity-50 group"
+                                            title="Download .ics file"
+                                        >
+                                            <CalendarDaysIcon className="h-5 w-5" />
+                                        </button>
+                                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-[10px] rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[120] flex items-center gap-1 font-medium">
+                                            <ArrowDownTrayIcon className="h-3 w-3" /> .ics file
+                                        </div>
+                                    </div>
 
                                     {event.externalUrl && (
                                         <a
@@ -1049,6 +1182,37 @@ function EventDetailModal({
                         </div>
                     </motion.div>
                 </div>
+            )}
+
+            {isCalendarModalOpen && event && (
+                <AddToGoogleCalendarModal
+                    isOpen={isCalendarModalOpen}
+                    onClose={() => setIsCalendarModalOpen(false)}
+                    event={event}
+                    onConfirm={handleConfirmAddToCalendar}
+                    isSubmitting={isAddingToCalendar}
+                />
+            )}
+
+            {isAppleDetailsModalOpen && event && (
+                <AddToAppleCalendarModal
+                    isOpen={isAppleDetailsModalOpen}
+                    onClose={() => setIsAppleDetailsModalOpen(false)}
+                    event={event}
+                    onConfirm={handleConfirmAddToAppleCalendar}
+                    isSubmitting={isAddingToCalendar}
+                    mode={appleModalMode}
+                />
+            )}
+
+            {isAppleCalendarModalOpen && (
+                <ConnectAppleCalendarModal
+                    isOpen={isAppleCalendarModalOpen}
+                    onClose={() => setIsAppleCalendarModalOpen(false)}
+                    onConnected={() => {
+                        handleAddToAppleCalendar();
+                    }}
+                />
             )}
         </AnimatePresence>
     );

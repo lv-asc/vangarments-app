@@ -20,6 +20,9 @@ export interface CreateUserData {
   facebookData?: any;
   googleSigninEnabled?: boolean;
   facebookSigninEnabled?: boolean;
+  appleId?: string;
+  appleData?: any;
+  appleSigninEnabled?: boolean;
   emailVerified?: boolean;
   emailVerificationToken?: string | null;
   emailVerificationExpiresAt?: Date | null;
@@ -40,6 +43,9 @@ export interface UpdateUserData {
   facebookData?: any;
   googleSigninEnabled?: boolean;
   facebookSigninEnabled?: boolean;
+  appleId?: string;
+  appleData?: any;
+  appleSigninEnabled?: boolean;
   cpf?: string;
   notificationPreferences?: {
     showNotificationBadge: boolean;
@@ -49,7 +55,7 @@ export interface UpdateUserData {
 
 export class UserModel {
   static async create(userData: CreateUserData): Promise<UserProfile> {
-    const { cpf, email, passwordHash, name, birthDate, gender, location, username, telephone, googleId, facebookId, googleData, facebookData, googleSigninEnabled, facebookSigninEnabled } = userData;
+    const { cpf, email, passwordHash, name, birthDate, gender, location, username, telephone, googleId, facebookId, appleId, googleData, facebookData, appleData, googleSigninEnabled, facebookSigninEnabled, appleSigninEnabled } = userData;
 
     const profile = {
       name,
@@ -62,8 +68,8 @@ export class UserModel {
     };
 
     const query = `
-      INSERT INTO users (cpf, email, password_hash, profile, username, google_id, facebook_id, google_data, facebook_data, google_signin_enabled, facebook_signin_enabled, email_verified, email_verification_token, email_verification_expires_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      INSERT INTO users (cpf, email, password_hash, profile, username, google_id, facebook_id, apple_id, google_data, facebook_data, apple_data, google_signin_enabled, facebook_signin_enabled, apple_signin_enabled, email_verified, email_verification_token, email_verification_expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `;
 
@@ -75,10 +81,13 @@ export class UserModel {
       username,
       googleId || null,
       facebookId || null,
+      appleId || null,
       googleData ? JSON.stringify(googleData) : null,
       facebookData ? JSON.stringify(facebookData) : null,
+      appleData ? JSON.stringify(appleData) : null,
       googleSigninEnabled ?? true,
       facebookSigninEnabled ?? true,
+      appleSigninEnabled ?? true,
       userData.emailVerified ?? false,
       userData.emailVerificationToken || null,
       userData.emailVerificationExpiresAt || null
@@ -213,12 +222,25 @@ export class UserModel {
       WHERE u.facebook_id = $1
       GROUP BY u.id
     `;
-
     const result = await db.query(query, [facebookId]);
     if (result.rows.length === 0) {
       return null;
     }
+    return this.mapToUserProfile(result.rows[0]);
+  }
 
+  static async findByAppleId(appleId: string): Promise<UserProfile | null> {
+    const query = `
+      SELECT u.*, array_agg(ur.role) as roles
+      FROM users u
+      LEFT JOIN user_roles ur ON u.id = ur.user_id
+      WHERE u.apple_id = $1
+      GROUP BY u.id
+    `;
+    const result = await db.query(query, [appleId]);
+    if (result.rows.length === 0) {
+      return null;
+    }
     return this.mapToUserProfile(result.rows[0]);
   }
 
@@ -321,6 +343,18 @@ export class UserModel {
       paramCount++;
     }
 
+    if (updateData.hasOwnProperty('appleId')) {
+      updates.push(`apple_id = $${paramCount}`);
+      values.push(updateData.appleId);
+      paramCount++;
+    }
+
+    if (updateData.hasOwnProperty('appleData')) {
+      updates.push(`apple_data = $${paramCount}`);
+      values.push(updateData.appleData ? JSON.stringify(updateData.appleData) : null);
+      paramCount++;
+    }
+
     if (updateData.hasOwnProperty('googleSigninEnabled')) {
       updates.push(`google_signin_enabled = $${paramCount}`);
       values.push(updateData.googleSigninEnabled);
@@ -330,6 +364,12 @@ export class UserModel {
     if (updateData.hasOwnProperty('facebookSigninEnabled')) {
       updates.push(`facebook_signin_enabled = $${paramCount}`);
       values.push(updateData.facebookSigninEnabled);
+      paramCount++;
+    }
+
+    if (updateData.hasOwnProperty('appleSigninEnabled')) {
+      updates.push(`apple_signin_enabled = $${paramCount}`);
+      values.push(updateData.appleSigninEnabled);
       paramCount++;
     }
 
@@ -686,10 +726,13 @@ export class UserModel {
       updatedAt: new Date(row.updated_at),
       googleId: row.google_id,
       facebookId: row.facebook_id,
+      appleId: row.apple_id,
       googleData: typeof row.google_data === 'string' ? JSON.parse(row.google_data) : row.google_data,
       facebookData: typeof row.facebook_data === 'string' ? JSON.parse(row.facebook_data) : row.facebook_data,
+      appleData: typeof row.apple_data === 'string' ? JSON.parse(row.apple_data) : row.apple_data,
       googleSigninEnabled: row.google_signin_enabled,
       facebookSigninEnabled: row.facebook_signin_enabled,
+      appleSigninEnabled: row.apple_signin_enabled,
       emailVerified: row.email_verified,
       notificationPreferences: notificationPreferences,
       _rawProfile: profile,

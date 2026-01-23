@@ -408,15 +408,15 @@ class BrandApi {
   // ============ SOCIAL / FOLLOWERS ============
 
   async followEntity(entityType: string, entityId: string, actingAs?: { type: string; id: string }): Promise<void> {
-    await apiClient.post(`/entities/${entityType}/${entityId}/follow`, { actingAs });
+    await apiClient.post(`/social/entities/${entityType}/${entityId}/follow`, { actingAs });
   }
 
   async unfollowEntity(entityType: string, entityId: string, actingAs?: { type: string; id: string }): Promise<void> {
-    await apiClient.delete(`/entities/${entityType}/${entityId}/follow`, { data: { actingAs } });
+    await apiClient.delete(`/social/entities/${entityType}/${entityId}/follow`, { data: { actingAs } });
   }
 
   async getEntityFollowers(entityType: string, entityId: string, page = 1, limit = 20): Promise<{ followers: any[]; total: number; hasMore: boolean }> {
-    const result = await apiClient.get<any>(`/entities/${entityType}/${entityId}/followers?page=${page}&limit=${limit}`);
+    const result = await apiClient.get<any>(`/social/entities/${entityType}/${entityId}/followers?page=${page}&limit=${limit}`);
     return result;
   }
 
@@ -426,12 +426,12 @@ class BrandApi {
     params.append('limit', limit.toString());
     if (targetType) params.append('targetType', targetType);
 
-    const result = await apiClient.get<any>(`/entities/${entityType}/${entityId}/following?${params}`);
+    const result = await apiClient.get<any>(`/social/entities/${entityType}/${entityId}/following?${params}`);
     return result;
   }
 
   async checkEntityFollowStatus(entityType: string, entityId: string): Promise<{ isFollowing: boolean; isFollower: boolean }> {
-    const result = await apiClient.get<any>(`/entities/${entityType}/${entityId}/follow-status`);
+    const result = await apiClient.get<any>(`/social/entities/${entityType}/${entityId}/follow-status`);
     return result;
   }
 }

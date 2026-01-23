@@ -25,6 +25,7 @@ import { Modal } from '@/components/ui/Modal';
 import { api } from '@/lib/api';
 import { getImageUrl } from '@/lib/utils';
 import { useEntityConfiguration } from '@/hooks/useEntityConfiguration';
+import { useFormDraftPersistence } from '@/hooks/useFormDraftPersistence';
 
 export default function AdminEditBrandPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -57,6 +58,17 @@ export default function AdminEditBrandPage() {
         foundedBy: '',
         foundedDate: '',
         foundedDatePrecision: 'year' as 'year' | 'month' | 'day'
+    });
+
+    // Draft persistence
+    const { clearDraft } = useFormDraftPersistence({
+        storageKey: `brand-draft-${brandId || 'new'}`,
+        data: formData,
+        setData: setFormData,
+        isLoading: loading,
+        isNew: false,
+        additionalData: { logos, banners, socialLinks },
+        additionalSetters: { logos: setLogos, banners: setBanners, socialLinks: setSocialLinks }
     });
 
     useEffect(() => {
@@ -145,8 +157,8 @@ export default function AdminEditBrandPage() {
             setLogos(logoItems);
 
             // Initialize social links
-            if (loadedBrand.profileData?.socialLinks) {
-                setSocialLinks(loadedBrand.profileData.socialLinks);
+            if ((loadedBrand.profileData as any)?.socialLinks) {
+                setSocialLinks((loadedBrand.profileData as any).socialLinks);
             }
 
         } catch (error) {
@@ -247,6 +259,7 @@ export default function AdminEditBrandPage() {
             });
 
             toast.success('Brand updated successfully');
+            clearDraft(); // Clear draft on success
 
             // If the slug changed, we might need to redirect, but for now just reload
             // If we have a slug, ensure the URL reflects it (even if we started with ID)
