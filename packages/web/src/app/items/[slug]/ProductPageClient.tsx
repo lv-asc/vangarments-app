@@ -649,7 +649,8 @@ export default function ProductPageClient() {
                                                 <button
                                                     key={variant.id}
                                                     onClick={() => {
-                                                        const newSlug = `${slugify(product.code ? product.code : product.name)}-${slugify(variant.size || variant.name)}`;
+                                                        // Use variant's own code directly to avoid duplicating size suffix
+                                                        const newSlug = variant.code ? slugify(variant.code) : `${slugify(product.code || product.name)}-${slugify(variant.size || variant.name)}`;
                                                         router.push(`/items/${newSlug}`);
                                                         setSelectedVariant(variant);
                                                     }}

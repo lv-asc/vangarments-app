@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
-import { PencilIcon, TrashIcon, PlusIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, PlusIcon, MagnifyingGlassIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { tagApi } from '@/lib/tagApi';
 import { ImageTagEditor } from '@/components/tagging';
 import SearchableCombobox from '../ui/Combobox';
@@ -208,7 +208,8 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 fitsRes,
                 colorsRes,
                 sizesRes,
-                mediaLabelsRes
+                mediaLabelsRes,
+                silhouettesRes
             ] = await Promise.all([
                 apiClient.getSwitchableAccounts(),
                 apiClient.getVUFSCategories(),
@@ -219,7 +220,8 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 apiClient.getVUFSFits(),
                 apiClient.getVUFSColors(),
                 apiClient.getVUFSSizes(),
-                apiClient.getAllMediaLabels()
+                apiClient.getAllMediaLabels(),
+                apiClient.getSilhouettes()
             ]);
 
             // Extract brand accounts from the switchable accounts response
@@ -235,6 +237,8 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             setSizes(sizesRes || []);
             setMediaLabels(mediaLabelsRes || []);
             setGenders(Array.isArray(gendersData) ? gendersData : []);
+            const silhouettes = Array.isArray(silhouettesRes) ? silhouettesRes : (silhouettesRes as any)?.silhouettes || (silhouettesRes as any)?.data || [];
+            setAvailableSilhouettes(silhouettes);
 
             // POMs
             try {
@@ -527,30 +531,33 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
     return (
         <form onSubmit={handleSubmit} className="space-y-8 max-w-5xl mx-auto bg-white p-6 rounded-lg shadow">
 
-            {/* Header with Miniature */}
-            <div className="flex items-center gap-4 mb-6 border-b pb-4">
-                <div className="h-16 w-16 bg-gray-100 rounded-md border border-gray-200 text-gray-400 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {formData.images && formData.images.length > 0 ? (
-                        <img src={formData.images[0].url} alt="SKU Preview" className="h-full w-full object-cover" />
-                    ) : (
-                        <MagnifyingGlassIcon className="h-8 w-8" />
-                    )}
-                </div>
-                <div className="flex-grow">
-                    <h2 className="text-2xl font-bold text-gray-900 leading-none">
-                        Edit {formData.modelName || 'SKU'}
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {formData.officialSkuOrInstance || 'Update SKU details and settings'}
-                    </p>
-                </div>
-                <div className="flex gap-2">
+            {/* Header with Miniature - Centered */}
+            <div className="flex flex-col items-center text-center gap-4 mb-8 border-b pb-6 relative">
+                <div className="absolute left-0 top-0">
                     <Button type="button" variant="secondary" onClick={() => router.push('/admin/skus')}>
                         Cancel
                     </Button>
+                </div>
+                <div className="absolute right-0 top-0">
                     <Button type="submit" disabled={submitting}>
                         {submitting ? 'Saving...' : 'Save Changes'}
                     </Button>
+                </div>
+
+                <div className="h-24 w-24 bg-gray-100 rounded-xl border border-gray-200 text-gray-400 flex items-center justify-center overflow-hidden shadow-sm">
+                    {formData.images && formData.images.length > 0 ? (
+                        <img src={getImageUrl(formData.images[0].url)} alt="SKU Preview" className="h-full w-full object-cover" />
+                    ) : (
+                        <ApparelIcon name={apparels.find(a => a.id === formData.apparelId)?.name || 'T-Shirt'} className="h-12 w-12" />
+                    )}
+                </div>
+                <div>
+                    <h2 className="text-3xl font-extrabold text-gray-900 leading-tight">
+                        Edit {formData.modelName || 'SKU'}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1 max-w-lg">
+                        {formData.officialSkuOrInstance || 'Update SKU details and settings for this product.'}
+                    </p>
                 </div>
             </div>
 
@@ -559,7 +566,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
                     <SearchableCombobox
-                        options={brandAccounts.map(b => ({ id: b.id, name: b.name, image: b.avatar }))}
+                        options={brandAccounts.map(b => ({ id: b.id, name: b.name, image: getImageUrl(b.avatar || b.logo) }))}
                         value={brandAccounts.find(b => b.id === formData.brandId)?.name || ''}
                         onChange={(val) => {
                             const brand = brandAccounts.find(b => b.name === val);
@@ -576,7 +583,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Line</label>
                     <SearchableCombobox
-                        options={lines.map(l => ({ ...l, image: l.logo }))}
+                        options={lines.map(l => ({ ...l, name: l.name, image: getImageUrl(l.logo) }))}
                         value={lines.find(l => l.id === formData.lineId)?.name || ''}
                         onChange={(val) => {
                             const line = lines.find(l => l.name === val);
@@ -590,7 +597,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Collection</label>
                     <SearchableCombobox
-                        options={collections.map(c => ({ ...c, image: c.image || c.cover || c.logo }))}
+                        options={collections.map(c => ({ ...c, image: getImageUrl(c.coverImage || c.coverImageUrl || c.image || c.logo) }))}
                         value={formData.collection}
                         onChange={(val) => {
                             // Collection is a string, so val is correct if selected, but if custom?
@@ -629,7 +636,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Apparel</label>
                     <SearchableCombobox
-                        options={apparels.map(a => ({ ...a, icon: <ApparelIcon name={a.name} className="w-5 h-5" /> }))}
+                        options={apparels.map(a => ({ id: a.id, name: a.name, icon: <ApparelIcon name={a.name} className="w-5 h-5" /> }))}
                         value={apparels.find(a => a.id === formData.apparelId)?.name || ''}
                         onChange={(val) => {
                             const app = apparels.find(a => a.name === val);
@@ -642,7 +649,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Style</label>
                     <SearchableCombobox
-                        options={styles}
+                        options={styles.map(s => ({ id: s.id, name: s.name }))}
                         value={styles.find(s => s.id === formData.styleId)?.name || ''}
                         onChange={(val) => {
                             const style = styles.find(s => s.name === val);
@@ -653,12 +660,12 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 </div>
             </div>
 
-            {/* Attributes: Pattern, Material, Fit, Gender, Condition */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Attributes: Pattern, Material, Fit, Gender */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pattern</label>
                     <SearchableCombobox
-                        options={patterns.map(p => ({ ...p, icon: React.createElement(getPatternIcon(p.name), { className: 'w-full h-full' }) }))}
+                        options={patterns.map(p => ({ id: p.id, name: p.name, icon: React.createElement(getPatternIcon(p.name), { className: 'w-full h-full' }) }))}
                         value={patterns.find(p => p.id === formData.patternId)?.name || ''}
                         onChange={v => {
                             const p = patterns.find(item => item.name === v);
@@ -670,7 +677,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Material</label>
                     <SearchableCombobox
-                        options={materials}
+                        options={materials.map(m => ({ id: m.id, name: m.name }))}
                         value={materials.find(m => m.id === formData.materialId)?.name || ''}
                         onChange={v => {
                             const m = materials.find(item => item.name === v);
@@ -682,7 +689,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Fit</label>
                     <SearchableCombobox
-                        options={fits}
+                        options={fits.map(f => ({ id: f.id, name: f.name }))}
                         value={fits.find(f => f.id === formData.fitId)?.name || ''}
                         onChange={v => {
                             const f = fits.find(item => item.name === v);
@@ -694,7 +701,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
                     <SearchableCombobox
-                        options={genders.map(g => ({ ...g, icon: React.createElement(getGenderIcon(g.name), { className: 'w-full h-full' }) }))}
+                        options={genders.map(g => ({ id: g.id, name: g.name, icon: React.createElement(getGenderIcon(g.name), { className: 'w-full h-full' }) }))}
                         value={genders.find(g => g.id === formData.genderId)?.name || ''}
                         onChange={v => {
                             const g = genders.find(item => item.name === v);
@@ -703,7 +710,6 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                         placeholder="Select Gender"
                     />
                 </div>
-
             </div>
 
             {/* Images & Video */}
@@ -778,102 +784,38 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 </div>
             )}
 
-            {/* Variants (Sizes & Colors) - Simplified UI for full page */}
+            {/* Variants (Sizes & Colors) - Enhanced Multi-Select UI */}
             <div className="border-t pt-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Variants</h3>
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search and Select Sizes..."
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                onFocus={() => setOpenDropdown('sizes')}
-                                onChange={(e) => {
-                                    const searchTerm = e.target.value.toLowerCase();
-                                    setOpenDropdown('sizes');
-                                    const dropdown = document.getElementById('sizes-dropdown-list');
-                                    if (dropdown) {
-                                        const labels = dropdown.querySelectorAll('label');
-                                        labels.forEach(label => {
-                                            const text = label.textContent?.toLowerCase() || '';
-                                            (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
-                                        });
-                                    }
-                                }}
-                            />
-                            {openDropdown === 'sizes' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setOpenDropdown(null)}
-                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                                >
-                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
-                            {openDropdown === 'sizes' && (
-                                <div className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg">
-                                    <div id="sizes-dropdown-list">
-                                        {sizes.map(size => {
-                                            const isSelected = formData.selectedSizes.includes(size.id);
-                                            return (
-                                                <label
-                                                    key={size.id}
-                                                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => {
-                                                            setFormData(prev => {
-                                                                const list = prev.selectedSizes;
-                                                                const exists = list.includes(size.id);
-                                                                return { ...prev, selectedSizes: exists ? list.filter(i => i !== size.id) : [...list, size.id] };
-                                                            });
-                                                        }}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                    />
-                                                    <span className="ml-3 text-sm text-gray-900">{size.name}</span>
-                                                    {isSelected && (
-                                                        <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                        </svg>
-                                                    )}
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
-                                        <button
-                                            type="button"
-                                            onClick={() => setOpenDropdown(null)}
-                                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
-                                        >
-                                            Done
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select multiple)</label>
+                        <SearchableCombobox
+                            multiple
+                            options={sizes.map(s => ({ id: s.id, name: s.name }))}
+                            value={formData.selectedSizes.map(id => sizes.find(s => s.id === id)?.name).filter(Boolean) as string[]}
+                            onChange={(names: string[]) => {
+                                const selectedIds = names.map(name => sizes.find(s => s.name === name)?.id).filter(Boolean) as string[];
+                                setFormData(prev => ({ ...prev, selectedSizes: selectedIds }));
+                            }}
+                            placeholder="Search and Select Sizes..."
+                        />
                         {formData.selectedSizes.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="mt-3 flex flex-wrap gap-2">
                                 {formData.selectedSizes.map(sizeId => {
                                     const size = sizes.find(s => s.id === sizeId);
                                     return (
                                         <span
                                             key={sizeId}
-                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 shadow-sm"
                                         >
                                             {size?.name || sizeId}
                                             <button
                                                 type="button"
                                                 onClick={() => setFormData(prev => ({ ...prev, selectedSizes: prev.selectedSizes.filter(i => i !== sizeId) }))}
-                                                className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
+                                                className="ml-2 text-blue-400 hover:text-blue-600 focus:outline-none transition-colors"
                                             >
-                                                &times;
+                                                <XMarkIcon className="h-3 w-3" />
                                             </button>
                                         </span>
                                     );
@@ -882,99 +824,34 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                         )}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search and Select Colors..."
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                onFocus={() => setOpenDropdown('colors')}
-                                onChange={(e) => {
-                                    const searchTerm = e.target.value.toLowerCase();
-                                    setOpenDropdown('colors');
-                                    const dropdown = document.getElementById('colors-dropdown-list');
-                                    if (dropdown) {
-                                        const labels = dropdown.querySelectorAll('label');
-                                        labels.forEach(label => {
-                                            const text = label.textContent?.toLowerCase() || '';
-                                            (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
-                                        });
-                                    }
-                                }}
-                            />
-                            {openDropdown === 'colors' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setOpenDropdown(null)}
-                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                                >
-                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
-                            {openDropdown === 'colors' && (
-                                <div className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg">
-                                    <div id="colors-dropdown-list">
-                                        {colors.map(color => {
-                                            const isSelected = formData.selectedColors.includes(color.id);
-                                            return (
-                                                <label
-                                                    key={color.id}
-                                                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => {
-                                                            setFormData(prev => {
-                                                                const list = prev.selectedColors;
-                                                                const exists = list.includes(color.id);
-                                                                return { ...prev, selectedColors: exists ? list.filter(i => i !== color.id) : [...list, color.id] };
-                                                            });
-                                                        }}
-                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                    />
-                                                    <span className="w-4 h-4 rounded-full border border-gray-200 ml-3 flex-shrink-0" style={{ backgroundColor: color.hex || '#ccc' }} />
-                                                    <span className="ml-2 text-sm text-gray-900">{color.name}</span>
-                                                    {isSelected && (
-                                                        <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                        </svg>
-                                                    )}
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
-                                        <button
-                                            type="button"
-                                            onClick={() => setOpenDropdown(null)}
-                                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
-                                        >
-                                            Done
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select multiple)</label>
+                        <SearchableCombobox
+                            multiple
+                            options={colors.map(c => ({ id: c.id, name: c.name, hex: c.hex }))}
+                            value={formData.selectedColors.map(id => colors.find(c => c.id === id)?.name).filter(Boolean) as string[]}
+                            onChange={(names: string[]) => {
+                                const selectedIds = names.map(name => colors.find(c => c.name === name)?.id).filter(Boolean) as string[];
+                                setFormData(prev => ({ ...prev, selectedColors: selectedIds }));
+                            }}
+                            placeholder="Search and Select Colors..."
+                        />
                         {formData.selectedColors.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="mt-3 flex flex-wrap gap-2">
                                 {formData.selectedColors.map(colorId => {
                                     const color = colors.find(c => c.id === colorId);
                                     return (
                                         <span
                                             key={colorId}
-                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100 shadow-sm"
                                         >
-                                            <span className="w-3 h-3 rounded-full border border-blue-200 mr-2" style={{ backgroundColor: color?.hex || '#ccc' }} />
+                                            <span className="w-3 h-3 rounded-full border border-gray-200 mr-2 flex-shrink-0" style={{ backgroundColor: color?.hex || '#ccc' }} />
                                             {color?.name || colorId}
                                             <button
                                                 type="button"
                                                 onClick={() => setFormData(prev => ({ ...prev, selectedColors: prev.selectedColors.filter(i => i !== colorId) }))}
-                                                className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
+                                                className="ml-2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
                                             >
-                                                &times;
+                                                <XMarkIcon className="h-3 w-3" />
                                             </button>
                                         </span>
                                     );
@@ -986,157 +863,225 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             </div>
 
             {/* Name Generation Config */}
-            <div className="bg-gray-50 p-4 rounded text-sm border border-gray-200">
-                <div className="flex flex-col gap-2 mb-4">
-                    <span className="font-semibold text-gray-700">Name Configuration</span>
-                    <div className="flex flex-wrap gap-4">
-                        <label className="flex items-center gap-2">
-                            <input type="checkbox" checked={formData.nameConfig.includeBrand} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeBrand: e.target.checked } }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            Include Brand
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between border-b pb-3 mb-2">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Name Generation Engine</h3>
+                        <div className="text-right">
+                            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold uppercase">Dynamic</span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeBrand} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeBrand: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Brand</span>
                         </label>
-                        <label className="flex items-center gap-2">
-                            <input type="checkbox" checked={formData.nameConfig.includeLine} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeLine: e.target.checked } }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            Include Line
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeLine} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeLine: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Line</span>
                         </label>
-                        <label className="flex items-center gap-2">
-                            <input type="checkbox" checked={formData.nameConfig.includeCollection} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeCollection: e.target.checked } }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            Include Collection
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeCollection} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeCollection: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Collection</span>
                         </label>
-                        <label className="flex items-center gap-2">
-                            <input type="checkbox" checked={formData.nameConfig.includeStyle} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeStyle: e.target.checked } }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            Include Style
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeStyle} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeStyle: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Style</span>
                         </label>
-                        <label className="flex items-center gap-2">
-                            <input type="checkbox" checked={formData.nameConfig.includePattern} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includePattern: e.target.checked } }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            Include Pattern
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includePattern} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includePattern: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Pattern</span>
                         </label>
-                        <label className="flex items-center gap-2">
-                            <input type="checkbox" checked={formData.nameConfig.includeMaterial} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeMaterial: e.target.checked } }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            Include Material
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeMaterial} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeMaterial: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Material</span>
                         </label>
-                        <label className="flex items-center gap-2">
-                            <input type="checkbox" checked={formData.nameConfig.includeFit} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeFit: e.target.checked } }))} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            Include Fit
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeFit} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeFit: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Fit</span>
                         </label>
                     </div>
-                </div>
-                <div className="flex justify-between items-center border-t border-gray-200 pt-3">
-                    <div>
-                        <p><strong>Generated Name:</strong> {formData.generatedName}</p>
-                        <p><strong>Generated Code:</strong> {formData.generatedCode}</p>
+
+                    <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 flex flex-col sm:flex-row justify-between gap-4">
+                        <div className="flex-1">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Generated Name</p>
+                            <p className="text-sm font-bold text-gray-900 leading-tight">{formData.generatedName || '—'}</p>
+                        </div>
+                        <div className="hidden sm:block w-px bg-gray-200 self-stretch" />
+                        <div className="flex-1">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Generated Code</p>
+                            <p className="text-sm font-mono font-bold text-blue-600 leading-tight uppercase tracking-tight">{formData.generatedCode || '—'}</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Silhouettes & Measurements */}
-            <div className="border-t pt-6">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">Measurements</h3>
+            <div className="border-t pt-8">
+                <div className="flex items-center gap-3 mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">Silhouettes and Measurements</h3>
+                    <div className="h-px flex-1 bg-gray-100" />
                 </div>
 
                 {/* Silhouette Selection */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Apply Silhouette Template</label>
-                    <div className="flex gap-4">
-                        <div className="flex-grow">
-                            <SearchableCombobox
-                                options={availableSilhouettes.map(s => ({ id: s.id, name: `${s.name} (${s.variant || 'Default'})` }))}
-                                value={availableSilhouettes.find(s => s.id === selectedSilhouetteId)?.name || ''}
-                                onChange={(name) => {
-                                    const sil = availableSilhouettes.find(s => `${s.name} (${s.variant || 'Default'})` === name);
-                                    if (sil) {
-                                        setSelectedSilhouetteId(sil.id);
-                                        // Apply silhouette
-                                        if (sil.pom_ids) setSelectedPomIds(sil.pom_ids);
-                                        if (sil.measurements) setMeasurements(sil.measurements);
-                                        toast.success(`Applied silhouette: ${sil.name}`);
-                                    }
-                                }}
-                                placeholder="Select a Silhouette to auto-fill measurements..."
-                            />
-                        </div>
+                <div className="mb-8 p-5 bg-indigo-50/30 rounded-2xl border border-indigo-100/50">
+                    <div className="flex items-center gap-2 mb-4">
+                        <InformationCircleIcon className="w-5 h-5 text-indigo-500" />
+                        <label className="block text-sm font-bold text-gray-700">Apply Design Template (Silhouette)</label>
+                    </div>
+                    <div className="max-w-xl">
+                        <SearchableCombobox
+                            options={availableSilhouettes.map(s => ({ id: s.id, name: `${s.name} (${s.variant || 'Default'})` }))}
+                            value={(() => {
+                                const sil = availableSilhouettes.find(s => s.id === selectedSilhouetteId);
+                                return sil ? `${sil.name} (${sil.variant || 'Default'})` : '';
+                            })()}
+                            onChange={(name) => {
+                                const sil = availableSilhouettes.find(s => `${s.name} (${s.variant || 'Default'})` === name);
+                                if (sil) {
+                                    setSelectedSilhouetteId(sil.id);
+                                    if (sil.pom_ids) setSelectedPomIds(sil.pom_ids);
+                                    if (sil.measurements) setMeasurements(sil.measurements);
+                                    toast.success(`Applied silhouette: ${sil.name}`);
+                                }
+                            }}
+                            placeholder="Select a Silhouette to auto-fill measurements..."
+                        />
+                        <p className="mt-2 text-xs text-indigo-500 font-medium italic">Selecting a silhouette will automatically populate the measurement points and values based on the brand's standard.</p>
                     </div>
                 </div>
 
                 {/* POM Selector */}
-                <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Add Measurement Point (POM)</label>
-                    <SearchableCombobox
-                        options={pomDefinitions.filter(pom => !selectedPomIds.includes(pom.id)).map(pom => ({ id: pom.id, name: pom.name }))}
-                        value=""
-                        onChange={(name) => {
-                            const pom = pomDefinitions.find(p => p.name === name);
-                            if (pom && !selectedPomIds.includes(pom.id)) {
-                                setSelectedPomIds(prev => [...prev, pom.id]);
-                            }
-                        }}
-                        placeholder="Search to add POM..."
-                    />
+                <div className="mb-8 p-5 bg-white rounded-2xl border border-gray-200 shadow-sm transition-all hover:shadow-md">
+                    <div className="flex items-center gap-2 mb-4">
+                        <PlusIcon className="w-5 h-5 text-blue-500" />
+                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-tight">Add Specific POM</label>
+                    </div>
+                    <div className="max-w-xl">
+                        <SearchableCombobox
+                            options={pomDefinitions.filter(pom => !selectedPomIds.includes(pom.id)).map(pom => ({ id: pom.id, name: pom.name }))}
+                            value=""
+                            onChange={(name) => {
+                                const pom = pomDefinitions.find(p => p.name === name);
+                                if (pom && !selectedPomIds.includes(pom.id)) {
+                                    setSelectedPomIds(prev => [...prev, pom.id]);
+                                }
+                            }}
+                            placeholder="Search to add POM definition..."
+                        />
+                    </div>
                 </div>
 
                 {/* Measurements Grid */}
                 {selectedPomIds.length > 0 && formData.selectedSizes.length > 0 ? (
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                         {selectedPomIds.map(pomId => {
                             const pom = pomDefinitions.find(p => p.id === pomId);
                             if (!pom) return null;
                             const measurementKey = String(pomId);
 
                             return (
-                                <div key={pomId} className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between rounded-t-xl">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">{pom.code}</span>
-                                            <h4 className="font-semibold text-gray-900">{pom.name}</h4>
+                                <div key={pomId} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden group hover:border-blue-200 transition-colors">
+                                    <div className="bg-gray-50/80 px-5 py-4 border-b border-gray-200 flex items-center justify-between group-hover:bg-blue-50/30 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 shadow-sm tracking-tighter uppercase">{pom.code}</span>
+                                            <div>
+                                                <h4 className="font-bold text-gray-900 text-sm leading-none">{pom.name}</h4>
+                                                <p className="text-[10px] text-gray-400 mt-1 uppercase font-semibold">{pom.category_name || 'Design Reference'}</p>
+                                            </div>
                                         </div>
-                                        <button type="button" onClick={() => setSelectedPomIds(prev => prev.filter(id => id !== pomId))} className="text-gray-400 hover:text-red-500">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedPomIds(prev => prev.filter(id => id !== pomId))}
+                                            className="text-gray-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-all"
+                                            title="Delete measurement point"
+                                        >
                                             <TrashIcon className="w-5 h-5" />
                                         </button>
                                     </div>
-                                    <div className="p-4 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
-                                        {formData.selectedSizes.map(sizeId => {
-                                            const size = sizes.find(s => s.id === sizeId);
-                                            const currentValue = measurements[measurementKey]?.[sizeId];
+                                    <div className="p-6">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-6">
+                                            {formData.selectedSizes.map((sizeId, idx) => {
+                                                const size = sizes.find(s => s.id === sizeId);
+                                                const currentValue = measurements[measurementKey]?.[sizeId];
 
-                                            return (
-                                                <div key={`${pomId}-${sizeId}`}>
-                                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase text-center">{size?.name || '?'}</label>
-                                                    <div className="relative">
+                                                return (
+                                                    <div key={`${pomId}-${sizeId}`} className="relative group/size">
+                                                        <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase text-center tracking-widest">{size?.name || '?'}</label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number" step="any" placeholder="0.0"
+                                                                className="block w-full text-sm font-bold border-gray-100 rounded-xl bg-gray-50/50 py-3 focus:ring-blue-500 focus:border-blue-500 text-center transition-all hover:bg-white hover:border-gray-300 shadow-inner"
+                                                                value={currentValue?.value || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                                                                    setMeasurements(prev => {
+                                                                        const newM = { ...prev };
+                                                                        if (!newM[measurementKey]) newM[measurementKey] = {};
+                                                                        if (val === undefined) {
+                                                                            delete newM[measurementKey][sizeId];
+                                                                        } else {
+                                                                            newM[measurementKey][sizeId] = { value: val, tolerance: currentValue?.tolerance || pom.default_tolerance || 0.5 };
+                                                                        }
+                                                                        return newM;
+                                                                    });
+                                                                }}
+                                                            />
+                                                            <span className="absolute bottom-1 right-2 text-[8px] font-bold text-gray-300 uppercase">{pom.measurement_unit || 'cm'}</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* Grading Tool - Premium UI */}
+                                            {formData.selectedSizes.length > 1 && (
+                                                <div className="flex flex-col justify-end bg-blue-50/50 p-2 rounded-xl border border-blue-100 border-dashed">
+                                                    <div className="flex items-center justify-center gap-1 mb-1">
+                                                        <span className="text-[9px] uppercase font-black text-blue-500 tracking-tighter">Grading</span>
+                                                        <InformationCircleIcon className="w-3 h-3 text-blue-300" />
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
                                                         <input
-                                                            type="number" step="any" placeholder="0"
-                                                            className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-center"
-                                                            value={currentValue?.value || ''}
-                                                            onChange={(e) => {
-                                                                const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
-                                                                setMeasurements(prev => {
-                                                                    const newM = { ...prev };
-                                                                    if (!newM[measurementKey]) newM[measurementKey] = {};
-                                                                    if (val === undefined) {
-                                                                        delete newM[measurementKey][sizeId];
-                                                                    } else {
-                                                                        newM[measurementKey][sizeId] = { value: val, tolerance: currentValue?.tolerance || pom.default_tolerance || 0.5 };
+                                                            id={`grade-${pomId}`}
+                                                            type="number"
+                                                            step="any"
+                                                            placeholder="+0.0"
+                                                            className="w-full text-xs font-bold bg-white border border-blue-100 rounded-lg focus:ring-blue-500 text-center p-1 shadow-sm"
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    const incValue = parseFloat(e.currentTarget.value);
+                                                                    if (!isNaN(incValue)) {
+                                                                        const firstSizeId = formData.selectedSizes[0];
+                                                                        const firstValue = measurements[measurementKey]?.[firstSizeId]?.value;
+                                                                        if (firstValue !== undefined) {
+                                                                            setMeasurements(prev => {
+                                                                                const newM = { ...prev };
+                                                                                if (!newM[measurementKey]) newM[measurementKey] = {};
+                                                                                formData.selectedSizes.forEach((siz, idx) => {
+                                                                                    if (idx === 0) return;
+                                                                                    newM[measurementKey][siz] = {
+                                                                                        value: Math.round((firstValue + (incValue * idx)) * 10) / 10,
+                                                                                        tolerance: pom.default_tolerance || 0.5
+                                                                                    };
+                                                                                });
+                                                                                return newM;
+                                                                            });
+                                                                            toast.success(`Applied +${incValue} grading to ${pom.name}`);
+                                                                        } else {
+                                                                            toast.error('Enter base size value first');
+                                                                        }
                                                                     }
-                                                                    return newM;
-                                                                });
+                                                                }
                                                             }}
                                                         />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-
-                                        {/* Grading Tool */}
-                                        {formData.selectedSizes.length > 1 && (
-                                            <div className="flex flex-col justify-end">
-                                                <span className="text-[10px] uppercase font-bold text-gray-400 text-center mb-1">Grade</span>
-                                                <div className="flex items-center border rounded bg-gray-50">
-                                                    <input type="number" step="any" placeholder="+0.0" className="w-full text-xs bg-transparent border-none focus:ring-0 text-center p-1"
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                e.preventDefault();
-                                                                const inc = parseFloat(e.currentTarget.value);
-                                                                if (!isNaN(inc)) {
-                                                                    // Grading logic matches SilhouetteManagement
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const input = document.getElementById(`grade-${pomId}`) as HTMLInputElement;
+                                                                const incValue = parseFloat(input.value);
+                                                                if (!isNaN(incValue)) {
                                                                     const firstSizeId = formData.selectedSizes[0];
                                                                     const firstValue = measurements[measurementKey]?.[firstSizeId]?.value;
                                                                     if (firstValue !== undefined) {
@@ -1146,28 +1091,39 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                                                                             formData.selectedSizes.forEach((siz, idx) => {
                                                                                 if (idx === 0) return;
                                                                                 newM[measurementKey][siz] = {
-                                                                                    value: Math.round((firstValue + (inc * idx)) * 10) / 10,
+                                                                                    value: Math.round((firstValue + (incValue * idx)) * 10) / 10,
                                                                                     tolerance: pom.default_tolerance || 0.5
                                                                                 };
                                                                             });
                                                                             return newM;
                                                                         });
-                                                                        toast.success(`Applied grade +${inc}`);
+                                                                        toast.success(`Applied +${incValue} grading`);
+                                                                    } else {
+                                                                        toast.error('Enter base size value first');
                                                                     }
                                                                 }
-                                                            }
-                                                        }}
-                                                    />
+                                                            }}
+                                                            className="text-[9px] font-black bg-blue-500 text-white rounded p-1 hover:bg-blue-600 transition-colors uppercase px-2 shadow-sm"
+                                                        >
+                                                            Fill
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
                 ) : (
-                    <p className="text-gray-500 text-sm italic">Select sizes and add POMs to start entering measurements.</p>
+                    <div className="bg-gray-50 rounded-2xl border border-gray-200 border-dashed p-10 text-center">
+                        <div className="mx-auto w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
+                            <PlusIcon className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <p className="text-gray-500 text-sm font-medium">Select sizes above and add POMs to start defining garment measurements.</p>
+                        <p className="text-gray-400 text-xs mt-1">Measurements are crucial for technical packs and virtual wardrobe fit prediction.</p>
+                    </div>
                 )}
             </div>
 

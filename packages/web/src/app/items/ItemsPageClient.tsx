@@ -17,7 +17,8 @@ import {
     ArrowsPointingOutIcon,
     VariableIcon,
     QueueListIcon,
-    CalendarIcon
+    CalendarIcon,
+    SwatchIcon
 } from '@heroicons/react/24/outline';
 import { brandApi } from '@/lib/brandApi';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
@@ -40,6 +41,7 @@ interface Filters {
     years?: string;
     months?: string;
     days?: string;
+    colorId?: string;
 }
 
 export default function ItemsPageClient() {
@@ -78,6 +80,7 @@ export default function ItemsPageClient() {
         brandCollections: false, // Default closed
         apparel: false, // Default closed
         gender: false, // Default closed
+        colors: false, // Default closed
         releaseDate: false, // Default closed
         headerSub1: false,
         headerSub2: false,
@@ -175,6 +178,7 @@ export default function ItemsPageClient() {
                 years: filters.years,
                 months: filters.months,
                 days: filters.days,
+                colorId: filters.colorId,
                 // Pass hierarchy filters to backend
                 subcategory1Id: filters.subcategory1Id,
                 subcategory2Id: filters.subcategory2Id,
@@ -999,6 +1003,13 @@ export default function ItemsPageClient() {
                             filterKey="patternId"
                             icon={SparklesIcon}
                         />
+                        <FilterSection
+                            title="Colors"
+                            groupKey="colors"
+                            items={options.colors}
+                            filterKey="colorId"
+                            icon={SwatchIcon}
+                        />
 
                         {/* Release Dates */}
                         <div className="border-b border-gray-100 py-4">
@@ -1209,6 +1220,7 @@ export default function ItemsPageClient() {
                                 <FilterSection title="Fits" groupKey="fits" items={options.fits} filterKey="fitId" icon={ArrowsPointingOutIcon} />
                                 <FilterSection title="Materials" groupKey="materials" items={options.materials} filterKey="materialId" icon={VariableIcon} />
                                 <FilterSection title="Patterns" groupKey="patterns" items={options.patterns} filterKey="patternId" icon={SparklesIcon} />
+                                <FilterSection title="Colors" groupKey="colors" items={options.colors} filterKey="colorId" icon={SwatchIcon} />
                             </div>
                         </div>
                         <div className="p-6 border-t border-gray-100">

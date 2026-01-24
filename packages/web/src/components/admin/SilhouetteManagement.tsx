@@ -92,40 +92,8 @@ export default function SilhouetteManagement() {
 
     // Filter POMs based on selected apparel type
     const filteredPomDefinitions = useMemo(() => {
-        if (!formData.apparelId) return pomDefinitions;
-
-        const selectedApparel = apparels.find(a => a.id === formData.apparelId);
-        if (!selectedApparel) return pomDefinitions;
-
-        const apparelName = selectedApparel.name.toLowerCase();
-
-        // 1. Try direct category match by name
-        // Many apparel types correspond directly to a POM category (e.g., "Tops", "Bottoms", "Outerwear")
-        // We'll use a mapping or simple inclusion check
-        let targetCategoryName = '';
-        if (apparelName.includes('t-shirt') || apparelName.includes('hoodie') || apparelName.includes('sweater') || apparelName.includes('top') || apparelName.includes('shirt') || apparelName.includes('polo')) {
-            targetCategoryName = 'tops';
-        } else if (apparelName.includes('pants') || apparelName.includes('jeans') || apparelName.includes('shorts') || apparelName.includes('skirt')) {
-            targetCategoryName = 'bottoms';
-        } else if (apparelName.includes('jacket') || apparelName.includes('coat')) {
-            targetCategoryName = 'outerwear';
-        } else if (apparelName.includes('dress') || apparelName.includes('jumpsuit')) {
-            targetCategoryName = 'one-piece'; // or 'dresses'
-        }
-
-        if (targetCategoryName) {
-            const cat = pomCategories.find(c => c.name.toLowerCase().includes(targetCategoryName));
-            if (cat) {
-                return pomDefinitions.filter(p => p.category_id === cat.id);
-            }
-        }
-
-        // 2. Fallback: Generic matching
-        return pomDefinitions.filter(p =>
-            p.category_name?.toLowerCase().includes(apparelName.slice(0, 4)) ||
-            apparelName.includes(p.category_name?.toLowerCase().replace(/s$/, ''))
-        );
-    }, [formData.apparelId, apparels, pomDefinitions, pomCategories]);
+        return pomDefinitions;
+    }, [pomDefinitions]);
 
     // Generate preview name
     const previewName = useMemo(() => {

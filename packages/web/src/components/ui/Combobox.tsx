@@ -3,14 +3,15 @@ import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
 import { Fragment, useState } from 'react'
 
 interface ComboboxProps {
-    value: string | null
-    onChange: (value: string | null) => void
+    value: string | string[] | null
+    onChange: (value: any) => void
     options: Array<{ id?: string | number; name: string; value?: string; hex?: string; image?: string; icon?: React.ReactNode }>
     label?: string
     placeholder?: string
     className?: string
     disabled?: boolean
     freeSolo?: boolean
+    multiple?: boolean
 }
 
 export default function SearchableCombobox({
@@ -21,7 +22,8 @@ export default function SearchableCombobox({
     placeholder = 'Select option...',
     className = '',
     disabled = false,
-    freeSolo = false
+    freeSolo = false,
+    multiple = false
 }: ComboboxProps) {
     const [query, setQuery] = useState('')
 
@@ -35,7 +37,17 @@ export default function SearchableCombobox({
                     .includes(query.toLowerCase().replace(/\s+/g, ''))
             )
 
-    const selectedOption = options.find((option) => option.name === value)
+    const getSelectedOptions = () => {
+        if (multiple && Array.isArray(value)) {
+            return options.filter(opt => value.includes(opt.name))
+        }
+        const opt = options.find((option) => option.name === value)
+        return opt ? [opt] : []
+    }
+
+    const selectedOptions = getSelectedOptions()
+    // For single select, we use the first (and only) selected option for icons/hex etc
+    const primarySelected = selectedOptions[0]
 
     return (
         <div className={className}>
@@ -49,42 +61,42 @@ export default function SearchableCombobox({
                 value={value}
                 onChange={onChange}
                 disabled={disabled}
-
+                multiple={multiple as any}
             >
                 <div className="relative mt-1">
                     <Combobox.Button as="div" className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left border border-gray-300 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 sm:text-sm">
                         <div className="flex items-center pl-3">
-                            {selectedOption?.icon && (
+                            {!multiple && primarySelected?.icon && (
                                 <span className="flex-shrink-0 inline-block h-5 w-5 text-gray-500">
-                                    {selectedOption.icon}
+                                    {primarySelected.icon}
                                 </span>
                             )}
-                            {selectedOption?.image && (
+                            {!multiple && primarySelected?.image && (
                                 <img
-                                    src={selectedOption.image}
+                                    src={primarySelected.image}
                                     alt=""
                                     className="flex-shrink-0 inline-block h-6 w-6 rounded-full border border-gray-200 object-cover bg-gray-50"
                                 />
                             )}
-                            {selectedOption?.hex && !selectedOption?.image && !selectedOption?.icon && (
+                            {!multiple && primarySelected?.hex && !primarySelected?.image && !primarySelected?.icon && (
                                 <span
                                     className="flex-shrink-0 inline-block h-4 w-4 rounded-full border border-gray-200"
-                                    style={{ backgroundColor: selectedOption.hex }}
+                                    style={{ backgroundColor: primarySelected.hex }}
                                 ></span>
                             )}
                             <Combobox.Input
-                                className={`w-full border-none py-2 ${selectedOption?.image || selectedOption?.hex || selectedOption?.icon ? 'pl-2' : 'pl-0'} pr-10 text-sm leading-5 text-gray-900 focus:ring-0`}
-                                displayValue={(val: string | null) => val || ''}
+                                className={`w-full border-none py-2 ${!multiple && (primarySelected?.image || primarySelected?.hex || primarySelected?.icon) ? 'pl-2' : 'pl-0'} pr-10 text-sm leading-5 text-gray-900 focus:ring-0`}
+                                displayValue={() => multiple ? query : (value as string || '')}
                                 onChange={(event) => {
                                     setQuery(event.target.value)
-                                    if (event.target.value === '' && !freeSolo) {
+                                    if (event.target.value === '' && !freeSolo && !multiple) {
                                         onChange(null)
                                     }
-                                    if (freeSolo) {
+                                    if (freeSolo && !multiple) {
                                         onChange(event.target.value)
                                     }
                                 }}
-                                placeholder={placeholder}
+                                placeholder={multiple && Array.isArray(value) && value.length > 0 ? `${value.length} selected...` : placeholder}
                                 autoComplete="off"
                             />
                         </div>

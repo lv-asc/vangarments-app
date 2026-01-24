@@ -669,6 +669,10 @@ export class SKUController {
                 years,
                 months,
                 days,
+                colorId,
+                subcategory1Id,
+                subcategory2Id,
+                subcategory3Id,
                 parentsOnly = 'true',
                 limit = 100,
                 page = 1
@@ -799,6 +803,38 @@ export class SKUController {
                 const dayArray = (days as string).split(',');
                 query += ` AND EXTRACT(DAY FROM si.release_date) = ANY($${paramIndex++})`;
                 values.push(dayArray.map(d => parseInt(d)));
+            }
+            if (colorId) {
+                const colorIds = (colorId as string).split(',');
+                // Filter by color in either the SKU's own metadata OR in any of its child variants' metadata
+                query += ` AND (
+                    si.metadata->>'colorId' = ANY($${paramIndex})
+                    OR si.id IN (
+                        SELECT DISTINCT parent_sku_id 
+                        FROM sku_items 
+                        WHERE parent_sku_id IS NOT NULL 
+                        AND metadata->>'colorId' = ANY($${paramIndex + 1})
+                        AND deleted_at IS NULL
+                    )
+                )`;
+                values.push(colorIds);
+                values.push(colorIds);
+                paramIndex += 2;
+            }
+            if (subcategory1Id) {
+                const subcategory1Ids = (subcategory1Id as string).split(',');
+                query += ` AND si.category->>'subcategory1Id' = ANY($${paramIndex++})`;
+                values.push(subcategory1Ids);
+            }
+            if (subcategory2Id) {
+                const subcategory2Ids = (subcategory2Id as string).split(',');
+                query += ` AND si.category->>'subcategory2Id' = ANY($${paramIndex++})`;
+                values.push(subcategory2Ids);
+            }
+            if (subcategory3Id) {
+                const subcategory3Ids = (subcategory3Id as string).split(',');
+                query += ` AND si.category->>'subcategory3Id' = ANY($${paramIndex++})`;
+                values.push(subcategory3Ids);
             }
 
             // Search logic: Match SKU name, Code, Brand Name, or Line Name

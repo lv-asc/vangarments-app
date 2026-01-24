@@ -309,7 +309,8 @@ export default function MediaUploader({
             path = path.substring('storage/'.length);
         }
 
-        const finalUrl = `/api/storage/${path}`;
+        // Final URL should use /storage prefix to match next.config.js rewrites
+        const finalUrl = `/storage/${path}`;
         console.log('[MediaUploader] Converted URL:', { original: url, final: finalUrl });
         return finalUrl;
     };

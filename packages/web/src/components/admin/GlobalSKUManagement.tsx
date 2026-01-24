@@ -1529,7 +1529,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                             {/* Show edit/delete for real SKUs, not virtual parents */}
                                             {!sku.isVirtualParent && (
                                                 <>
-                                                    <Link href={`/admin/skus/${sku.id}`} className="p-2 text-blue-500 hover:text-blue-700">
+                                                    <Link href={`/admin/skus/${sku.code || sku.id}`} className="p-2 text-blue-500 hover:text-blue-700">
                                                         <PencilIcon className="h-5 w-5" />
                                                     </Link>
                                                     <button onClick={() => handleDelete(sku.id)} className="p-2 text-red-500 hover:text-red-700">

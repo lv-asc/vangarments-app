@@ -18,6 +18,20 @@ export interface CreateMediaTagData extends CreateMediaTagRequest {
 
 export class MediaTagModel {
     /**
+     * Normalize image URL to standardize /storage/ vs /api/storage/
+     */
+    private static normalizeImageUrl(url: string): string {
+        if (!url) return url;
+        let normalized = url;
+        if (normalized.startsWith('/api/storage/')) {
+            normalized = normalized.substring('/api'.length);
+        } else if (normalized.startsWith('api/storage/')) {
+            normalized = '/' + normalized.substring('api/'.length);
+        }
+        return normalized;
+    }
+
+    /**
      * Create a new media tag
      */
     static async create(data: CreateMediaTagData): Promise<MediaTag> {
@@ -28,7 +42,8 @@ export class MediaTagModel {
               AND source_id = $2
               AND image_url = $3
         `;
-        const checkValues: any[] = [data.sourceType, data.sourceId, data.imageUrl];
+        const normalizedImageUrl = this.normalizeImageUrl(data.imageUrl);
+        const checkValues: any[] = [data.sourceType, data.sourceId, normalizedImageUrl];
         let paramIndex = 4;
 
         if (data.tagType === 'item') {
@@ -64,7 +79,7 @@ export class MediaTagModel {
         const values = [
             data.sourceType,
             data.sourceId,
-            data.imageUrl,
+            this.normalizeImageUrl(data.imageUrl),
             data.positionX,
             data.positionY,
             data.tagType,
@@ -112,12 +127,13 @@ export class MediaTagModel {
      * Find all tags for a specific image URL within a source
      */
     static async findByImage(sourceType: TagSourceType, sourceId: string, imageUrl: string): Promise<MediaTag[]> {
+        const normalizedImageUrl = this.normalizeImageUrl(imageUrl);
         const query = `
       SELECT * FROM media_tags
       WHERE source_type = $1 AND source_id = $2 AND image_url = $3
       ORDER BY created_at ASC
     `;
-        const result = await db.query(query, [sourceType, sourceId, imageUrl]);
+        const result = await db.query(query, [sourceType, sourceId, normalizedImageUrl]);
 
         const tags = result.rows.map(row => this.mapRowToMediaTag(row));
         return this.populateTagEntities(tags);

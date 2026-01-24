@@ -88,6 +88,10 @@ export const skuApi = {
         years?: string;
         months?: string;
         days?: string;
+        colorId?: string;
+        subcategory1Id?: string;
+        subcategory2Id?: string;
+        subcategory3Id?: string;
         parentsOnly?: boolean;
         limit?: number;
         offset?: number;
@@ -101,7 +105,8 @@ export const skuApi = {
             const filterKeys = [
                 'brandId', 'styleId', 'patternId', 'fitId', 'genderId',
                 'apparelId', 'materialId', 'sizeId', 'lineId', 'collection',
-                'nationality', 'years', 'months', 'days'
+                'nationality', 'years', 'months', 'days', 'colorId',
+                'subcategory1Id', 'subcategory2Id', 'subcategory3Id'
             ];
             filterKeys.forEach(key => {
                 const value = options[key as keyof typeof options];
