@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { SportOrg, SportDepartment, SportSquad, SportLeague, SportOrgType } from '@vangarments/shared';
+import { SportOrg, SportDepartment, SportSquad, SportLeague, SportOrgType } from '@vangarments/shared/types';
 
 export const sportOrgApi = {
     // Orgs
@@ -17,6 +17,9 @@ export const sportOrgApi = {
 
     deleteOrg: (id: string) =>
         apiClient.delete(`/sport-orgs/${id}`),
+
+    getOrgItems: (orgId: string) =>
+        apiClient.get<any[]>(`/sport-orgs/${orgId}/items`),
 
     // Departments
     listDepartments: (orgId: string) =>

@@ -7,13 +7,19 @@ import { apiClient } from '@/lib/api';
 import { tagApi } from '@/lib/tagApi';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
-import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, ArrowPathIcon, XMarkIcon, InformationCircleIcon, ChevronDownIcon, UsersIcon, TagIcon, SparklesIcon, SwatchIcon, AdjustmentsHorizontalIcon, CalendarIcon, QueueListIcon, Square3Stack3DIcon, VariableIcon, ShoppingBagIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { brandApi } from '@/lib/brandApi';
 import SearchableCombobox from '../ui/Combobox';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 import { ImageTagEditor } from '@/components/tagging';
 import { getImageUrl } from '@/lib/utils';
+
+const countryFlags: Record<string, string> = {
+    "United States": "🇺🇸", "Germany": "🇩🇪", "Brazil": "🇧🇷", "Italy": "🇮🇹", "France": "🇫🇷", "Japan": "🇯🇵",
+    "United Kingdom": "🇬🇧", "Spain": "🇪🇸", "Canada": "🇨🇦", "Australia": "🇦🇺", "China": "🇨🇳", "Portugal": "🇵🇹"
+};
 
 /**
  * Strip color suffix from product name (e.g., "Asphalt T-Shirt (Black)" -> "Asphalt T-Shirt")
@@ -38,15 +44,66 @@ const getVariantDisplayName = (variant: any, siblings: any[] = []) => {
 };
 
 interface GlobalSKUManagementProps {
+    brandId?: string;
 }
 
-export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
+export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProps) {
     const [skus, setSkus] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
-    const [selectedBrand, setSelectedBrand] = useState('');
+    const [selectedBrand, setSelectedBrand] = useState(brandId || '');
+
+    // New filters
+    const [filters, setFilters] = useState({
+        nationality: '',
+        subcategory1Id: '',
+        subcategory2Id: '',
+        subcategory3Id: '',
+        apparelId: '',
+        colorId: '',
+        sizeId: '',
+        materialId: '',
+        patternId: '',
+        genderId: '',
+        styleId: '',
+        fitId: '',
+        collection: '',
+        lineId: ''
+    });
+
+    const [expandedFilterGroups, setExpandedFilterGroups] = useState<Record<string, boolean>>({
+        gender: false, colors: false, sizes: false, fits: false, styles: false, materials: false, patterns: false
+    });
+
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+    const handleFilterChange = (key: string, value: any) => {
+        setFilters(prev => {
+            const next = { ...prev, [key]: value };
+            if (key === 'subcategory1Id') {
+                next.subcategory2Id = ''; next.subcategory3Id = ''; next.apparelId = '';
+            } else if (key === 'subcategory2Id') {
+                next.subcategory3Id = ''; next.apparelId = '';
+            } else if (key === 'subcategory3Id') {
+                next.apparelId = '';
+            }
+            return next;
+        });
+    };
+
+    const handleMultiFilterChange = (key: string, value: string) => {
+        setFilters(prev => {
+            const current = (prev as any)[key] || '';
+            const values = current ? current.split(',') : [];
+            const newValues = values.includes(value)
+                ? values.filter((v: string) => v !== value)
+                : [...values, value];
+            return { ...prev, [key]: newValues.join(',') };
+        });
+    };
+
 
     // VUFS Data Options
     const [vufsBrands, setVufsBrands] = useState<any[]>([]);
@@ -64,6 +121,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [genders, setGenders] = useState<any[]>([]);
     const [conditions, setConditions] = useState<any[]>([]);
     const [mediaLabels, setMediaLabels] = useState<any[]>([]);
+    const [nationalities, setNationalities] = useState<any[]>([]);
+    const [subcategories1, setSubcategories1] = useState<any[]>([]);
+    const [subcategories2, setSubcategories2] = useState<any[]>([]);
+    const [subcategories3, setSubcategories3] = useState<any[]>([]);
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -76,6 +137,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
     const [showTrash, setShowTrash] = useState(false);
     const [deletedSkus, setDeletedSkus] = useState<any[]>([]);
     const [trashLoading, setTrashLoading] = useState(false);
+    const [expandedTrashGroups, setExpandedTrashGroups] = useState<Set<string>>(new Set());
 
     // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState<{
@@ -182,7 +244,7 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
 
     useEffect(() => {
         fetchSkus();
-    }, [page, search, selectedBrand]);
+    }, [page, search, selectedBrand, filters]);
 
     // Handle clicking outside of dropdowns to close them
     useEffect(() => {
@@ -344,8 +406,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         const condition = conditions.find(c => c.id === formData.conditionId);
 
         // Variant attributes
-        const colorId = overrides.colorId !== undefined ? overrides.colorId : (formData.selectedColors[0] || null);
-        const sizeId = overrides.sizeId !== undefined ? overrides.sizeId : (formData.selectedSizes[0] || null);
+        const useAttributes = (editMode === 'variant' || editMode === 'new') || (overrides.colorId !== undefined || overrides.sizeId !== undefined);
+        const colorId = useAttributes ? (overrides.colorId !== undefined ? overrides.colorId : (formData.selectedColors[0] || null)) : null;
+        const sizeId = useAttributes ? (overrides.sizeId !== undefined ? overrides.sizeId : (formData.selectedSizes[0] || null)) : null;
+
         const color = colors.find(c => c.id === colorId);
         const size = sizes.find(s => s.id === sizeId);
 
@@ -464,6 +528,24 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 ];
             }
 
+            const results = await Promise.all([
+                apiClient.getVUFSBrands(),
+                apiClient.getVUFSCategories(),
+                apiClient.getVUFSAttributeValues('apparel'),
+                apiClient.getVUFSAttributeValues('style'),
+                apiClient.getVUFSPatterns(),
+                apiClient.getVUFSMaterials(),
+                apiClient.getVUFSFits(),
+                apiClient.getVUFSColors(),
+                apiClient.getVUFSSizes(),
+                apiClient.getAllConditions(),
+                apiClient.getAllMediaLabels(),
+                brandApi.getNationalities(),
+                apiClient.getVUFSAttributeValues('subcategory-1'),
+                apiClient.getVUFSAttributeValues('subcategory-2'),
+                apiClient.getVUFSAttributeValues('subcategory-3')
+            ]);
+
             const [
                 brandsRes,
                 categoriesRes,
@@ -475,20 +557,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 colorsRes,
                 sizesRes,
                 conditionsRes,
-                mediaLabelsRes
-            ] = await Promise.all([
-                apiClient.getVUFSBrands(),
-                apiClient.getVUFSCategories(),
-                apiClient.getVUFSAttributeValues('apparel'),
-                apiClient.getVUFSAttributeValues('style'),
-                apiClient.getVUFSPatterns(),
-                apiClient.getVUFSMaterials(),
-                apiClient.getVUFSFits(),
-                apiClient.getVUFSColors(),
-                apiClient.getVUFSSizes(),
-                apiClient.getAllConditions(),
-                apiClient.getAllMediaLabels()
-            ]);
+                mediaLabelsRes,
+                nationalitiesRes,
+                sub1Res,
+                sub2Res,
+                sub3Res
+            ] = results;
 
             console.log('[GlobalSKUManagement] VUFS data fetched:', {
                 brands: brandsRes?.length || 0,
@@ -501,13 +575,12 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 sizes: sizesRes?.length || 0,
                 conditions: conditionsRes?.length || 0,
                 mediaLabels: mediaLabelsRes?.length || 0,
-                sizesRaw: sizesRes
+                nationalities: nationalitiesRes?.length || 0
             });
 
             setVufsBrands(brandsRes || []);
             setVufsCategories(categoriesRes || []);
             setApparels(apparelsRes || []);
-            console.log('[GlobalSKUManagement] Styles fetched:', stylesRes?.length || 0, stylesRes);
             setStyles(stylesRes || []);
             setPatterns(patternsRes || []);
             setMaterials(materialsRes || []);
@@ -517,6 +590,10 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             setConditions(conditionsRes || []);
             setMediaLabels(mediaLabelsRes || []);
             setGenders(Array.isArray(gendersData) ? gendersData : []);
+            setNationalities((nationalitiesRes || []).map((n: string) => ({ id: n, name: n })));
+            setSubcategories1(sub1Res || []);
+            setSubcategories2(sub2Res || []);
+            setSubcategories3(sub3Res || []);
 
             // Fetch POM categories and definitions
             try {
@@ -543,7 +620,8 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 page,
                 limit: 20,
                 search,
-                brandId: selectedBrand
+                brandId: selectedBrand,
+                ...filters
             });
             setSkus(res.skus);
             setTotalPages(res.totalPages);
@@ -580,6 +658,16 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         }
     };
 
+    useEffect(() => {
+        if (selectedBrand) {
+            fetchLines(selectedBrand);
+            fetchCollections(selectedBrand);
+        } else {
+            setLines([]);
+            setCollections([]);
+        }
+    }, [selectedBrand]);
+
     // Category Hierarchy Logic
 
 
@@ -613,6 +701,56 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
             variants: sku.variants || []
         }));
     }, [skus]);
+
+    // Group deleted SKUs (reconstruct hierarchy from flat list)
+    const groupedDeletedSkus = useMemo(() => {
+        const skuMap = new Map(deletedSkus.map(s => [s.id, s]));
+        const childrenByParent = new Map<string, any[]>();
+
+        // First pass: gather children
+        deletedSkus.forEach(sku => {
+            if (sku.parentSkuId) {
+                if (!childrenByParent.has(sku.parentSkuId)) {
+                    childrenByParent.set(sku.parentSkuId, []);
+                }
+                childrenByParent.get(sku.parentSkuId)?.push(sku);
+            }
+        });
+
+        const results: any[] = [];
+
+        // Second pass: build hierarchy
+        deletedSkus.forEach(sku => {
+            if (!sku.parentSkuId) {
+                // It's a parent
+                const children = childrenByParent.get(sku.id) || [];
+                // Sort children by size if possible, or name
+                children.sort((a, b) => a.name.localeCompare(b.name));
+
+                results.push({
+                    ...sku,
+                    variants: children
+                });
+            } else {
+                // It's a child. Only add if parent is NOT in the list (orphan)
+                if (!skuMap.has(sku.parentSkuId)) {
+                    results.push(sku);
+                }
+            }
+        });
+
+        // Sort by deletedAt (most recent first)
+        return results.sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+    }, [deletedSkus]);
+
+    const toggleTrashGroupExpansion = (skuId: string) => {
+        setExpandedTrashGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(skuId)) next.delete(skuId);
+            else next.add(skuId);
+            return next;
+        });
+    };
 
 
     // Toggle expansion of a SKU group
@@ -1275,7 +1413,13 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         setConfirmModal({
             isOpen: true,
             title: 'Delete SKU',
-            message: 'Are you sure you want to delete this SKU? It will be moved to trash.',
+            message: (() => {
+                const hasVariants = skus.some(s => s.parentSkuId === id);
+                if (hasVariants) {
+                    return 'Are you sure you want to delete this Parent SKU? All its variants will also be moved to trash.';
+                }
+                return 'Are you sure you want to delete this SKU? It will be moved to trash.';
+            })(),
             variant: 'danger',
             isLoading: false,
             onConfirm: async () => {
@@ -1311,7 +1455,22 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         setConfirmModal({
             isOpen: true,
             title: 'Restore SKU',
-            message: 'Are you sure you want to restore this SKU?',
+            message: (() => {
+                const sku = deletedSkus.find(s => s.id === id);
+                // Check if it's a parent with variants in the trash
+                const hasVariants = deletedSkus.some(s => s.parentSkuId === id);
+                if (hasVariants) {
+                    return 'Are you sure you want to restore this Parent SKU? All its variants will also be restored.';
+                }
+                if (sku?.parentSkuId) {
+                    // It's a variant
+                    // Check if parent is also in trash - if so, we should probably warn or maybe backend handles it?
+                    // Backend: Restore variant -> Parent restores? Usually yes or mixed state.
+                    // For now simple message.
+                    return 'Are you sure you want to restore this variant?';
+                }
+                return 'Are you sure you want to restore this SKU?';
+            })(),
             variant: 'primary',
             isLoading: false,
             onConfirm: async () => {
@@ -1334,7 +1493,13 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         setConfirmModal({
             isOpen: true,
             title: 'Permanently Delete SKU',
-            message: 'This action cannot be undone. The SKU will be permanently removed.',
+            message: (() => {
+                const hasVariants = deletedSkus.some(s => s.parentSkuId === id);
+                if (hasVariants) {
+                    return 'This action cannot be undone. The Parent SKU and ALL its variants will be permanently removed.';
+                }
+                return 'This action cannot be undone. The SKU will be permanently removed.';
+            })(),
             variant: 'danger',
             isLoading: false,
             onConfirm: async () => {
@@ -1358,25 +1523,100 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
         fetchDeletedSkus();
     }, [search]);
 
+    const FilterSection = ({ title, groupKey, items, filterKey, icon: Icon, labelKey = 'name', idKey = 'id' }: any) => {
+        const isExpanded = expandedFilterGroups[groupKey];
+        const selectedValues = (filters as any)[filterKey]?.split(',').filter(Boolean) || [];
+
+        return (
+            <div className="border-b border-gray-100 py-3">
+                <button
+                    onClick={() => setExpandedFilterGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
+                    className="flex items-center justify-between w-full text-xs font-bold text-gray-900 mb-2 uppercase tracking-wider group"
+                >
+                    <div className="flex items-center gap-2">
+                        {Icon && <Icon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />}
+                        {title}
+                        {selectedValues.length > 0 && (
+                            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-900 text-white rounded-full font-bold">
+                                {selectedValues.length}
+                            </span>
+                        )}
+                    </div>
+                    <ChevronDownIcon className={`h-4 w-4 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                </button>
+                {isExpanded && (
+                    <div className="space-y-1 mt-2 max-h-60 overflow-y-auto pr-2">
+                        {items.map((item: any) => {
+                            const id = item[idKey];
+                            const label = item[labelKey];
+                            const isSelected = selectedValues.includes(id);
+                            const image = item.logo || item.swatchUrl || item.iconUrl || item.coverImageUrl;
+                            const color = item.hex;
+                            return (
+                                <button
+                                    key={id}
+                                    onClick={() => handleMultiFilterChange(filterKey, id)}
+                                    className={`flex items-center w-full px-2 py-1.5 rounded-md text-sm transition-colors ${isSelected
+                                        ? 'bg-gray-100 text-gray-900 font-semibold'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-left'
+                                        }`}
+                                >
+                                    <div className={`w-4 h-4 rounded border mr-2 flex-shrink-0 flex items-center justify-center ${isSelected ? 'bg-gray-900 border-gray-900' : 'border-gray-300'}`}>
+                                        {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-grow min-w-0">
+                                        {image ? (
+                                            <div className="h-5 w-5 rounded overflow-hidden flex-shrink-0 bg-white border border-gray-100 flex items-center justify-center p-0.5">
+                                                <img src={image} alt="" className="h-full w-full object-contain" />
+                                            </div>
+                                        ) : color ? (
+                                            <div className="h-4 w-4 rounded-full flex-shrink-0 border border-gray-200 shadow-sm" style={{ backgroundColor: color }} />
+                                        ) : null}
+                                        <span className="truncate">{label}</span>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="relative w-full sm:w-96">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                <div className="relative w-full md:w-[400px]">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="Search SKUs by name, code..."
+                        className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm shadow-inner"
+                        placeholder="Search SKUs by name, code, brand or category..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="ghost"
+                        onClick={() => {
+                            setFilters({
+                                nationality: '', subcategory1Id: '', subcategory2Id: '', subcategory3Id: '',
+                                apparelId: '', colorId: '', sizeId: '', materialId: '', patternId: '',
+                                genderId: '', styleId: '', fitId: '', collection: '', lineId: ''
+                            });
+                            setSearch(''); setSelectedBrand('');
+                        }}
+                        className="text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                        <XMarkIcon className="h-4 w-4 mr-2" />
+                        Clear All
+                    </Button>
                     {!showTrash && (
-                        <Link href="/admin/skus/create">
-                            <Button>
+                        <Link href={`/admin/skus/create${selectedBrand ? `?brandId=${selectedBrand}` : ''}`}>
+                            <Button className="shadow-md">
                                 <PlusIcon className="h-5 w-5 mr-2" />
                                 New SKU
                             </Button>
@@ -1385,173 +1625,396 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                 </div>
             </div>
 
-            {/* View Tabs */}
-            <div className="flex gap-2 border-b border-gray-200 pb-2">
-                <button
-                    onClick={() => setShowTrash(false)}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${!showTrash
-                        ? 'bg-white border-b-2 border-blue-500 text-blue-600'
-                        : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                >
-                    Active SKUs
-                </button>
-                <button
-                    onClick={() => setShowTrash(true)}
-                    className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${showTrash
-                        ? 'bg-white border-b-2 border-red-500 text-red-600'
-                        : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                >
-                    <TrashIcon className="h-4 w-4 inline mr-1" />
-                    Trash ({deletedSkus.length})
-                </button>
+            {/* Main Filters Bar (Top-related) */}
+            <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 items-end">
+                {!brandId && (
+                    <SearchableCombobox
+                        label="Brand"
+                        value={vufsBrands.find(b => b.id === selectedBrand)?.name || ''}
+                        onChange={(name) => {
+                            const brand = vufsBrands.find(b => b.name === name);
+                            setSelectedBrand(brand?.id || '');
+                        }}
+                        options={vufsBrands.map(b => ({ ...b, image: b.logo }))}
+                        placeholder="All Brands"
+                    />
+                )}
+                <SearchableCombobox
+                    label="Nationality"
+                    value={nationalities.find(n => n.id === filters.nationality)?.name || ''}
+                    onChange={(name) => {
+                        const nat = nationalities.find(n => n.name === name);
+                        handleFilterChange('nationality', nat?.id || '');
+                    }}
+                    options={nationalities}
+                    placeholder="All Nationalities"
+                />
+                <SearchableCombobox
+                    label="Line"
+                    value={lines.find(l => l.id === filters.lineId)?.name || ''}
+                    onChange={(name) => {
+                        const line = lines.find(l => l.name === name);
+                        handleFilterChange('lineId', line?.id || '');
+                    }}
+                    options={lines}
+                    placeholder="All Lines"
+                />
+                <SearchableCombobox
+                    label="Collection"
+                    value={collections.find(c => c.id === filters.collection)?.name || ''}
+                    onChange={(name) => {
+                        const collection = collections.find(c => c.name === name);
+                        handleFilterChange('collection', collection?.id || '');
+                    }}
+                    options={collections}
+                    placeholder="All Collections"
+                />
+                <SearchableCombobox
+                    label="Department"
+                    value={subcategories1.find(s => s.id === filters.subcategory1Id)?.name || ''}
+                    onChange={(name) => {
+                        const sub = subcategories1.find(s => s.name === name);
+                        handleFilterChange('subcategory1Id', sub?.id || '');
+                    }}
+                    options={subcategories1}
+                    placeholder="All Departments"
+                />
+                <SearchableCombobox
+                    label="Category"
+                    value={subcategories2.find(s => s.id === filters.subcategory2Id)?.name || ''}
+                    onChange={(name) => {
+                        const sub = subcategories2.find(s => s.name === name);
+                        handleFilterChange('subcategory2Id', sub?.id || '');
+                    }}
+                    options={subcategories2.filter(s => filters.subcategory1Id ? s.parentId === filters.subcategory1Id : true)}
+                    placeholder="All Categories"
+                />
+                <SearchableCombobox
+                    label="Subcategory"
+                    value={subcategories3.find(s => s.id === filters.subcategory3Id)?.name || ''}
+                    onChange={(name) => {
+                        const sub = subcategories3.find(s => s.name === name);
+                        handleFilterChange('subcategory3Id', sub?.id || '');
+                    }}
+                    options={subcategories3.filter(s => filters.subcategory2Id ? s.parentId === filters.subcategory2Id : true)}
+                    placeholder="All Subcategories"
+                />
+                <SearchableCombobox
+                    label="Apparel"
+                    value={apparels.find(a => a.id === filters.apparelId)?.name || ''}
+                    onChange={(name) => {
+                        const item = apparels.find(a => a.name === name);
+                        handleFilterChange('apparelId', item?.id || '');
+                    }}
+                    options={apparels.filter(a => filters.subcategory3Id ? a.parentId === filters.subcategory3Id : true)}
+                    placeholder="All Apparels"
+                />
             </div>
 
-            {/* Active SKUs List */}
-            {!showTrash && (
-                <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                    <ul className="divide-y divide-gray-200">
-                        {groupedSkus.map(sku => (
-                            <React.Fragment key={sku.id}>
-                                {/* Parent SKU Row */}
-                                <li className="block hover:bg-gray-50">
-                                    <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            {/* Expand/Collapse Button (only if has variants) */}
-                                            {sku.variants && sku.variants.length > 0 ? (
-                                                <button
-                                                    onClick={() => toggleGroupExpansion(sku.id)}
-                                                    className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
-                                                >
-                                                    <svg
-                                                        className={`h-5 w-5 transition-transform ${expandedGroups.has(sku.id) ? 'rotate-90' : ''}`}
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                    </svg>
-                                                </button>
-                                            ) : (
-                                                <div className="w-7" /> /* Spacer */
-                                            )}
-                                            {/* Image Thumbnail */}
-                                            <div className="h-32 w-32 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
-                                                {sku.images?.[0]?.url ? (
-                                                    <>
-                                                        <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
-                                                        {sku.images[0].labelId && (
-                                                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white px-1 py-0.5 truncate text-center leading-tight">
-                                                                {mediaLabels.find(l => l.id === sku.images[0].labelId)?.name || 'Label'}
+            <div className="flex flex-col lg:flex-row gap-8 mt-6">
+                {/* Fixed Sidebar */}
+                <aside className="w-full lg:w-64 flex-shrink-0 space-y-2 border-r border-gray-100 pr-6">
+                    <div className="sticky top-24 space-y-1">
+                        <div className="pb-4 border-b border-gray-100">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <AdjustmentsHorizontalIcon className="h-5 w-5 text-gray-500" />
+                                Filters
+                            </h3>
+                        </div>
+
+                        <FilterSection
+                            title="Genders"
+                            groupKey="gender"
+                            items={genders}
+                            filterKey="genderId"
+                            icon={UsersIcon}
+                        />
+
+                        <FilterSection
+                            title="Sizes"
+                            groupKey="sizes"
+                            items={sizes}
+                            filterKey="sizeId"
+                            icon={VariableIcon}
+                        />
+
+                        <FilterSection
+                            title="Fits"
+                            groupKey="fits"
+                            items={fits}
+                            filterKey="fitId"
+                            icon={AdjustmentsHorizontalIcon}
+                        />
+
+                        <FilterSection
+                            title="Styles"
+                            groupKey="styles"
+                            items={styles}
+                            filterKey="styleId"
+                            icon={TagIcon}
+                        />
+
+                        <FilterSection
+                            title="Materials"
+                            groupKey="materials"
+                            items={materials}
+                            filterKey="materialId"
+                            icon={SparklesIcon}
+                        />
+
+                        <FilterSection
+                            title="Patterns"
+                            groupKey="patterns"
+                            items={patterns}
+                            filterKey="patternId"
+                            icon={Square3Stack3DIcon}
+                        />
+
+                        <FilterSection
+                            title="Colors"
+                            groupKey="colors"
+                            items={colors}
+                            filterKey="colorId"
+                            icon={SwatchIcon}
+                        />
+                    </div>
+                </aside>
+
+                {/* Content Area */}
+                <div className="flex-grow space-y-6">
+                    {/* View Tabs */}
+                    <div className="flex gap-2 border-b border-gray-200 pb-2">
+                        <button
+                            onClick={() => setShowTrash(false)}
+                            className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${!showTrash
+                                ? 'bg-white border-b-2 border-blue-500 text-blue-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            Active SKUs
+                        </button>
+                        <button
+                            onClick={() => setShowTrash(true)}
+                            className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${showTrash
+                                ? 'bg-white border-b-2 border-red-500 text-red-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            <TrashIcon className="h-4 w-4 inline mr-1" />
+                            Trash ({deletedSkus.length})
+                        </button>
+                    </div>
+
+                    {/* Active SKUs List */}
+                    {!showTrash && (
+                        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                            <ul className="divide-y divide-gray-200">
+                                {groupedSkus.map(sku => (
+                                    <React.Fragment key={sku.id}>
+                                        {/* Parent SKU Row */}
+                                        <li className="block hover:bg-gray-50">
+                                            <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+                                                <div className="flex items-center gap-4">
+                                                    {/* Expand/Collapse Button (only if has variants) */}
+                                                    {sku.variants && sku.variants.length > 0 ? (
+                                                        <button
+                                                            onClick={() => toggleGroupExpansion(sku.id)}
+                                                            className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
+                                                        >
+                                                            <svg
+                                                                className={`h-5 w-5 transition-transform ${expandedGroups.has(sku.id) ? 'rotate-90' : ''}`}
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                            </svg>
+                                                        </button>
+                                                    ) : (
+                                                        <div className="w-7" /> /* Spacer */
+                                                    )}
+                                                    {/* Image Thumbnail */}
+                                                    <div className="h-32 w-32 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
+                                                        {sku.images?.[0]?.url ? (
+                                                            <>
+                                                                <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                                                {sku.images[0].labelId && (
+                                                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white px-1 py-0.5 truncate text-center leading-tight">
+                                                                        {mediaLabels.find(l => l.id === sku.images[0].labelId)?.name || 'Label'}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : sku.collectionInfo?.coverImage ? (
+                                                            <img src={sku.collectionInfo.coverImage} alt={sku.name} className="h-full w-full object-cover opacity-80" />
+                                                        ) : (
+                                                            <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                                <MagnifyingGlassIcon className="h-10 w-10" />
                                                             </div>
                                                         )}
-                                                    </>
-                                                ) : sku.collectionInfo?.coverImage ? (
-                                                    <img src={sku.collectionInfo.coverImage} alt={sku.name} className="h-full w-full object-cover opacity-80" />
-                                                ) : (
-                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                        <MagnifyingGlassIcon className="h-10 w-10" />
                                                     </div>
-                                                )}
-                                            </div>
-                                            <div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Link
+                                                                href={`/items/${slugify(sku.code)}`}
+                                                                className="text-lg font-bold text-blue-600 truncate hover:underline"
+                                                            >
+                                                                {sku.name}
+                                                            </Link>
+                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                                {sku.code}
+                                                            </span>
+                                                            {sku.variants && sku.variants.length > 0 && (
+                                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                                    {sku.variants.length} Variant{sku.variants.length !== 1 ? 's' : ''}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
+                                                            {sku.brand?.name && (
+                                                                <span className="flex items-center gap-1">
+                                                                    {sku.brand.logo && (
+                                                                        <img src={sku.brand.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                                    )}
+                                                                    Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
+                                                                </span>
+                                                            )}
+                                                            {(sku.lineInfo?.name || sku.line) && (
+                                                                <span className="flex items-center gap-1">
+                                                                    {sku.lineInfo?.logo && (
+                                                                        <img src={sku.lineInfo.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                                    )}
+                                                                    Line: <span className="font-medium text-gray-900">{sku.lineInfo?.name || sku.line}</span>
+                                                                </span>
+                                                            )}
+                                                            {sku.collection && (
+                                                                <span className="flex items-center gap-1">
+                                                                    {sku.collectionInfo?.coverImage && (
+                                                                        <img src={sku.collectionInfo.coverImage} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                                    )}
+                                                                    Collection: <span className="font-medium text-gray-900">{sku.collection}</span>
+                                                                </span>
+                                                            )}
+
+                                                            {sku.retailPriceBrl && (
+                                                                <span>
+                                                                    R$ <span className="font-medium text-gray-900">{Number(sku.retailPriceBrl).toFixed(2)}</span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Link
-                                                        href={`/items/${slugify(sku.code)}`}
-                                                        className="text-lg font-bold text-blue-600 truncate hover:underline"
-                                                    >
-                                                        {sku.name}
-                                                    </Link>
-                                                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                        {sku.code}
-                                                    </span>
-                                                    {sku.variants && sku.variants.length > 0 && (
-                                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                            {sku.variants.length} Variant{sku.variants.length !== 1 ? 's' : ''}
-                                                        </span>
+                                                    {/* Show edit button for virtual parents */}
+                                                    {sku.isVirtualParent && (
+                                                        <>
+                                                            <Link
+                                                                href={`/admin/skus/${sku.id}`}
+                                                                className="p-2 text-blue-500 hover:text-blue-700"
+                                                                title="Edit parent (updates all variants)"
+                                                            >
+                                                                <PencilIcon className="h-5 w-5" />
+                                                            </Link>
+                                                            <button
+                                                                onClick={() => handleDelete(sku.id)}
+                                                                className="p-2 text-red-500 hover:text-red-700"
+                                                                title="Delete parent and all variants"
+                                                            >
+                                                                <TrashIcon className="h-5 w-5" />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {/* Show edit/delete for real SKUs, not virtual parents */}
+                                                    {!sku.isVirtualParent && (
+                                                        <>
+                                                            <Link href={`/admin/skus/${sku.code || sku.id}`} className="p-2 text-blue-500 hover:text-blue-700">
+                                                                <PencilIcon className="h-5 w-5" />
+                                                            </Link>
+                                                            <button onClick={() => handleDelete(sku.id)} className="p-2 text-red-500 hover:text-red-700">
+                                                                <TrashIcon className="h-5 w-5" />
+                                                            </button>
+                                                        </>
                                                     )}
                                                 </div>
-                                                <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
-                                                    {sku.brand?.name && (
-                                                        <span className="flex items-center gap-1">
-                                                            {sku.brand.logo && (
-                                                                <img src={sku.brand.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                                            )}
-                                                            Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
-                                                        </span>
-                                                    )}
-                                                    {(sku.lineInfo?.name || sku.line) && (
-                                                        <span className="flex items-center gap-1">
-                                                            {sku.lineInfo?.logo && (
-                                                                <img src={sku.lineInfo.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                                            )}
-                                                            Line: <span className="font-medium text-gray-900">{sku.lineInfo?.name || sku.line}</span>
-                                                        </span>
-                                                    )}
-                                                    {sku.collection && (
-                                                        <span className="flex items-center gap-1">
-                                                            {sku.collectionInfo?.coverImage && (
-                                                                <img src={sku.collectionInfo.coverImage} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                                            )}
-                                                            Collection: <span className="font-medium text-gray-900">{sku.collection}</span>
-                                                        </span>
+                                            </div>
+                                        </li>
+                                        {/* Variant Rows (when expanded) */}
+                                        {sku.variants && sku.variants.length > 0 && expandedGroups.has(sku.id) && (
+                                            sku.variants.map((variant: any) => (
+                                                <li key={variant.id} className="block hover:bg-blue-50/50 bg-gray-50 border-l-4 border-blue-200">
+                                                    <div className="px-4 py-3 sm:px-6 flex items-center justify-between pl-20">
+                                                        <div className="flex items-center gap-4">
+                                                            {/* Variant Image Thumbnail */}
+                                                            <div className="h-16 w-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+                                                                {variant.images?.[0]?.url ? (
+                                                                    <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
+                                                                ) : sku.collectionInfo?.coverImage ? (
+                                                                    <img src={sku.collectionInfo.coverImage} alt={variant.name} className="h-full w-full object-cover opacity-60" />
+                                                                ) : (
+                                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                                        <MagnifyingGlassIcon className="h-6 w-6" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-sm text-gray-700 truncate">{getVariantDisplayName(variant, sku.variants)}</p>
+                                                                    <span className="px-1.5 inline-flex text-xs leading-5 font-medium rounded bg-gray-100 text-gray-600">
+                                                                        {variant.code}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button onClick={() => handleDelete(variant.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete variant">
+                                                                <TrashIcon className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            ))
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                                {groupedSkus.length === 0 && !loading && (
+                                    <li className="px-4 py-8 text-center text-gray-500">
+                                        No SKUs found.
+                                    </li>
+                                )}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* Trash List */}
+                    {showTrash && (
+                        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                            <ul className="divide-y divide-gray-200">
+                                {groupedDeletedSkus.map(sku => (
+                                    <React.Fragment key={sku.id}>
+                                        <li className="block hover:bg-gray-50 bg-red-50/30">
+                                            <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+                                                <div className="flex items-center gap-4">
+                                                    {/* Expand Button for Parents with Variants */}
+                                                    {sku.variants && sku.variants.length > 0 ? (
+                                                        <button
+                                                            onClick={() => toggleTrashGroupExpansion(sku.id)}
+                                                            className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
+                                                        >
+                                                            <svg
+                                                                className={`h-5 w-5 transition-transform ${expandedTrashGroups.has(sku.id) ? 'rotate-90' : ''}`}
+                                                                fill="none"
+                                                                viewBox="0 0 24 24"
+                                                                stroke="currentColor"
+                                                            >
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                            </svg>
+                                                        </button>
+                                                    ) : (
+                                                        <div className="w-7"></div>
                                                     )}
 
-                                                    {sku.retailPriceBrl && (
-                                                        <span>
-                                                            R$ <span className="font-medium text-gray-900">{Number(sku.retailPriceBrl).toFixed(2)}</span>
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {/* Show edit button for virtual parents */}
-                                            {sku.isVirtualParent && (
-                                                <>
-                                                    <Link
-                                                        href={`/admin/skus/${sku.id}`}
-                                                        className="p-2 text-blue-500 hover:text-blue-700"
-                                                        title="Edit parent (updates all variants)"
-                                                    >
-                                                        <PencilIcon className="h-5 w-5" />
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => handleDelete(sku.id)}
-                                                        className="p-2 text-red-500 hover:text-red-700"
-                                                        title="Delete parent and all variants"
-                                                    >
-                                                        <TrashIcon className="h-5 w-5" />
-                                                    </button>
-                                                </>
-                                            )}
-                                            {/* Show edit/delete for real SKUs, not virtual parents */}
-                                            {!sku.isVirtualParent && (
-                                                <>
-                                                    <Link href={`/admin/skus/${sku.code || sku.id}`} className="p-2 text-blue-500 hover:text-blue-700">
-                                                        <PencilIcon className="h-5 w-5" />
-                                                    </Link>
-                                                    <button onClick={() => handleDelete(sku.id)} className="p-2 text-red-500 hover:text-red-700">
-                                                        <TrashIcon className="h-5 w-5" />
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </li>
-                                {/* Variant Rows (when expanded) */}
-                                {sku.variants && sku.variants.length > 0 && expandedGroups.has(sku.id) && (
-                                    sku.variants.map((variant: any) => (
-                                        <li key={variant.id} className="block hover:bg-blue-50/50 bg-gray-50 border-l-4 border-blue-200">
-                                            <div className="px-4 py-3 sm:px-6 flex items-center justify-between pl-20">
-                                                <div className="flex items-center gap-4">
-                                                    {/* Variant Image Thumbnail */}
-                                                    <div className="h-16 w-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
-                                                        {variant.images?.[0]?.url ? (
-                                                            <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
-                                                        ) : sku.collectionInfo?.coverImage ? (
-                                                            <img src={sku.collectionInfo.coverImage} alt={variant.name} className="h-full w-full object-cover opacity-60" />
+                                                    <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 opacity-60">
+                                                        {sku.images?.[0]?.url ? (
+                                                            <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
                                                         ) : (
                                                             <div className="h-full w-full flex items-center justify-center text-gray-400">
                                                                 <MagnifyingGlassIcon className="h-6 w-6" />
@@ -1560,89 +2023,95 @@ export default function GlobalSKUManagement({ }: GlobalSKUManagementProps) {
                                                     </div>
                                                     <div>
                                                         <div className="flex items-center gap-2">
-                                                            <p className="text-sm text-gray-700 truncate">{getVariantDisplayName(variant, sku.variants)}</p>
-                                                            <span className="px-1.5 inline-flex text-xs leading-5 font-medium rounded bg-gray-100 text-gray-600">
-                                                                {variant.code}
+                                                            <p className="text-sm font-medium text-gray-600 truncate line-through">{sku.name}</p>
+                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                                                Deleted
                                                             </span>
+                                                            {sku.variants && sku.variants.length > 0 && (
+                                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-600">
+                                                                    {sku.variants.length} Variants
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-1 text-xs text-gray-400">
+                                                            {sku.code} • {sku.brand?.name || 'Unknown Brand'}
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <button onClick={() => handleDelete(variant.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete variant">
-                                                        <TrashIcon className="h-4 w-4" />
+                                                    <button
+                                                        onClick={() => handleRestore(sku.id)}
+                                                        className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                                                        title={sku.variants?.length > 0 ? "Restore Group" : "Restore"}
+                                                    >
+                                                        <ArrowPathIcon className="h-5 w-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handlePermanentDelete(sku.id)}
+                                                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                                        title={sku.variants?.length > 0 ? "Permanently Delete Group" : "Permanently Delete"}
+                                                    >
+                                                        <TrashIcon className="h-5 w-5" />
                                                     </button>
                                                 </div>
                                             </div>
                                         </li>
-                                    ))
+                                        {/* Variants */}
+                                        {sku.variants && sku.variants.length > 0 && expandedTrashGroups.has(sku.id) && (
+                                            sku.variants.map((variant: any) => (
+                                                <li key={variant.id} className="block hover:bg-gray-50 bg-red-50/10 border-l-4 border-red-200 ml-0 pl-14">
+                                                    <div className="px-4 py-2 sm:px-6 flex items-center justify-between">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="h-8 w-8 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 opacity-60">
+                                                                {variant.images?.[0]?.url ? (
+                                                                    <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
+                                                                ) : (
+                                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                                        <MagnifyingGlassIcon className="h-4 w-4" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-sm font-medium text-gray-500 truncate line-through">{variant.name}</p>
+                                                                </div>
+                                                                <div className="text-xs text-gray-400">
+                                                                    {variant.code}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => handleRestore(variant.id)}
+                                                                className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                                                                title="Restore Variant"
+                                                            >
+                                                                <ArrowPathIcon className="h-4 w-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handlePermanentDelete(variant.id)}
+                                                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                                                title="Permanently Delete Variant"
+                                                            >
+                                                                <TrashIcon className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            ))
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                                {deletedSkus.length === 0 && !trashLoading && (
+                                    <li className="px-4 py-8 text-center text-gray-500">
+                                        Trash is empty.
+                                    </li>
                                 )}
-                            </React.Fragment>
-                        ))}
-                        {groupedSkus.length === 0 && !loading && (
-                            <li className="px-4 py-8 text-center text-gray-500">
-                                No SKUs found.
-                            </li>
-                        )}
-                    </ul>
+                            </ul>
+                        </div>
+                    )}
                 </div>
-            )}
-
-            {/* Trash List */}
-            {showTrash && (
-                <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                    <ul className="divide-y divide-gray-200">
-                        {deletedSkus.map(sku => (
-                            <li key={sku.id} className="block hover:bg-gray-50 bg-red-50/30">
-                                <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 opacity-60">
-                                            {sku.images?.[0]?.url ? (
-                                                <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
-                                            ) : (
-                                                <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                    <MagnifyingGlassIcon className="h-6 w-6" />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-gray-600 truncate line-through">{sku.name}</p>
-                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                                    Deleted
-                                                </span>
-                                            </div>
-                                            <div className="mt-1 text-xs text-gray-400">
-                                                {sku.code} • {sku.brand?.name || 'Unknown Brand'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleRestore(sku.id)}
-                                            className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
-                                            title="Restore"
-                                        >
-                                            <ArrowPathIcon className="h-5 w-5" />
-                                        </button>
-                                        <button
-                                            onClick={() => handlePermanentDelete(sku.id)}
-                                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                                            title="Permanently Delete"
-                                        >
-                                            <TrashIcon className="h-5 w-5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </li>
-                        ))}
-                        {deletedSkus.length === 0 && !trashLoading && (
-                            <li className="px-4 py-8 text-center text-gray-500">
-                                Trash is empty.
-                            </li>
-                        )}
-                    </ul>
-                </div>
-            )}
+            </div>
 
             {/* Modal */}
             {showModal && (

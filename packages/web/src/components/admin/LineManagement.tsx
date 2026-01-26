@@ -6,7 +6,8 @@ import { TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import LogoUploader from './LogoUploader';
 import { BRAND_TAGS } from '@/lib/constants';
 import { CheckIcon } from '@heroicons/react/20/solid';
-import { api } from '@/lib/api'; // For accessing search methods directly if needed or via apiClient wrapper
+import { api } from '@/lib/api';
+import { getImageUrl } from '@/lib/utils';
 
 interface LineManagementProps {
     brandId: string;
@@ -162,21 +163,7 @@ export default function LineManagement({ brandId }: LineManagementProps) {
         setFormData(prev => ({ ...prev, logo: newLogos[0] || '' }));
     };
 
-    const getImageUrl = (url: string) => {
-        if (!url) return '';
-        if (url.startsWith('http') || url.startsWith('data:')) return url;
-        if (url.startsWith('/api')) return url;
 
-        // Normalize path: strip leading slash
-        let path = url.startsWith('/') ? url.substring(1) : url;
-
-        // Handle /storage prefix from backend
-        if (path.startsWith('storage/')) {
-            path = path.substring('storage/'.length);
-        }
-
-        return `/api/storage/${path}`;
-    };
 
     if (loading) return <div>Loading lines...</div>;
 

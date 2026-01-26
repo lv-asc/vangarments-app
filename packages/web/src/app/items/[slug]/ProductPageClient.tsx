@@ -906,6 +906,7 @@ export default function ProductPageClient() {
                             <ItemCarousel
                                 title={`More from ${product.collection || 'Collection'}`}
                                 items={collectionItems}
+                                imageUrl={product.collectionInfo?.coverImage}
                                 seeAllLink={product.collectionInfo?.name && product.brand?.slug ? `/brands/${product.brand.slug}/collections/${slugify(product.collectionInfo.name)}` : undefined}
                             />
                         )}
@@ -914,6 +915,7 @@ export default function ProductPageClient() {
                             <ItemCarousel
                                 title={`More from ${product.brand?.name || 'Brand'}`}
                                 items={brandItems}
+                                imageUrl={product.brand?.logo}
                                 seeAllLink={product.brand?.slug ? `/brands/${product.brand.slug}` : undefined}
                             />
                         )}

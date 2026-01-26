@@ -14,6 +14,7 @@ router.get('/:id', SportOrgController.getOrg);
 router.post('/', authenticate, requireAdmin, SportOrgController.createOrg);
 router.put('/:id', authenticate, requireAdmin, SportOrgController.updateOrg);
 router.delete('/:id', authenticate, requireAdmin, SportOrgController.deleteOrg);
+router.get('/:orgId/items', SportOrgController.getOrgItems);
 
 // Departments CRUD (Nested)
 router.get('/:orgId/departments', SportOrgController.listDepartments);

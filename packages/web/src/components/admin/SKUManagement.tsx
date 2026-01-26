@@ -250,8 +250,14 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
         const apparel = apparels.find(c => c.id === formData.apparelId);
         const gender = genders.find(g => g.id === formData.genderId);
 
-        const colorId = overrides.colorId !== undefined ? overrides.colorId : formData.selectedColors[0];
-        const sizeId = overrides.sizeId !== undefined ? overrides.sizeId : formData.selectedSizes[0];
+        // Only use color/size if they are explicitly passed as overrides (for variant generation)
+        // OR if we are in 'variant' edit mode.
+        // If we are in 'parent' mode or 'new' mode without overrides, we generate the BASE code.
+        const useAttributes = (editMode === 'variant') || (overrides.colorId !== undefined || overrides.sizeId !== undefined);
+
+        const colorId = useAttributes ? (overrides.colorId !== undefined ? overrides.colorId : formData.selectedColors[0]) : null;
+        const sizeId = useAttributes ? (overrides.sizeId !== undefined ? overrides.sizeId : formData.selectedSizes[0]) : null;
+
         const color = colors.find(c => c.id === colorId);
         const size = sizes.find(s => s.id === sizeId);
 
@@ -261,6 +267,7 @@ export default function SKUManagement({ brandId }: SKUManagementProps) {
         if (gender?.name) parts.push(slugify(gender.name));
         if (apparel?.name) parts.push(slugify(apparel.name));
         if (formData.modelName) parts.push(slugify(formData.modelName));
+
         if (color?.name) parts.push(slugify(color.name));
         if (size?.name) parts.push(slugify(size.name));
 

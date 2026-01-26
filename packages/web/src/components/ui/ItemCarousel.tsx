@@ -6,9 +6,12 @@ interface ItemCarouselProps {
     title: string;
     items: any[];
     seeAllLink?: string;
+    imageUrl?: string;
 }
 
-export default function ItemCarousel({ title, items, seeAllLink }: ItemCarouselProps) {
+import { getImageUrl } from '@/lib/utils';
+
+export default function ItemCarousel({ title, items, seeAllLink, imageUrl }: ItemCarouselProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const scroll = (direction: 'left' | 'right') => {
@@ -28,7 +31,16 @@ export default function ItemCarousel({ title, items, seeAllLink }: ItemCarouselP
     return (
         <div className="my-12">
             <div className="flex items-center justify-between mb-6 px-4 md:px-0">
-                <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+                <div className="flex items-center gap-3">
+                    {imageUrl && (
+                        <img
+                            src={getImageUrl(imageUrl)}
+                            alt={title}
+                            className="w-8 h-8 rounded-full object-cover bg-white border border-gray-100 shadow-sm"
+                        />
+                    )}
+                    <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+                </div>
                 <div className="flex items-center gap-4">
                     {seeAllLink && (
                         <a href={seeAllLink} className="text-sm font-medium text-blue-600 hover:text-blue-500">

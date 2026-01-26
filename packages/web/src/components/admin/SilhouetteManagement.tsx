@@ -12,7 +12,11 @@ import { ApparelIcon } from '../ui/ApparelIcons';
 import { getImageUrl } from '@/lib/utils';
 import { Input } from '@/components/ui/Input';
 
-export default function SilhouetteManagement() {
+interface SilhouetteManagementProps {
+    brandId?: string;
+}
+
+export default function SilhouetteManagement({ brandId }: SilhouetteManagementProps) {
     const [silhouettes, setSilhouettes] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -42,7 +46,14 @@ export default function SilhouetteManagement() {
     const [gradeValues, setGradeValues] = useState<Record<string, string>>({});
 
     const [search, setSearch] = useState('');
-    const [selectedBrandFilter, setSelectedBrandFilter] = useState('');
+    const [selectedBrandFilter, setSelectedBrandFilter] = useState(brandId || '');
+
+    useEffect(() => {
+        if (brandId) {
+            setSelectedBrandFilter(brandId);
+            setFormData(prev => ({ ...prev, brandId }));
+        }
+    }, [brandId]);
 
     useEffect(() => {
         fetchData();
@@ -314,17 +325,19 @@ export default function SilhouetteManagement() {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="w-full md:w-64">
-                    <SearchableCombobox
-                        options={brandOptions}
-                        value={brands.find(b => b.id === selectedBrandFilter)?.brandInfo?.name || brands.find(b => b.id === selectedBrandFilter)?.name || ''}
-                        onChange={(val) => {
-                            const brand = brands.find(b => (b.brandInfo?.name || b.name) === val);
-                            setSelectedBrandFilter(brand?.id || '');
-                        }}
-                        placeholder="Filter by Brand"
-                    />
-                </div>
+                {!brandId && (
+                    <div className="w-full md:w-64">
+                        <SearchableCombobox
+                            options={brandOptions}
+                            value={brands.find(b => b.id === selectedBrandFilter)?.brandInfo?.name || brands.find(b => b.id === selectedBrandFilter)?.name || ''}
+                            onChange={(val) => {
+                                const brand = brands.find(b => (b.brandInfo?.name || b.name) === val);
+                                setSelectedBrandFilter(brand?.id || '');
+                            }}
+                            placeholder="Filter by Brand"
+                        />
+                    </div>
+                )}
             </div>
 
             <div className="bg-white rounded-xl border overflow-hidden">
@@ -442,18 +455,20 @@ export default function SilhouetteManagement() {
                         <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-200px)]">
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Base Configuration</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-semibold text-gray-700">Brand Account</label>
-                                    <SearchableCombobox
-                                        options={brandOptions}
-                                        value={brands.find(b => b.id === formData.brandId)?.brandInfo?.name || brands.find(b => b.id === formData.brandId)?.name || ''}
-                                        onChange={(val) => {
-                                            const brand = brands.find(b => (b.brandInfo?.name || b.name) === val);
-                                            setFormData({ ...formData, brandId: brand?.id || '' });
-                                        }}
-                                        placeholder="Select Brand"
-                                    />
-                                </div>
+                                {!brandId && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-gray-700">Brand Account</label>
+                                        <SearchableCombobox
+                                            options={brandOptions}
+                                            value={brands.find(b => b.id === formData.brandId)?.brandInfo?.name || brands.find(b => b.id === formData.brandId)?.name || ''}
+                                            onChange={(val) => {
+                                                const brand = brands.find(b => (b.brandInfo?.name || b.name) === val);
+                                                setFormData({ ...formData, brandId: brand?.id || '' });
+                                            }}
+                                            placeholder="Select Brand"
+                                        />
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-gray-700">Apparel Type</label>
                                     <SearchableCombobox

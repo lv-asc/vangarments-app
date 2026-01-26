@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { sportOrgApi } from '@/lib/sportOrgApi';
 import toast from 'react-hot-toast';
-import { ArrowLeftIcon, TrashIcon, CloudArrowUpIcon, PhotoIcon, CheckIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, TrashIcon, CloudArrowUpIcon, PhotoIcon, CheckIcon, UserGroupIcon, PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { SPORT_ORG_TYPES } from '@vangarments/shared/constants';
 import { SportOrg, SportOrgType } from '@vangarments/shared/types';
@@ -18,6 +18,10 @@ import BannerUploader, { BannerItem } from '@/components/admin/BannerUploader';
 import SocialLinksEditor from '@/components/admin/SocialLinksEditor';
 import FoundationDateInput from '@/components/ui/FoundationDateInput';
 import { formatPhone } from '@/lib/masks';
+
+import DepartmentModal from './DepartmentModal';
+import SquadModal from './SquadModal';
+import QuickAddModal from './QuickAddModal';
 
 interface SportOrgEditorProps {
     orgId?: string; // If undefined, we are in "Create" mode
@@ -33,7 +37,17 @@ export default function SportOrgEditor({ orgId }: SportOrgEditorProps) {
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [activeTab, setActiveTab] = useState<'details' | 'departments' | 'squads'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'departments' | 'squads' | 'items'>('details');
+
+    // Nested Data
+    const [departments, setDepartments] = useState<any[]>([]);
+    const [items, setItems] = useState<any[]>([]);
+
+    // Modals
+    const [isDeptModalOpen, setIsDeptModalOpen] = useState(false);
+    const [isSquadModalOpen, setIsSquadModalOpen] = useState(false);
+    const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+    const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
 
     const [formData, setFormData] = useState<Partial<SportOrg>>({
         name: '',
@@ -129,6 +143,16 @@ export default function SportOrgEditor({ orgId }: SportOrgEditorProps) {
             // Initialize Social Links
             if (data.socialLinks) {
                 setSocialLinks(data.socialLinks);
+            }
+
+            // Set Departments (nested in getOrg response)
+            if (data.departments) {
+                setDepartments(data.departments);
+            }
+
+            // Fetch Items optionally if on items tab, or lazy load
+            if (activeTab === 'items') {
+                fetchItems(orgId!);
             }
         } catch (error) {
             console.error('Failed to load org', error);
@@ -237,6 +261,16 @@ export default function SportOrgEditor({ orgId }: SportOrgEditorProps) {
         }
     };
 
+    const fetchItems = async (id: string) => {
+        try {
+            const data = await sportOrgApi.getOrgItems(id);
+            setItems(data);
+        } catch (error) {
+            console.error('Failed to fetch items', error);
+            // toast.error('Failed to load items');
+        }
+    };
+
     if (authLoading || loading) return <div className="p-10 flex justify-center text-gray-400">Loading Organization...</div>;
 
     return (
@@ -314,6 +348,12 @@ export default function SportOrgEditor({ orgId }: SportOrgEditorProps) {
                                     className={`${activeTab === 'squads' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                                 >
                                     Squads
+                                </button>
+                                <button
+                                    onClick={() => { setActiveTab('items'); if (orgId) fetchItems(orgId); }}
+                                    className={`${activeTab === 'items' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                                >
+                                    Items Gallery
                                 </button>
                             </>
                         )}
@@ -484,21 +524,186 @@ export default function SportOrgEditor({ orgId }: SportOrgEditorProps) {
                     )}
 
                     {activeTab === 'departments' && (
-                        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                            <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
-                            <h3 className="mt-2 text-sm font-medium text-gray-900">Departments Management</h3>
-                            <p className="mt-1 text-sm text-gray-500">Feature coming soon.</p>
+                        <div>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-lg font-medium text-gray-900">Departments</h3>
+                                <button
+                                    onClick={() => setIsDeptModalOpen(true)}
+                                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                                >
+                                    <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+                                    New Department
+                                </button>
+                            </div>
+
+                            {departments.length > 0 ? (
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    {departments.map((dept: any) => (
+                                        <div key={dept.id} className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400">
+                                            <div className="flex-shrink-0">
+                                                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                                    {dept.logo ? <img src={dept.logo} className="h-10 w-10 rounded-full object-cover" /> : <span className="text-xs font-bold text-gray-500">{dept.name.substring(0, 2).toUpperCase()}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <a href="#" className="focus:outline-none">
+                                                    <span className="absolute inset-0" aria-hidden="true" />
+                                                    <p className="text-sm font-medium text-gray-900">{dept.name}</p>
+                                                    <p className="text-sm text-gray-500 truncate">{dept.sportType}</p>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                    <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
+                                    <h3 className="mt-2 text-sm font-medium text-gray-900">No departments</h3>
+                                    <p className="mt-1 text-sm text-gray-500">Get started by creating a new department.</p>
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {activeTab === 'squads' && (
-                        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                            <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-                            <h3 className="mt-2 text-sm font-medium text-gray-900">Squads Management</h3>
-                            <p className="mt-1 text-sm text-gray-500">Feature coming soon.</p>
+                        <div>
+                            <div className="mb-6">
+                                <h3 className="text-lg font-medium text-gray-900">Squads Management</h3>
+                                <p className="text-sm text-gray-500">Manage squads within each department.</p>
+                            </div>
+
+                            {departments.length > 0 ? (
+                                <div className="space-y-8">
+                                    {departments.map((dept: any) => (
+                                        <div key={dept.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="text-md font-bold text-gray-900">{dept.name}</h4>
+                                                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">{dept.category}</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => { setSelectedDeptId(dept.id); setIsQuickAddOpen(true); }}
+                                                        className="text-xs font-medium text-green-600 hover:text-green-800 flex items-center"
+                                                    >
+                                                        <SparklesIcon className="h-4 w-4 mr-1" /> Quick Add
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setSelectedDeptId(dept.id); setIsSquadModalOpen(true); }}
+                                                        className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center"
+                                                    >
+                                                        <PlusIcon className="h-4 w-4 mr-1" /> Add Squad
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {dept.squads && dept.squads.length > 0 ? (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                                    {dept.squads.map((squad: any) => (
+                                                        <div key={squad.id} className="bg-white p-3 rounded shadow-sm border border-gray-100 flex justify-between items-center group">
+                                                            <div className="flex items-center gap-2">
+                                                                <UserGroupIcon className="h-5 w-5 text-gray-400" />
+                                                                <div>
+                                                                    <p className="text-sm font-medium text-gray-900">{squad.name}</p>
+                                                                    <p className="text-xs text-gray-500">{squad.gender} • {squad.ageGroup}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-gray-400 italic">No squads yet.</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12">
+                                    <p className="text-gray-500">Create a department first to add squads.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'items' && (
+                        <div>
+                            <div className="mb-6 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-lg font-medium text-gray-900">Items Gallery</h3>
+                                    <p className="text-sm text-gray-500">All SKU items linked to any squad in this organization.</p>
+                                </div>
+                                <button
+                                    onClick={() => orgId && fetchItems(orgId)}
+                                    className="text-sm text-blue-600 hover:text-blue-500"
+                                >
+                                    Refresh
+                                </button>
+                            </div>
+
+                            {items.length > 0 ? (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {items.map((item: any) => (
+                                        <div key={item.id} className="group relative bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                            <div className="aspect-w-1 aspect-h-1 w-full overflow-hidden bg-gray-200 group-hover:opacity-75 h-40">
+                                                {item.images && item.images.length > 0 ? (
+                                                    <img src={getImageUrl(item.images[0].url)} alt={item.name} className="h-full w-full object-cover object-center" />
+                                                ) : (
+                                                    <div className="flex items-center justify-center h-full">
+                                                        <PhotoIcon className="h-8 w-8 text-gray-400" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="p-3">
+                                                <h3 className="text-sm font-medium text-gray-900 truncate">
+                                                    <Link href={`/admin/skus/${item.id}`}>
+                                                        <span aria-hidden="true" className="absolute inset-0" />
+                                                        {item.name}
+                                                    </Link>
+                                                </h3>
+                                                <p className="text-xs text-gray-500 truncate">{item.code}</p>
+                                                <div className="mt-1 flex items-center justify-between">
+                                                    <span className="text-xs font-medium text-gray-900">{item.department_name}</span>
+                                                    <span className="text-[10px] text-gray-400">{item.squad_name}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                    <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
+                                    <h3 className="mt-2 text-sm font-medium text-gray-900">No items found</h3>
+                                    <p className="mt-1 text-sm text-gray-500">Items linked to squads will appear here.</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
+
+                {/* Modals */}
+                {isDeptModalOpen && orgId && (
+                    <DepartmentModal
+                        orgId={orgId}
+                        onClose={() => setIsDeptModalOpen(false)}
+                        onSuccess={() => { setIsDeptModalOpen(false); loadOrg(); }}
+                    />
+                )}
+                {isSquadModalOpen && selectedDeptId && orgId && (
+                    <SquadModal
+                        orgId={orgId}
+                        deptId={selectedDeptId}
+                        onClose={() => { setIsSquadModalOpen(false); setSelectedDeptId(null); }}
+                        onSuccess={() => { setIsSquadModalOpen(false); setSelectedDeptId(null); loadOrg(); }}
+                    />
+                )}
+                {isQuickAddOpen && selectedDeptId && orgId && (
+                    <QuickAddModal
+                        orgId={orgId}
+                        deptId={selectedDeptId}
+                        onClose={() => { setIsQuickAddOpen(false); setSelectedDeptId(null); }}
+                        onSuccess={() => { setIsQuickAddOpen(false); setSelectedDeptId(null); loadOrg(); }}
+                    />
+                )}
             </div>
         </div>
     );

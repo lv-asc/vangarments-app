@@ -58,6 +58,16 @@ export class SportOrgController {
         }
     }
 
+    // Items Aggregation
+    static async getOrgItems(req: Request, res: Response) {
+        try {
+            const items = await SportOrgService.getOrgItems(req.params.orgId);
+            res.json(items);
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to fetch organization items' });
+        }
+    }
+
     // Departments
     static async createDepartment(req: Request, res: Response) {
         try {

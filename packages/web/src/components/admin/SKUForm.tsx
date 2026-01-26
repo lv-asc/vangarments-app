@@ -7,11 +7,12 @@ import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
 import { PencilIcon, TrashIcon, PlusIcon, MagnifyingGlassIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { tagApi } from '@/lib/tagApi';
+import { sportOrgApi } from '@/lib/sportOrgApi';
 import { ImageTagEditor } from '@/components/tagging';
 import SearchableCombobox from '../ui/Combobox';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 import { getImageUrl } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface SKUFormProps {
     initialData?: any; // For edit mode
@@ -20,6 +21,8 @@ interface SKUFormProps {
 
 export default function SKUForm({ initialData, isEditMode = false }: SKUFormProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const queryBrandId = searchParams.get('brandId');
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -38,6 +41,12 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
     const [genders, setGenders] = useState<any[]>([]);
     // conditions removed
     const [mediaLabels, setMediaLabels] = useState<any[]>([]);
+
+    // Sport ORG State
+    const [sportOrgs, setSportOrgs] = useState<any[]>([]);
+    const [sportDepartments, setSportDepartments] = useState<any[]>([]);
+    const [sportSquads, setSportSquads] = useState<any[]>([]);
+    const [hasSponsorRestriction, setHasSponsorRestriction] = useState(false);
 
     // POM/Measurements State
     const [pomCategories, setPomCategories] = useState<any[]>([]);
@@ -66,6 +75,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
         brandId: '',
         brandAccountId: '',
         lineId: '',
+        line: '',
         collection: '',
         modelName: '',
         genderId: '',
@@ -78,6 +88,14 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
         selectedColors: [] as string[],
         officialSkuOrInstance: '',
         isGeneric: false,
+        // Sport Context
+        sportOrgId: '',
+        sportDepartmentId: '',
+        sportSquadId: '',
+        apparelLine: 'match', // match, training, replica, casual
+        jerseyNumber: '',
+        playerName: '', // or Gamertag
+        status: 'licensed', // licensed, fan-made, sponsor-issued
         // conditionId removed
         description: '',
         images: [] as any[],
@@ -101,6 +119,20 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
         officialItemLink: ''
     });
 
+    // Special effect to pre-fill brandId from query if not in edit mode
+    useEffect(() => {
+        if (!isEditMode && queryBrandId && brandAccounts.length > 0) {
+            const matchingAccount = brandAccounts.find(ba => ba.id === queryBrandId);
+            if (matchingAccount) {
+                setFormData(prev => ({
+                    ...prev,
+                    brandId: queryBrandId,
+                    brandAccountId: queryBrandId // Usually these match in the context of creating a new one from a brand page
+                }));
+            }
+        }
+    }, [isEditMode, queryBrandId, brandAccounts]);
+
     // Initialize form with data if present
     useEffect(() => {
         if (initialData) {
@@ -118,6 +150,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             brandId: sku.brand?.id || sku.brandId || '', // Note: we ideally need to map to VUFS brand, but ID usually matches in this codebase context or requires lookup by name
             brandAccountId: sku.brandId || '',
             lineId: sku.lineId || sku.lineInfo?.id || '',
+            line: sku.line || sku.lineInfo?.name || '',
             collection: sku.collection || '',
             modelName: metadata.modelName || sku.name,
             genderId: metadata.genderId || '',
@@ -147,6 +180,14 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             retailPriceEur: sku.retailPriceEur || '',
             officialSkuOrInstance: metadata.officialSkuOrInstance || '',
             isGeneric: metadata.isGeneric || false,
+            // Sport Context initialization
+            sportOrgId: metadata.sportContext?.orgId || '',
+            sportDepartmentId: metadata.sportContext?.departmentId || '',
+            sportSquadId: metadata.sportContext?.squadId || '',
+            apparelLine: metadata.sportContext?.apparelLine || 'match',
+            jerseyNumber: metadata.sportContext?.jerseyNumber || '',
+            playerName: metadata.sportContext?.playerName || '',
+            status: metadata.sportContext?.status || 'licensed',
             // conditionId removed
             releaseDate: sku.releaseDate ? new Date(sku.releaseDate).toISOString().split('T')[0] : '',
             careInstructions: sku.careInstructions || '',
@@ -224,9 +265,47 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 apiClient.getSilhouettes()
             ]);
 
+            let allEntities: any[] = [];
+
+            // Check if user is admin
+            let isAdmin = false;
+            try {
+                const userRes = await apiClient.getCurrentUser();
+                isAdmin = userRes?.roles?.includes('admin');
+            } catch (e) {
+                console.error('Failed to check admin status', e);
+            }
+
+            if (isAdmin) {
+                try {
+                    const allEntitiesRes = await apiClient.getAllEntities();
+                    // Map admin entities to the expected format
+                    allEntities = allEntitiesRes.map((e: any) => ({
+                        id: e.id,
+                        name: e.brandInfo?.name || e.name || 'Unnamed',
+                        avatar: e.brandInfo?.logo || e.avatar || e.logo_url,
+                        type: e.entityType?.toLowerCase() || 'brand'
+                    }));
+                } catch (e) {
+                    console.error('Failed to fetch all entities for admin', e);
+                }
+            }
+
             // Extract brand accounts from the switchable accounts response
-            const brands = accountsRes?.accounts?.brands || [];
-            setBrandAccounts(brands);
+            const switchable = accountsRes?.accounts || {};
+            const brands = switchable.brands || [];
+            const stores = switchable.stores || [];
+            const suppliers = switchable.suppliers || [];
+            const nonProfits = switchable.nonProfits || [];
+
+            // Combine all entities if not admin (or fallback if admin fetch failed)
+            // If admin, prioritise allEntities but fallback to switchable if empty
+            if (isAdmin && allEntities.length > 0) {
+                setBrandAccounts(allEntities);
+            } else {
+                setBrandAccounts([...brands, ...stores, ...suppliers, ...nonProfits]);
+            }
+
             setVufsCategories(categoriesRes || []);
             setApparels(apparelsRes || []);
             setStyles(stylesRes || []);
@@ -278,7 +357,108 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
         }
     };
 
-    // Effects for auto-fetching dependent data
+    // Sport ORG Fetchers
+    const fetchSportOrgs = async () => {
+        try {
+            const orgs = await sportOrgApi.listOrgs();
+            setSportOrgs(orgs);
+        } catch (error) {
+            console.error('Failed to fetch sport orgs', error);
+        }
+    };
+
+    const fetchSportDepartments = async (orgId: string) => {
+        try {
+            const res = await sportOrgApi.listDepartments(orgId);
+            setSportDepartments(res.data);
+        } catch (error) {
+            console.error('Failed to fetch departments', error);
+        }
+    };
+
+    const fetchSportSquads = async (orgId: string, deptId: string) => {
+        try {
+            // Note: Api expects orgId/departments/deptId/squads? Or implies flat?
+            // Checking sportOrgApi: listDepartments uses /orgId/departments.
+            // Squads creation uses /orgId/departments/deptId/squads
+            // We need a listSquads? Or we can use getOrg full hierarchy if needed, but lets assume we added list endpoints or can use hierarchy.
+            // Actually, querying the Org details gives departments and squads nested if we use getOrg.
+            // But for dropdowns better to have simple lists.
+            // Let's rely on cascading load or getting full org?
+            // Getting full org might be heavy if many squads.
+            // Based on sportOrgApi.ts (Step 80), there is NO listSquads.
+            // We should use the nested structure from getOrg? Or add listSquads?
+            // Let's use getOrg for now as it returns everything nested.
+            // Correction: getOrg returns { departments: [ { squads: [] } ] }
+            // So if we have orgId, we can get everything.
+
+            // Wait, we need to fetch departments when org connects.
+            // listDepartments exists.
+            // For squads: typically dependent on department.
+            // Let's implement fetchSquads by fetching the specific department?
+            // Backend SportDepartmentModel doesn't showing 'get' with squads.
+            // Service getFullHierarchy does.
+            // We can fetch the ORG and extract the departments/squads from it to populate local state.
+
+            // Actually, let's just fetch the full Org when Org is selected, and populate the cascades from that.
+            if (!orgId) return;
+            const orgData = await sportOrgApi.getOrg(orgId);
+            setSportDepartments(orgData.departments || []);
+
+            // If deptId provided, filter squads
+            if (deptId && orgData.departments) {
+                const dept = orgData.departments.find((d: any) => d.id === deptId);
+                setSportSquads(dept?.squads || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch sport context', error);
+        }
+    };
+
+    // Effects for Sport Context
+    useEffect(() => {
+        if (formData.sportOrgId) {
+            // Fetch Org Hierarchy to populate departments and potential squads
+            fetchSportSquads(formData.sportOrgId, formData.sportDepartmentId);
+
+            // Check sponsor restriction
+            const checkRestriction = async () => {
+                const org = sportOrgs.find(o => o.id === formData.sportOrgId);
+                if (org) {
+                    const isRestricted = org.orgType === 'national_olympic_committee' || org.orgType === 'national_association';
+                    setHasSponsorRestriction(isRestricted);
+                }
+            };
+            checkRestriction();
+
+        } else {
+            setSportDepartments([]);
+            setSportSquads([]);
+            setHasSponsorRestriction(false);
+        }
+    }, [formData.sportOrgId, sportOrgs]);
+
+    useEffect(() => {
+        // When department changes, update squads list from the already fetched departments (if we stored them fully)
+        // Or re-fetch if needed.
+        if (formData.sportDepartmentId && utilHasDepartments(sportDepartments)) {
+            const dept = sportDepartments.find(d => d.id === formData.sportDepartmentId);
+            setSportSquads(dept?.squads || []);
+        } else {
+            setSportSquads([]);
+        }
+    }, [formData.sportDepartmentId, sportDepartments]);
+
+    const utilHasDepartments = (depts: any[]): depts is any[] => {
+        return depts && depts.length > 0;
+    };
+
+    // Auto-update Sponsor Restriction based on Apparel Line
+    useEffect(() => {
+        // Condition: Restricted Org + Match Line = Show Warning/Disable Sponsor logos?
+        // Logic: If hasSponsorRestriction and apparelLine === 'match', logic flag is active.
+        // We can just use these variables in render.
+    }, [hasSponsorRestriction, formData.apparelLine]);
     useEffect(() => {
         if (formData.brandId) {
             // Avoid double fetch if handled by initialData, but safe to re-fetch
@@ -415,6 +595,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             code: finalCode,
             brandId: formData.brandId,
             lineId: formData.lineId || null,
+            line: formData.line || null,
             collection: formData.collection || null,
             description: formData.description,
             images: formData.images,
@@ -447,7 +628,18 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 fitName: fits.find(f => f.id === formData.fitId)?.name,
                 nameConfig: formData.nameConfig,
                 ...(sizeId ? { sizeId, sizeName } : {}),
-                ...(colorId ? { colorId, colorName } : {})
+                ...(colorId ? { colorId, colorName } : {}),
+                // Sport Context Metadata
+                sportContext: {
+                    orgId: formData.sportOrgId,
+                    departmentId: formData.sportDepartmentId,
+                    squadId: formData.sportSquadId,
+                    apparelLine: formData.apparelLine,
+                    jerseyNumber: formData.jerseyNumber,
+                    playerName: formData.playerName,
+                    status: formData.status,
+                    sponsorRestriction: hasSponsorRestriction
+                }
             },
             retailPriceBrl: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : null,
             retailPriceUsd: formData.retailPriceUsd ? Number(formData.retailPriceUsd) : null,
@@ -584,13 +776,18 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                     <label className="block text-sm font-medium text-gray-700 mb-1">Line</label>
                     <SearchableCombobox
                         options={lines.map(l => ({ ...l, name: l.name, image: getImageUrl(l.logo) }))}
-                        value={lines.find(l => l.id === formData.lineId)?.name || ''}
+                        value={formData.line}
                         onChange={(val) => {
                             const line = lines.find(l => l.name === val);
-                            setFormData(prev => ({ ...prev, lineId: line?.id || '' }));
+                            setFormData(prev => ({
+                                ...prev,
+                                lineId: line?.id || '',
+                                line: val || ''
+                            }));
                         }}
                         placeholder="Select Line"
                         disabled={!formData.brandId}
+                        freeSolo={true}
                     />
                 </div>
                 {/* Collection */}
@@ -619,7 +816,125 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 </div>
             </div>
 
-            {/* Model Name */}
+            {/* Sport Organization Context */}
+            <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2 mb-4">
+                    <h3 className="text-lg font-medium text-blue-900">Sport Organization Context</h3>
+                    <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">New</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Organization */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Organization</label>
+                        <SearchableCombobox
+                            options={sportOrgs.map(o => ({ id: o.id, name: o.name, image: o.masterLogo }))}
+                            value={sportOrgs.find(o => o.id === formData.sportOrgId)?.name || ''}
+                            onChange={(val) => {
+                                const org = sportOrgs.find(o => o.name === val);
+                                setFormData(prev => ({
+                                    ...prev,
+                                    sportOrgId: org?.id || '',
+                                    sportDepartmentId: '',
+                                    sportSquadId: ''
+                                }));
+                            }}
+                            placeholder="Select Sport Org"
+                        />
+                    </div>
+                    {/* Department */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                        <SearchableCombobox
+                            options={sportDepartments.map(d => ({ id: d.id, name: d.name }))}
+                            value={sportDepartments.find(d => d.id === formData.sportDepartmentId)?.name || ''}
+                            onChange={(val) => {
+                                const dept = sportDepartments.find(d => d.name === val);
+                                setFormData(prev => ({ ...prev, sportDepartmentId: dept?.id || '', sportSquadId: '' }));
+                            }}
+                            placeholder="Select Department"
+                            disabled={!formData.sportOrgId}
+                        />
+                    </div>
+                    {/* Squad */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Squad</label>
+                        <SearchableCombobox
+                            options={sportSquads.map(s => ({ id: s.id, name: s.name }))}
+                            value={sportSquads.find(s => s.id === formData.sportSquadId)?.name || ''}
+                            onChange={(val) => {
+                                const squad = sportSquads.find(s => s.name === val);
+                                setFormData(prev => ({ ...prev, sportSquadId: squad?.id || '' }));
+                            }}
+                            placeholder="Select Squad"
+                            disabled={!formData.sportDepartmentId}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Apparel Line</label>
+                        <select
+                            value={formData.apparelLine}
+                            onChange={(e) => setFormData(prev => ({ ...prev, apparelLine: e.target.value }))}
+                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border"
+                        >
+                            <option value="match">Match (Competition)</option>
+                            <option value="training">Training</option>
+                            <option value="replica">Replica (Fan)</option>
+                            <option value="casual">Casual / Lifestyle</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select
+                            value={formData.status}
+                            onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border"
+                        >
+                            <option value="licensed">Licensed</option>
+                            <option value="sponsor-issued">Sponsor Issued</option>
+                            <option value="fan-made">Fan Made</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Jersey Number</label>
+                        <input
+                            type="text"
+                            value={formData.jerseyNumber}
+                            onChange={(e) => setFormData(prev => ({ ...prev, jerseyNumber: e.target.value }))}
+                            placeholder="#"
+                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Player Name / Gamertag</label>
+                        <input
+                            type="text"
+                            value={formData.playerName}
+                            onChange={(e) => setFormData(prev => ({ ...prev, playerName: e.target.value }))}
+                            placeholder="e.g. Neymar Jr"
+                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border"
+                        />
+                    </div>
+                </div>
+
+                {hasSponsorRestriction && formData.apparelLine === 'match' && (
+                    <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                        <div className="flex">
+                            <div className="flex-shrink-0">
+                                <InformationCircleIcon className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-yellow-700">
+                                    <span className="font-bold">Attention:</span> This Organization has commercial sponsor restrictions for Match items (e.g. Olympic Committee rules). Ensure logos comply with regulations.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
                 <input

@@ -5,6 +5,8 @@ import { Button } from '../ui/Button';
 import toast from 'react-hot-toast';
 import { TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import LogoUploader from './LogoUploader';
+import { getImageUrl } from '@/lib/utils';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 interface CollectionManagementProps {
     brandId: string;
@@ -32,6 +34,8 @@ export default function CollectionManagement({ brandId, title = 'Collections', i
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -89,15 +93,24 @@ export default function CollectionManagement({ brandId, title = 'Collections', i
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm(`Are you sure you want to delete this ${itemName.toLowerCase()}? items associated with it might lose their grouping.`)) return;
+    const handleDeleteClick = (id: string) => {
+        setCollectionToDelete(id);
+        setDeleteModalOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!collectionToDelete) return;
+
         try {
-            await apiClient.deleteBrandCollection(brandId, id);
+            await apiClient.deleteBrandCollection(brandId, collectionToDelete);
             toast.success(`${itemName} deleted`);
             fetchCollections();
         } catch (error) {
             console.error('Delete collection error:', error);
             toast.error(`Failed to delete ${itemName.toLowerCase()}`);
+        } finally {
+            setDeleteModalOpen(false);
+            setCollectionToDelete(null);
         }
     };
 
@@ -133,25 +146,14 @@ export default function CollectionManagement({ brandId, title = 'Collections', i
     const getImagesArray = () => formData.coverImageUrl ? [formData.coverImageUrl] : [];
 
     // Helper to update logo from LogoUploader
-    const handleImageChange = (newImages: string[]) => {
-        setFormData(prev => ({ ...prev, coverImageUrl: newImages[0] || '' }));
+    const handleImageChange = (newImages: any[]) => {
+        // Handle both string[] and LogoItem[] (object with url property)
+        const firstImage = newImages[0];
+        const url = typeof firstImage === 'string' ? firstImage : (firstImage?.url || '');
+        setFormData(prev => ({ ...prev, coverImageUrl: url }));
     };
 
-    const getImageUrl = (url: string) => {
-        if (!url) return '';
-        if (url.startsWith('http') || url.startsWith('data:')) return url;
-        if (url.startsWith('/api')) return url;
 
-        // Normalize path: strip leading slash
-        let path = url.startsWith('/') ? url.substring(1) : url;
-
-        // Handle /storage prefix from backend
-        if (path.startsWith('storage/')) {
-            path = path.substring('storage/'.length);
-        }
-
-        return `/api/storage/${path}`;
-    };
 
     if (loading) return <div>Loading collections...</div>;
 
@@ -185,6 +187,8 @@ export default function CollectionManagement({ brandId, title = 'Collections', i
                                 buttonLabel="Upload Cover Image"
                                 emptyStateMessage="No cover image uploaded yet"
                                 helperText={`Upload a cover image for this ${itemName.toLowerCase()}.`}
+                                showNameInput={false}
+                                maxItems={1}
                             />
                         </div>
 
@@ -319,7 +323,7 @@ export default function CollectionManagement({ brandId, title = 'Collections', i
                                     <button onClick={() => startEdit(collection)} className="text-blue-600 hover:text-blue-800 p-2 rounded-full hover:bg-blue-50">
                                         <PencilSquareIcon className="h-5 w-5" />
                                     </button>
-                                    <button onClick={() => handleDelete(collection.id)} className="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50">
+                                    <button onClick={() => handleDeleteClick(collection.id)} className="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50">
                                         <TrashIcon className="h-5 w-5" />
                                     </button>
                                 </div>
@@ -328,6 +332,16 @@ export default function CollectionManagement({ brandId, title = 'Collections', i
                     )}
                 </ul>
             </div>
+
+            <ConfirmationModal
+                isOpen={deleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                onConfirm={confirmDelete}
+                title={`Delete ${itemName}`}
+                message={`Are you sure you want to delete this ${itemName.toLowerCase()}? Items associated with it might lose their grouping.`}
+                confirmText="Delete"
+                variant="danger"
+            />
         </div>
     );
 }

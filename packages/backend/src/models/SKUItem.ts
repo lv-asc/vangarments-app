@@ -487,18 +487,23 @@ export class SKUItemModel {
     }
 
     static async delete(id: string): Promise<boolean> {
-        const query = 'UPDATE sku_items SET deleted_at = NOW() WHERE id = $1';
+        // Cascade soft delete to variants
+        const query = 'UPDATE sku_items SET deleted_at = NOW() WHERE id = $1 OR parent_sku_id = $1';
         const result = await db.query(query, [id]);
         return (result.rowCount || 0) > 0;
     }
 
     static async restore(id: string): Promise<boolean> {
-        const query = 'UPDATE sku_items SET deleted_at = NULL WHERE id = $1';
+        // Cascade restore to variants
+        const query = 'UPDATE sku_items SET deleted_at = NULL WHERE id = $1 OR parent_sku_id = $1';
         const result = await db.query(query, [id]);
         return (result.rowCount || 0) > 0;
     }
 
     static async permanentDelete(id: string): Promise<boolean> {
+        // First delete variants
+        await db.query('DELETE FROM sku_items WHERE parent_sku_id = $1', [id]);
+        // Then delete the item itself
         const query = 'DELETE FROM sku_items WHERE id = $1';
         const result = await db.query(query, [id]);
         return (result.rowCount || 0) > 0;

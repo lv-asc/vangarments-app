@@ -1460,6 +1460,9 @@ class ApiClient {
     const response = await this.request<any>(`/vufs-management/attributes/${typeSlug}/values`);
     return (response as any).values || response.data || response;
   }
+  async getVUFSNationalities() {
+    return this.getVUFSAttributeValues('nationality');
+  }
   async addVUFSAttributeValue(typeSlug: string, name: string, parentId?: string, skuRef?: string) {
     return this.request(`/vufs-management/attributes/${typeSlug}/values`, { method: 'POST', body: JSON.stringify({ name, parentId, skuRef }) });
   }
@@ -1739,14 +1742,14 @@ class ApiClient {
   }
 
   async restoreSKU(id: string) {
-    const response = await this.request<any>(`/skus/skus/${id}/restore`, {
+    const response = await this.request<any>(`/skus/${id}/restore`, {
       method: 'POST'
     });
     return (response as any).data || response;
   }
 
   async permanentDeleteSKU(id: string) {
-    const response = await this.request<any>(`/skus/skus/${id}/permanent`, {
+    const response = await this.request<any>(`/skus/${id}/permanent`, {
       method: 'DELETE'
     });
     return (response as any).data || response;

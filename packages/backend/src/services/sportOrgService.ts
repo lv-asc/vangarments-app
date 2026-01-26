@@ -1,4 +1,5 @@
 import { SportOrgModel } from '../models/SportOrg';
+import { db } from '../database/connection';
 import { SportDepartmentModel } from '../models/SportDepartment';
 import { SportSquadModel } from '../models/SportSquad';
 import { SportLeagueModel } from '../models/SportLeague';
@@ -70,5 +71,21 @@ export class SportOrgService {
 
         // Olympic/National associations often have strict sponsor rules
         return org.orgType === 'national_olympic_committee' || org.orgType === 'national_association';
+    }
+
+    static async getOrgItems(orgId: string) {
+        // Find all SKU items linked to any squad in this org
+        const query = `
+            SELECT si.*, 
+                   ss.name as squad_name, 
+                   sd.name as department_name
+            FROM sku_items si
+            JOIN sport_squads ss ON si.sport_squad_id = ss.id
+            JOIN sport_departments sd ON ss.sport_department_id = sd.id
+            WHERE sd.sport_org_id = $1 AND si.deleted_at IS NULL
+            ORDER BY si.created_at DESC
+        `;
+        const { rows } = await db.query(query, [orgId]);
+        return rows;
     }
 }

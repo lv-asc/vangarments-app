@@ -84,7 +84,14 @@ export class SKUController {
                 parentSkuId,
                 releaseDate,
                 careInstructions,
-                officialItemLink
+                officialItemLink,
+                // Sport Context (Extract from metadata if present)
+                sportSquadId: metadata?.sportContext?.squadId || null,
+                jerseyNumber: metadata?.sportContext?.jerseyNumber || null,
+                playerName: metadata?.sportContext?.playerName || null,
+                apparelLine: metadata?.sportContext?.apparelLine || null,
+                itemStatus: metadata?.sportContext?.status || null,
+                sponsorRestrictionFlag: metadata?.sportContext?.sponsorRestriction || false
             });
 
             res.status(201).json({ message: 'SKU created successfully', sku });
@@ -553,6 +560,17 @@ export class SKUController {
 
             const { id } = req.params;
             const updateData = req.body;
+
+            // Extract sport context for update if metadata is being updated
+            if (updateData.metadata?.sportContext) {
+                const sc = updateData.metadata.sportContext;
+                (updateData as any).sportSquadId = sc.squadId || null;
+                (updateData as any).jerseyNumber = sc.jerseyNumber || null;
+                (updateData as any).playerName = sc.playerName || null;
+                (updateData as any).apparelLine = sc.apparelLine || null;
+                (updateData as any).itemStatus = sc.status || null;
+                (updateData as any).sponsorRestrictionFlag = sc.sponsorRestriction || false;
+            }
 
             const currentSku = await SKUItemModel.findById(id);
             if (!currentSku) {

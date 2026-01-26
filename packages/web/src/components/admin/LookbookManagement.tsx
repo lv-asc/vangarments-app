@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import toast from 'react-hot-toast';
 import { TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import LogoUploader from './LogoUploader';
+import { getImageUrl } from '@/lib/utils';
 
 interface LookbookManagementProps {
     brandId: string;
@@ -161,21 +162,7 @@ export default function LookbookManagement({ brandId }: LookbookManagementProps)
         setFormData(prev => ({ ...prev, images: newImages }));
     };
 
-    const getImageUrl = (url: string) => {
-        if (!url) return '';
-        if (url.startsWith('http') || url.startsWith('data:')) return url;
-        if (url.startsWith('/api')) return url;
 
-        // Normalize path: strip leading slash
-        let path = url.startsWith('/') ? url.substring(1) : url;
-
-        // Handle /storage prefix from backend
-        if (path.startsWith('storage/')) {
-            path = path.substring('storage/'.length);
-        }
-
-        return `/api/storage/${path}`;
-    };
 
     if (loading) return <div>Loading lookbooks...</div>;
 

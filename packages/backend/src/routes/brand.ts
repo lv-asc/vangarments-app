@@ -564,7 +564,13 @@ router.post(
   body('coverImageUrl').optional().isString().withMessage('Cover image must be a string'),
   body('images').optional().isArray().withMessage('Images must be an array'),
   body('season').optional().isLength({ max: 50 }).withMessage('Season must be 50 characters or less'),
-  body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
+  body('year').optional().custom((value) => {
+    const year = typeof value === 'string' ? parseInt(value, 10) : value;
+    if (typeof year !== 'number' || isNaN(year) || year < 1900 || year > 2100) {
+      throw new Error('Year must be a valid year between 1900 and 2100');
+    }
+    return true;
+  }),
   validateRequest,
   brandProfileController.createLookbook.bind(brandProfileController)
 );
@@ -628,7 +634,13 @@ router.post(
   body('coverImageUrl').optional().isString(),
   body('collectionType').optional().isIn(['Seasonal', 'Capsule', 'Collaboration', 'Limited', 'Core', 'Curatorship', 'Other']).withMessage('Invalid collection type'),
   body('season').optional().isLength({ max: 50 }).withMessage('Season must be 50 characters or less'),
-  body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
+  body('year').optional().custom((value) => {
+    const year = typeof value === 'string' ? parseInt(value, 10) : value;
+    if (typeof year !== 'number' || isNaN(year) || year < 1900 || year > 2100) {
+      throw new Error('Year must be a valid year between 1900 and 2100');
+    }
+    return true;
+  }),
   validateRequest,
   brandProfileController.createCollection.bind(brandProfileController)
 );
