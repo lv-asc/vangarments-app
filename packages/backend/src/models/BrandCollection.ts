@@ -89,7 +89,7 @@ export class BrandCollectionModel {
 
         // Find by slug within the brand (check both account ID and vufs ID)
         const query = `
-      SELECT bc.*, 
+      SELECT DISTINCT bc.*, 
              (SELECT COUNT(*) FROM (
                SELECT item_id FROM brand_collection_items WHERE collection_id = bc.id
                UNION
@@ -107,7 +107,7 @@ export class BrandCollectionModel {
 
     static async findByBrand(brandId: string, publishedOnly = false): Promise<BrandCollection[]> {
         let query = `
-      SELECT bc.*, 
+      SELECT DISTINCT bc.*, 
              (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
       FROM brand_collections bc
       WHERE bc.brand_id = $1 
@@ -131,7 +131,7 @@ export class BrandCollectionModel {
      */
     static async findByVufsBrandId(vufsBrandId: string, publishedOnly = false): Promise<BrandCollection[]> {
         let query = `
-      SELECT bc.*, 
+      SELECT DISTINCT bc.*, 
              (SELECT COUNT(*) FROM brand_collection_items bci WHERE bci.collection_id = bc.id) as item_count
       FROM brand_collections bc
       LEFT JOIN brand_accounts ba ON bc.brand_id = ba.id

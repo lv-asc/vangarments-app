@@ -252,8 +252,11 @@ export class BrandProfileController {
                 return;
             }
 
+            // Use vufsBrandId if available (corresponds to brands.id)
+            const targetBrandId = brand.vufsBrandId || brand.id;
+
             const lookbook = await BrandLookbookModel.create({
-                brandId: brand.id,
+                brandId: targetBrandId,
                 collectionId,
                 name,
                 description,
@@ -442,8 +445,11 @@ export class BrandProfileController {
                 return;
             }
 
+            // Use vufsBrandId if available (corresponds to brands.id)
+            const targetBrandId = brand.vufsBrandId || brand.id;
+
             const collection = await BrandCollectionModel.create({
-                brandId: brand.id,
+                brandId: targetBrandId,
                 name,
                 description,
                 coverImageUrl,

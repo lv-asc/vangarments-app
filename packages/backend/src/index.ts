@@ -41,6 +41,7 @@ import { LocalStorageService } from './services/localStorageService';
 import { gcsStorageProxy } from './middleware/gcsStorageProxy';
 
 const app = express();
+// Force backend restart
 const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 

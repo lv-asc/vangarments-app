@@ -93,7 +93,7 @@ export default function AdminJournalismPage() {
 
     if (isEditing) {
         return (
-            <div className="max-w-4xl mx-auto px-4 py-10">
+            <div className="max-w-7xl mx-auto px-4 py-10">
                 <JournalismForm
                     initialData={editingItem}
                     onSuccess={handleSuccess}

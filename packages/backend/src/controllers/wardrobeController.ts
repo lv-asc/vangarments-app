@@ -62,31 +62,56 @@ export class WardrobeController {
         return;
       }
 
-      const files = req.files as Express.Multer.File[];
-      console.log(`Received ${files?.length} files`);
+      // Handle input data early to check for pre-uploaded images
+      let inputData = req.body;
+      if (req.body.data) {
+        try {
+          inputData = JSON.parse(req.body.data);
+          console.log('Parsed input data from body.data:', JSON.stringify(inputData, null, 2));
+        } catch (e) {
+          console.warn('Failed to parse data field as JSON, using raw body');
+        }
+      }
 
-      // Validate image uploads
-      const imageValidation = WardrobeValidationService.validateImageUpload(files, 10);
-      if (!imageValidation.isValid) {
-        console.error('Image validation failed:', imageValidation.errors);
+      const files = req.files as Express.Multer.File[];
+      const bodyImages = inputData.images;
+
+      console.log(`Received ${files?.length || 0} files and ${bodyImages?.length || 0} body images`);
+
+      // If no files and no body images, validation fails
+      if ((!files || files.length === 0) && (!bodyImages || bodyImages.length === 0)) {
         res.status(400).json({
           error: {
             code: 'INVALID_IMAGES',
-            message: 'Image validation failed',
-            details: imageValidation.errors,
+            message: 'At least one image is required',
           },
         });
         return;
       }
 
-      const { useAI = true } = req.body;
-      const primaryImage = files[0];
+      // Validate image uploads only if files are provided
+      if (files && files.length > 0) {
+        const imageValidation = WardrobeValidationService.validateImageUpload(files, 10);
+        if (!imageValidation.isValid) {
+          console.error('Image validation failed:', imageValidation.errors);
+          res.status(400).json({
+            error: {
+              code: 'INVALID_IMAGES',
+              message: 'Image validation failed',
+              details: imageValidation.errors,
+            },
+          });
+          return;
+        }
+      }
 
+      const useAI = inputData.useAI !== undefined ? inputData.useAI : true;
       let aiAnalysis = null;
       let vufsExtraction = null;
 
-      // Process with AI if requested
-      if (useAI) {
+      // Process with AI only if files are provided (AI processing relies on buffer)
+      if (useAI && files && files.length > 0) {
+        const primaryImage = files[0];
         try {
           vufsExtraction = await AIProcessingService.extractVUFSProperties(
             primaryImage.buffer,
@@ -99,17 +124,6 @@ export class WardrobeController {
           );
         } catch (aiError) {
           console.warn('AI processing failed, continuing without AI:', aiError);
-        }
-      }
-
-      // Handle multipart/form-data with JSON 'data' field
-      let inputData = req.body;
-      if (req.body.data) {
-        try {
-          inputData = JSON.parse(req.body.data);
-          console.log('Parsed input data:', JSON.stringify(inputData, null, 2));
-        } catch (e) {
-          console.warn('Failed to parse data field as JSON, using raw body');
         }
       }
 
@@ -154,49 +168,76 @@ export class WardrobeController {
         throw dbError; // Re-throw to be caught by outer catch
       }
 
-      // Upload and store images locally
+      // Upload and store images
       const imageRecords = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        console.log(`Processing file ${i + 1}/${files.length}: ${file.originalname}`);
 
-        try {
-          // Upload to local storage
-          const uploadResult = await LocalStorageService.uploadImage(
-            file.buffer,
-            file.originalname,
-            file.mimetype,
-            'wardrobe',
-            req.user.userId
-          );
-          console.log(`File uploaded locally: ${uploadResult.path}`);
+      // Process files if any
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          console.log(`Processing file ${i + 1}/${files.length}: ${file.originalname}`);
 
-          // Determine image type
-          const imageType = i === 0 ? 'front' : (i === 1 ? 'back' : 'detail');
+          try {
+            // Upload to local storage
+            const uploadResult = await LocalStorageService.uploadImage(
+              file.buffer,
+              file.originalname,
+              file.mimetype,
+              'wardrobe',
+              req.user.userId
+            );
+            console.log(`File uploaded locally: ${uploadResult.path}`);
 
-          // Store image record with AI analysis for primary image
-          const imageRecord = await ItemImageModel.create({
-            itemId: vufsItem.id,
-            imageUrl: uploadResult.optimizedUrl || uploadResult.url,
-            imageType: imageType as any,
-            isPrimary: i === 0,
-            aiAnalysis: i === 0 ? aiAnalysis : undefined,
-            fileSize: uploadResult.size,
-            mimeType: uploadResult.mimetype,
-          });
-          console.log(`Image record created in DB: ${imageRecord.id}`);
+            // Determine image type
+            const imageType = i === 0 ? 'front' : (i === 1 ? 'back' : 'detail');
 
-          imageRecords.push(imageRecord);
-        } catch (imgError) {
-          console.error(`Failed to process image ${file.originalname}:`, imgError);
-          // Continue with other images? Or fail? 
-          // For now, let's log and maybe continue or throw if strict.
-          // User wants persistence, so partially succeeding is better than failing all.
+            // Store image record with AI analysis for primary image
+            const imageRecord = await ItemImageModel.create({
+              itemId: vufsItem.id,
+              imageUrl: uploadResult.optimizedUrl || uploadResult.url,
+              imageType: imageType as any,
+              isPrimary: i === 0,
+              aiAnalysis: i === 0 ? aiAnalysis : undefined,
+              fileSize: uploadResult.size,
+              mimeType: uploadResult.mimetype,
+            });
+            console.log(`Image record created in DB: ${imageRecord.id}`);
+
+            imageRecords.push(imageRecord);
+          } catch (imgError) {
+            console.error(`Failed to process image ${file.originalname}:`, imgError);
+          }
         }
       }
 
-      if (imageRecords.length === 0 && files.length > 0) {
-        throw new Error('All image uploads failed');
+      // Process body images if any (pre-uploaded URLs)
+      if (bodyImages && bodyImages.length > 0) {
+        for (let i = 0; i < bodyImages.length; i++) {
+          const img = bodyImages[i];
+          console.log(`Processing body image ${i + 1}/${bodyImages.length}: ${img.url}`);
+
+          try {
+            const imageType = img.imageType || (i === 0 ? 'front' : (i === 1 ? 'back' : 'detail'));
+
+            const imageRecord = await ItemImageModel.create({
+              itemId: vufsItem.id,
+              imageUrl: img.url,
+              imageType: imageType as any,
+              isPrimary: img.isPrimary || i === 0,
+              fileSize: img.size || 0,
+              mimeType: img.mimetype || 'image/jpeg',
+            });
+            console.log(`Image record created from body in DB: ${imageRecord.id}`);
+
+            imageRecords.push(imageRecord);
+          } catch (imgError) {
+            console.error(`Failed to process body image ${img.url}:`, imgError);
+          }
+        }
+      }
+
+      if (imageRecords.length === 0) {
+        throw new Error('All image processing failed');
       }
 
       // Get complete item with images
@@ -1013,6 +1054,279 @@ export class WardrobeController {
     return merged;
   }
 
+  /**
+   * Batch remove background from multiple images
+   */
+  static async batchRemoveBackground(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id } = req.params;
+      const { imageIds, options = {} } = req.body;
+
+      if (!Array.isArray(imageIds) || imageIds.length === 0) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'imageIds array is required',
+          },
+        });
+        return;
+      }
+
+      // 1. Fetch item and check ownership
+      const item = await VUFSItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          error: {
+            code: 'ITEM_NOT_FOUND',
+            message: 'Wardrobe item not found',
+          },
+        });
+        return;
+      }
+
+      if (item.ownerId !== req.user.userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You can only process your own items',
+          },
+        });
+        return;
+      }
+
+      // 2. Fetch all images
+      const images = await ItemImageModel.findByItemId(id);
+      const successfulIds: string[] = [];
+      const results = [];
+
+      // 3. Process each image
+      for (const imageId of imageIds) {
+        const originalImage = images.find(img => img.id === imageId);
+        if (!originalImage) {
+          results.push({ imageId, status: 'error', message: 'Image not found' });
+          continue;
+        }
+
+        try {
+          // Load image buffer
+          let imageBuffer: Buffer;
+          if (originalImage.imageUrl.startsWith('http')) {
+            const response = await fetch(originalImage.imageUrl);
+            imageBuffer = Buffer.from(await response.arrayBuffer());
+          } else {
+            const relativePath = originalImage.imageUrl.startsWith('/')
+              ? originalImage.imageUrl.replace(/^\//, '').replace(/^storage\//, '')
+              : originalImage.imageUrl.replace(/^storage\//, '');
+
+            const fullPath = path.join(process.cwd(), 'storage', relativePath);
+            imageBuffer = await fs.readFile(fullPath);
+          }
+
+          // Generate hash key for duplicate check? Maybe later.
+          // Perform background removal
+          const processedBuffer = await BackgroundRemovalService.removeBackground(imageBuffer, options);
+
+          // Save processed image
+          const originalFilename = path.basename(originalImage.imageUrl);
+
+          // Check for existing background_removed image
+          const existingBgRemoved = images.find(img =>
+            img.imageType === 'background_removed' &&
+            img.aiAnalysis?.originalImageId === originalImage.id
+          );
+
+          if (existingBgRemoved) {
+            await ItemImageModel.delete(existingBgRemoved.id);
+            // Try delete local file
+            if (!existingBgRemoved.imageUrl.startsWith('http')) {
+              try {
+                const oldPath = path.join(process.cwd(), existingBgRemoved.imageUrl);
+                await fs.unlink(oldPath).catch(() => { });
+              } catch (e) { }
+            }
+          }
+
+          const newFilename = `bg_removed_${Date.now()}_${originalFilename}`; // Ensure uniqueness with timestamp
+
+          const uploadResult = await LocalStorageService.uploadImage(
+            processedBuffer,
+            newFilename,
+            'image/png',
+            'wardrobe',
+            req.user.userId
+          );
+
+          const bgRemovedImage = await ItemImageModel.create({
+            itemId: item.id,
+            imageUrl: uploadResult.optimizedUrl || uploadResult.url,
+            imageType: 'background_removed',
+            isPrimary: false,
+            aiAnalysis: {
+              backgroundRemoved: true,
+              originalImageId: originalImage.id
+            },
+            fileSize: uploadResult.size,
+            mimeType: uploadResult.mimetype,
+          });
+
+          successfulIds.push(imageId);
+          results.push({
+            imageId,
+            status: 'success',
+            image: {
+              ...bgRemovedImage,
+              url: bgRemovedImage.imageUrl.startsWith('http')
+                ? bgRemovedImage.imageUrl
+                : `${process.env.API_URL || 'http://localhost:3001'}/${bgRemovedImage.imageUrl}`
+            }
+          });
+        } catch (err: any) {
+          console.error(`Error processing image ${imageId}:`, err);
+          results.push({ imageId, status: 'error', message: err.message });
+        }
+      }
+
+      res.status(200).json({
+        message: 'Batch processing completed',
+        results,
+        successfulCount: successfulIds.length
+      });
+
+    } catch (error) {
+      console.error('Batch remove background error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred during batch processing',
+        },
+      });
+    }
+  }
+
+  /**
+   * Save a manually processed image (manual override)
+   */
+  static async saveProcessedImage(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id, imageId } = req.params;
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        res.status(400).json({
+          error: {
+            code: 'MISSING_FILE',
+            message: 'No image file uploaded',
+          },
+        });
+        return;
+      }
+
+      const file = files[0];
+
+      // 1. Fetch item and check ownership
+      const item = await VUFSItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({ error: { code: 'ITEM_NOT_FOUND', message: 'Item not found' } });
+        return;
+      }
+      if (item.ownerId !== req.user.userId) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Access denied' } });
+        return;
+      }
+
+      // 2. Verify original image exists
+      const images = await ItemImageModel.findByItemId(id);
+      const originalImage = images.find(img => img.id === imageId);
+      if (!originalImage) {
+        res.status(404).json({ error: { code: 'IMAGE_NOT_FOUND', message: 'Original image not found' } });
+        return;
+      }
+
+      // 3. Remove existing background_removed image if any
+      const existingBgRemoved = images.find(img =>
+        img.imageType === 'background_removed' &&
+        img.aiAnalysis?.originalImageId === originalImage.id
+      );
+
+      if (existingBgRemoved) {
+        await ItemImageModel.delete(existingBgRemoved.id);
+        if (!existingBgRemoved.imageUrl.startsWith('http')) {
+          try {
+            const oldPath = path.join(process.cwd(), existingBgRemoved.imageUrl);
+            await fs.unlink(oldPath).catch(() => { });
+          } catch (e) { }
+        }
+      }
+
+      // 4. Upload new image
+      // Use original filename but prepend manual_bg_removed_
+      const originalFilename = path.basename(originalImage.imageUrl);
+      const newFilename = `manual_bg_removed_${Date.now()}_${originalFilename}`;
+
+      const uploadResult = await LocalStorageService.uploadImage(
+        file.buffer,
+        newFilename,
+        file.mimetype,
+        'wardrobe',
+        req.user.userId
+      );
+
+      // 5. Create DB record
+      const bgRemovedImage = await ItemImageModel.create({
+        itemId: item.id,
+        imageUrl: uploadResult.optimizedUrl || uploadResult.url,
+        imageType: 'background_removed',
+        isPrimary: false,
+        aiAnalysis: {
+          backgroundRemoved: true,
+          originalImageId: originalImage.id,
+          isManualOverride: true
+        },
+        fileSize: uploadResult.size,
+        mimeType: uploadResult.mimetype,
+      });
+
+      res.status(200).json({
+        message: 'Processed image saved successfully',
+        image: {
+          ...bgRemovedImage,
+          url: bgRemovedImage.imageUrl.startsWith('http')
+            ? bgRemovedImage.imageUrl
+            : `${process.env.API_URL || 'http://localhost:3001'}/${bgRemovedImage.imageUrl}`
+        }
+      });
+
+    } catch (error) {
+      console.error('Save processed image error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while saving the image',
+        },
+      });
+    }
+  }
+
 
   /**
    * Remove background from an existing wardrobe item image
@@ -1030,6 +1344,7 @@ export class WardrobeController {
       }
 
       const { id, imageId } = req.params;
+      const options = req.body.options || {}; // Extract options from request body
 
       // 1. Fetch item and check ownership
       const item = await VUFSItemModel.findById(id);
@@ -1083,11 +1398,35 @@ export class WardrobeController {
         imageBuffer = await fs.readFile(fullPath);
       }
 
-      // Perform background removal
-      const processedBuffer = await BackgroundRemovalService.removeBackground(imageBuffer);
+      // Perform background removal with options
+      const processedBuffer = await BackgroundRemovalService.removeBackground(imageBuffer, options);
 
       // 4. Save processed image
       const originalFilename = path.basename(originalImage.imageUrl);
+
+      // Check for existing background_removed image for this original image and delete it
+      const existingBgRemoved = images.find(img =>
+        img.imageType === 'background_removed' &&
+        img.aiAnalysis?.originalImageId === originalImage.id
+      );
+
+      if (existingBgRemoved) {
+        // Delete from DB
+        await ItemImageModel.delete(existingBgRemoved.id);
+
+        // Try to delete file if local
+        if (!existingBgRemoved.imageUrl.startsWith('http')) {
+          try {
+            // Construct path similar to how we read it, or use a helper if available
+            // For now assuming standard storage path structure
+            const oldPath = path.join(process.cwd(), existingBgRemoved.imageUrl);
+            await fs.unlink(oldPath).catch(() => { }); // Ignore error if file not found
+          } catch (e) {
+            console.warn('Failed to delete old background removed file', e);
+          }
+        }
+      }
+
       const newFilename = `bg_removed_${originalFilename}`;
 
       const uploadResult = await LocalStorageService.uploadImage(
@@ -1128,6 +1467,91 @@ export class WardrobeController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: 'An error occurred while removing the background',
+        },
+      });
+    }
+  }
+
+  /**
+   * Delete a specific image from a wardrobe item
+   */
+  static async deleteItemImage(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id, imageId } = req.params;
+
+      // 1. Fetch item and check ownership
+      const item = await VUFSItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          error: {
+            code: 'ITEM_NOT_FOUND',
+            message: 'Wardrobe item not found',
+          },
+        });
+        return;
+      }
+
+      if (item.ownerId !== req.user.userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You can only delete images from your own items',
+          },
+        });
+        return;
+      }
+
+      // 2. Fetch specific image to verify it belongs to this item
+      const images = await ItemImageModel.findByItemId(id);
+      const imageToDelete = images.find(img => img.id === imageId);
+
+      if (!imageToDelete) {
+        res.status(404).json({
+          error: {
+            code: 'IMAGE_NOT_FOUND',
+            message: 'Image not found for this item',
+          },
+        });
+        return;
+      }
+
+      // 3. Delete from DB
+      await ItemImageModel.delete(imageId);
+
+      // 4. Try to delete file if local
+      if (!imageToDelete.imageUrl.startsWith('http')) {
+        try {
+          const relativePath = imageToDelete.imageUrl.startsWith('/')
+            ? imageToDelete.imageUrl.replace(/^\//, '').replace(/^storage\//, '')
+            : imageToDelete.imageUrl.replace(/^storage\//, '');
+
+          const fullPath = path.join(process.cwd(), 'storage', relativePath);
+          await fs.unlink(fullPath).catch(() => { }); // Ignore error if file not found
+        } catch (e) {
+          console.warn('Failed to delete image file from storage', e);
+        }
+      }
+
+      res.status(200).json({
+        message: 'Image deleted successfully',
+      });
+
+    } catch (error) {
+      console.error('Delete item image error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while deleting the image',
         },
       });
     }

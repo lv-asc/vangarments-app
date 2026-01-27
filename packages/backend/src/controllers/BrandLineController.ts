@@ -10,8 +10,8 @@ export class BrandLineController {
             const { name, logo, description, collabBrandId, designerId, tags } = req.body;
             const userId = req.user?.userId;
 
-            // Verify Brand Ownership
-            const brand = await BrandAccountModel.findById(brandId);
+            // Verify Brand Ownership using a more flexible lookup (slug or either ID)
+            const brand = await BrandAccountModel.findBySlugOrId(brandId);
             if (!brand) {
                 res.status(404).json({ error: { code: 'BRAND_NOT_FOUND', message: 'Brand not found' } });
                 return;
@@ -22,8 +22,12 @@ export class BrandLineController {
                 return;
             }
 
+            // Use vufsBrandId if available (this corresponds to the 'id' in the 'brands' table)
+            // If vufsBrandId is not set, fallback to brand.id
+            const targetBrandId = brand.vufsBrandId || brand.id;
+
             const line = await BrandLineModel.create({
-                brandId,
+                brandId: targetBrandId,
                 name,
                 logo,
                 description,
@@ -70,8 +74,8 @@ export class BrandLineController {
                 return;
             }
 
-            // Verify ownership via brand lookup
-            const brand = await BrandAccountModel.findById(existingLine.brandId);
+            // Verify ownership via brand lookup (robust enough to handle either ID)
+            const brand = await BrandAccountModel.findBySlugOrId(existingLine.brandId);
             if (brand?.userId !== userId && !req.user?.roles.includes('admin')) {
                 res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Not authorized' } });
                 return;

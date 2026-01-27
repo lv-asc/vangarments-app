@@ -12,6 +12,9 @@ export class BackgroundRemovalService {
      */
     static async removeBackground(imageBuffer: Buffer, config?: Config): Promise<Buffer> {
         console.log('BackgroundRemovalService: Starting background removal...');
+        if (config) {
+            console.log('BackgroundRemovalService: Using custom config:', JSON.stringify(config));
+        }
         const startTime = Date.now();
 
         try {

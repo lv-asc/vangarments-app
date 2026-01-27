@@ -36,17 +36,38 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
 
     const brandName = item.brand?.name || item.brand?.brand || 'Unknown Brand';
     const brandSlug = item.brand?.slug || slugify(brandName);
-    const categoryName = item.category?.page || (typeof item.category === 'string' ? item.category : 'Item');
 
-    // Image handling
+    // Line & Collection
+    const lineName = item.lineInfo?.name || item.line;
+    const lineLogo = item.lineInfo?.logo;
+    const collectionName = item.collectionInfo?.name || item.collection;
+    const collectionImage = item.collectionInfo?.coverImage;
+
+    // Image handling - prioritize primary and handle JSON
     const getImgUrl = (img: any) => {
         if (!img) return null;
         if (typeof img === 'string') return img;
         return img.url || img.imageUrl;
     };
 
-    const firstImage = getImgUrl(item.images?.[0]);
-    const secondImage = getImgUrl(item.images?.[1]);
+    let firstImage = null;
+    let secondImage = null;
+
+    // Ensure images are parsed if they come as a string
+    const itemImages = Array.isArray(item.images)
+        ? item.images
+        : (typeof item.images === 'string' ? JSON.parse(item.images) : []);
+
+    if (itemImages && itemImages.length > 0) {
+        // Match ProductPage logic: Default to the first image (Order determines cover)
+        // User workflow relies on dragging images to first position in Admin
+        firstImage = getImgUrl(itemImages[0]);
+
+        // Use second image for hover if available
+        if (itemImages.length > 1) {
+            secondImage = getImgUrl(itemImages[1]);
+        }
+    }
 
     // Backend now returns variants sorted by size order from /admin/sizes
     const variants = item.variants || [];
@@ -109,11 +130,12 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
             </Link>
 
             <div className="px-1 space-y-2">
-                {/* Brand & Badges */}
-                <div className="flex flex-wrap items-center gap-2">
+                {/* Brand & Line Info */}
+                <div className="flex flex-col gap-1">
+                    {/* Brand */}
                     <Link
                         href={`/brands/${brandSlug}`}
-                        className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group/brand"
+                        className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group/brand w-fit"
                     >
                         <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
                             {item.brand?.logo ? (
@@ -126,14 +148,41 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
                         </div>
                         <span className="text-xs font-semibold text-gray-900 truncate max-w-[120px]">{brandName}</span>
                     </Link>
+
+                    {/* Line (if exists) */}
+                    {lineName && (
+                        <div className="flex items-center gap-1.5 pl-0.5 opacity-80">
+                            {lineLogo && (
+                                <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-50 flex-shrink-0">
+                                    <img src={getImageUrl(lineLogo)} className="h-full w-full object-contain" />
+                                </div>
+                            )}
+                            <span className="text-[10px] font-medium text-gray-500 truncate">{lineName}</span>
+                        </div>
+                    )}
                 </div>
 
-                <Link href={productUrl} className="block">
-                    <div className="flex items-center gap-2 group/name">
+                {/* Collection Name */}
+                {collectionName && (
+                    <div className="flex items-center gap-1.5 pl-0.5 opacity-80 decoration-slice">
+                        {collectionImage && (
+                            <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-50 flex-shrink-0">
+                                <img src={getImageUrl(collectionImage)} className="h-full w-full object-contain" />
+                            </div>
+                        )}
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-50 text-gray-500">
+                            {collectionName}
+                        </span>
+                    </div>
+                )}
+
+                <Link href={productUrl} className="block mt-1">
+                    <div className="flex items-start gap-2 group/name">
+                        {/* Optional: Add Apparel Icon back if desired, but might be cluttered now
                         <ApparelIcon
                             name={item.category?.level3 || item.category?.page || item.name}
-                            className="h-4 w-4 text-gray-400 group-hover/name:text-gray-900 transition-colors flex-shrink-0"
-                        />
+                            className="h-4 w-4 text-gray-400 group-hover/name:text-gray-900 transition-colors flex-shrink-0 mt-0.5"
+                        /> */}
                         <h3 className="text-sm text-gray-600 font-medium truncate leading-tight group-hover/name:text-gray-900 transition-colors">
                             {displayName}
                         </h3>
@@ -149,7 +198,7 @@ export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
                     )}
                 </div>
 
-                {/* Variant toggles - Optional: Only show if needed or make it cleaner */}
+                {/* Variant toggles */}
                 {hasVariants && (
                     <div className="pt-2 border-t border-gray-50/50">
                         <div className="flex flex-wrap gap-1">

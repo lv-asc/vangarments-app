@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -69,7 +68,7 @@ export default function TrashPage() {
             setItems(response.items || []);
         } catch (err: any) {
             console.error('Error loading trash items:', err);
-            setError(err.message || 'Falha ao carregar lixeira');
+            setError(err.message || 'Failed to load trash items');
         } finally {
             setLoading(false);
         }
@@ -105,7 +104,7 @@ export default function TrashPage() {
             }
             await loadTrashItems();
         } catch (err: any) {
-            alert(`Falha: ${err.message || 'Erro desconhecido'}`);
+            alert(`Failed: ${err.message || 'Unknown error'}`);
         } finally {
             setActionLoading(false);
             setConfirmDialog({ isOpen: false, itemId: null, action: null, itemName: '' });
@@ -120,7 +119,7 @@ export default function TrashPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            
+
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header Section */}
@@ -133,15 +132,15 @@ export default function TrashPage() {
                                 className="flex items-center"
                             >
                                 <ArrowLeftIcon className="h-5 w-5 mr-2" />
-                                Voltar
+                                Back
                             </Button>
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-900 flex items-center">
                                     <TrashIcon className="h-8 w-8 mr-3 text-gray-500" />
-                                    Lixeira
+                                    Trash
                                 </h1>
                                 <p className="text-gray-600">
-                                    {items.length} {items.length === 1 ? 'item' : 'itens'} na lixeira
+                                    {items.length} {items.length === 1 ? 'item' : 'items'} in trash
                                 </p>
                             </div>
                         </div>
@@ -151,9 +150,9 @@ export default function TrashPage() {
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start space-x-3">
                         <ExclamationTriangleIcon className="h-6 w-6 text-amber-500 flex-shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-amber-800 font-medium">Itens expiram automaticamente</p>
+                            <p className="text-amber-800 font-medium">Items expire automatically</p>
                             <p className="text-amber-700 text-sm">
-                                Os itens na lixeira serão permanentemente excluídos após 14 dias. Restaure-os antes do prazo para recuperá-los.
+                                Items in the trash will be permanently deleted after 14 days. Restore them before the deadline to recover them.
                             </p>
                         </div>
                     </div>
@@ -164,7 +163,7 @@ export default function TrashPage() {
                     <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
                         <p className="text-red-800">{error}</p>
                         <Button variant="outline" onClick={loadTrashItems} className="mt-2">
-                            Tentar Novamente
+                            Try Again
                         </Button>
                     </div>
                 )}
@@ -206,13 +205,13 @@ export default function TrashPage() {
 
                                         {/* Expiry Badge */}
                                         <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${item.daysRemaining <= 3
-                                                ? 'bg-red-100 text-red-700'
-                                                : item.daysRemaining <= 7
-                                                    ? 'bg-amber-100 text-amber-700'
-                                                    : 'bg-gray-100 text-gray-700'
+                                            ? 'bg-red-100 text-red-700'
+                                            : item.daysRemaining <= 7
+                                                ? 'bg-amber-100 text-amber-700'
+                                                : 'bg-gray-100 text-gray-700'
                                             }`}>
                                             <ClockIcon className="h-3 w-3" />
-                                            <span>{item.daysRemaining} dias</span>
+                                            <span>{item.daysRemaining} days</span>
                                         </div>
                                     </div>
 
@@ -221,7 +220,7 @@ export default function TrashPage() {
                                         <h3 className="font-medium text-gray-900 truncate">{item.metadata.name}</h3>
                                         <p className="text-sm text-gray-500">{item.brand.brand}</p>
                                         <p className="text-xs text-gray-400 mt-1">
-                                            Excluído em {new Date(item.deletedAt).toLocaleDateString('pt-BR')}
+                                            Deleted on {new Date(item.deletedAt).toLocaleDateString()}
                                         </p>
 
                                         {/* Actions */}
@@ -233,7 +232,7 @@ export default function TrashPage() {
                                                 className="flex-1 flex items-center justify-center text-green-600 border-green-200 hover:bg-green-50"
                                             >
                                                 <ArrowPathIcon className="h-4 w-4 mr-1" />
-                                                Restaurar
+                                                Restore
                                             </Button>
                                             <Button
                                                 variant="outline"
@@ -242,7 +241,7 @@ export default function TrashPage() {
                                                 className="flex-1 flex items-center justify-center text-red-600 border-red-200 hover:bg-red-50"
                                             >
                                                 <TrashIcon className="h-4 w-4 mr-1" />
-                                                Excluir
+                                                Delete
                                             </Button>
                                         </div>
                                     </div>
@@ -254,13 +253,13 @@ export default function TrashPage() {
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
                         <TrashIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            Lixeira vazia
+                            Trash is empty
                         </h3>
                         <p className="text-gray-600 mb-6">
-                            Itens excluídos do seu guarda-roupa aparecerão aqui por 14 dias antes de serem permanentemente removidos.
+                            Items deleted from your wardrobe will appear here for 14 days before being permanently removed.
                         </p>
                         <Button onClick={() => router.push('/wardrobe')}>
-                            Voltar ao Guarda-roupa
+                            Back to Wardrobe
                         </Button>
                     </div>
                 )}
@@ -271,13 +270,13 @@ export default function TrashPage() {
                 isOpen={confirmDialog.isOpen}
                 onClose={() => setConfirmDialog({ isOpen: false, itemId: null, action: null, itemName: '' })}
                 onConfirm={handleConfirm}
-                title={confirmDialog.action === 'restore' ? 'Restaurar Item' : 'Excluir Permanentemente'}
+                title={confirmDialog.action === 'restore' ? 'Restore Item' : 'Delete Permanently'}
                 message={confirmDialog.action === 'restore'
-                    ? `Deseja restaurar "${confirmDialog.itemName}" de volta ao seu guarda-roupa?`
-                    : `Tem certeza que deseja excluir permanentemente "${confirmDialog.itemName}"? Esta ação não pode ser desfeita e todas as imagens serão removidas.`
+                    ? `Do you want to restore "${confirmDialog.itemName}" back to your wardrobe?`
+                    : `Are you sure you want to permanently delete "${confirmDialog.itemName}"? This action cannot be undone and all images will be removed.`
                 }
-                confirmLabel={confirmDialog.action === 'restore' ? 'Restaurar' : 'Excluir Permanentemente'}
-                cancelLabel="Cancelar"
+                confirmLabel={confirmDialog.action === 'restore' ? 'Restore' : 'Delete Permanently'}
+                cancelLabel="Cancel"
                 variant={confirmDialog.action === 'restore' ? 'default' : 'danger'}
                 loading={actionLoading}
             />

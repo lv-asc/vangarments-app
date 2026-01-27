@@ -770,11 +770,40 @@ class ApiClient {
     });
   }
 
-  async removeBackground(itemId: string, imageId: string): Promise<{ image: any }> {
+  async removeBackground(itemId: string, imageId: string, options?: { model?: 'small' | 'medium', quality?: number }): Promise<{ image: any }> {
     const response = await this.request<any>(`/wardrobe/items/${itemId}/images/${imageId}/remove-background`, {
       method: 'POST',
+      body: JSON.stringify({ options }),
     });
     return response as any;
+  }
+
+  async batchRemoveBackground(itemId: string, imageIds: string[], options?: { model?: 'small' | 'medium', quality?: number }): Promise<any> {
+    const response = await this.request<any>(`/wardrobe/items/${itemId}/images/batch-remove-background`, {
+      method: 'POST',
+      body: JSON.stringify({ imageIds, options }),
+    });
+    return response as any;
+  }
+
+  async saveProcessedImage(itemId: string, originalImageId: string, imageBlob: Blob): Promise<any> {
+    const formData = new FormData();
+    formData.append('images', imageBlob, 'manual_mask.png');
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/wardrobe/items/${itemId}/images/${originalImageId}/save-processed`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new ApiErrorClass(data.error?.message || 'Upload failed', 'UPLOAD_ERROR', data.error);
+    return data;
   }
 
   async uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
@@ -1106,6 +1135,12 @@ class ApiClient {
 
   async permanentDeleteWardrobeItem(itemId: string): Promise<void> {
     await this.request(`/wardrobe/trash/${itemId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteWardrobeItemImage(itemId: string, imageId: string): Promise<void> {
+    await this.request(`/wardrobe/items/${itemId}/images/${imageId}`, {
       method: 'DELETE',
     });
   }

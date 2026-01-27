@@ -14,12 +14,13 @@ import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 import { getImageUrl } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-interface SKUFormProps {
+interface ItemCreationProps {
     initialData?: any; // For edit mode
     isEditMode?: boolean;
+    mode: 'sku' | 'wardrobe';
 }
 
-export default function SKUForm({ initialData, isEditMode = false }: SKUFormProps) {
+export default function ItemCreation({ initialData, isEditMode = false, mode }: ItemCreationProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const queryBrandId = searchParams.get('brandId');
@@ -28,6 +29,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
 
     // Brand Accounts (these are the actual brand entities that SKUs reference)
     const [brandAccounts, setBrandAccounts] = useState<any[]>([]);
+    const [vufsBrands, setVufsBrands] = useState<any[]>([]);
     const [vufsCategories, setVufsCategories] = useState<any[]>([]);
     const [lines, setLines] = useState<any[]>([]);
     const [collections, setCollections] = useState<any[]>([]);
@@ -39,7 +41,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
     const [colors, setColors] = useState<any[]>([]);
     const [sizes, setSizes] = useState<any[]>([]);
     const [genders, setGenders] = useState<any[]>([]);
-    // conditions removed
+    const [conditions, setConditions] = useState<any[]>([]);
     const [mediaLabels, setMediaLabels] = useState<any[]>([]);
 
     // Sport ORG State
@@ -96,7 +98,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
         jerseyNumber: '',
         playerName: '', // or Gamertag
         status: 'licensed', // licensed, fan-made, sponsor-issued
-        // conditionId removed
+        conditionId: '',
         description: '',
         images: [] as any[],
         videos: [] as any[],
@@ -188,7 +190,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             jerseyNumber: metadata.sportContext?.jerseyNumber || '',
             playerName: metadata.sportContext?.playerName || '',
             status: metadata.sportContext?.status || 'licensed',
-            // conditionId removed
+            conditionId: sku.conditionId || metadata.conditionId || '',
             releaseDate: sku.releaseDate ? new Date(sku.releaseDate).toISOString().split('T')[0] : '',
             careInstructions: sku.careInstructions || '',
             officialItemLink: sku.officialItemLink || ''
@@ -250,7 +252,9 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 colorsRes,
                 sizesRes,
                 mediaLabelsRes,
-                silhouettesRes
+                silhouettesRes,
+                brandsRes,
+                conditionsRes
             ] = await Promise.all([
                 apiClient.getSwitchableAccounts(),
                 apiClient.getVUFSCategories(),
@@ -262,10 +266,10 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 apiClient.getVUFSColors(),
                 apiClient.getVUFSSizes(),
                 apiClient.getAllMediaLabels(),
-                apiClient.getSilhouettes()
+                apiClient.getSilhouettes(),
+                apiClient.getVUFSBrands(),
+                apiClient.getAllConditions()
             ]);
-
-            let allEntities: any[] = [];
 
             // Check if user is admin
             let isAdmin = false;
@@ -276,38 +280,17 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 console.error('Failed to check admin status', e);
             }
 
-            if (isAdmin) {
-                try {
-                    const allEntitiesRes = await apiClient.getAllEntities();
-                    // Filter to strictly include only BRAND entities (exclude users, pages, stores, suppliers, non-profits)
-                    const brandTypes = ['BRAND'];
-                    // Map admin entities to the expected format
-                    allEntities = allEntitiesRes
-                        .filter((e: any) => brandTypes.includes(e.entityType?.toUpperCase()))
-                        .map((e: any) => ({
-                            id: e.id,
-                            name: e.brandInfo?.name || e.name || 'Unnamed',
-                            avatar: e.brandInfo?.logo || e.avatar || e.logo_url,
-                            type: e.entityType?.toLowerCase() || 'brand'
-                        }));
-                } catch (e) {
-                    console.error('Failed to fetch all entities for admin', e);
-                }
-            }
-
             // Extract brand accounts from the switchable accounts response
             const switchable = accountsRes?.accounts || {};
             const brands = switchable.brands || [];
-            const stores = switchable.stores || [];
-            const suppliers = switchable.suppliers || [];
-            const nonProfits = switchable.nonProfits || [];
 
-            // Combine all entities if not admin (or fallback if admin fetch failed)
-            // If admin, prioritise allEntities but fallback to switchable if empty
-            if (isAdmin && allEntities.length > 0) {
-                setBrandAccounts(allEntities);
+            // Set Brand Accounts for the dropdown
+            // Admins and Wardrobe items use the curated global brands list (brandsRes)
+            // Regular users creating SKUs see only their managed brand accounts
+            if (isAdmin || mode === 'wardrobe') {
+                setBrandAccounts(brandsRes || []);
             } else {
-                setBrandAccounts([...brands, ...stores, ...suppliers, ...nonProfits]);
+                setBrandAccounts(brands || []);
             }
 
             setVufsCategories(categoriesRes || []);
@@ -318,9 +301,22 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             setFits(fitsRes || []);
             setColors(colorsRes || []);
             setSizes(sizesRes || []);
+            // Process conditions: Deduplicate by name and Sort (New w/ Tag first)
+            const uniqueConditions = conditionsRes ? Array.from(new Map(conditionsRes.map((c: any) => [c.name, c])).values()) : [];
+            uniqueConditions.sort((a: any, b: any) => {
+                const nameA = a.name.toLowerCase();
+                const nameB = b.name.toLowerCase();
+                if (nameA.includes('new w/ tag')) return -1;
+                if (nameB.includes('new w/ tag')) return 1;
+                if (nameA === 'new') return -1;
+                if (nameB === 'new') return 1;
+                return 0;
+            });
+            setConditions(uniqueConditions);
             setMediaLabels(mediaLabelsRes || []);
             setGenders(Array.isArray(gendersData) ? gendersData : []);
             const silhouettes = Array.isArray(silhouettesRes) ? silhouettesRes : (silhouettesRes as any)?.silhouettes || (silhouettesRes as any)?.data || [];
+            setVufsBrands(brandsRes || []);
             setAvailableSilhouettes(silhouettes);
 
             // POMs
@@ -477,15 +473,17 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
     // ... Implement logic for Name Generation and Slugify from GlobalSKUManagement ...
     // Note: I will need to copy the slugify and generateSKUCode logic here.
 
-    const slugify = (text: string) => text.toString().toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^\w-]+/g, '')
-        .replace(/--+/g, '-')
-        .replace(/^-+/, '')
-        .replace(/-+$/, '');
+    const slugify = (text: string | null | undefined) => {
+        if (!text) return '';
+        return text.toString().toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^\w-]+/g, '')
+            .replace(/--+/g, '-')
+            .replace(/^-+/, '')
+            .replace(/-+$/, '');
+    };
 
     const generateSKUCode = (overrides: { colorId?: string | null; sizeId?: string | null } = {}) => {
-        // ... (Copy logic)
         const brand = brandAccounts.find(b => b.id === formData.brandId);
         const line = lines.find(l => l.id === formData.lineId);
         const collectionName = formData.collection || '';
@@ -531,7 +529,6 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
 
     // Auto-update name/code
     useEffect(() => {
-        // ... (Copy logic)
         const brand = brandAccounts.find(b => b.id === formData.brandId);
         const line = lines.find(l => l.id === formData.lineId);
         const collectionName = formData.collection || '';
@@ -617,7 +614,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             metadata: {
                 officialSkuOrInstance: formData.officialSkuOrInstance,
                 isGeneric: formData.isGeneric,
-                // conditionId removed
+                conditionId: formData.conditionId,
                 modelName: formData.modelName,
                 genderId: formData.genderId,
                 apparelId: formData.apparelId,
@@ -651,7 +648,97 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             releaseDate: formData.releaseDate || null,
             careInstructions: formData.careInstructions || null,
             officialItemLink: formData.officialItemLink || null,
+            conditionId: formData.conditionId || null,
             parentSkuId: null as string | null
+        };
+    };
+
+    const buildWardrobePayload = (colorId: string | null, sizeId: string | null) => {
+        const color = colors.find(c => c.id === colorId);
+        const size = sizes.find(s => s.id === sizeId);
+        const colorName = color?.name || '';
+        const sizeName = size?.name || '';
+
+        const brand = brandAccounts.find(b => b.id === formData.brandId);
+        const line = lines.find(l => l.id === formData.lineId);
+        const apparel = apparels.find(c => c.id === formData.apparelId);
+        const style = styles.find(c => c.id === formData.styleId);
+        const pattern = patterns.find(p => p.id === formData.patternId);
+        const material = materials.find(m => m.id === formData.materialId);
+        const fit = fits.find(f => f.id === formData.fitId);
+        const selectedCondition = conditions.find(c => c.id === formData.conditionId);
+
+        const nameParts = [formData.generatedName];
+        if (colorName) nameParts.push('(' + colorName + ')');
+        if (sizeName) nameParts.push('[' + sizeName + ']');
+        const finalName = nameParts.join(' ') || formData.modelName || 'Wardrobe Item';
+
+        const conditionMapping: Record<string, string> = {
+            'New w/ Tag (New)': 'dswt',
+            'New (New)': 'never_used',
+            'Excellent (used)': 'used',
+            'Good (used)': 'used',
+            'Fair (used)': 'used',
+            'Poor (used)': 'used'
+        };
+
+        const mappedStatus = selectedCondition ? (conditionMapping[selectedCondition.name] || 'used') : 'used';
+
+        return {
+            category: {
+                page: apparel?.name || 'Apparel',
+                blueSubcategory: style?.name || apparel?.name || '',
+                whiteSubcategory: style?.name || '',
+                graySubcategory: ''
+            },
+            brand: {
+                brand: brand?.name || 'Generic',
+                line: line?.name || formData.line || ''
+            },
+            metadata: {
+                name: finalName,
+                colors: colorId ? [{
+                    primary: colorName,
+                    undertones: []
+                }] : [],
+                composition: material ? [{
+                    material: material.name,
+                    percentage: 100
+                }] : [],
+                size: sizeName || 'One Size',
+                pattern: pattern?.name || '',
+                fit: fit?.name || '',
+                description: formData.description || '',
+                careInstructions: formData.careInstructions ? [formData.careInstructions] : [],
+                pricing: {
+                    retailPrice: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : 0,
+                    currentValue: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : 0,
+                    currency: 'BRL'
+                },
+                acquisitionInfo: {
+                    purchaseDate: formData.releaseDate || new Date().toISOString(),
+                    purchasePrice: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : 0,
+                    store: brand?.name || 'Generic'
+                },
+                // Store IDs for edit mapping
+                genderId: formData.genderId,
+                apparelId: formData.apparelId,
+                styleId: formData.styleId,
+                patternId: formData.patternId,
+                materialId: formData.materialId,
+                fitId: formData.fitId,
+                sizeId: sizeId,
+                colorId: colorId
+            },
+            condition: {
+                status: mappedStatus,
+                defects: []
+            },
+            ownership: {
+                status: 'owned',
+                visibility: 'public'
+            },
+            images: formData.images
         };
     };
 
@@ -659,6 +746,22 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
         e.preventDefault();
         setSubmitting(true);
         try {
+            if (mode === 'wardrobe') {
+                const colorId = formData.selectedColors[0] || null;
+                const sizeId = formData.selectedSizes[0] || null;
+                const payload = buildWardrobePayload(colorId, sizeId);
+
+                if (isEditMode && initialData) {
+                    await apiClient.updateWardrobeItem(initialData.id, payload);
+                    toast.success('Wardrobe item updated successfully');
+                } else {
+                    await apiClient.createWardrobeItem(payload);
+                    toast.success('Wardrobe item created successfully');
+                }
+                router.push('/wardrobe');
+                return;
+            }
+
             if (isEditMode && initialData) {
                 // Edit Logic (simplified: single variant edit for now, need to clarify robust parent/variant editing in page flow)
                 // For page flow, we'll assume we are editing the SPECIFIC entity loaded by ID.
@@ -669,10 +772,6 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 const payload = buildSKUPayload(colorId, sizeId, true);
 
                 await apiClient.updateSKU(initialData.id, payload);
-                // Save measurements
-                if (sizeId && measurements) {
-                    // ... (Measurement saving logic)
-                }
                 toast.success('SKU updated successfully');
                 router.push('/admin/skus');
             } else {
@@ -697,7 +796,6 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                                 const variantPayload = buildSKUPayload(colorId, sizeId, false);
                                 variantPayload.parentSkuId = parentId;
                                 await apiClient.createSKU(formData.brandId, variantPayload);
-                                // Save measurements...
                             }
                         }
                         toast.success('SKUs created successfully');
@@ -713,8 +811,8 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 router.push('/admin/skus');
             }
         } catch (error) {
-            console.error('Failed to submit SKU', error);
-            toast.error('Failed to save SKU');
+            console.error('Failed to submit item', error);
+            toast.error('Failed to save item');
         } finally {
             setSubmitting(false);
         }
@@ -730,7 +828,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
             {/* Header with Miniature - Centered */}
             <div className="flex flex-col items-center text-center gap-4 mb-8 border-b pb-6 relative">
                 <div className="absolute left-0 top-0">
-                    <Button type="button" variant="secondary" onClick={() => router.push('/admin/skus')}>
+                    <Button type="button" variant="secondary" onClick={() => router.push(mode === 'sku' ? '/admin/skus' : '/wardrobe')}>
                         Cancel
                     </Button>
                 </div>
@@ -749,10 +847,10 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 </div>
                 <div>
                     <h2 className="text-3xl font-extrabold text-gray-900 leading-tight">
-                        Edit {formData.modelName || 'SKU'}
+                        {isEditMode ? 'Edit' : 'Create'} {mode === 'sku' ? (formData.modelName || 'SKU') : 'Wardrobe Item'}
                     </h2>
                     <p className="text-sm text-gray-500 mt-1 max-w-lg">
-                        {formData.officialSkuOrInstance || 'Update SKU details and settings for this product.'}
+                        {formData.officialSkuOrInstance || (mode === 'sku' ? 'Update SKU details and settings for this product.' : 'Define the details of the item in your wardrobe.')}
                     </p>
                 </div>
             </div>
@@ -762,7 +860,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
                     <SearchableCombobox
-                        options={brandAccounts.map(b => ({ id: b.id, name: b.name, image: getImageUrl(b.avatar || b.logo) }))}
+                        options={brandAccounts.map(b => ({ id: b.id, name: b.name, image: getImageUrl(b.avatar || b.logo || b.masterLogo) }))}
                         value={brandAccounts.find(b => b.id === formData.brandId)?.name || ''}
                         onChange={(val) => {
                             const brand = brandAccounts.find(b => b.name === val);
@@ -825,6 +923,23 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                         placeholder="Select Sport Org"
                     />
                 </div>
+
+                {/* Condition - Only for Wardrobe */}
+                {mode === 'wardrobe' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+                        <select
+                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border"
+                            value={formData.conditionId}
+                            onChange={(e) => setFormData(prev => ({ ...prev, conditionId: e.target.value }))}
+                        >
+                            <option value="">Select Condition</option>
+                            {conditions.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             {/* Sport ORG Context */}
@@ -1556,6 +1671,16 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
                     </button>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">Link to the official product page on the brand's website</p>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="pt-6 border-t flex justify-between items-center">
+                <Button type="button" variant="secondary" onClick={() => router.push(mode === 'sku' ? '/admin/skus' : '/wardrobe')}>
+                    Cancel
+                </Button>
+                <Button type="submit" disabled={submitting} className="px-10">
+                    {submitting ? 'Saving...' : 'Save Changes'}
+                </Button>
             </div>
 
         </form>

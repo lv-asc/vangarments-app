@@ -53,6 +53,10 @@ export interface SKUItem {
         name: string;
         logo?: string;
     };
+    collectionInfo?: {
+        name: string;
+        coverImage?: string;
+    };
     releaseDate?: string | Date;
 }
 

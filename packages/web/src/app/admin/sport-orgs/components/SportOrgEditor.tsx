@@ -274,7 +274,7 @@ export default function SportOrgEditor({ orgId }: SportOrgEditorProps) {
     if (authLoading || loading) return <div className="p-10 flex justify-center text-gray-400">Loading Organization...</div>;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             {/* Header */}
             <div className="mb-6 flex justify-between items-center">
                 <Link href="/admin/sport-orgs" className="flex items-center text-sm text-gray-500 hover:text-gray-700">

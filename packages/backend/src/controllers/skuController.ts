@@ -243,7 +243,10 @@ export class SKUController {
                     si.retail_price_eur
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
-                LEFT JOIN brand_lines bl ON si.line_id = bl.id
+                LEFT JOIN brand_lines bl ON 
+                    (si.line_id IS NOT NULL AND si.line_id = bl.id)
+                    OR 
+                    (si.line_id IS NULL AND bl.name = si.line AND bl.brand_id = si.brand_id)
                 LEFT JOIN brand_collections bc ON si.collection = bc.name 
                     AND (
                         bc.brand_id = si.brand_id
@@ -722,7 +725,10 @@ export class SKUController {
                     bc.cover_image_url as collection_cover_image
                 FROM sku_items si
                 JOIN brand_accounts ba ON si.brand_id = ba.id
-                LEFT JOIN brand_lines bl ON si.line_id = bl.id
+                LEFT JOIN brand_lines bl ON 
+                    (si.line_id IS NOT NULL AND si.line_id = bl.id)
+                    OR 
+                    (si.line_id IS NULL AND bl.name = si.line AND bl.brand_id = si.brand_id)
                 LEFT JOIN brand_collections bc ON si.collection = bc.name 
                     AND (
                         bc.brand_id = si.brand_id
@@ -901,7 +907,10 @@ export class SKUController {
                             m.name as material_name
                         FROM sku_items si
                         JOIN brand_accounts ba ON si.brand_id = ba.id
-                        LEFT JOIN brand_lines bl ON si.line_id = bl.id
+                        LEFT JOIN brand_lines bl ON 
+                            (si.line_id IS NOT NULL AND si.line_id = bl.id)
+                            OR 
+                            (si.line_id IS NULL AND bl.name = si.line AND bl.brand_id = si.brand_id)
                         LEFT JOIN vufs_attribute_values s ON s.id = NULLIF(si.category->>'styleId', '')::uuid
                         LEFT JOIN vufs_patterns p ON p.id = NULLIF(si.category->>'patternId', '')::uuid
                         LEFT JOIN vufs_fits f ON f.id = NULLIF(si.category->>'fitId', '')::uuid

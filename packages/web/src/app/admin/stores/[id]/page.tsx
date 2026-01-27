@@ -271,7 +271,7 @@ export default function AdminEditStorePage() {
     const displaySlug = store?.brandInfo?.slug || slugify(store?.brandInfo?.name || '') || storeId;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             <div className="mb-6 flex justify-between items-center">
                 <Link href="/admin/stores" className="flex items-center text-sm text-gray-500 hover:text-gray-700">
                     <ArrowLeftIcon className="h-4 w-4 mr-1" />

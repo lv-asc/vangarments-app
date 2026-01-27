@@ -20,7 +20,9 @@ import {
     SwatchIcon,
     ShoppingBagIcon
 } from '@heroicons/react/24/outline';
+import { getImageUrl } from '@/lib/utils';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
+
 
 // Re-export Filters interface for consumers
 export interface ItemsFilters {
@@ -397,7 +399,7 @@ export default function ItemsFilter({
                                     <div className="flex items-center gap-2 flex-grow min-w-0">
                                         {image ? (
                                             <div className="h-5 w-5 rounded-md overflow-hidden flex-shrink-0 bg-white border border-gray-100 flex items-center justify-center p-0.5">
-                                                <img src={image} alt="" className="h-full w-full object-contain" />
+                                                <img src={getImageUrl(image)} alt="" className="h-full w-full object-contain" />
                                             </div>
                                         ) : color ? (
                                             <div
@@ -641,7 +643,7 @@ export default function ItemsFilter({
                                                         <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-gray-900 border-gray-900' : 'border-gray-300'}`}>
                                                             {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
                                                         </div>
-                                                        {image && <img src={image} alt="" className="h-6 w-6 rounded object-cover" />}
+                                                        {image && <img src={getImageUrl(image)} alt="" className="h-6 w-6 rounded object-cover" />}
                                                         <span className="truncate">{col.name}</span>
                                                     </button>
                                                 );

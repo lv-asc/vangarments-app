@@ -39,8 +39,21 @@ router.post('/feedback', WardrobeController.provideFeedback);
 // Reprocess item with AI
 router.post('/items/:id/reprocess', WardrobeController.reprocessWithAI);
 
+// Batch remove background
+router.post('/items/:id/images/batch-remove-background', WardrobeController.batchRemoveBackground);
+
 // Remove background from item image
 router.post('/items/:id/images/:imageId/remove-background', WardrobeController.removeImageBackground);
+
+// Save manually processed image (help tool)
+router.post(
+  '/items/:id/images/:imageId/save-processed',
+  WardrobeController.uploadMiddleware,
+  WardrobeController.saveProcessedImage
+);
+
+// Delete specific image from item
+router.delete('/items/:id/images/:imageId', WardrobeController.deleteItemImage);
 
 // Get VUFS options for item creation
 router.get('/vufs-options', WardrobeController.getVUFSOptions);

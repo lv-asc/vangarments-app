@@ -75,18 +75,27 @@ export class BrandLineModel {
             return this.findById(identifier);
         }
 
-        // Find by slug within the brand
-        const query = 'SELECT * FROM brand_lines WHERE brand_id = $1 AND slug = $2 AND deleted_at IS NULL';
+        // Find by slug within the brand (check both account ID and direct brand/vufs ID)
+        const query = `
+            SELECT bl.* 
+            FROM brand_lines bl
+            LEFT JOIN brand_accounts ba ON bl.brand_id = ba.vufs_brand_id OR bl.brand_id = ba.id
+            WHERE (bl.brand_id = $1 OR ba.id = $1 OR ba.vufs_brand_id = $1)
+            AND bl.slug = $2 AND bl.deleted_at IS NULL
+            LIMIT 1
+        `;
         const result = await db.query(query, [brandId, identifier]);
         return result.rows.length > 0 ? this.mapRowToBrandLine(result.rows[0]) : null;
     }
 
     static async findByBrandId(brandId: string): Promise<BrandLine[]> {
         const query = `
-      SELECT * FROM brand_lines 
-      WHERE brand_id = $1 AND deleted_at IS NULL
-      ORDER BY name ASC
-    `;
+            SELECT DISTINCT bl.* FROM brand_lines bl
+            LEFT JOIN brand_accounts ba ON bl.brand_id = ba.vufs_brand_id OR bl.brand_id = ba.id
+            WHERE (bl.brand_id = $1 OR ba.id = $1 OR ba.vufs_brand_id = $1)
+            AND bl.deleted_at IS NULL
+            ORDER BY bl.name ASC
+        `;
         const result = await db.query(query, [brandId]);
         return result.rows.map(row => this.mapRowToBrandLine(row));
     }
@@ -97,7 +106,7 @@ export class BrandLineModel {
      */
     static async findByVufsBrandId(vufsBrandId: string): Promise<BrandLine[]> {
         const query = `
-      SELECT bl.* FROM brand_lines bl
+      SELECT DISTINCT bl.* FROM brand_lines bl
       JOIN brand_accounts ba ON bl.brand_id = ba.id
       WHERE ba.vufs_brand_id = $1 AND bl.deleted_at IS NULL
       ORDER BY bl.name ASC

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import SKUForm from '@/components/admin/SKUForm';
+import ItemCreation from '@/components/admin/ItemCreation';
 import { apiClient } from '@/lib/api';
 
 export default function EditSKUPage() {
@@ -61,7 +61,7 @@ export default function EditSKUPage() {
 
     return (
         <div className="py-6">
-            <SKUForm initialData={sku} isEditMode={true} />
+            <ItemCreation initialData={sku} isEditMode={true} mode="sku" />
         </div>
     );
 }

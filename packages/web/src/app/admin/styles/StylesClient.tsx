@@ -93,7 +93,7 @@ export default function AdminStylesPage() {
     if (loading) return <div className="p-10 text-center">Loading...</div>;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Styles Management</h1>
