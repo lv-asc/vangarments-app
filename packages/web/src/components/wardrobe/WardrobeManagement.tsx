@@ -154,11 +154,14 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-3 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 mr-2">
-                            <span className="text-xs font-semibold text-gray-500">Show Backgrounds</span>
-                            <Switch
-                                checked={showOriginalBackgrounds}
-                                onCheckedChange={setShowOriginalBackgrounds}
-                            />
+                            <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold transition-colors ${showOriginalBackgrounds ? 'text-gray-900' : 'text-gray-400'}`}>Original</span>
+                                <Switch
+                                    checked={!showOriginalBackgrounds}
+                                    onCheckedChange={(checked) => setShowOriginalBackgrounds(!checked)}
+                                />
+                                <span className={`text-xs font-bold transition-colors ${!showOriginalBackgrounds ? 'text-indigo-600' : 'text-gray-400'}`}>No BG</span>
+                            </div>
                         </div>
                         <button
                             onClick={() => router.push('/wardrobe/trash')}
@@ -200,11 +203,17 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                         <div className="relative aspect-square bg-gray-50 overflow-hidden">
                                             {(() => {
                                                 // Priority:
-                                                // 1. If showOriginalBackgrounds is FALSE (default) AND processed image exists -> Show Processed
+                                                // 1. If showOriginalBackgrounds is FALSE (default) AND processed image exists -> Show most recent Processed
                                                 // 2. Else -> Show Original
                                                 let imageUrl = null;
-                                                const processedImage = item.images?.find((img: any) => img.type === 'background_removed');
-                                                const originalImage = item.images?.find((img: any) => img.type !== 'background_removed');
+                                                const isProcessed = (img: any) => img.type === 'background_removed' || img.imageType === 'background_removed';
+
+                                                // Get ALL processed images and sort by createdAt descending to get the most recent
+                                                const processedImages = (item.images?.filter(isProcessed) || [])
+                                                    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+                                                const processedImage = processedImages[0]; // Most recent
+
+                                                const originalImage = item.images?.find((img: any) => !isProcessed(img));
 
                                                 if (!showOriginalBackgrounds && processedImage) {
                                                     imageUrl = getImageUrl(processedImage.url);

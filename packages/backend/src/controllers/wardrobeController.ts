@@ -1262,19 +1262,20 @@ export class WardrobeController {
         return;
       }
 
-      // 3. Remove existing background_removed image if any
-      const existingBgRemoved = images.find(img =>
-        img.imageType === 'background_removed' &&
-        img.aiAnalysis?.originalImageId === originalImage.id
+      // 3. Remove ALL existing background_removed images for this item (clean up orphans and old versions)
+      const existingBgRemovedImages = images.filter(img =>
+        img.imageType === 'background_removed' || (img as any).type === 'background_removed'
       );
 
-      if (existingBgRemoved) {
+      for (const existingBgRemoved of existingBgRemovedImages) {
         await ItemImageModel.delete(existingBgRemoved.id);
         if (!existingBgRemoved.imageUrl.startsWith('http')) {
           try {
             const oldPath = path.join(process.cwd(), existingBgRemoved.imageUrl);
             await fs.unlink(oldPath).catch(() => { });
-          } catch (e) { }
+          } catch (e) {
+            console.warn('Failed to delete old bg removed file', e);
+          }
         }
       }
 
@@ -1404,23 +1405,20 @@ export class WardrobeController {
       // 4. Save processed image
       const originalFilename = path.basename(originalImage.imageUrl);
 
-      // Check for existing background_removed image for this original image and delete it
-      const existingBgRemoved = images.find(img =>
-        img.imageType === 'background_removed' &&
-        img.aiAnalysis?.originalImageId === originalImage.id
+      // Delete ALL existing background_removed images for this item (clean up orphans and old versions)
+      const existingBgRemovedImages = images.filter(img =>
+        img.imageType === 'background_removed' || (img as any).type === 'background_removed'
       );
 
-      if (existingBgRemoved) {
+      for (const existingBgRemoved of existingBgRemovedImages) {
         // Delete from DB
         await ItemImageModel.delete(existingBgRemoved.id);
 
         // Try to delete file if local
         if (!existingBgRemoved.imageUrl.startsWith('http')) {
           try {
-            // Construct path similar to how we read it, or use a helper if available
-            // For now assuming standard storage path structure
             const oldPath = path.join(process.cwd(), existingBgRemoved.imageUrl);
-            await fs.unlink(oldPath).catch(() => { }); // Ignore error if file not found
+            await fs.unlink(oldPath).catch(() => { });
           } catch (e) {
             console.warn('Failed to delete old background removed file', e);
           }

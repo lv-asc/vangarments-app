@@ -114,7 +114,7 @@ export default function RootLayout({
               <NotificationProvider>
                 <RecentPagesProvider>
                   <Header />
-                  <main className="min-h-screen">
+                  <main className="min-h-screen pt-8">
                     {children}
                   </main>
                   <PWAInstaller />

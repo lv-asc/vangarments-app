@@ -23,6 +23,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import { Switch } from '@/components/ui/Switch';
 import BackgroundMaskEditor from '@/components/wardrobe/BackgroundMaskEditor';
+import BatchPreviewModal from '@/components/wardrobe/BatchPreviewModal';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
 interface WardrobeItem {
@@ -90,6 +91,22 @@ export default function WardrobeItemDetailPage() {
   const [showMaskEditor, setShowMaskEditor] = useState(false);
   const [currentEditorImages, setCurrentEditorImages] = useState<{ original: string, processed: string } | null>(null);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
+
+  // Background Removal Options
+  const [showBgOptions, setShowBgOptions] = useState(false);
+  const [bgQuality, setBgQuality] = useState<'fast' | 'medium' | 'high'>('medium');
+  const [bgFeatherRadius, setBgFeatherRadius] = useState(0);
+  const [bgOutputRatio, setBgOutputRatio] = useState<'1:1' | '4:5' | '3:4' | 'original'>('original');
+
+  // Batch Preview Modal State
+  const [showBatchPreview, setShowBatchPreview] = useState(false);
+  const [batchPreviewItems, setBatchPreviewItems] = useState<Array<{
+    id: string;
+    originalUrl: string;
+    processedUrl: string;
+    originalId: string;
+  }>>([]);
+  const [pendingBatchImages, setPendingBatchImages] = useState<any[]>([]);
 
   // Hidden Fields State
   const [attributes, setAttributes] = useState<Attribute[]>([]);
@@ -263,7 +280,11 @@ export default function WardrobeItemDetailPage() {
       const response = await apiClient.batchRemoveBackground(
         item.id,
         imagesToProcess.map(img => img!.id),
-        { model: 'medium', quality: 1.0 }
+        {
+          quality: bgQuality,
+          featherRadius: bgFeatherRadius,
+          outputRatio: bgOutputRatio
+        }
       );
 
       // Refresh item to get new images
@@ -271,36 +292,30 @@ export default function WardrobeItemDetailPage() {
       // Since batch endpoint returns multiple, maybe simpler to reload item or merge
       // Assuming response.results is array of new images
       if (response.results) {
-        const newImages = [...(item.images || [])];
-        const addedImages: any[] = [];
+        const previewItems: typeof batchPreviewItems = [];
+        const newProcessedImages: any[] = [];
 
         response.results.forEach((res: any) => {
           if (res.image) {
-            newImages.push(res.image);
-            addedImages.push(res.image);
+            newProcessedImages.push(res.image);
+            // Find the original image for this processed one
+            const originalImg = imagesToProcess.find((img: any) => img.id === res.image.aiAnalysis?.originalImageId);
+            if (originalImg) {
+              previewItems.push({
+                id: res.image.id,
+                originalUrl: originalImg.url,
+                processedUrl: res.image.url,
+                originalId: originalImg.id
+              });
+            }
           }
         });
 
-        setItem({ ...item, images: newImages });
-        setShowOriginalBackground(false);
-        setSelectedImages(new Set());
-        setIsSelectionMode(false);
-        toast.success(`${response.results.length} imagens processadas`);
-
-        // Auto-open editor for the current image if it was processed
-        const currentOriginalId = item.images?.[selectedImageIndex]?.id;
-        if (currentOriginalId) {
-          const newProcessed = addedImages.find(img => img.aiAnalysis?.originalImageId === currentOriginalId);
-          const originalImg = item.images?.[selectedImageIndex];
-
-          if (newProcessed && originalImg) {
-            setCurrentEditorImages({
-              original: getImageUrl(originalImg.url),
-              processed: getImageUrl(newProcessed.url)
-            });
-            setShowMaskEditor(true);
-          }
-        }
+        // Store pending images and show preview
+        setPendingBatchImages(newProcessedImages);
+        setBatchPreviewItems(previewItems);
+        setShowBatchPreview(true);
+        setShowBgOptions(false);
       }
 
     } catch (err: any) {
@@ -308,6 +323,36 @@ export default function WardrobeItemDetailPage() {
     } finally {
       setIsRemovingBackground(false);
     }
+  };
+
+  // Batch Preview Handlers
+  const handleBatchPreviewConfirm = async (selectedIds: string[]) => {
+    if (!item) return;
+
+    // Only keep the images that were selected
+    const selectedImages = pendingBatchImages.filter(img => selectedIds.includes(img.id));
+
+    if (selectedImages.length > 0) {
+      const newImages = [...(item.images || []), ...selectedImages];
+      setItem({ ...item, images: newImages });
+      setShowOriginalBackground(false);
+      setSelectedImages(new Set());
+      setIsSelectionMode(false);
+      toast.success(`${selectedImages.length} imagens salvas`);
+    }
+
+    // Clean up
+    setShowBatchPreview(false);
+    setBatchPreviewItems([]);
+    setPendingBatchImages([]);
+  };
+
+  const handleBatchPreviewCancel = () => {
+    // TODO: optionally delete the processed images from server if not confirmed
+    setShowBatchPreview(false);
+    setBatchPreviewItems([]);
+    setPendingBatchImages([]);
+    toast('Processamento cancelado', { icon: '⚠️' });
   };
 
   const handleOpenMaskEditor = () => {
@@ -518,16 +563,86 @@ export default function WardrobeItemDetailPage() {
                   )}
                 </div>
               ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-white"
-                  onClick={handleRemoveBackground}
-                  loading={isRemovingBackground}
-                >
-                  <PhotoIcon className="h-4 w-4 mr-1 text-gray-500" />
-                  {selectedImages.size > 0 ? `Remover Fundo (${selectedImages.size})` : 'Remover Fundo'}
-                </Button>
+                <div className="relative">
+                  <div className="flex items-stretch">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-white rounded-r-none border-r-0"
+                      onClick={handleRemoveBackground}
+                      loading={isRemovingBackground}
+                    >
+                      <PhotoIcon className="h-4 w-4 mr-1 text-gray-500" />
+                      {selectedImages.size > 0 ? `Remover Fundo (${selectedImages.size})` : 'Remover Fundo'}
+                    </Button>
+                    <button
+                      type="button"
+                      className={`px-2 border border-l-0 border-gray-300 rounded-r-lg transition-colors ${showBgOptions ? 'bg-indigo-50 text-indigo-600' : 'bg-white hover:bg-gray-50 text-gray-500'}`}
+                      onClick={() => setShowBgOptions(!showBgOptions)}
+                      title="Opções de remoção"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Options Panel */}
+                  {showBgOptions && (
+                    <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-30 w-72">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Opções de Remoção</h4>
+
+                      {/* Quality */}
+                      <div className="mb-3">
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Qualidade</label>
+                        <div className="flex bg-gray-100 p-1 rounded-lg mt-1">
+                          {(['fast', 'medium', 'high'] as const).map((q) => (
+                            <button
+                              key={q}
+                              onClick={() => setBgQuality(q)}
+                              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${bgQuality === q ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-900'}`}
+                            >
+                              {q === 'fast' ? 'Rápido' : q === 'medium' ? 'Médio' : 'Alta'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Feather Radius */}
+                      <div className="mb-3">
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Suavização de Bordas</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="range"
+                            min="0"
+                            max="10"
+                            value={bgFeatherRadius}
+                            onChange={(e) => setBgFeatherRadius(Number(e.target.value))}
+                            className="flex-1"
+                          />
+                          <span className="text-xs font-mono text-gray-600 w-8">{bgFeatherRadius}px</span>
+                        </div>
+                      </div>
+
+                      {/* Aspect Ratio */}
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Proporção</label>
+                        <div className="flex bg-gray-100 p-1 rounded-lg mt-1">
+                          {(['original', '1:1', '4:5', '3:4'] as const).map((r) => (
+                            <button
+                              key={r}
+                              onClick={() => setBgOutputRatio(r)}
+                              className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${bgOutputRatio === r ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-900'}`}
+                            >
+                              {r === 'original' ? 'Auto' : r}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )
               }
             </div>
@@ -844,6 +959,15 @@ export default function WardrobeItemDetailPage() {
           processedImageUrl={currentEditorImages.processed}
         />
       )}
+
+      {/* Batch Preview Modal */}
+      <BatchPreviewModal
+        isOpen={showBatchPreview}
+        items={batchPreviewItems}
+        onConfirm={handleBatchPreviewConfirm}
+        onCancel={handleBatchPreviewCancel}
+        isLoading={false}
+      />
     </div>
   );
 }

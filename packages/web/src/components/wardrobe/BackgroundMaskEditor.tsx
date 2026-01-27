@@ -5,7 +5,8 @@ import {
     ArrowDownTrayIcon,
     XMarkIcon,
     MagnifyingGlassPlusIcon,
-    MagnifyingGlassMinusIcon
+    MagnifyingGlassMinusIcon,
+    HandRaisedIcon
 } from '@heroicons/react/24/outline';
 
 interface BackgroundMaskEditorProps {
@@ -29,12 +30,17 @@ export default function BackgroundMaskEditor({
     const [isDrawing, setIsDrawing] = useState(false);
     const [brushSize, setBrushSize] = useState(20);
     const [brushMode, setBrushMode] = useState<'restore' | 'erase'>('restore');
+    const [activeTool, setActiveTool] = useState<'brush' | 'pan'>('brush');
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const [showCursor, setShowCursor] = useState(false);
+    const [bgMode, setBgMode] = useState<'light' | 'dark' | 'green'>('light');
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Initialize Canvas and Load Images
     useEffect(() => {
@@ -150,8 +156,8 @@ export default function BackgroundMaskEditor({
     };
 
     const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
-        if (e.altKey || 'touches' in e && (e as any).touches.length === 2) {
-            // Pan start
+        // Pan mode: Alt key OR pan tool selected OR two-finger touch
+        if (activeTool === 'pan' || e.altKey || ('touches' in e && (e as any).touches.length === 2)) {
             setIsDragging(true);
             const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
             const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
@@ -183,6 +189,32 @@ export default function BackgroundMaskEditor({
         setIsDragging(false);
     };
 
+    const handleWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = Math.max(0.1, Math.min(4, scale + delta));
+
+        // Cursor-centered zoom
+        if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left - rect.width / 2;
+            const mouseY = e.clientY - rect.top - rect.height / 2;
+
+            const scaleRatio = newScale / scale;
+            const newOffsetX = offset.x - mouseX * (scaleRatio - 1);
+            const newOffsetY = offset.y - mouseY * (scaleRatio - 1);
+
+            setOffset({ x: newOffsetX, y: newOffsetY });
+        }
+
+        setScale(newScale);
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        setMousePos({ x: e.clientX, y: e.clientY });
+        handlePointerMove(e);
+    };
+
     const handleSave = async () => {
         if (!canvasRef.current) return;
         setIsSaving(true);
@@ -212,18 +244,26 @@ export default function BackgroundMaskEditor({
 
                         <div className="flex bg-gray-100 p-1 rounded-lg">
                             <button
-                                onClick={() => setBrushMode('restore')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${brushMode === 'restore' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-900'
+                                onClick={() => { setActiveTool('brush'); setBrushMode('restore'); }}
+                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTool === 'brush' && brushMode === 'restore' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-900'
                                     }`}
                             >
                                 Restore
                             </button>
                             <button
-                                onClick={() => setBrushMode('erase')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${brushMode === 'erase' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:text-gray-900'
+                                onClick={() => { setActiveTool('brush'); setBrushMode('erase'); }}
+                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTool === 'brush' && brushMode === 'erase' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:text-gray-900'
                                     }`}
                             >
                                 Erase
+                            </button>
+                            <button
+                                onClick={() => setActiveTool('pan')}
+                                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${activeTool === 'pan' ? 'bg-white shadow text-amber-600' : 'text-gray-500 hover:text-gray-900'
+                                    }`}
+                            >
+                                <HandRaisedIcon className="w-4 h-4" />
+                                Pan
                             </button>
                         </div>
 
@@ -237,6 +277,33 @@ export default function BackgroundMaskEditor({
                                 onChange={(e) => setBrushSize(Number(e.target.value))}
                                 className="w-32"
                             />
+                        </div>
+
+                        <div className="h-6 w-px bg-gray-200" />
+
+                        {/* Background Toggle */}
+                        <div className="flex bg-gray-100 p-1 rounded-lg">
+                            <button
+                                onClick={() => setBgMode('light')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${bgMode === 'light' ? 'bg-white shadow' : 'text-gray-500 hover:text-gray-900'}`}
+                                title="Light Background"
+                            >
+                                ☐ Light
+                            </button>
+                            <button
+                                onClick={() => setBgMode('dark')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${bgMode === 'dark' ? 'bg-gray-800 text-white shadow' : 'text-gray-500 hover:text-gray-900'}`}
+                                title="Dark Background"
+                            >
+                                ☑ Dark
+                            </button>
+                            <button
+                                onClick={() => setBgMode('green')}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${bgMode === 'green' ? 'bg-green-500 text-white shadow' : 'text-gray-500 hover:text-gray-900'}`}
+                                title="Green Screen"
+                            >
+                                ✓ Green
+                            </button>
                         </div>
                     </div>
 
@@ -255,17 +322,25 @@ export default function BackgroundMaskEditor({
 
                 {/* Canvas Area */}
                 <div
-                    className="flex-1 overflow-hidden relative bg-[#e5e5f7] cursor-crosshair touch-none"
+                    ref={containerRef}
+                    className={`flex-1 overflow-hidden relative touch-none ${activeTool === 'pan' ? 'cursor-grab active:cursor-grabbing' : 'cursor-none'
+                        } ${bgMode === 'light' ? 'bg-[#e5e5f7]' :
+                            bgMode === 'dark' ? 'bg-gray-900' : 'bg-green-500'
+                        }`}
                     style={{
-                        backgroundImage: 'radial-gradient(#444cf7 0.5px, transparent 0.5px), radial-gradient(#444cf7 0.5px, #e5e5f7 0.5px)',
+                        backgroundImage: bgMode === 'green' ? 'none' :
+                            bgMode === 'dark'
+                                ? 'radial-gradient(#555 0.5px, transparent 0.5px), radial-gradient(#555 0.5px, #1a1a1a 0.5px)'
+                                : 'radial-gradient(#444cf7 0.5px, transparent 0.5px), radial-gradient(#444cf7 0.5px, #e5e5f7 0.5px)',
                         backgroundSize: '20px 20px',
                         backgroundPosition: '0 0, 10px 10px',
-                        opacity: 0.8
                     }}
                     onMouseDown={handlePointerDown}
-                    onMouseMove={handlePointerMove}
+                    onMouseMove={handleMouseMove}
                     onMouseUp={handlePointerUp}
-                    onMouseLeave={handlePointerUp}
+                    onMouseLeave={() => { handlePointerUp(); setShowCursor(false); }}
+                    onMouseEnter={() => setShowCursor(true)}
+                    onWheel={handleWheel}
                     onTouchStart={handlePointerDown}
                     onTouchMove={handlePointerMove}
                     onTouchEnd={handlePointerUp}
@@ -277,22 +352,42 @@ export default function BackgroundMaskEditor({
                     )}
 
                     <div
-                        className="origin-center transition-transform duration-75 ease-out"
+                        className="absolute left-1/2 top-1/2 origin-center transition-transform duration-75 ease-out"
                         style={{
-                            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                            transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${scale})`,
                             width: 'fit-content',
-                            height: 'fit-content',
-                            margin: 'auto'
+                            height: 'fit-content'
                         }}
                     >
+                        <img
+                            src={originalImageUrl}
+                            alt="Original Ghost"
+                            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                            style={{ opacity: 0.4 }}
+                        />
                         <canvas
                             ref={canvasRef}
-                            className="shadow-2xl"
+                            className="shadow-2xl relative z-10"
                         />
                     </div>
 
-                    <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg text-xs font-medium text-gray-500 shadow-lg pointer-events-none">
-                        Hold Alt + Drag to Pan • Scroll to Zoom (Not impl yet)
+                    {/* Dynamic Brush Cursor */}
+                    {showCursor && activeTool === 'brush' && (
+                        <div
+                            className={`fixed pointer-events-none z-50 rounded-full border-2 ${brushMode === 'restore' ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'
+                                }`}
+                            style={{
+                                width: brushSize * scale,
+                                height: brushSize * scale,
+                                left: mousePos.x - (brushSize * scale) / 2,
+                                top: mousePos.y - (brushSize * scale) / 2,
+                                transition: 'width 0.1s, height 0.1s',
+                            }}
+                        />
+                    )}
+
+                    <div className={`absolute bottom-4 left-4 backdrop-blur px-4 py-2 rounded-lg text-xs font-medium shadow-lg pointer-events-none ${bgMode === 'dark' ? 'bg-black/70 text-gray-300' : 'bg-white/90 text-gray-500'}`}>
+                        Alt + Drag to Pan • Scroll to Zoom
                     </div>
                 </div>
             </div>

@@ -1494,7 +1494,7 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
             onSearchChange={setSearch}
             className="h-[calc(100vh-64px)]"
         >
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-end mb-2">
                 {!showTrash && (
                     <Link href={`/admin/skus/create${filters.brandId ? `?brandId=${filters.brandId}` : ''}`}>
                         <Button className="">

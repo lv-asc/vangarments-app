@@ -233,13 +233,12 @@ export default function ProductPageClient() {
                     addVisit({
                         id: matchingProduct.id,
                         name: matchingProduct.name || 'Unknown Product',
-                        logo: matchingProduct.images?.[0]?.url || matchingProduct.images?.[0]?.imageUrl,
+                        logo: matchingProduct.images?.[0]?.url,
                         businessType: 'item',
                         type: 'item',
                         slug: matchingProduct.code ? slugify(matchingProduct.code) : (matchingProduct.name ? slugify(matchingProduct.name) : 'unknown'),
                         brandName: matchingProduct.brand?.name,
-                        brandSlug: bSlug,
-                        visitedAt: Date.now()
+                        brandSlug: bSlug
                     });
 
                     // Fetch tags for this product
@@ -321,24 +320,6 @@ export default function ProductPageClient() {
     };
 
     const displayPrice = formatPrice(selectedVariant?.retailPriceBrl || product.retailPriceBrl);
-    const displayImages = product.images || [];
-
-    // Carousel handlers
-    const nextImage = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
-    };
-
-    const prevImage = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
-    };
-
-    const selectImage = (index: number) => {
-        setCurrentImageIndex(index);
-    };
-
-    const currentImage = displayImages[currentImageIndex] || displayImages.find((img: any) => img.isPrimary) || displayImages[0];
 
     // Strip size suffix from product name for display
     let displayName = stripSizeSuffix(product.name);
@@ -385,29 +366,75 @@ export default function ProductPageClient() {
     // Derived brand slug for links
     const brandSlug = product.brand?.slug || (product.brand?.name ? slugify(product.brand.name) : 'brand');
 
+    const displayImages = product?.images || [];
+    const currentImage = displayImages[currentImageIndex];
+
+    const nextImage = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
+    };
+
+    const prevImage = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+    };
+
+    const selectImage = (index: number) => {
+        setCurrentImageIndex(index);
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Back button */}
-                <Link href="/search" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-6">
-                    <ArrowLeftIcon className="h-4 w-4 mr-1" />
-                    Back to search
-                </Link>
+            <div className="max-w-[1920px] mx-auto px-2 sm:px-4 lg:px-6 py-2">
 
                 <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] gap-8 p-6">
                         {/* Product Images */}
-                        <div className="space-y-4">
-                            <div className="aspect-square rounded-lg bg-gray-100 overflow-hidden relative group">
+                        <div className="flex gap-4 self-start">
+                            {/* Vertical Thumbnails */}
+                            <div className="hidden md:flex flex-col gap-3 w-20 shrink-0">
+                                {displayImages.slice(0, 5).map((img: any, idx: number) => {
+                                    const isLast = idx === 4;
+                                    const remaining = displayImages.length - 5;
+                                    const showOverlay = isLast && remaining > 0;
+
+                                    return (
+                                        <button
+                                            key={idx}
+                                            onClick={() => selectImage(idx)}
+                                            className={`relative aspect-square rounded-md overflow-hidden border transition-all ${currentImageIndex === idx
+                                                ? 'border-primary ring-1 ring-primary'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                                }`}
+                                        >
+                                            <div className="relative w-full h-full">
+                                                <img
+                                                    src={getImageUrl(img.url)}
+                                                    alt={`View ${idx + 1}`}
+                                                    className={`w-full h-full object-cover ${showOverlay ? 'opacity-40' : ''}`}
+                                                />
+                                                {showOverlay && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-xs font-bold">
+                                                        +{remaining + 1}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Main Image */}
+                            <div className="aspect-square rounded-lg bg-gray-100 overflow-hidden relative group flex-1">
                                 {currentImage ? (
                                     <>
                                         <ImageTagEditor
-                                            imageUrl={getImageUrl(currentImage.url || currentImage.imageUrl)}
+                                            imageUrl={getImageUrl(currentImage.url || (currentImage as any).imageUrl)}
                                             sourceType="sku_image"
                                             sourceId={product.id}
                                             existingTags={productTags.filter(t => {
                                                 const tagUrl = t.imageUrl;
-                                                const currentUrl = getImageUrl(currentImage.url || currentImage.imageUrl);
+                                                const currentUrl = getImageUrl(currentImage.url || (currentImage as any).imageUrl);
                                                 // Handle both /storage/... and /api/storage/... formats for safety
                                                 return tagUrl === currentUrl ||
                                                     tagUrl.replace('/api/storage/', '/storage/') === currentUrl.replace('/api/storage/', '/storage/');
@@ -455,25 +482,6 @@ export default function ProductPageClient() {
                                 )}
                             </div>
 
-                            {/* Thumbnail gallery */}
-                            {displayImages.length > 1 && (
-                                <div className="grid grid-cols-4 gap-2">
-                                    {displayImages.slice(0, 4).map((img: any, idx: number) => (
-                                        <div key={idx} className="aspect-square rounded-lg bg-gray-100 overflow-hidden">
-                                            <button
-                                                onClick={() => selectImage(idx)}
-                                                className={`w-full h-full block transition-opacity ${currentImageIndex === idx ? 'opacity-100 ring-2 ring-gray-900' : 'opacity-70 hover:opacity-100'}`}
-                                            >
-                                                <img
-                                                    src={getImageUrl(img.url || img.imageUrl)}
-                                                    alt={`${displayName} ${idx + 1}`}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
                         {/* Product Details */}
@@ -642,8 +650,7 @@ export default function ProductPageClient() {
 
                                 {/* Variant Selector */}
                                 {product.variants && product.variants.length > 0 && (
-                                    <div>
-                                        <h3 className="text-sm font-medium text-gray-900 mb-3">Select Size</h3>
+                                    <div className="mb-4">
                                         <div className="flex flex-wrap gap-2">
                                             {product.variants.map((variant: any) => (
                                                 <button
@@ -684,9 +691,9 @@ export default function ProductPageClient() {
                                             >
                                                 <h3 className="text-sm font-medium text-gray-900">Measurements</h3>
                                                 {showMeasurements ? (
-                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                 ) : (
-                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                 )}
                                             </button>
 
@@ -748,9 +755,9 @@ export default function ProductPageClient() {
                                             >
                                                 <h3 className="text-sm font-medium text-gray-900">Care Instructions</h3>
                                                 {showCareInstructions ? (
-                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                 ) : (
-                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                 )}
                                             </button>
 
@@ -772,9 +779,9 @@ export default function ProductPageClient() {
                                             >
                                                 <h3 className="text-sm font-medium text-gray-900">See More</h3>
                                                 {showDetails ? (
-                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                 ) : (
-                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                 )}
                                             </button>
 
@@ -900,28 +907,30 @@ export default function ProductPageClient() {
                 </div>
 
                 {/* Related Items Carousels */}
-                {(collectionItems.length > 0 || brandItems.length > 0) && (
-                    <div className="mt-12 space-y-12">
-                        {collectionItems.length > 0 && (
-                            <ItemCarousel
-                                title={`More from ${product.collection || 'Collection'}`}
-                                items={collectionItems}
-                                imageUrl={product.collectionInfo?.coverImage}
-                                seeAllLink={product.collectionInfo?.name && product.brand?.slug ? `/brands/${product.brand.slug}/collections/${slugify(product.collectionInfo.name)}` : undefined}
-                            />
-                        )}
+                {
+                    (collectionItems.length > 0 || brandItems.length > 0) && (
+                        <div className="mt-12 space-y-12">
+                            {collectionItems.length > 0 && (
+                                <ItemCarousel
+                                    title={`More from ${product.collection || 'Collection'}`}
+                                    items={collectionItems}
+                                    imageUrl={product.collectionInfo?.coverImage}
+                                    seeAllLink={product.collectionInfo?.name && product.brand?.slug ? `/brands/${product.brand.slug}/collections/${slugify(product.collectionInfo.name)}` : undefined}
+                                />
+                            )}
 
-                        {brandItems.length > 0 && (
-                            <ItemCarousel
-                                title={`More from ${product.brand?.name || 'Brand'}`}
-                                items={brandItems}
-                                imageUrl={product.brand?.logo}
-                                seeAllLink={product.brand?.slug ? `/brands/${product.brand.slug}` : undefined}
-                            />
-                        )}
-                    </div>
-                )}
-            </div>
+                            {brandItems.length > 0 && (
+                                <ItemCarousel
+                                    title={`More from ${product.brand?.name || 'Brand'}`}
+                                    items={brandItems}
+                                    imageUrl={product.brand?.logo}
+                                    seeAllLink={product.brand?.slug ? `/brands/${product.brand.slug}` : undefined}
+                                />
+                            )}
+                        </div>
+                    )
+                }
+            </div >
 
             <WishlistSelectionModal
                 isOpen={isWishlistModalOpen}
@@ -929,7 +938,7 @@ export default function ProductPageClient() {
                 skuItemId={product?.id}
                 onStatusChange={(status) => setIsOnWishlist(status)}
             />
-        </div>
+        </div >
     );
 }
 
