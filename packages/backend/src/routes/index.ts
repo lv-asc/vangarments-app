@@ -54,6 +54,7 @@ import silhouetteRoutes from './silhouettes';
 import googleCalendarRoutes from './googleCalendarRoutes';
 import appleCalendarRoutes from './appleCalendarRoutes';
 import sportOrgRoutes from './sportOrgs';
+import eventRoutes from './events';
 
 const router = Router();
 
@@ -111,6 +112,7 @@ router.use('/silhouettes', silhouetteRoutes); // Brand silhouettes system
 router.use('/google-calendar', googleCalendarRoutes); // Google Calendar integration
 router.use('/apple-calendar', appleCalendarRoutes); // Apple Calendar integration
 router.use('/sport-orgs', sportOrgRoutes); // Sport ORG competition system
+router.use('/events', eventRoutes); // Fashion events system
 
 // Health check for API
 router.get('/health', (req, res) => {

@@ -316,3 +316,6 @@ export * from './tagging';
 
 // Re-export sport org types
 export * from './sportOrg';
+
+// Re-export event types
+export * from './event';

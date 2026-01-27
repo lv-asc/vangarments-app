@@ -4,7 +4,7 @@ export interface ItemImage {
   id: string;
   itemId: string;
   imageUrl: string;
-  imageType: 'front' | 'back' | 'detail' | 'styled';
+  imageType: 'front' | 'back' | 'detail' | 'styled' | 'background_removed';
   processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
   aiAnalysis?: any;
   isProcessed: boolean;
@@ -20,7 +20,7 @@ export interface ItemImage {
 export interface CreateItemImageData {
   itemId: string;
   imageUrl: string;
-  imageType: 'front' | 'back' | 'detail' | 'styled';
+  imageType: 'front' | 'back' | 'detail' | 'styled' | 'background_removed';
   isPrimary?: boolean;
   aiAnalysis?: any;
   fileSize?: number;

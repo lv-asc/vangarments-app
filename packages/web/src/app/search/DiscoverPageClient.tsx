@@ -24,14 +24,15 @@ import {
   RectangleStackIcon,
   ChatBubbleLeftRightIcon,
   ClockIcon,
-  HeartIcon
+  HeartIcon,
+  CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 import { getImageUrl, debounce } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
-type FilterType = 'all' | 'item' | 'brand' | 'store' | 'user' | 'post' | 'page' | 'non_profit' | 'supplier' | 'editorial';
+type FilterType = 'all' | 'item' | 'brand' | 'store' | 'user' | 'post' | 'page' | 'non_profit' | 'supplier' | 'editorial' | 'event';
 
 const ResultSection = ({ title, items, renderItem, icon: Icon }: { title: string, items: any[], renderItem: (item: any) => React.ReactNode, icon: any }) => {
   if (!items || items.length === 0) return null;
@@ -159,6 +160,46 @@ const VerticalUserCard = ({ user }: { user: any }) => (
       )}
     </div>
     <p className="text-xs text-gray-500 px-1 truncate">@{user.username}</p>
+  </Link>
+);
+
+const EventCard = ({ event }: { event: any }) => (
+  <Link href={`/events/${event.slug}`} className="block bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all group">
+    <div className="h-24 bg-gray-50 relative overflow-hidden">
+      {event.banner ? (
+        <img src={event.banner} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-gray-200">
+          <CalendarDaysIcon className="h-10 w-10" />
+        </div>
+      )}
+      <div className="absolute top-2 right-2">
+        <span className="px-2 py-0.5 bg-white/90 backdrop-blur-sm text-gray-900 text-[9px] font-black uppercase tracking-widest rounded-full shadow-sm">
+          {event.eventType?.replace(/_/g, ' ') || 'Event'}
+        </span>
+      </div>
+    </div>
+    <div className="p-4">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="h-8 w-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {event.masterLogo ? (
+            <img src={event.masterLogo} alt={event.name} className="h-full w-full object-contain p-1" />
+          ) : (
+            <CalendarDaysIcon className="h-4 w-4 text-gray-300" />
+          )}
+        </div>
+        <h2 className="font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors uppercase italic text-sm">{event.name}</h2>
+      </div>
+      <div className="flex items-center gap-1.5 text-[10px] text-gray-500 uppercase font-bold tracking-wider">
+        <span>{new Date(event.startDate).toLocaleDateString()}</span>
+        {event.venueCity && (
+          <>
+            <span className="text-gray-300">•</span>
+            <span className="truncate">{event.venueCity}</span>
+          </>
+        )}
+      </div>
+    </div>
   </Link>
 );
 
@@ -377,6 +418,7 @@ export default function DiscoverPage() {
     posts: any[];
     pages: IPage[];
     editorial: IJournalismData[];
+    events: any[];
   }>({
     brands: [],
     stores: [],
@@ -386,7 +428,8 @@ export default function DiscoverPage() {
     items: [],
     posts: [],
     pages: [],
-    editorial: []
+    editorial: [],
+    events: []
   });
 
   // Initial Load - Featured Content
@@ -444,6 +487,9 @@ export default function DiscoverPage() {
       const fetchPosts = type === 'all' || type === 'post';
       const fetchPages = type === 'all' || type === 'page';
       const fetchEditorial = type === 'all' || type === 'editorial';
+      const fetchEvents = type === 'all' || type === 'event';
+
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
       // Brands
       if (fetchBrands) promises.push(brandApi.getBrands({ search: query || undefined, businessType: 'brand', limit: query ? 5 : 20 }));
@@ -494,9 +540,10 @@ export default function DiscoverPage() {
       if (fetchPages) {
         const pageLimit = query ? 5 : 20;
         promises.push(pageApi.getAll()
-          .then((pages: IPage[]) => {
+          .then((res: any) => {
+            const pages = Array.isArray(res) ? res : res.pages || [];
             if (query) {
-              return pages.filter(p => p.name.toLowerCase().includes(query.toLowerCase())).slice(0, pageLimit);
+              return pages.filter((p: any) => p.name.toLowerCase().includes(query.toLowerCase())).slice(0, pageLimit);
             }
             return pages.slice(0, pageLimit);
           })
@@ -518,7 +565,17 @@ export default function DiscoverPage() {
         );
       } else promises.push(Promise.resolve([]));
 
-      const [brandsRes, storesRes, suppliersRes, nonProfitsRes, usersRes, itemsRes, postsRes, pagesRes, editorialRes] = await Promise.all(promises);
+      // Events
+      if (fetchEvents) {
+        const eventLimit = query ? 5 : 20;
+        const eventSearchUrl = query ? `${API_URL}/api/events?search=${encodeURIComponent(query)}` : `${API_URL}/api/events`;
+        promises.push(fetch(eventSearchUrl)
+          .then(res => res.json())
+          .catch(() => [])
+        );
+      } else promises.push(Promise.resolve([]));
+
+      const [brandsRes, storesRes, suppliersRes, nonProfitsRes, usersRes, itemsRes, postsRes, pagesRes, editorialRes, eventsRes] = await Promise.all(promises);
 
       setResults({
         brands: Array.isArray(brandsRes) ? brandsRes : (brandsRes as any).brands || [],
@@ -529,7 +586,8 @@ export default function DiscoverPage() {
         items: itemsRes || [],
         posts: postsRes || [],
         pages: pagesRes || [],
-        editorial: editorialRes || []
+        editorial: editorialRes || [],
+        events: eventsRes || []
       });
 
     } catch (error) {
@@ -550,7 +608,7 @@ export default function DiscoverPage() {
     } else {
       // No query and filter is 'all' - show default featured view
       setIsSearching(false);
-      setResults({ brands: [], stores: [], suppliers: [], nonProfits: [], users: [], items: [], posts: [], pages: [], editorial: [] });
+      setResults({ brands: [], stores: [], suppliers: [], nonProfits: [], users: [], items: [], posts: [], pages: [], editorial: [], events: [] });
     }
   }, [searchQuery, filterType, debouncedSearch, performSearch]);
 
@@ -596,7 +654,8 @@ export default function DiscoverPage() {
               { id: 'page', label: 'Pages' },
               { id: 'non_profit', label: 'Non-Profits' },
               { id: 'supplier', label: 'Suppliers' },
-              { id: 'editorial', label: 'Editorial' }
+              { id: 'editorial', label: 'Editorial' },
+              { id: 'event', label: 'Events' }
             ].map((filter) => (
               <button
                 key={filter.id}
@@ -649,6 +708,9 @@ export default function DiscoverPage() {
                 )}
                 {(filterType === 'all' || filterType === 'editorial') && (
                   <ResultSection title="Editorial" items={results.editorial} icon={NewspaperIcon} renderItem={item => <StoryCard story={item} />} />
+                )}
+                {(filterType === 'all' || filterType === 'event') && (
+                  <ResultSection title="Events" items={results.events} icon={CalendarDaysIcon} renderItem={item => <EventCard event={item} />} />
                 )}
               </>
             )}

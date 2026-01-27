@@ -39,6 +39,9 @@ router.post('/feedback', WardrobeController.provideFeedback);
 // Reprocess item with AI
 router.post('/items/:id/reprocess', WardrobeController.reprocessWithAI);
 
+// Remove background from item image
+router.post('/items/:id/images/:imageId/remove-background', WardrobeController.removeImageBackground);
+
 // Get VUFS options for item creation
 router.get('/vufs-options', WardrobeController.getVUFSOptions);
 

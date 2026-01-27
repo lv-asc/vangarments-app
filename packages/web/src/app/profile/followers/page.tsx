@@ -63,7 +63,7 @@ export default function FollowersPage() {
             name: e.name || 'Unnamed Entity',
             subtitle: e.type.charAt(0).toUpperCase() + e.type.slice(1).replace('_', '-'),
             image: e.logo,
-            link: `/${e.type === 'brand' ? 'brands' : e.type === 'store' ? 'stores' : e.type === 'non_profit' ? 'non-profits' : e.type === 'sport_org' ? 'sport-orgs' : 'pages'}/${e.slug || e.id}`,
+            link: `/${e.type === 'brand' ? 'brands' : e.type === 'store' ? 'stores' : e.type === 'non_profit' ? 'non-profits' : e.type === 'sport_org' ? 'sport-orgs' : e.type === 'event' ? 'events' : 'pages'}/${e.slug || e.id}`,
             verificationStatus: e.verificationStatus
         }));
 
@@ -76,7 +76,8 @@ export default function FollowersPage() {
                     item.type === 'store' ? 'Stores' :
                         item.type === 'supplier' ? 'Suppliers' :
                             item.type === 'non_profit' ? 'Non-Profits' :
-                                item.type === 'sport_org' ? 'Sport ORGs' : 'Pages';
+                                item.type === 'sport_org' ? 'Sport ORGs' :
+                                    item.type === 'event' ? 'Events' : 'Pages';
 
             if (!grouped[typeLabel]) grouped[typeLabel] = [];
             grouped[typeLabel].push(item);

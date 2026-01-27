@@ -84,7 +84,7 @@ export class AuthUtils {
       req.user = decoded;
       next();
     } catch (error) {
-      return res.status(403).json({
+      return res.status(401).json({
         error: {
           code: 'INVALID_TOKEN',
           message: 'Invalid or expired token'

@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Bars3Icon,
@@ -45,11 +45,13 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import SwitchAccountModal from '@/components/profile/SwitchAccountModal';
 // import { useRecentPages } from '@/components/providers/RecentPagesProvider'; // Removed unused import
+import { AnteroomAPI } from '@/lib/anteroomApi';
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isManagementOpen, setIsManagementOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isWardrobeOpen, setIsWardrobeOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { user, isAuthenticated, logout, activeAccount, setActiveAccount, isSwitchAccountModalOpen, setIsSwitchAccountModalOpen } = useAuth();
   const { navigate, currentPath, isNavigating } = useNavigation();
@@ -59,6 +61,7 @@ export function Header() {
     unreadMessageCount,
     notificationPreferences
   } = useNotifications();
+  const [anteroomCount, setAnteroomCount] = useState(0);
   /* const { recentPages } = useRecentPages(); */ // Removed unused hook
 
   // Debug info for development
@@ -72,6 +75,21 @@ export function Header() {
       mockUser: typeof window !== 'undefined' ? localStorage.getItem('mockUser') : null
     });
   }
+
+  // Fetch anteroom count for badge
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const fetchCount = async () => {
+      try {
+        const result = await AnteroomAPI.getItemCount();
+        setAnteroomCount(result.current);
+      } catch (error) {
+        console.error('Failed to fetch anteroom count in Header:', error);
+      }
+    };
+    fetchCount();
+  }, [isAuthenticated]);
 
   /* Swapped Icons: 
      - Wardrobe: TagIcon (closest to item/clothing) 
@@ -153,6 +171,7 @@ export function Header() {
     { name: 'Sport ORGs', href: '/sport-orgs', icon: UserGroupIcon },
     { name: 'Non Profits', href: '/non-profits', icon: HeartIcon },
     { name: 'Suppliers', href: '/suppliers', icon: ClipboardDocumentCheckIcon },
+    { name: 'Events', href: '/events', icon: CalendarDaysIcon },
   ];
 
   /* const handleLogout = async () => {
@@ -203,6 +222,8 @@ export function Header() {
                 </div>
               );
 
+              const isWardrobe = link.name === t('wardrobe');
+
               if (isSearch) {
                 return (
                   <div
@@ -239,6 +260,63 @@ export function Header() {
                               <span>{entity.name}</span>
                             </Link>
                           ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              }
+
+              if (isWardrobe) {
+                return (
+                  <div
+                    key={link.name}
+                    className="relative"
+                    onMouseEnter={() => setIsWardrobeOpen(true)}
+                    onMouseLeave={() => setIsWardrobeOpen(false)}
+                  >
+                    <Link
+                      href={link.href}
+                      className={isNavigating ? 'opacity-50 pointer-events-none' : ''}
+                    >
+                      {content}
+                    </Link>
+
+                    <AnimatePresence>
+                      {isWardrobeOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute top-full left-0 mt-2 w-48 bg-background border border-border rounded-xl shadow-xl py-2 z-50 overflow-hidden"
+                        >
+                          <div className="px-3 py-2 mb-1 border-b border-border/10">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">Wardrobe Sections</span>
+                          </div>
+                          <Link
+                            href="/wardrobe"
+                            className="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors group"
+                            onClick={() => setIsWardrobeOpen(false)}
+                          >
+                            <ArchiveBoxIcon className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                            <span>Complete Wardrobe</span>
+                          </Link>
+                          <Link
+                            href="/wardrobe?tab=anteroom"
+                            className="flex items-center space-x-3 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors group"
+                            onClick={() => setIsWardrobeOpen(false)}
+                          >
+                            <div className="relative">
+                              <ClockIcon className="h-4 w-4 text-muted-foreground/60 group-hover:text-primary transition-colors" />
+                              {anteroomCount > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                </span>
+                              )}
+                            </div>
+                            <span>Anteroom</span>
+                          </Link>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -464,6 +542,7 @@ export function Header() {
                 {navigation.map((link) => {
                   const isActive = currentPath === link.href;
                   const isSearch = link.name === 'Search';
+                  const isWardrobe = link.name === t('wardrobe');
 
                   return (
                     <div key={link.name}>
@@ -492,6 +571,35 @@ export function Header() {
                               <span>{entity.name}</span>
                             </Link>
                           ))}
+                        </div>
+                      )}
+
+                      {isWardrobe && (
+                        <div className="pl-8 space-y-1 mt-1 mb-2">
+                          <Link
+                            href="/wardrobe"
+                            onClick={closeMenu}
+                            className="flex items-center space-x-3 py-2 text-sm font-medium text-[#00132d]/60 hover:text-[#00132d] transition-colors"
+                          >
+                            <ArchiveBoxIcon className="h-4 w-4" />
+                            <span>Complete Wardrobe</span>
+                          </Link>
+                          <Link
+                            href="/wardrobe?tab=anteroom"
+                            onClick={closeMenu}
+                            className="flex items-center space-x-3 py-2 text-sm font-medium text-[#00132d]/60 hover:text-[#00132d] transition-colors"
+                          >
+                            <div className="relative">
+                              <ClockIcon className="h-4 w-4" />
+                              {anteroomCount > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-1.5 w-1.5">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary"></span>
+                                </span>
+                              )}
+                            </div>
+                            <span>Anteroom</span>
+                          </Link>
                         </div>
                       )}
                     </div>

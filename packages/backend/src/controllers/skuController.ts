@@ -1052,6 +1052,7 @@ export class SKUController {
                     return item;
                 });
 
+                console.log('Final Grouped Results Count:', skus.length);
                 res.json({ skus });
             } else {
                 // parentsOnly=false: return all without grouping
@@ -1100,6 +1101,7 @@ export class SKUController {
                     return item;
                 });
 
+                console.log('Returning Non-Grouped Results Count:', skus.length);
                 res.json({ skus });
             }
 

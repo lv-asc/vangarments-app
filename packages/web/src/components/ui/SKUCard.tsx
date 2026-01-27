@@ -32,6 +32,8 @@ function stripColorSuffix(name: string): string {
 export default function SKUCard({ item, layout = 'list' }: SKUCardProps) {
     const [showVariants, setShowVariants] = useState(false);
 
+    if (!item) return null;
+
     const brandName = item.brand?.name || item.brand?.brand || 'Unknown Brand';
     const brandSlug = item.brand?.slug || slugify(brandName);
     const categoryName = item.category?.page || (typeof item.category === 'string' ? item.category : 'Item');

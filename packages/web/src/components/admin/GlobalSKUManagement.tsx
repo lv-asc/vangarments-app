@@ -15,6 +15,7 @@ import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 import { ImageTagEditor } from '@/components/tagging';
 import { getImageUrl } from '@/lib/utils';
+import ItemsFilter, { ItemsFilters } from '@/components/common/ItemsFilter';
 
 const countryFlags: Record<string, string> = {
     "United States": "🇺🇸", "Germany": "🇩🇪", "Brazil": "🇧🇷", "Italy": "🇮🇹", "France": "🇫🇷", "Japan": "🇯🇵",
@@ -53,56 +54,12 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
-    const [selectedBrand, setSelectedBrand] = useState(brandId || '');
 
     // New filters
-    const [filters, setFilters] = useState({
-        nationality: '',
-        subcategory1Id: '',
-        subcategory2Id: '',
-        subcategory3Id: '',
-        apparelId: '',
-        colorId: '',
-        sizeId: '',
-        materialId: '',
-        patternId: '',
-        genderId: '',
-        styleId: '',
-        fitId: '',
-        collection: '',
-        lineId: ''
+    const [filters, setFilters] = useState<ItemsFilters>({
+        brandId: brandId || undefined
     });
 
-    const [expandedFilterGroups, setExpandedFilterGroups] = useState<Record<string, boolean>>({
-        gender: false, colors: false, sizes: false, fits: false, styles: false, materials: false, patterns: false
-    });
-
-    const [showMobileFilters, setShowMobileFilters] = useState(false);
-
-    const handleFilterChange = (key: string, value: any) => {
-        setFilters(prev => {
-            const next = { ...prev, [key]: value };
-            if (key === 'subcategory1Id') {
-                next.subcategory2Id = ''; next.subcategory3Id = ''; next.apparelId = '';
-            } else if (key === 'subcategory2Id') {
-                next.subcategory3Id = ''; next.apparelId = '';
-            } else if (key === 'subcategory3Id') {
-                next.apparelId = '';
-            }
-            return next;
-        });
-    };
-
-    const handleMultiFilterChange = (key: string, value: string) => {
-        setFilters(prev => {
-            const current = (prev as any)[key] || '';
-            const values = current ? current.split(',') : [];
-            const newValues = values.includes(value)
-                ? values.filter((v: string) => v !== value)
-                : [...values, value];
-            return { ...prev, [key]: newValues.join(',') };
-        });
-    };
 
 
     // VUFS Data Options
@@ -239,12 +196,13 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
 
     useEffect(() => {
         fetchAllVUFSData();
-        fetchSkus();
     }, []);
 
+    // Fetch SKUs when page, search, or filters change
     useEffect(() => {
         fetchSkus();
-    }, [page, search, selectedBrand, filters]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, search, filters]);
 
     // Handle clicking outside of dropdowns to close them
     useEffect(() => {
@@ -620,14 +578,15 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
                 page,
                 limit: 20,
                 search,
-                brandId: selectedBrand,
+                brandId: filters.brandId,
                 ...filters
             });
-            setSkus(res.skus);
-            setTotalPages(res.totalPages);
-        } catch (error) {
+            setSkus(res.skus || []);
+            setTotalPages(res.totalPages || 1);
+        } catch (error: any) {
             console.error('Failed to fetch SKUs', error);
-            toast.error('Failed to load SKUs');
+            setSkus([]);
+            toast.error(error.message || 'Failed to fetch SKUs');
         } finally {
             setLoading(false);
         }
@@ -658,15 +617,16 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
         }
     };
 
+    // Fetch lines/collections when brand changes
     useEffect(() => {
-        if (selectedBrand) {
-            fetchLines(selectedBrand);
-            fetchCollections(selectedBrand);
+        if (filters.brandId && !filters.brandId.includes(',')) {
+            fetchLines(filters.brandId);
+            fetchCollections(filters.brandId);
         } else {
             setLines([]);
             setCollections([]);
         }
-    }, [selectedBrand]);
+    }, [filters.brandId]);
 
     // Category Hierarchy Logic
 
@@ -752,8 +712,6 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
         });
     };
 
-
-    // Toggle expansion of a SKU group
     const toggleGroupExpansion = (skuId: string) => {
         setExpandedGroups(prev => {
             const next = new Set(prev);
@@ -765,6 +723,8 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
             return next;
         });
     };
+
+
 
 
     const fetchRelatedVariants = async (sku: any) => {
@@ -1443,9 +1403,9 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
         try {
             const res = await apiClient.getDeletedSKUs({ search });
             setDeletedSkus(res.skus || []);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch deleted SKUs', error);
-            toast.error('Failed to load trash');
+            toast.error(error.message || 'Failed to load trash');
         } finally {
             setTrashLoading(false);
         }
@@ -1523,1753 +1483,1520 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
         fetchDeletedSkus();
     }, [search]);
 
-    const FilterSection = ({ title, groupKey, items, filterKey, icon: Icon, labelKey = 'name', idKey = 'id' }: any) => {
-        const isExpanded = expandedFilterGroups[groupKey];
-        const selectedValues = (filters as any)[filterKey]?.split(',').filter(Boolean) || [];
 
-        return (
-            <div className="border-b border-gray-100 py-3">
-                <button
-                    onClick={() => setExpandedFilterGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
-                    className="flex items-center justify-between w-full text-xs font-bold text-gray-900 mb-2 uppercase tracking-wider group"
-                >
-                    <div className="flex items-center gap-2">
-                        {Icon && <Icon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />}
-                        {title}
-                        {selectedValues.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-900 text-white rounded-full font-bold">
-                                {selectedValues.length}
-                            </span>
-                        )}
-                    </div>
-                    <ChevronDownIcon className={`h-4 w-4 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-                </button>
-                {isExpanded && (
-                    <div className="space-y-1 mt-2 max-h-60 overflow-y-auto pr-2">
-                        {items.map((item: any) => {
-                            const id = item[idKey];
-                            const label = item[labelKey];
-                            const isSelected = selectedValues.includes(id);
-                            const image = item.logo || item.swatchUrl || item.iconUrl || item.coverImageUrl;
-                            const color = item.hex;
-                            return (
-                                <button
-                                    key={id}
-                                    onClick={() => handleMultiFilterChange(filterKey, id)}
-                                    className={`flex items-center w-full px-2 py-1.5 rounded-md text-sm transition-colors ${isSelected
-                                        ? 'bg-gray-100 text-gray-900 font-semibold'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-left'
-                                        }`}
-                                >
-                                    <div className={`w-4 h-4 rounded border mr-2 flex-shrink-0 flex items-center justify-center ${isSelected ? 'bg-gray-900 border-gray-900' : 'border-gray-300'}`}>
-                                        {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-grow min-w-0">
-                                        {image ? (
-                                            <div className="h-5 w-5 rounded overflow-hidden flex-shrink-0 bg-white border border-gray-100 flex items-center justify-center p-0.5">
-                                                <img src={image} alt="" className="h-full w-full object-contain" />
-                                            </div>
-                                        ) : color ? (
-                                            <div className="h-4 w-4 rounded-full flex-shrink-0 border border-gray-200 shadow-sm" style={{ backgroundColor: color }} />
-                                        ) : null}
-                                        <span className="truncate">{label}</span>
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="relative w-full md:w-[400px]">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                        type="text"
-                        className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all sm:text-sm shadow-inner"
-                        placeholder="Search SKUs by name, code, brand or category..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                </div>
-                <div className="flex items-center gap-3">
-                    <Button
-                        variant="ghost"
-                        onClick={() => {
-                            setFilters({
-                                nationality: '', subcategory1Id: '', subcategory2Id: '', subcategory3Id: '',
-                                apparelId: '', colorId: '', sizeId: '', materialId: '', patternId: '',
-                                genderId: '', styleId: '', fitId: '', collection: '', lineId: ''
-                            });
-                            setSearch(''); setSelectedBrand('');
-                        }}
-                        className="text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-                    >
-                        <XMarkIcon className="h-4 w-4 mr-2" />
-                        Clear All
-                    </Button>
-                    {!showTrash && (
-                        <Link href={`/admin/skus/create${selectedBrand ? `?brandId=${selectedBrand}` : ''}`}>
-                            <Button className="shadow-md">
-                                <PlusIcon className="h-5 w-5 mr-2" />
-                                New SKU
-                            </Button>
-                        </Link>
-                    )}
-                </div>
-            </div>
-
-            {/* Main Filters Bar (Top-related) */}
-            <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 items-end">
-                {!brandId && (
-                    <SearchableCombobox
-                        label="Brand"
-                        value={vufsBrands.find(b => b.id === selectedBrand)?.name || ''}
-                        onChange={(name) => {
-                            const brand = vufsBrands.find(b => b.name === name);
-                            setSelectedBrand(brand?.id || '');
-                        }}
-                        options={vufsBrands.map(b => ({ ...b, image: b.logo }))}
-                        placeholder="All Brands"
-                    />
+        <ItemsFilter
+            filters={filters}
+            onChange={setFilters}
+            lockedFilters={brandId ? { brandId } : {}}
+            searchQuery={search}
+            onSearchChange={setSearch}
+            className="h-[calc(100vh-64px)]"
+        >
+            <div className="flex justify-end mb-4">
+                {!showTrash && (
+                    <Link href={`/admin/skus/create${filters.brandId ? `?brandId=${filters.brandId}` : ''}`}>
+                        <Button className="">
+                            <PlusIcon className="h-5 w-5 mr-2" />
+                            New SKU
+                        </Button>
+                    </Link>
                 )}
-                <SearchableCombobox
-                    label="Nationality"
-                    value={nationalities.find(n => n.id === filters.nationality)?.name || ''}
-                    onChange={(name) => {
-                        const nat = nationalities.find(n => n.name === name);
-                        handleFilterChange('nationality', nat?.id || '');
-                    }}
-                    options={nationalities}
-                    placeholder="All Nationalities"
-                />
-                <SearchableCombobox
-                    label="Line"
-                    value={lines.find(l => l.id === filters.lineId)?.name || ''}
-                    onChange={(name) => {
-                        const line = lines.find(l => l.name === name);
-                        handleFilterChange('lineId', line?.id || '');
-                    }}
-                    options={lines}
-                    placeholder="All Lines"
-                />
-                <SearchableCombobox
-                    label="Collection"
-                    value={collections.find(c => c.id === filters.collection)?.name || ''}
-                    onChange={(name) => {
-                        const collection = collections.find(c => c.name === name);
-                        handleFilterChange('collection', collection?.id || '');
-                    }}
-                    options={collections}
-                    placeholder="All Collections"
-                />
-                <SearchableCombobox
-                    label="Department"
-                    value={subcategories1.find(s => s.id === filters.subcategory1Id)?.name || ''}
-                    onChange={(name) => {
-                        const sub = subcategories1.find(s => s.name === name);
-                        handleFilterChange('subcategory1Id', sub?.id || '');
-                    }}
-                    options={subcategories1}
-                    placeholder="All Departments"
-                />
-                <SearchableCombobox
-                    label="Category"
-                    value={subcategories2.find(s => s.id === filters.subcategory2Id)?.name || ''}
-                    onChange={(name) => {
-                        const sub = subcategories2.find(s => s.name === name);
-                        handleFilterChange('subcategory2Id', sub?.id || '');
-                    }}
-                    options={subcategories2.filter(s => filters.subcategory1Id ? s.parentId === filters.subcategory1Id : true)}
-                    placeholder="All Categories"
-                />
-                <SearchableCombobox
-                    label="Subcategory"
-                    value={subcategories3.find(s => s.id === filters.subcategory3Id)?.name || ''}
-                    onChange={(name) => {
-                        const sub = subcategories3.find(s => s.name === name);
-                        handleFilterChange('subcategory3Id', sub?.id || '');
-                    }}
-                    options={subcategories3.filter(s => filters.subcategory2Id ? s.parentId === filters.subcategory2Id : true)}
-                    placeholder="All Subcategories"
-                />
-                <SearchableCombobox
-                    label="Apparel"
-                    value={apparels.find(a => a.id === filters.apparelId)?.name || ''}
-                    onChange={(name) => {
-                        const item = apparels.find(a => a.name === name);
-                        handleFilterChange('apparelId', item?.id || '');
-                    }}
-                    options={apparels.filter(a => filters.subcategory3Id ? a.parentId === filters.subcategory3Id : true)}
-                    placeholder="All Apparels"
-                />
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-8 mt-6">
-                {/* Fixed Sidebar */}
-                <aside className="w-full lg:w-64 flex-shrink-0 space-y-2 border-r border-gray-100 pr-6">
-                    <div className="sticky top-24 space-y-1">
-                        <div className="pb-4 border-b border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                <AdjustmentsHorizontalIcon className="h-5 w-5 text-gray-500" />
-                                Filters
-                            </h3>
-                        </div>
-
-                        <FilterSection
-                            title="Genders"
-                            groupKey="gender"
-                            items={genders}
-                            filterKey="genderId"
-                            icon={UsersIcon}
-                        />
-
-                        <FilterSection
-                            title="Sizes"
-                            groupKey="sizes"
-                            items={sizes}
-                            filterKey="sizeId"
-                            icon={VariableIcon}
-                        />
-
-                        <FilterSection
-                            title="Fits"
-                            groupKey="fits"
-                            items={fits}
-                            filterKey="fitId"
-                            icon={AdjustmentsHorizontalIcon}
-                        />
-
-                        <FilterSection
-                            title="Styles"
-                            groupKey="styles"
-                            items={styles}
-                            filterKey="styleId"
-                            icon={TagIcon}
-                        />
-
-                        <FilterSection
-                            title="Materials"
-                            groupKey="materials"
-                            items={materials}
-                            filterKey="materialId"
-                            icon={SparklesIcon}
-                        />
-
-                        <FilterSection
-                            title="Patterns"
-                            groupKey="patterns"
-                            items={patterns}
-                            filterKey="patternId"
-                            icon={Square3Stack3DIcon}
-                        />
-
-                        <FilterSection
-                            title="Colors"
-                            groupKey="colors"
-                            items={colors}
-                            filterKey="colorId"
-                            icon={SwatchIcon}
-                        />
-                    </div>
-                </aside>
-
-                {/* Content Area */}
-                <div className="flex-grow space-y-6">
-                    {/* View Tabs */}
-                    <div className="flex gap-2 border-b border-gray-200 pb-2">
-                        <button
-                            onClick={() => setShowTrash(false)}
-                            className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${!showTrash
-                                ? 'bg-white border-b-2 border-blue-500 text-blue-600'
-                                : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
-                            Active SKUs
-                        </button>
-                        <button
-                            onClick={() => setShowTrash(true)}
-                            className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${showTrash
-                                ? 'bg-white border-b-2 border-red-500 text-red-600'
-                                : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
-                            <TrashIcon className="h-4 w-4 inline mr-1" />
-                            Trash ({deletedSkus.length})
-                        </button>
-                    </div>
-
-                    {/* Active SKUs List */}
-                    {!showTrash && (
-                        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                            <ul className="divide-y divide-gray-200">
-                                {groupedSkus.map(sku => (
-                                    <React.Fragment key={sku.id}>
-                                        {/* Parent SKU Row */}
-                                        <li className="block hover:bg-gray-50">
-                                            <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
-                                                <div className="flex items-center gap-4">
-                                                    {/* Expand/Collapse Button (only if has variants) */}
-                                                    {sku.variants && sku.variants.length > 0 ? (
-                                                        <button
-                                                            onClick={() => toggleGroupExpansion(sku.id)}
-                                                            className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
-                                                        >
-                                                            <svg
-                                                                className={`h-5 w-5 transition-transform ${expandedGroups.has(sku.id) ? 'rotate-90' : ''}`}
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                            </svg>
-                                                        </button>
-                                                    ) : (
-                                                        <div className="w-7" /> /* Spacer */
-                                                    )}
-                                                    {/* Image Thumbnail */}
-                                                    <div className="h-32 w-32 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 relative">
-                                                        {sku.images?.[0]?.url ? (
-                                                            <>
-                                                                <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
-                                                                {sku.images[0].labelId && (
-                                                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white px-1 py-0.5 truncate text-center leading-tight">
-                                                                        {mediaLabels.find(l => l.id === sku.images[0].labelId)?.name || 'Label'}
-                                                                    </div>
-                                                                )}
-                                                            </>
-                                                        ) : sku.collectionInfo?.coverImage ? (
-                                                            <img src={sku.collectionInfo.coverImage} alt={sku.name} className="h-full w-full object-cover opacity-80" />
-                                                        ) : (
-                                                            <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                                <MagnifyingGlassIcon className="h-10 w-10" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <Link
-                                                                href={`/items/${slugify(sku.code)}`}
-                                                                className="text-lg font-bold text-blue-600 truncate hover:underline"
-                                                            >
-                                                                {sku.name}
-                                                            </Link>
-                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                                {sku.code}
-                                                            </span>
-                                                            {sku.variants && sku.variants.length > 0 && (
-                                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                                                    {sku.variants.length} Variant{sku.variants.length !== 1 ? 's' : ''}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
-                                                            {sku.brand?.name && (
-                                                                <span className="flex items-center gap-1">
-                                                                    {sku.brand.logo && (
-                                                                        <img src={sku.brand.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                                                    )}
-                                                                    Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
-                                                                </span>
-                                                            )}
-                                                            {(sku.lineInfo?.name || sku.line) && (
-                                                                <span className="flex items-center gap-1">
-                                                                    {sku.lineInfo?.logo && (
-                                                                        <img src={sku.lineInfo.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                                                    )}
-                                                                    Line: <span className="font-medium text-gray-900">{sku.lineInfo?.name || sku.line}</span>
-                                                                </span>
-                                                            )}
-                                                            {sku.collection && (
-                                                                <span className="flex items-center gap-1">
-                                                                    {sku.collectionInfo?.coverImage && (
-                                                                        <img src={sku.collectionInfo.coverImage} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                                                    )}
-                                                                    Collection: <span className="font-medium text-gray-900">{sku.collection}</span>
-                                                                </span>
-                                                            )}
-
-                                                            {sku.retailPriceBrl && (
-                                                                <span>
-                                                                    R$ <span className="font-medium text-gray-900">{Number(sku.retailPriceBrl).toFixed(2)}</span>
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {/* Show edit button for virtual parents */}
-                                                    {sku.isVirtualParent && (
-                                                        <>
-                                                            <Link
-                                                                href={`/admin/skus/${sku.id}`}
-                                                                className="p-2 text-blue-500 hover:text-blue-700"
-                                                                title="Edit parent (updates all variants)"
-                                                            >
-                                                                <PencilIcon className="h-5 w-5" />
-                                                            </Link>
-                                                            <button
-                                                                onClick={() => handleDelete(sku.id)}
-                                                                className="p-2 text-red-500 hover:text-red-700"
-                                                                title="Delete parent and all variants"
-                                                            >
-                                                                <TrashIcon className="h-5 w-5" />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                    {/* Show edit/delete for real SKUs, not virtual parents */}
-                                                    {!sku.isVirtualParent && (
-                                                        <>
-                                                            <Link href={`/admin/skus/${sku.code || sku.id}`} className="p-2 text-blue-500 hover:text-blue-700">
-                                                                <PencilIcon className="h-5 w-5" />
-                                                            </Link>
-                                                            <button onClick={() => handleDelete(sku.id)} className="p-2 text-red-500 hover:text-red-700">
-                                                                <TrashIcon className="h-5 w-5" />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </li>
-                                        {/* Variant Rows (when expanded) */}
-                                        {sku.variants && sku.variants.length > 0 && expandedGroups.has(sku.id) && (
-                                            sku.variants.map((variant: any) => (
-                                                <li key={variant.id} className="block hover:bg-blue-50/50 bg-gray-50 border-l-4 border-blue-200">
-                                                    <div className="px-4 py-3 sm:px-6 flex items-center justify-between pl-20">
-                                                        <div className="flex items-center gap-4">
-                                                            {/* Variant Image Thumbnail */}
-                                                            <div className="h-16 w-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200">
-                                                                {variant.images?.[0]?.url ? (
-                                                                    <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
-                                                                ) : sku.collectionInfo?.coverImage ? (
-                                                                    <img src={sku.collectionInfo.coverImage} alt={variant.name} className="h-full w-full object-cover opacity-60" />
-                                                                ) : (
-                                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                                        <MagnifyingGlassIcon className="h-6 w-6" />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <p className="text-sm text-gray-700 truncate">{getVariantDisplayName(variant, sku.variants)}</p>
-                                                                    <span className="px-1.5 inline-flex text-xs leading-5 font-medium rounded bg-gray-100 text-gray-600">
-                                                                        {variant.code}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <button onClick={() => handleDelete(variant.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete variant">
-                                                                <TrashIcon className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </li>
-                                            ))
-                                        )}
-                                    </React.Fragment>
-                                ))}
-                                {groupedSkus.length === 0 && !loading && (
-                                    <li className="px-4 py-8 text-center text-gray-500">
-                                        No SKUs found.
-                                    </li>
-                                )}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Trash List */}
-                    {showTrash && (
-                        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                            <ul className="divide-y divide-gray-200">
-                                {groupedDeletedSkus.map(sku => (
-                                    <React.Fragment key={sku.id}>
-                                        <li className="block hover:bg-gray-50 bg-red-50/30">
-                                            <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
-                                                <div className="flex items-center gap-4">
-                                                    {/* Expand Button for Parents with Variants */}
-                                                    {sku.variants && sku.variants.length > 0 ? (
-                                                        <button
-                                                            onClick={() => toggleTrashGroupExpansion(sku.id)}
-                                                            className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
-                                                        >
-                                                            <svg
-                                                                className={`h-5 w-5 transition-transform ${expandedTrashGroups.has(sku.id) ? 'rotate-90' : ''}`}
-                                                                fill="none"
-                                                                viewBox="0 0 24 24"
-                                                                stroke="currentColor"
-                                                            >
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                            </svg>
-                                                        </button>
-                                                    ) : (
-                                                        <div className="w-7"></div>
-                                                    )}
-
-                                                    <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 opacity-60">
-                                                        {sku.images?.[0]?.url ? (
-                                                            <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
-                                                        ) : (
-                                                            <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                                <MagnifyingGlassIcon className="h-6 w-6" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-sm font-medium text-gray-600 truncate line-through">{sku.name}</p>
-                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                                                Deleted
-                                                            </span>
-                                                            {sku.variants && sku.variants.length > 0 && (
-                                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-600">
-                                                                    {sku.variants.length} Variants
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="mt-1 text-xs text-gray-400">
-                                                            {sku.code} • {sku.brand?.name || 'Unknown Brand'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => handleRestore(sku.id)}
-                                                        className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
-                                                        title={sku.variants?.length > 0 ? "Restore Group" : "Restore"}
-                                                    >
-                                                        <ArrowPathIcon className="h-5 w-5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handlePermanentDelete(sku.id)}
-                                                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                                                        title={sku.variants?.length > 0 ? "Permanently Delete Group" : "Permanently Delete"}
-                                                    >
-                                                        <TrashIcon className="h-5 w-5" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </li>
-                                        {/* Variants */}
-                                        {sku.variants && sku.variants.length > 0 && expandedTrashGroups.has(sku.id) && (
-                                            sku.variants.map((variant: any) => (
-                                                <li key={variant.id} className="block hover:bg-gray-50 bg-red-50/10 border-l-4 border-red-200 ml-0 pl-14">
-                                                    <div className="px-4 py-2 sm:px-6 flex items-center justify-between">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="h-8 w-8 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-200 opacity-60">
-                                                                {variant.images?.[0]?.url ? (
-                                                                    <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
-                                                                ) : (
-                                                                    <div className="h-full w-full flex items-center justify-center text-gray-400">
-                                                                        <MagnifyingGlassIcon className="h-4 w-4" />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <p className="text-sm font-medium text-gray-500 truncate line-through">{variant.name}</p>
-                                                                </div>
-                                                                <div className="text-xs text-gray-400">
-                                                                    {variant.code}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <button
-                                                                onClick={() => handleRestore(variant.id)}
-                                                                className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
-                                                                title="Restore Variant"
-                                                            >
-                                                                <ArrowPathIcon className="h-4 w-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handlePermanentDelete(variant.id)}
-                                                                className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                                                                title="Permanently Delete Variant"
-                                                            >
-                                                                <TrashIcon className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </li>
-                                            ))
-                                        )}
-                                    </React.Fragment>
-                                ))}
-                                {deletedSkus.length === 0 && !trashLoading && (
-                                    <li className="px-4 py-8 text-center text-gray-500">
-                                        Trash is empty.
-                                    </li>
-                                )}
-                            </ul>
-                        </div>
-                    )}
+            <div className="space-y-6">
+                {/* View Tabs */}
+                <div className="flex gap-2 pb-2">
+                    <button
+                        onClick={() => setShowTrash(false)}
+                        className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${!showTrash
+                            ? 'bg-white border-b-2 border-blue-500 text-blue-600'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        Active SKUs
+                    </button>
+                    <button
+                        onClick={() => setShowTrash(true)}
+                        className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${showTrash
+                            ? 'bg-white border-b-2 border-red-500 text-red-600'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <TrashIcon className="h-4 w-4 inline mr-1" />
+                        Trash ({deletedSkus.length})
+                    </button>
                 </div>
+
+                {/* Active SKUs List */}
+                {!showTrash && (
+                    <div className="bg-transparent overflow-hidden">
+                        <ul className="space-y-4">
+                            {groupedSkus.map(sku => (
+                                <React.Fragment key={sku.id}>
+                                    {/* Parent SKU Row */}
+                                    <li className="block hover:bg-gray-50 bg-white rounded-xl transition-all duration-200 mb-2">
+                                        <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                {/* Expand/Collapse Button (only if has variants) */}
+                                                {sku.variants && sku.variants.length > 0 ? (
+                                                    <button
+                                                        onClick={() => toggleGroupExpansion(sku.id)}
+                                                        className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
+                                                    >
+                                                        <svg
+                                                            className={`h-5 w-5 transition-transform ${expandedGroups.has(sku.id) ? 'rotate-90' : ''}`}
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    </button>
+                                                ) : (
+                                                    <div className="w-7" /> /* Spacer */
+                                                )}
+                                                {/* Image Thumbnail */}
+                                                <div className="h-32 w-32 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden relative">
+                                                    {sku.images?.[0]?.url ? (
+                                                        <>
+                                                            <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                                            {sku.images[0].labelId && (
+                                                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] text-white px-1 py-0.5 truncate text-center leading-tight">
+                                                                    {mediaLabels.find(l => l.id === sku.images[0].labelId)?.name || 'Label'}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    ) : sku.collectionInfo?.coverImage ? (
+                                                        <img src={sku.collectionInfo.coverImage} alt={sku.name} className="h-full w-full object-cover opacity-80" />
+                                                    ) : (
+                                                        <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                            <MagnifyingGlassIcon className="h-10 w-10" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Link
+                                                            href={`/items/${slugify(sku.code)}`}
+                                                            className="text-lg font-bold text-blue-600 truncate hover:underline"
+                                                        >
+                                                            {sku.name}
+                                                        </Link>
+                                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                            {sku.code}
+                                                        </span>
+                                                        {sku.variants && sku.variants.length > 0 && (
+                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                                                {sku.variants.length} Variant{sku.variants.length !== 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="mt-1 flex items-center gap-4 text-sm text-gray-500">
+                                                        {sku.brand?.name && (
+                                                            <span className="flex items-center gap-1">
+                                                                {sku.brand.logo && (
+                                                                    <img src={sku.brand.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                                )}
+                                                                Brand: <span className="font-medium text-gray-900">{sku.brand.name}</span>
+                                                            </span>
+                                                        )}
+                                                        {(sku.lineInfo?.name || sku.line) && (
+                                                            <span className="flex items-center gap-1">
+                                                                {sku.lineInfo?.logo && (
+                                                                    <img src={sku.lineInfo.logo} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                                )}
+                                                                Line: <span className="font-medium text-gray-900">{sku.lineInfo?.name || sku.line}</span>
+                                                            </span>
+                                                        )}
+                                                        {sku.collection && (
+                                                            <span className="flex items-center gap-1">
+                                                                {sku.collectionInfo?.coverImage && (
+                                                                    <img src={sku.collectionInfo.coverImage} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                                                )}
+                                                                Collection: <span className="font-medium text-gray-900">{sku.collection}</span>
+                                                            </span>
+                                                        )}
+
+                                                        {sku.retailPriceBrl && (
+                                                            <span>
+                                                                R$ <span className="font-medium text-gray-900">{Number(sku.retailPriceBrl).toFixed(2)}</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {/* Show edit button for virtual parents */}
+                                                {sku.isVirtualParent && (
+                                                    <>
+                                                        <Link
+                                                            href={`/admin/skus/${sku.id}`}
+                                                            className="p-2 text-blue-500 hover:text-blue-700"
+                                                            title="Edit parent (updates all variants)"
+                                                        >
+                                                            <PencilIcon className="h-5 w-5" />
+                                                        </Link>
+                                                        <button
+                                                            onClick={() => handleDelete(sku.id)}
+                                                            className="p-2 text-red-500 hover:text-red-700"
+                                                            title="Delete parent and all variants"
+                                                        >
+                                                            <TrashIcon className="h-5 w-5" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {/* Show edit/delete for real SKUs, not virtual parents */}
+                                                {!sku.isVirtualParent && (
+                                                    <>
+                                                        <Link href={`/admin/skus/${sku.code || sku.id}`} className="p-2 text-blue-500 hover:text-blue-700">
+                                                            <PencilIcon className="h-5 w-5" />
+                                                        </Link>
+                                                        <button onClick={() => handleDelete(sku.id)} className="p-2 text-red-500 hover:text-red-700">
+                                                            <TrashIcon className="h-5 w-5" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </li>
+                                    {/* Variant Rows (when expanded) */}
+                                    {sku.variants && sku.variants.length > 0 && expandedGroups.has(sku.id) && (
+                                        sku.variants.map((variant: any) => (
+                                            <li key={variant.id} className="block hover:bg-blue-50/50 bg-gray-50/50 rounded-md mt-1">
+                                                <div className="px-4 py-3 sm:px-6 flex items-center justify-between pl-20">
+                                                    <div className="flex items-center gap-4">
+                                                        {/* Variant Image Thumbnail */}
+                                                        <div className="h-16 w-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
+                                                            {variant.images?.[0]?.url ? (
+                                                                <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
+                                                            ) : sku.collectionInfo?.coverImage ? (
+                                                                <img src={sku.collectionInfo.coverImage} alt={variant.name} className="h-full w-full object-cover opacity-60" />
+                                                            ) : (
+                                                                <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                                    <MagnifyingGlassIcon className="h-6 w-6" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-sm text-gray-700 truncate">{getVariantDisplayName(variant, sku.variants)}</p>
+                                                                <span className="px-1.5 inline-flex text-xs leading-5 font-medium rounded bg-gray-100 text-gray-600">
+                                                                    {variant.code}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => handleDelete(variant.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete variant">
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        ))
+                                    )}
+                                </React.Fragment>
+                            ))}
+                            {groupedSkus.length === 0 && !loading && (
+                                <li className="px-4 py-8 text-center text-gray-500">
+                                    No SKUs found.
+                                </li>
+                            )}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Trash List */}
+                {showTrash && (
+                    <div className="bg-transparent overflow-hidden">
+                        <ul className="space-y-4">
+                            {groupedDeletedSkus.map(sku => (
+                                <React.Fragment key={sku.id}>
+                                    <li className="block hover:bg-gray-50 bg-red-50/30">
+                                        <div className="px-4 py-4 sm:px-6 flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                {/* Expand Button for Parents with Variants */}
+                                                {sku.variants && sku.variants.length > 0 ? (
+                                                    <button
+                                                        onClick={() => toggleTrashGroupExpansion(sku.id)}
+                                                        className="p-1 text-gray-400 hover:text-gray-600 transition-transform"
+                                                    >
+                                                        <svg
+                                                            className={`h-5 w-5 transition-transform ${expandedTrashGroups.has(sku.id) ? 'rotate-90' : ''}`}
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    </button>
+                                                ) : (
+                                                    <div className="w-7"></div>
+                                                )}
+
+                                                <div className="h-12 w-12 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden opacity-60">
+                                                    {sku.images?.[0]?.url ? (
+                                                        <img src={sku.images[0].url} alt={sku.name} className="h-full w-full object-cover" />
+                                                    ) : (
+                                                        <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                            <MagnifyingGlassIcon className="h-6 w-6" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-sm font-medium text-gray-600 truncate line-through">{sku.name}</p>
+                                                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                                            Deleted
+                                                        </span>
+                                                        {sku.variants && sku.variants.length > 0 && (
+                                                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-600">
+                                                                {sku.variants.length} Variants
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="mt-1 text-xs text-gray-400">
+                                                        {sku.code} • {sku.brand?.name || 'Unknown Brand'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => handleRestore(sku.id)}
+                                                    className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                                                    title={sku.variants?.length > 0 ? "Restore Group" : "Restore"}
+                                                >
+                                                    <ArrowPathIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handlePermanentDelete(sku.id)}
+                                                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                                    title={sku.variants?.length > 0 ? "Permanently Delete Group" : "Permanently Delete"}
+                                                >
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    {/* Variants */}
+                                    {sku.variants && sku.variants.length > 0 && expandedTrashGroups.has(sku.id) && (
+                                        sku.variants.map((variant: any) => (
+                                            <li key={variant.id} className="block hover:bg-gray-50 bg-red-50/5 rounded-md mt-1 ml-0 pl-14">
+                                                <div className="px-4 py-2 sm:px-6 flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="h-8 w-8 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden opacity-60">
+                                                            {variant.images?.[0]?.url ? (
+                                                                <img src={variant.images[0].url} alt={variant.name} className="h-full w-full object-cover" />
+                                                            ) : (
+                                                                <div className="h-full w-full flex items-center justify-center text-gray-400">
+                                                                    <MagnifyingGlassIcon className="h-4 w-4" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-sm font-medium text-gray-500 truncate line-through">{variant.name}</p>
+                                                            </div>
+                                                            <div className="text-xs text-gray-400">
+                                                                {variant.code}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => handleRestore(variant.id)}
+                                                            className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                                                            title="Restore Variant"
+                                                        >
+                                                            <ArrowPathIcon className="h-4 w-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePermanentDelete(variant.id)}
+                                                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                                            title="Permanently Delete Variant"
+                                                        >
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        ))
+                                    )}
+                                </React.Fragment>
+                            ))}
+                            {deletedSkus.length === 0 && !trashLoading && (
+                                <li className="px-4 py-8 text-center text-gray-500">
+                                    Trash is empty.
+                                </li>
+                            )}
+                        </ul>
+                    </div>
+                )}
             </div>
 
             {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setShowModal(false)}></div>
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-                            <form onSubmit={handleSubmit} className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
-                                    {editMode === 'parent'
-                                        ? `Edit Parent SKU (${editingParentVariants.length} variants)`
-                                        : editMode === 'variant'
-                                            ? 'Edit Variant SKU'
-                                            : 'Create New SKU(s)'}
-                                </h3>
+            {
+                showModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setShowModal(false)}></div>
+                            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+                                <form onSubmit={handleSubmit} className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
+                                        {editMode === 'parent'
+                                            ? `Edit Parent SKU (${editingParentVariants.length} variants)`
+                                            : editMode === 'variant'
+                                                ? 'Edit Variant SKU'
+                                                : 'Create New SKU(s)'}
+                                    </h3>
 
-                                {/* Mode indicator for parent edit */}
-                                {editMode === 'parent' && (
-                                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                                        <p className="text-sm text-blue-800">
-                                            <strong>Parent Edit Mode:</strong> Changes will be applied to all {editingParentVariants.length} variant(s).
-                                            Size, Color, Images and Videos are variant-specific and won't be changed.
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Mode indicator for variant edit */}
-                                {editMode === 'variant' && (
-                                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                                        <p className="text-sm text-amber-800">
-                                            <strong>Variant Edit Mode:</strong> Only Size, Color, Description, Images and Videos can be edited.
-                                            To change other fields, edit the parent SKU.
-                                        </p>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-
-
-
-                                    {/* 1. Brand / Line / Collection Row - Hidden in variant mode */}
-                                    {editMode !== 'variant' && (
-                                        <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                            {/* Brand */}
-                                            <div>
-                                                <SearchableCombobox
-                                                    label="Brand"
-                                                    value={vufsBrands.find(b => b.id === formData.brandId)?.name || ''}
-                                                    onChange={(name) => {
-                                                        const brand = vufsBrands.find(b => b.name === name);
-                                                        setFormData(prev => ({
-                                                            ...prev,
-                                                            brandId: brand?.id || '',
-                                                            lineId: '',
-                                                            collection: ''
-                                                        }));
-                                                    }}
-                                                    options={vufsBrands.map(b => ({ ...b, image: b.logo }))}
-                                                    placeholder="Select Brand..."
-                                                />
-                                            </div>
-
-                                            {/* Line */}
-                                            <div>
-                                                <SearchableCombobox
-                                                    label="Line"
-                                                    value={lines.find(l => l.id === formData.lineId)?.name || ''}
-                                                    onChange={(name) => {
-                                                        const line = lines.find(l => l.name === name);
-                                                        setFormData({ ...formData, lineId: line?.id || '' });
-                                                    }}
-                                                    options={lines.map(l => ({ ...l, image: l.logo }))}
-                                                    placeholder="Select Line (Optional)"
-                                                    disabled={!formData.brandId}
-                                                />
-                                            </div>
-
-                                            {/* Collection */}
-                                            <div>
-                                                <SearchableCombobox
-                                                    label="Collection"
-                                                    value={formData.collection}
-                                                    onChange={(name) => setFormData({ ...formData, collection: name || '' })}
-                                                    options={collections.map(c => ({ ...c, image: getImageUrl(c.coverImageUrl) }))}
-                                                    placeholder="Select Collection (Optional)"
-                                                    disabled={!formData.brandId}
-                                                    freeSolo={true} // Allow new collection names? Maybe not if restricted. But API allows string.
-                                                />
-                                            </div>
+                                    {/* Mode indicator for parent edit */}
+                                    {editMode === 'parent' && (
+                                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                            <p className="text-sm text-blue-800">
+                                                <strong>Parent Edit Mode:</strong> Changes will be applied to all {editingParentVariants.length} variant(s).
+                                                Size, Color, Images and Videos are variant-specific and won't be changed.
+                                            </p>
                                         </div>
                                     )}
 
-                                    {/* 2. Model Name & VUFS Attributes - Hidden in variant mode */}
-                                    {editMode !== 'variant' && (
-                                        <React.Fragment>
-                                            <div className="col-span-2">
-                                                <label className="block text-sm font-medium text-gray-700">Model Name</label>
-                                                <input
-                                                    type="text"
-                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                    value={formData.modelName}
-                                                    onChange={e => setFormData({ ...formData, modelName: e.target.value })}
-                                                />
+                                    {/* Mode indicator for variant edit */}
+                                    {editMode === 'variant' && (
+                                        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                            <p className="text-sm text-amber-800">
+                                                <strong>Variant Edit Mode:</strong> Only Size, Color, Description, Images and Videos can be edited.
+                                                To change other fields, edit the parent SKU.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+
+
+
+                                        {/* 1. Brand / Line / Collection Row - Hidden in variant mode */}
+                                        {editMode !== 'variant' && (
+                                            <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                {/* Brand */}
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Brand"
+                                                        value={vufsBrands.find(b => b.id === formData.brandId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const brand = vufsBrands.find(b => b.name === name);
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                brandId: brand?.id || '',
+                                                                lineId: '',
+                                                                collection: ''
+                                                            }));
+                                                        }}
+                                                        options={vufsBrands.map(b => ({ ...b, image: b.logo }))}
+                                                        placeholder="Select Brand..."
+                                                    />
+                                                </div>
+
+                                                {/* Line */}
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Line"
+                                                        value={lines.find(l => l.id === formData.lineId)?.name || ''}
+                                                        onChange={(name) => {
+                                                            const line = lines.find(l => l.name === name);
+                                                            setFormData({ ...formData, lineId: line?.id || '' });
+                                                        }}
+                                                        options={lines.map(l => ({ ...l, image: l.logo }))}
+                                                        placeholder="Select Line (Optional)"
+                                                        disabled={!formData.brandId}
+                                                    />
+                                                </div>
+
+                                                {/* Collection */}
+                                                <div>
+                                                    <SearchableCombobox
+                                                        label="Collection"
+                                                        value={formData.collection}
+                                                        onChange={(name) => setFormData({ ...formData, collection: name || '' })}
+                                                        options={collections.map(c => ({ ...c, image: getImageUrl(c.coverImageUrl) }))}
+                                                        placeholder="Select Collection (Optional)"
+                                                        disabled={!formData.brandId}
+                                                        freeSolo={true} // Allow new collection names? Maybe not if restricted. But API allows string.
+                                                    />
+                                                </div>
                                             </div>
+                                        )}
 
-                                            {/* 3. Apparel, Style, Pattern, Material, Fit, Gender - Hidden in variant mode */}
-                                            <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <SearchableCombobox
-                                                        label="Apparel"
-                                                        value={apparels.find(c => c.id === formData.apparelId)?.name || ''}
-                                                        onChange={(name) => {
-                                                            const cat = apparels.find(c => c.name === name);
-                                                            setFormData({ ...formData, apparelId: cat?.id || '', styleId: '' });
-                                                        }}
-                                                        options={apparelOptions}
-                                                        placeholder="Select Apparel..."
+                                        {/* 2. Model Name & VUFS Attributes - Hidden in variant mode */}
+                                        {editMode !== 'variant' && (
+                                            <React.Fragment>
+                                                <div className="col-span-2">
+                                                    <label className="block text-sm font-medium text-gray-700">Model Name</label>
+                                                    <input
+                                                        type="text"
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                        value={formData.modelName}
+                                                        onChange={e => setFormData({ ...formData, modelName: e.target.value })}
                                                     />
                                                 </div>
 
-                                                <div>
-                                                    <SearchableCombobox
-                                                        label="Style"
-                                                        value={styles.find(c => c.id === formData.styleId)?.name || ''}
-                                                        onChange={(name) => {
-                                                            const cat = styles.find(c => c.name === name);
-                                                            if (cat) {
-                                                                setFormData(prev => ({
-                                                                    ...prev,
-                                                                    styleId: cat.id,
-                                                                    // Automatically set parent apparel if the found style has one and it matches
-                                                                    // or if we want to enforce reverse-selection (selecting style selects the parent apparel)
-                                                                    apparelId: cat.parentId || prev.apparelId || ''
-                                                                }));
-                                                            } else {
-                                                                setFormData(prev => ({ ...prev, styleId: '' }));
-                                                            }
-                                                        }}
-                                                        options={styleOptions}
-                                                        placeholder="Select Style..."
-                                                        disabled={!formData.apparelId && styleOptions.length === 0}
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <SearchableCombobox
-                                                        label="Pattern"
-                                                        value={patterns.find(p => p.id === formData.patternId)?.name || ''}
-                                                        onChange={(name) => {
-                                                            const item = patterns.find(p => p.name === name);
-                                                            setFormData({ ...formData, patternId: item?.id || '' });
-                                                        }}
-                                                        options={patterns.map(p => ({
-                                                            ...p,
-                                                            icon: React.createElement(getPatternIcon(p.name), { className: 'w-full h-full' })
-                                                        }))}
-                                                        placeholder="Select Pattern..."
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <SearchableCombobox
-                                                        label="Material"
-                                                        value={materials.find(m => m.id === formData.materialId)?.name || ''}
-                                                        onChange={(name) => {
-                                                            const item = materials.find(m => m.name === name);
-                                                            setFormData({ ...formData, materialId: item?.id || '' });
-                                                        }}
-                                                        options={materials}
-                                                        placeholder="Select Material..."
-                                                    />
-                                                </div>
-
-                                                <div>
-                                                    <SearchableCombobox
-                                                        label="Fit"
-                                                        value={fits.find(f => f.id === formData.fitId)?.name || ''}
-                                                        onChange={(name) => {
-                                                            const item = fits.find(f => f.name === name);
-                                                            setFormData({ ...formData, fitId: item?.id || '' });
-                                                        }}
-                                                        options={fits}
-                                                        placeholder="Select Fit..."
-                                                    />
-                                                </div>
-
-
-
-                                                <div>
-                                                    <SearchableCombobox
-                                                        label="Gender"
-                                                        value={genders.find(g => g.id === formData.genderId)?.name || ''}
-                                                        onChange={(name) => {
-                                                            const item = genders.find(g => g.name === name);
-                                                            setFormData({ ...formData, genderId: item?.id || '' });
-                                                        }}
-                                                        options={genders.map(g => ({
-                                                            ...g,
-                                                            icon: React.createElement(getGenderIcon(g.name), { className: 'w-full h-full' })
-                                                        }))}
-                                                        placeholder="Select Gender..."
-                                                    />
-                                                </div>
-
-                                                <div className="col-span-2 border-t pt-6 mt-4">
-                                                    <h4 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider text-xs">Retail Price</h4>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                        <div>
-                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Price (BRL R$)</label>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                placeholder="0.00"
-                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                                value={formData.retailPriceBrl}
-                                                                onChange={e => {
-                                                                    const brl = e.target.value;
-                                                                    const usd = brl ? (Number(brl) / 5.80).toFixed(2) : '';
-                                                                    const eur = brl ? (Number(brl) / 6.10).toFixed(2) : '';
-                                                                    setFormData({ ...formData, retailPriceBrl: brl, retailPriceUsd: usd, retailPriceEur: eur });
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Price (USD $)</label>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                placeholder="0.00"
-                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                                value={formData.retailPriceUsd}
-                                                                onChange={e => setFormData({ ...formData, retailPriceUsd: e.target.value })}
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Price (EUR €)</label>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                placeholder="0.00"
-                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                                value={formData.retailPriceEur}
-                                                                onChange={e => setFormData({ ...formData, retailPriceEur: e.target.value })}
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Release Date */}
-                                                    <div className="col-span-2 sm:col-span-1 mt-4">
-                                                        <label className="block text-xs font-medium text-gray-700 uppercase">Release Date</label>
-                                                        <input
-                                                            type="date"
-                                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                            value={formData.releaseDate}
-                                                            onChange={e => setFormData({ ...formData, releaseDate: e.target.value })}
-                                                        />
-                                                        <p className="mt-1 text-xs text-gray-500">When was this item released or will be released</p>
-                                                    </div>
-
-                                                    {/* Care Instructions */}
-                                                    <div className="col-span-2 mt-4">
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Care Instructions</label>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    // Get care instructions from selected material
-                                                                    const selectedMaterial = materials.find(m => m.id === formData.materialId);
-                                                                    if (selectedMaterial?.careInstructions) {
-                                                                        setFormData({ ...formData, careInstructions: selectedMaterial.careInstructions });
-                                                                    } else if (selectedMaterial?.name) {
-                                                                        // Fallback to default care instructions based on material name
-                                                                        const defaultInstructions: Record<string, string> = {
-                                                                            'cotton': 'Machine wash cold or warm. Tumble dry low or medium. Iron on medium-high heat if needed.',
-                                                                            'linen': 'Machine wash cold or warm. Tumble dry low or hang to dry. Iron while slightly damp on high heat.',
-                                                                            'wool': 'Hand wash cold or dry clean. Lay flat to dry on a towel. Do not wring or twist.',
-                                                                            'silk': 'Hand wash cold or dry clean. Do not wring. Air dry away from sunlight. Iron on low with a pressing cloth.',
-                                                                            'polyester': 'Machine wash warm or cold. Tumble dry low. Remove promptly to avoid wrinkles.',
-                                                                            'denim': 'Machine wash cold inside out. Tumble dry low or hang to dry to preserve color.',
-                                                                            'leather': 'Wipe with damp cloth. Condition regularly with leather conditioner. Store away from heat and sunlight.'
-                                                                        };
-                                                                        const materialKey = selectedMaterial.name.toLowerCase();
-                                                                        const instructions = defaultInstructions[materialKey] || 'Check garment label for specific care instructions.';
-                                                                        setFormData({ ...formData, careInstructions: instructions });
-                                                                    }
-                                                                }}
-                                                                disabled={!formData.materialId}
-                                                                className={`text-xs flex items-center gap-1 ${formData.materialId
-                                                                    ? 'text-indigo-600 hover:text-indigo-800 cursor-pointer'
-                                                                    : 'text-gray-400 cursor-not-allowed'
-                                                                    }`}
-                                                            >
-                                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
-                                                                </svg>
-                                                                Use default based on material
-                                                            </button>
-                                                        </div>
-                                                        <textarea
-                                                            rows={3}
-                                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                                            value={formData.careInstructions}
-                                                            onChange={e => setFormData({ ...formData, careInstructions: e.target.value })}
-                                                            placeholder="How to wash, dry, and maintain this item..."
+                                                {/* 3. Apparel, Style, Pattern, Material, Fit, Gender - Hidden in variant mode */}
+                                                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <SearchableCombobox
+                                                            label="Apparel"
+                                                            value={apparels.find(c => c.id === formData.apparelId)?.name || ''}
+                                                            onChange={(name) => {
+                                                                const cat = apparels.find(c => c.name === name);
+                                                                setFormData({ ...formData, apparelId: cat?.id || '', styleId: '' });
+                                                            }}
+                                                            options={apparelOptions}
+                                                            placeholder="Select Apparel..."
                                                         />
                                                     </div>
 
-                                                    {/* Official Item Link */}
-                                                    <div className="col-span-2 mt-4">
-                                                        <label className="block text-xs font-medium text-gray-700 uppercase">Official Item Link</label>
-                                                        <div className="mt-1 flex rounded-md shadow-sm">
-                                                            <div className="relative flex items-stretch flex-grow focus-within:z-10">
-                                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                                    {formData.officialItemLink ? (
-                                                                        <img
-                                                                            src={`https://www.google.com/s2/favicons?domain=${new URL(formData.officialItemLink.startsWith('http') ? formData.officialItemLink : `https://${formData.officialItemLink}`).hostname}&sz=32`}
-                                                                            alt=""
-                                                                            className="h-4 w-4"
-                                                                            onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /%3E%3C/svg%3E'; }}
-                                                                        />
-                                                                    ) : (
-                                                                        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                                                        </svg>
-                                                                    )}
-                                                                </div>
+                                                    <div>
+                                                        <SearchableCombobox
+                                                            label="Style"
+                                                            value={styles.find(c => c.id === formData.styleId)?.name || ''}
+                                                            onChange={(name) => {
+                                                                const cat = styles.find(c => c.name === name);
+                                                                if (cat) {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        styleId: cat.id,
+                                                                        // Automatically set parent apparel if the found style has one and it matches
+                                                                        // or if we want to enforce reverse-selection (selecting style selects the parent apparel)
+                                                                        apparelId: cat.parentId || prev.apparelId || ''
+                                                                    }));
+                                                                } else {
+                                                                    setFormData(prev => ({ ...prev, styleId: '' }));
+                                                                }
+                                                            }}
+                                                            options={styleOptions}
+                                                            placeholder="Select Style..."
+                                                            disabled={!formData.apparelId && styleOptions.length === 0}
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <SearchableCombobox
+                                                            label="Pattern"
+                                                            value={patterns.find(p => p.id === formData.patternId)?.name || ''}
+                                                            onChange={(name) => {
+                                                                const item = patterns.find(p => p.name === name);
+                                                                setFormData({ ...formData, patternId: item?.id || '' });
+                                                            }}
+                                                            options={patterns.map(p => ({
+                                                                ...p,
+                                                                icon: React.createElement(getPatternIcon(p.name), { className: 'w-full h-full' })
+                                                            }))}
+                                                            placeholder="Select Pattern..."
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <SearchableCombobox
+                                                            label="Material"
+                                                            value={materials.find(m => m.id === formData.materialId)?.name || ''}
+                                                            onChange={(name) => {
+                                                                const item = materials.find(m => m.name === name);
+                                                                setFormData({ ...formData, materialId: item?.id || '' });
+                                                            }}
+                                                            options={materials}
+                                                            placeholder="Select Material..."
+                                                        />
+                                                    </div>
+
+                                                    <div>
+                                                        <SearchableCombobox
+                                                            label="Fit"
+                                                            value={fits.find(f => f.id === formData.fitId)?.name || ''}
+                                                            onChange={(name) => {
+                                                                const item = fits.find(f => f.name === name);
+                                                                setFormData({ ...formData, fitId: item?.id || '' });
+                                                            }}
+                                                            options={fits}
+                                                            placeholder="Select Fit..."
+                                                        />
+                                                    </div>
+
+
+
+                                                    <div>
+                                                        <SearchableCombobox
+                                                            label="Gender"
+                                                            value={genders.find(g => g.id === formData.genderId)?.name || ''}
+                                                            onChange={(name) => {
+                                                                const item = genders.find(g => g.name === name);
+                                                                setFormData({ ...formData, genderId: item?.id || '' });
+                                                            }}
+                                                            options={genders.map(g => ({
+                                                                ...g,
+                                                                icon: React.createElement(getGenderIcon(g.name), { className: 'w-full h-full' })
+                                                            }))}
+                                                            placeholder="Select Gender..."
+                                                        />
+                                                    </div>
+
+                                                    <div className="col-span-2 border-t pt-6 mt-4">
+                                                        <h4 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider text-xs">Retail Price</h4>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (BRL R$)</label>
                                                                 <input
-                                                                    type="url"
-                                                                    className="focus:ring-blue-500 focus:border-blue-500 block w-full rounded-none rounded-l-md pl-10 sm:text-sm border-gray-300"
-                                                                    placeholder="https://brand.com/products/item-slug"
-                                                                    value={formData.officialItemLink}
-                                                                    onChange={e => setFormData({ ...formData, officialItemLink: e.target.value })}
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    placeholder="0.00"
+                                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                    value={formData.retailPriceBrl}
+                                                                    onChange={e => {
+                                                                        const brl = e.target.value;
+                                                                        const usd = brl ? (Number(brl) / 5.80).toFixed(2) : '';
+                                                                        const eur = brl ? (Number(brl) / 6.10).toFixed(2) : '';
+                                                                        setFormData({ ...formData, retailPriceBrl: brl, retailPriceUsd: usd, retailPriceEur: eur });
+                                                                    }}
                                                                 />
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => formData.officialItemLink && window.open(formData.officialItemLink.startsWith('http') ? formData.officialItemLink : `https://${formData.officialItemLink}`, '_blank')}
-                                                                className="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                                            >
-                                                                <span>Test</span>
-                                                            </button>
-                                                        </div>
-                                                        <p className="mt-1 text-xs text-gray-500">Link to the official product page on the brand's website</p>
-                                                    </div>
-
-
-
-                                                    {/* SKU Name Configuration Section */}
-                                                    <div className="col-span-2 border-t pt-6 mt-4">
-                                                        <h4 className="text-sm font-semibold text-gray-900 mb-4">SKU Name Configuration</h4>
-
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                            {/* Include Fields Checkboxes */}
-                                                            <div className="space-y-3">
-                                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Include in Name:</label>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        id="includeStyle"
-                                                                        checked={formData.nameConfig.includeStyle}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, includeStyle: e.target.checked }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                    />
-                                                                    <label htmlFor="includeStyle" className="ml-2 text-sm text-gray-700">Style</label>
-                                                                </div>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        id="includePattern"
-                                                                        checked={formData.nameConfig.includePattern}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, includePattern: e.target.checked }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                    />
-                                                                    <label htmlFor="includePattern" className="ml-2 text-sm text-gray-700">Pattern</label>
-                                                                </div>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        id="includeMaterial"
-                                                                        checked={formData.nameConfig.includeMaterial}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, includeMaterial: e.target.checked }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                    />
-                                                                    <label htmlFor="includeMaterial" className="ml-2 text-sm text-gray-700">Material</label>
-                                                                </div>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        id="includeFit"
-                                                                        checked={formData.nameConfig.includeFit}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, includeFit: e.target.checked }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                    />
-                                                                    <label htmlFor="includeFit" className="ml-2 text-sm text-gray-700">Fit</label>
-                                                                </div>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        id="showCollection"
-                                                                        checked={formData.nameConfig.showCollection}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, showCollection: e.target.checked }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                    />
-                                                                    <label htmlFor="showCollection" className="ml-2 text-sm text-gray-700">Collection</label>
-                                                                </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (USD $)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    placeholder="0.00"
+                                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                    value={formData.retailPriceUsd}
+                                                                    onChange={e => setFormData({ ...formData, retailPriceUsd: e.target.value })}
+                                                                />
                                                             </div>
-
-                                                            {/* Brand/Line Display Options */}
-                                                            <div className="space-y-3">
-                                                                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Brand/Line Display:</label>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="radio"
-                                                                        id="brandOnly"
-                                                                        name="brandLineDisplay"
-                                                                        value="brand-only"
-                                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-only'}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                                                    />
-                                                                    <label htmlFor="brandOnly" className="ml-2 text-sm text-gray-700">Brand Only</label>
-                                                                </div>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="radio"
-                                                                        id="brandAndLine"
-                                                                        name="brandLineDisplay"
-                                                                        value="brand-and-line"
-                                                                        checked={formData.nameConfig.brandLineDisplay === 'brand-and-line'}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                                                    />
-                                                                    <label htmlFor="brandAndLine" className="ml-2 text-sm text-gray-700">Brand + Line</label>
-                                                                </div>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="radio"
-                                                                        id="lineOnly"
-                                                                        name="brandLineDisplay"
-                                                                        value="line-only"
-                                                                        checked={formData.nameConfig.brandLineDisplay === 'line-only'}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                                                    />
-                                                                    <label htmlFor="lineOnly" className="ml-2 text-sm text-gray-700">Line Only</label>
-                                                                </div>
-
-                                                                <div className="flex items-center">
-                                                                    <input
-                                                                        type="radio"
-                                                                        id="noBrandLine"
-                                                                        name="brandLineDisplay"
-                                                                        value="none"
-                                                                        checked={formData.nameConfig.brandLineDisplay === 'none'}
-                                                                        onChange={(e) => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
-                                                                        }))}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                                                                    />
-                                                                    <label htmlFor="noBrandLine" className="ml-2 text-sm text-gray-700">None</label>
-                                                                </div>
+                                                            <div>
+                                                                <label className="block text-xs font-medium text-gray-700 uppercase">Price (EUR €)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    placeholder="0.00"
+                                                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                    value={formData.retailPriceEur}
+                                                                    onChange={e => setFormData({ ...formData, retailPriceEur: e.target.value })}
+                                                                />
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </React.Fragment>
-                                    )}
 
-                                    {/* Size(s) - Multi-Select - Hidden in parent mode */}
-                                    {editMode !== 'parent' && (
-                                        <div className="col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
-                                            <div className="relative">
-                                                {/* Search Input */}
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search and Select Sizes..."
-                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                    onFocus={() => setOpenDropdown('sizes')}
-                                                    onChange={(e) => {
-                                                        const searchTerm = e.target.value.toLowerCase();
-                                                        const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
-                                                        if (dropdown) dropdown.style.display = 'block'; // Ensure open on search
-                                                        setOpenDropdown('sizes');
+                                                        {/* Release Date */}
+                                                        <div className="col-span-2 sm:col-span-1 mt-4">
+                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Release Date</label>
+                                                            <input
+                                                                type="date"
+                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                value={formData.releaseDate}
+                                                                onChange={e => setFormData({ ...formData, releaseDate: e.target.value })}
+                                                            />
+                                                            <p className="mt-1 text-xs text-gray-500">When was this item released or will be released</p>
+                                                        </div>
 
-                                                        const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
-                                                        if (list) {
-                                                            const labels = list.querySelectorAll('label');
-                                                            labels.forEach(label => {
-                                                                const text = label.textContent?.toLowerCase() || '';
-                                                                (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
-                                                            });
-                                                        }
-                                                    }}
-                                                />
-                                                {openDropdown === 'sizes' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setOpenDropdown(null)}
-                                                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                                                    >
-                                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                        </svg>
-                                                    </button>
-                                                )}
-                                                {/* Dropdown List */}
-                                                <div
-                                                    className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
-                                                    style={{ display: openDropdown === 'sizes' ? 'block' : 'none' }}
-                                                >
-                                                    <div className="dropdown-list">
-                                                        {sizes.map(size => {
-                                                            const isSelected = formData.selectedSizes.includes(size.id);
-                                                            return (
-                                                                <label
-                                                                    key={size.id}
-                                                                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                                                >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={isSelected}
-                                                                        onChange={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleMultiSelect('sizes', size.id);
-                                                                        }}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                                    />
-                                                                    <span className="ml-3 text-sm text-gray-900">{size.name}</span>
-                                                                    {isSelected && (
-                                                                        <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                        </svg>
-                                                                    )}
-                                                                </label>
-                                                            );
-                                                        })}
-                                                        {sizes.length === 0 && (
-                                                            <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                                                                No sizes available
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setOpenDropdown(null)}
-                                                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
-                                                        >
-                                                            Done
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {formData.selectedSizes.length > 0 && (
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {formData.selectedSizes.map(sizeId => {
-                                                        const size = sizes.find(s => s.id === sizeId);
-                                                        return (
-                                                            <span
-                                                                key={sizeId}
-                                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
-                                                            >
-                                                                {size?.name || sizeId}
+                                                        {/* Care Instructions */}
+                                                        <div className="col-span-2 mt-4">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <label className="block text-xs font-medium text-gray-700 uppercase">Care Instructions</label>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => handleMultiSelect('sizes', sizeId)}
-                                                                    className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
+                                                                    onClick={() => {
+                                                                        // Get care instructions from selected material
+                                                                        const selectedMaterial = materials.find(m => m.id === formData.materialId);
+                                                                        if (selectedMaterial?.careInstructions) {
+                                                                            setFormData({ ...formData, careInstructions: selectedMaterial.careInstructions });
+                                                                        } else if (selectedMaterial?.name) {
+                                                                            // Fallback to default care instructions based on material name
+                                                                            const defaultInstructions: Record<string, string> = {
+                                                                                'cotton': 'Machine wash cold or warm. Tumble dry low or medium. Iron on medium-high heat if needed.',
+                                                                                'linen': 'Machine wash cold or warm. Tumble dry low or hang to dry. Iron while slightly damp on high heat.',
+                                                                                'wool': 'Hand wash cold or dry clean. Lay flat to dry on a towel. Do not wring or twist.',
+                                                                                'silk': 'Hand wash cold or dry clean. Do not wring. Air dry away from sunlight. Iron on low with a pressing cloth.',
+                                                                                'polyester': 'Machine wash warm or cold. Tumble dry low. Remove promptly to avoid wrinkles.',
+                                                                                'denim': 'Machine wash cold inside out. Tumble dry low or hang to dry to preserve color.',
+                                                                                'leather': 'Wipe with damp cloth. Condition regularly with leather conditioner. Store away from heat and sunlight.'
+                                                                            };
+                                                                            const materialKey = selectedMaterial.name.toLowerCase();
+                                                                            const instructions = defaultInstructions[materialKey] || 'Check garment label for specific care instructions.';
+                                                                            setFormData({ ...formData, careInstructions: instructions });
+                                                                        }
+                                                                    }}
+                                                                    disabled={!formData.materialId}
+                                                                    className={`text-xs flex items-center gap-1 ${formData.materialId
+                                                                        ? 'text-indigo-600 hover:text-indigo-800 cursor-pointer'
+                                                                        : 'text-gray-400 cursor-not-allowed'
+                                                                        }`}
                                                                 >
-                                                                    &times;
+                                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                                                                    </svg>
+                                                                    Use default based on material
                                                                 </button>
-                                                            </span>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                                            </div>
+                                                            <textarea
+                                                                rows={3}
+                                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                                value={formData.careInstructions}
+                                                                onChange={e => setFormData({ ...formData, careInstructions: e.target.value })}
+                                                                placeholder="How to wash, dry, and maintain this item..."
+                                                            />
+                                                        </div>
 
-                                    {/* Color(s) - Multi-Select - Also hidden in parent mode */}
-                                    {editMode !== 'parent' && (
-                                        <div className="col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
-                                            <div className="relative">
-                                                {/* Search Input */}
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search and Select Colors..."
-                                                    className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                    onFocus={() => setOpenDropdown('colors')}
-                                                    onChange={(e) => {
-                                                        const searchTerm = e.target.value.toLowerCase();
-                                                        const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
-                                                        if (dropdown) dropdown.style.display = 'block';
-                                                        setOpenDropdown('colors');
-
-                                                        const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
-                                                        if (list) {
-                                                            const labels = list.querySelectorAll('label');
-                                                            labels.forEach(label => {
-                                                                const text = label.textContent?.toLowerCase() || '';
-                                                                (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
-                                                            });
-                                                        }
-                                                    }}
-                                                />
-                                                {openDropdown === 'colors' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setOpenDropdown(null)}
-                                                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                                                    >
-                                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                        </svg>
-                                                    </button>
-                                                )}
-                                                {/* Dropdown List */}
-                                                <div
-                                                    className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
-                                                    style={{ display: openDropdown === 'colors' ? 'block' : 'none' }}
-                                                >
-                                                    <div className="dropdown-list">
-                                                        {colors.map(color => {
-                                                            const isSelected = formData.selectedColors.includes(color.id);
-                                                            return (
-                                                                <label
-                                                                    key={color.id}
-                                                                    className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                                                >
+                                                        {/* Official Item Link */}
+                                                        <div className="col-span-2 mt-4">
+                                                            <label className="block text-xs font-medium text-gray-700 uppercase">Official Item Link</label>
+                                                            <div className="mt-1 flex rounded-md shadow-sm">
+                                                                <div className="relative flex items-stretch flex-grow focus-within:z-10">
+                                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                        {formData.officialItemLink ? (
+                                                                            <img
+                                                                                src={`https://www.google.com/s2/favicons?domain=${new URL(formData.officialItemLink.startsWith('http') ? formData.officialItemLink : `https://${formData.officialItemLink}`).hostname}&sz=32`}
+                                                                                alt=""
+                                                                                className="h-4 w-4"
+                                                                                onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /%3E%3C/svg%3E'; }}
+                                                                            />
+                                                                        ) : (
+                                                                            <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.826a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </div>
                                                                     <input
-                                                                        type="checkbox"
-                                                                        checked={isSelected}
-                                                                        onChange={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleMultiSelect('colors', color.id);
-                                                                        }}
-                                                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                        type="url"
+                                                                        className="focus:ring-blue-500 focus:border-blue-500 block w-full rounded-none rounded-l-md pl-10 sm:text-sm border-gray-300"
+                                                                        placeholder="https://brand.com/products/item-slug"
+                                                                        value={formData.officialItemLink}
+                                                                        onChange={e => setFormData({ ...formData, officialItemLink: e.target.value })}
                                                                     />
-                                                                    {color.hex && (
-                                                                        <span
-                                                                            className="ml-3 w-4 h-4 rounded-full border border-gray-300"
-                                                                            style={{ backgroundColor: color.hex }}
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => formData.officialItemLink && window.open(formData.officialItemLink.startsWith('http') ? formData.officialItemLink : `https://${formData.officialItemLink}`, '_blank')}
+                                                                    className="-ml-px relative inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                                                >
+                                                                    <span>Test</span>
+                                                                </button>
+                                                            </div>
+                                                            <p className="mt-1 text-xs text-gray-500">Link to the official product page on the brand's website</p>
+                                                        </div>
+
+
+
+                                                        {/* SKU Name Configuration Section */}
+                                                        <div className="col-span-2 border-t pt-6 mt-4">
+                                                            <h4 className="text-sm font-semibold text-gray-900 mb-4">SKU Name Configuration</h4>
+
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                                {/* Include Fields Checkboxes */}
+                                                                <div className="space-y-3">
+                                                                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Include in Name:</label>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            id="includeStyle"
+                                                                            checked={formData.nameConfig.includeStyle}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, includeStyle: e.target.checked }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                                                         />
-                                                                    )}
-                                                                    <span className="ml-2 text-sm text-gray-900">{color.name}</span>
-                                                                    {isSelected && (
-                                                                        <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                        </svg>
-                                                                    )}
-                                                                </label>
-                                                            );
-                                                        })}
-                                                        {colors.length === 0 && (
-                                                            <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                                                                No colors available
+                                                                        <label htmlFor="includeStyle" className="ml-2 text-sm text-gray-700">Style</label>
+                                                                    </div>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            id="includePattern"
+                                                                            checked={formData.nameConfig.includePattern}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, includePattern: e.target.checked }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                        />
+                                                                        <label htmlFor="includePattern" className="ml-2 text-sm text-gray-700">Pattern</label>
+                                                                    </div>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            id="includeMaterial"
+                                                                            checked={formData.nameConfig.includeMaterial}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, includeMaterial: e.target.checked }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                        />
+                                                                        <label htmlFor="includeMaterial" className="ml-2 text-sm text-gray-700">Material</label>
+                                                                    </div>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            id="includeFit"
+                                                                            checked={formData.nameConfig.includeFit}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, includeFit: e.target.checked }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                        />
+                                                                        <label htmlFor="includeFit" className="ml-2 text-sm text-gray-700">Fit</label>
+                                                                    </div>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            id="showCollection"
+                                                                            checked={formData.nameConfig.showCollection}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, showCollection: e.target.checked }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                        />
+                                                                        <label htmlFor="showCollection" className="ml-2 text-sm text-gray-700">Collection</label>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Brand/Line Display Options */}
+                                                                <div className="space-y-3">
+                                                                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Brand/Line Display:</label>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="radio"
+                                                                            id="brandOnly"
+                                                                            name="brandLineDisplay"
+                                                                            value="brand-only"
+                                                                            checked={formData.nameConfig.brandLineDisplay === 'brand-only'}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                        />
+                                                                        <label htmlFor="brandOnly" className="ml-2 text-sm text-gray-700">Brand Only</label>
+                                                                    </div>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="radio"
+                                                                            id="brandAndLine"
+                                                                            name="brandLineDisplay"
+                                                                            value="brand-and-line"
+                                                                            checked={formData.nameConfig.brandLineDisplay === 'brand-and-line'}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                        />
+                                                                        <label htmlFor="brandAndLine" className="ml-2 text-sm text-gray-700">Brand + Line</label>
+                                                                    </div>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="radio"
+                                                                            id="lineOnly"
+                                                                            name="brandLineDisplay"
+                                                                            value="line-only"
+                                                                            checked={formData.nameConfig.brandLineDisplay === 'line-only'}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                        />
+                                                                        <label htmlFor="lineOnly" className="ml-2 text-sm text-gray-700">Line Only</label>
+                                                                    </div>
+
+                                                                    <div className="flex items-center">
+                                                                        <input
+                                                                            type="radio"
+                                                                            id="noBrandLine"
+                                                                            name="brandLineDisplay"
+                                                                            value="none"
+                                                                            checked={formData.nameConfig.brandLineDisplay === 'none'}
+                                                                            onChange={(e) => setFormData(prev => ({
+                                                                                ...prev,
+                                                                                nameConfig: { ...prev.nameConfig, brandLineDisplay: e.target.value as any }
+                                                                            }))}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                                                                        />
+                                                                        <label htmlFor="noBrandLine" className="ml-2 text-sm text-gray-700">None</label>
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setOpenDropdown(null)}
-                                                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
-                                                        >
-                                                            Done
-                                                        </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            {formData.selectedColors.length > 0 && (
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    {formData.selectedColors.map(colorId => {
-                                                        const color = colors.find(c => c.id === colorId);
-                                                        return (
-                                                            <span
-                                                                key={colorId}
-                                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 border border-gray-200"
-                                                            >
-                                                                {color?.hex && (
-                                                                    <span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: color.hex }}></span>
-                                                                )}
-                                                                {color?.name || colorId}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleMultiSelect('colors', colorId)}
-                                                                    className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
-                                                                >
-                                                                    &times;
-                                                                </button>
-                                                            </span>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                            </React.Fragment>
+                                        )}
 
-                                    {/* Auto-Generated Preview - Only for new SKUs */}
-                                    {editMode === 'new' && (
-                                        <div className="col-span-2 bg-gray-50 p-4 rounded-md">
-                                            <h4 className="text-sm font-medium text-gray-900">SKU Output Preview</h4>
-                                            <div className="mt-2 text-sm text-gray-600">
-                                                <p><span className="font-semibold">Format:</span> {formData.generatedName || '(Start selecting attributes)'} (Color) [Size]</p>
-                                                <p className="mt-1"><span className="font-semibold">Code:</span> <code className="bg-gray-200 px-1 rounded text-blue-700">{formData.generatedCode || '(Start selecting attributes)'}</code></p>
-                                                <p className="mt-1 text-xs text-gray-500">
-                                                    Based on selection, this will create <strong>{Math.max(1, formData.selectedColors.length) * Math.max(1, formData.selectedSizes.length)}</strong> distinct SKUs.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
+                                        {/* Size(s) - Multi-Select - Hidden in parent mode */}
+                                        {editMode !== 'parent' && (
+                                            <div className="col-span-2">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select all that apply)</label>
+                                                <div className="relative">
+                                                    {/* Search Input */}
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search and Select Sizes..."
+                                                        className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        onFocus={() => setOpenDropdown('sizes')}
+                                                        onChange={(e) => {
+                                                            const searchTerm = e.target.value.toLowerCase();
+                                                            const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
+                                                            if (dropdown) dropdown.style.display = 'block'; // Ensure open on search
+                                                            setOpenDropdown('sizes');
 
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700">Description</label>
-                                        <textarea
-                                            rows={3}
-                                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                                            value={formData.description}
-                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                        />
-                                    </div>
-
-
-                                    {/* Silhouette / Modeling Selection - Moved here */}
-                                    <div className="col-span-2 mt-4 mb-4">
-                                        <div className="max-w-md">
-                                            <SearchableCombobox
-                                                label="Silhouette (Auto-fill Measurements)"
-                                                value={availableSilhouettes.find(s => s.id === selectedSilhouetteId)?.name || ''}
-                                                onChange={(name) => {
-                                                    const sil = availableSilhouettes.find(s => s.name === name);
-                                                    setSelectedSilhouetteId(sil?.id || '');
-                                                }}
-                                                options={availableSilhouettes}
-                                                placeholder={availableSilhouettes.length > 0 ? "Select Silhouette to auto-fill POMs..." : "No Silhouettes found for this combo"}
-                                                disabled={availableSilhouettes.length === 0}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Measurements Section (Refactored: POM -> Sizes) */}
-                                    {formData.apparelId && (apparelPOMs.length > 0 || selectedPomIds.length > 0) && (
-                                        <div className="col-span-2 border-t pt-6 mt-6">
-                                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                                                <div>
-                                                    <h3 className="text-lg font-semibold text-gray-900">Measurements (POMs)</h3>
-                                                    <p className="text-sm text-gray-500 mt-1">
-                                                        Select the Points of Measure you want to define.
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {/* POM Selector */}
-                                            <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    Add Measurement Point
-                                                </label>
-                                                <div className="max-w-md">
-                                                    <SearchableCombobox
-                                                        label=""
-                                                        value=""
-                                                        onChange={(name) => {
-                                                            const pom = apparelPOMs.find(p => p.name === name);
-                                                            if (pom && !selectedPomIds.includes(pom.pom_id || pom.id)) {
-                                                                setSelectedPomIds(prev => [...prev, pom.pom_id || pom.id]);
+                                                            const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
+                                                            if (list) {
+                                                                const labels = list.querySelectorAll('label');
+                                                                labels.forEach(label => {
+                                                                    const text = label.textContent?.toLowerCase() || '';
+                                                                    (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                                                                });
                                                             }
                                                         }}
-                                                        options={apparelPOMs
-                                                            .filter(pom => !selectedPomIds.includes(pom.pom_id || pom.id))
-                                                            .map(pom => ({ ...pom, id: pom.pom_id || pom.id }))} // SearchableCombobox needs id/name
-                                                        placeholder="Search to add POM..."
                                                     />
+                                                    {openDropdown === 'sizes' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setOpenDropdown(null)}
+                                                            className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                                                        >
+                                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                    {/* Dropdown List */}
+                                                    <div
+                                                        className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                        style={{ display: openDropdown === 'sizes' ? 'block' : 'none' }}
+                                                    >
+                                                        <div className="dropdown-list">
+                                                            {sizes.map(size => {
+                                                                const isSelected = formData.selectedSizes.includes(size.id);
+                                                                return (
+                                                                    <label
+                                                                        key={size.id}
+                                                                        className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                                    >
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isSelected}
+                                                                            onChange={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleMultiSelect('sizes', size.id);
+                                                                            }}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                        />
+                                                                        <span className="ml-3 text-sm text-gray-900">{size.name}</span>
+                                                                        {isSelected && (
+                                                                            <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                            {sizes.length === 0 && (
+                                                                <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                                                    No sizes available
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setOpenDropdown(null)}
+                                                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
+                                                            >
+                                                                Done
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                {selectedPomIds.length === 0 && (
-                                                    <p className="text-xs text-gray-500 mt-2 italic">
-                                                        No measurements selected. Add one to start.
-                                                    </p>
-                                                )}
-                                                {selectedPomIds.length > 0 && (
-                                                    <p className="text-xs text-gray-500 mt-2">
-                                                        {selectedPomIds.length} measurements active.
-                                                    </p>
+                                                {formData.selectedSizes.length > 0 && (
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {formData.selectedSizes.map(sizeId => {
+                                                            const size = sizes.find(s => s.id === sizeId);
+                                                            return (
+                                                                <span
+                                                                    key={sizeId}
+                                                                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                                                                >
+                                                                    {size?.name || sizeId}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleMultiSelect('sizes', sizeId)}
+                                                                        className="ml-2 text-blue-600 hover:text-blue-900 focus:outline-none"
+                                                                    >
+                                                                        &times;
+                                                                    </button>
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 )}
                                             </div>
+                                        )}
 
-                                            {/* List of Selected POMs */}
-                                            <div className="space-y-6">
-                                                {selectedPomIds.map((pomId, index) => {
-                                                    const pom = apparelPOMs.find(p => (p.pom_id || p.id) === pomId) ||
-                                                        pomDefinitions.find(p => p.id === pomId);
-                                                    if (!pom) return null;
+                                        {/* Color(s) - Multi-Select - Also hidden in parent mode */}
+                                        {editMode !== 'parent' && (
+                                            <div className="col-span-2">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select all that apply)</label>
+                                                <div className="relative">
+                                                    {/* Search Input */}
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search and Select Colors..."
+                                                        className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        onFocus={() => setOpenDropdown('colors')}
+                                                        onChange={(e) => {
+                                                            const searchTerm = e.target.value.toLowerCase();
+                                                            const dropdown = e.currentTarget.nextElementSibling as HTMLElement;
+                                                            if (dropdown) dropdown.style.display = 'block';
+                                                            setOpenDropdown('colors');
 
-                                                    const measurementKey = String(pomId);
-                                                    const isHalf = pom.is_half_measurement;
-                                                    const showCirc = showAsCircumference.has(measurementKey);
-
-                                                    return (
-                                                        <div key={pomId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                                                            {/* POM Header */}
-                                                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                                                        {pom.code}
-                                                                    </span>
-                                                                    <h4 className="font-semibold text-gray-900">{pom.name}</h4>
-                                                                    {isHalf && (
-                                                                        <div className="flex items-center gap-2 ml-2">
-                                                                            <span className="text-[10px] font-bold bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-100 uppercase">
-                                                                                Half
-                                                                            </span>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    setShowAsCircumference(prev => {
-                                                                                        const next = new Set(prev);
-                                                                                        if (next.has(measurementKey)) next.delete(measurementKey);
-                                                                                        else next.add(measurementKey);
-                                                                                        return next;
-                                                                                    });
-                                                                                }}
-                                                                                className="text-[10px] text-blue-600 hover:text-blue-800 font-bold whitespace-nowrap underline"
-                                                                            >
-                                                                                Switch to {showCirc ? 'FLAT' : 'CIRCULAR'} Input
-                                                                            </button>
-                                                                        </div>
-                                                                    )}
+                                                            const list = dropdown?.querySelector('.dropdown-list') as HTMLElement;
+                                                            if (list) {
+                                                                const labels = list.querySelectorAll('label');
+                                                                labels.forEach(label => {
+                                                                    const text = label.textContent?.toLowerCase() || '';
+                                                                    (label as HTMLElement).style.display = text.includes(searchTerm) ? 'flex' : 'none';
+                                                                });
+                                                            }
+                                                        }}
+                                                    />
+                                                    {openDropdown === 'colors' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setOpenDropdown(null)}
+                                                            className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                                                        >
+                                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                    {/* Dropdown List */}
+                                                    <div
+                                                        className="absolute z-10 w-full mt-1 border border-gray-300 rounded-md max-h-48 overflow-y-auto bg-white shadow-lg"
+                                                        style={{ display: openDropdown === 'colors' ? 'block' : 'none' }}
+                                                    >
+                                                        <div className="dropdown-list">
+                                                            {colors.map(color => {
+                                                                const isSelected = formData.selectedColors.includes(color.id);
+                                                                return (
+                                                                    <label
+                                                                        key={color.id}
+                                                                        className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                                    >
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isSelected}
+                                                                            onChange={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleMultiSelect('colors', color.id);
+                                                                            }}
+                                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                                        />
+                                                                        {color.hex && (
+                                                                            <span
+                                                                                className="ml-3 w-4 h-4 rounded-full border border-gray-300"
+                                                                                style={{ backgroundColor: color.hex }}
+                                                                            />
+                                                                        )}
+                                                                        <span className="ml-2 text-sm text-gray-900">{color.name}</span>
+                                                                        {isSelected && (
+                                                                            <svg className="ml-auto h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                            {colors.length === 0 && (
+                                                                <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                                                    No colors available
                                                                 </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setSelectedPomIds(prev => prev.filter(id => id !== pomId))}
-                                                                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
-                                                                    title="Remove Measurement"
+                                                            )}
+                                                        </div>
+                                                        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setOpenDropdown(null)}
+                                                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded shadow-sm"
+                                                            >
+                                                                Done
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {formData.selectedColors.length > 0 && (
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {formData.selectedColors.map(colorId => {
+                                                            const color = colors.find(c => c.id === colorId);
+                                                            return (
+                                                                <span
+                                                                    key={colorId}
+                                                                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800 border border-gray-200"
                                                                 >
-                                                                    <XMarkIcon className="w-5 h-5" />
-                                                                </button>
-                                                            </div>
+                                                                    {color?.hex && (
+                                                                        <span className="w-3 h-3 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: color.hex }}></span>
+                                                                    )}
+                                                                    {color?.name || colorId}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleMultiSelect('colors', colorId)}
+                                                                        className="ml-2 text-gray-500 hover:text-red-500 focus:outline-none"
+                                                                    >
+                                                                        &times;
+                                                                    </button>
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
 
-                                                            {/* Sizes Grid */}
-                                                            <div className="p-4 bg-white">
-                                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                                                    {formData.selectedSizes.map(sizeId => {
-                                                                        const size = sizes.find(s => s.id === sizeId);
-                                                                        const currentValue = measurements[measurementKey]?.[sizeId];
-                                                                        const displayValue = isHalf && showCirc && currentValue?.value
-                                                                            ? currentValue.value * 2
-                                                                            : currentValue?.value || '';
+                                        {/* Auto-Generated Preview - Only for new SKUs */}
+                                        {editMode === 'new' && (
+                                            <div className="col-span-2 bg-gray-50 p-4 rounded-md">
+                                                <h4 className="text-sm font-medium text-gray-900">SKU Output Preview</h4>
+                                                <div className="mt-2 text-sm text-gray-600">
+                                                    <p><span className="font-semibold">Format:</span> {formData.generatedName || '(Start selecting attributes)'} (Color) [Size]</p>
+                                                    <p className="mt-1"><span className="font-semibold">Code:</span> <code className="bg-gray-200 px-1 rounded text-blue-700">{formData.generatedCode || '(Start selecting attributes)'}</code></p>
+                                                    <p className="mt-1 text-xs text-gray-500">
+                                                        Based on selection, this will create <strong>{Math.max(1, formData.selectedColors.length) * Math.max(1, formData.selectedSizes.length)}</strong> distinct SKUs.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
 
-                                                                        return (
-                                                                            <div key={`${pomId}-${sizeId}`}>
-                                                                                <label className="block text-xs font-medium text-gray-500 mb-1 uppercase text-center">
-                                                                                    {size?.name || 'Unknown'}
-                                                                                </label>
-                                                                                <div className="relative">
-                                                                                    <input
-                                                                                        type="number"
-                                                                                        step="any"
-                                                                                        onKeyDown={(e) => e.stopPropagation()}
-                                                                                        placeholder="0"
-                                                                                        className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 pr-8 text-center"
-                                                                                        value={displayValue}
-                                                                                        onChange={(e) => {
-                                                                                            const valStr = e.target.value;
-                                                                                            const val = valStr === '' ? undefined : parseFloat(valStr);
+                                        <div className="col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700">Description</label>
+                                            <textarea
+                                                rows={3}
+                                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                                value={formData.description}
+                                                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                            />
+                                        </div>
 
-                                                                                            setMeasurements(prev => {
-                                                                                                const next = { ...prev };
-                                                                                                if (!next[measurementKey]) next[measurementKey] = {};
 
-                                                                                                if (val === undefined) {
-                                                                                                    delete next[measurementKey][sizeId];
-                                                                                                    if (Object.keys(next[measurementKey]).length === 0) delete next[measurementKey];
-                                                                                                } else {
-                                                                                                    const flatVal = isHalf && showCirc ? val / 2 : val;
-                                                                                                    next[measurementKey][sizeId] = {
-                                                                                                        value: flatVal,
-                                                                                                        tolerance: currentValue?.tolerance || pom.default_tolerance || 0.5
-                                                                                                    };
-                                                                                                }
-                                                                                                return next;
-                                                                                            });
-                                                                                        }}
-                                                                                    />
-                                                                                    <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-                                                                                        <span className="text-[10px] text-gray-400">
-                                                                                            {pom.measurement_unit || 'cm'}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
+                                        {/* Silhouette / Modeling Selection - Moved here */}
+                                        <div className="col-span-2 mt-4 mb-4">
+                                            <div className="max-w-md">
+                                                <SearchableCombobox
+                                                    label="Silhouette (Auto-fill Measurements)"
+                                                    value={availableSilhouettes.find(s => s.id === selectedSilhouetteId)?.name || ''}
+                                                    onChange={(name) => {
+                                                        const sil = availableSilhouettes.find(s => s.name === name);
+                                                        setSelectedSilhouetteId(sil?.id || '');
+                                                    }}
+                                                    options={availableSilhouettes}
+                                                    placeholder={availableSilhouettes.length > 0 ? "Select Silhouette to auto-fill POMs..." : "No Silhouettes found for this combo"}
+                                                    disabled={availableSilhouettes.length === 0}
+                                                />
+                                            </div>
+                                        </div>
 
-                                                                    {/* Grade Increment Field */}
-                                                                    {formData.selectedSizes.length > 1 && (
-                                                                        <div className="flex flex-col justify-end min-w-[110px] group relative">
-                                                                            <div className="flex items-center justify-center gap-1 mb-1 relative group">
-                                                                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                                                                                    Grade
-                                                                                </label>
-                                                                                <InformationCircleIcon
-                                                                                    className="w-3.5 h-3.5 text-gray-300 hover:text-blue-500 cursor-help transition-colors"
-                                                                                />
+                                        {/* Measurements Section (Refactored: POM -> Sizes) */}
+                                        {formData.apparelId && (apparelPOMs.length > 0 || selectedPomIds.length > 0) && (
+                                            <div className="col-span-2 border-t pt-6 mt-6">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                                                    <div>
+                                                        <h3 className="text-lg font-semibold text-gray-900">Measurements (POMs)</h3>
+                                                        <p className="text-sm text-gray-500 mt-1">
+                                                            Select the Points of Measure you want to define.
+                                                        </p>
+                                                    </div>
+                                                </div>
 
-                                                                                {/* Tooltip */}
-                                                                                <div className="hidden group-hover:block absolute bottom-full right-0 mb-2 w-52 p-3 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl z-[200] text-center font-normal leading-relaxed border border-slate-700 pointer-events-none">
-                                                                                    <p>Enter an increment (e.g. 1.0) to auto-fill measurements for all larger sizes, starting from the value in the first size.</p>
-                                                                                    <div className="absolute top-full right-5 border-[6px] border-transparent border-t-slate-900"></div>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                                                                                <input
-                                                                                    type="number"
-                                                                                    step="any"
-                                                                                    placeholder="0"
-                                                                                    onKeyDown={(e) => e.stopPropagation()}
-                                                                                    value={gradeValues[pom.pom_id] || ''}
-                                                                                    onChange={(e) => setGradeValues({ ...gradeValues, [pom.pom_id]: e.target.value })}
-                                                                                    className="w-16 bg-transparent text-xs font-semibold text-gray-900 focus:outline-none text-center"
-                                                                                />
-                                                                                <div className="w-px h-4 bg-gray-300 mx-0.5" />
+                                                {/* POM Selector */}
+                                                <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                        Add Measurement Point
+                                                    </label>
+                                                    <div className="max-w-md">
+                                                        <SearchableCombobox
+                                                            label=""
+                                                            value=""
+                                                            onChange={(name) => {
+                                                                const pom = apparelPOMs.find(p => p.name === name);
+                                                                if (pom && !selectedPomIds.includes(pom.pom_id || pom.id)) {
+                                                                    setSelectedPomIds(prev => [...prev, pom.pom_id || pom.id]);
+                                                                }
+                                                            }}
+                                                            options={apparelPOMs
+                                                                .filter(pom => !selectedPomIds.includes(pom.pom_id || pom.id))
+                                                                .map(pom => ({ ...pom, id: pom.pom_id || pom.id }))} // SearchableCombobox needs id/name
+                                                            placeholder="Search to add POM..."
+                                                        />
+                                                    </div>
+                                                    {selectedPomIds.length === 0 && (
+                                                        <p className="text-xs text-gray-500 mt-2 italic">
+                                                            No measurements selected. Add one to start.
+                                                        </p>
+                                                    )}
+                                                    {selectedPomIds.length > 0 && (
+                                                        <p className="text-xs text-gray-500 mt-2">
+                                                            {selectedPomIds.length} measurements active.
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                {/* List of Selected POMs */}
+                                                <div className="space-y-6">
+                                                    {selectedPomIds.map((pomId, index) => {
+                                                        const pom = apparelPOMs.find(p => (p.pom_id || p.id) === pomId) ||
+                                                            pomDefinitions.find(p => p.id === pomId);
+                                                        if (!pom) return null;
+
+                                                        const measurementKey = String(pomId);
+                                                        const isHalf = pom.is_half_measurement;
+                                                        const showCirc = showAsCircumference.has(measurementKey);
+
+                                                        return (
+                                                            <div key={pomId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                                                {/* POM Header */}
+                                                                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                                                            {pom.code}
+                                                                        </span>
+                                                                        <h4 className="font-semibold text-gray-900">{pom.name}</h4>
+                                                                        {isHalf && (
+                                                                            <div className="flex items-center gap-2 ml-2">
+                                                                                <span className="text-[10px] font-bold bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-100 uppercase">
+                                                                                    Half
+                                                                                </span>
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => {
-                                                                                        const pomId = String(pom.pom_id);
-                                                                                        const increment = parseFloat(gradeValues[pomId] || '0');
-                                                                                        if (!increment || formData.selectedSizes.length < 2) {
-                                                                                            toast.error('Enter a grade increment value');
-                                                                                            return;
-                                                                                        }
-
-                                                                                        // Get first size value
-                                                                                        const firstSizeId = formData.selectedSizes[0];
-                                                                                        const firstValue = measurements[pomId]?.[firstSizeId]?.value;
-                                                                                        if (firstValue === undefined) {
-                                                                                            toast.error('Enter the first size value first');
-                                                                                            return;
-                                                                                        }
-
-                                                                                        // Apply grading to all subsequent sizes
-                                                                                        const newMeasurements = { ...measurements };
-                                                                                        if (!newMeasurements[pomId]) newMeasurements[pomId] = {};
-
-                                                                                        formData.selectedSizes.forEach((sizeId, index) => {
-                                                                                            if (index === 0) return; // Skip first size
-                                                                                            const gradedValue = firstValue + (increment * index);
-                                                                                            newMeasurements[pomId][sizeId] = {
-                                                                                                value: Math.round(gradedValue * 10) / 10, // Round to 1 decimal
-                                                                                                tolerance: pom.default_tolerance || 0.5
-                                                                                            };
+                                                                                        setShowAsCircumference(prev => {
+                                                                                            const next = new Set(prev);
+                                                                                            if (next.has(measurementKey)) next.delete(measurementKey);
+                                                                                            else next.add(measurementKey);
+                                                                                            return next;
                                                                                         });
-
-                                                                                        setMeasurements(newMeasurements);
-                                                                                        toast.success(`Applied +${increment}cm grading`);
                                                                                     }}
-                                                                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wider px-1"
+                                                                                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold whitespace-nowrap underline"
                                                                                 >
-                                                                                    Apply
+                                                                                    Switch to {showCirc ? 'FLAT' : 'CIRCULAR'} Input
                                                                                 </button>
                                                                             </div>
-                                                                        </div>
-                                                                    )}
+                                                                        )}
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSelectedPomIds(prev => prev.filter(id => id !== pomId))}
+                                                                        className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                        title="Remove Measurement"
+                                                                    >
+                                                                        <XMarkIcon className="w-5 h-5" />
+                                                                    </button>
+                                                                </div>
+
+                                                                {/* Sizes Grid */}
+                                                                <div className="p-4 bg-white">
+                                                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                                                        {formData.selectedSizes.map(sizeId => {
+                                                                            const size = sizes.find(s => s.id === sizeId);
+                                                                            const currentValue = measurements[measurementKey]?.[sizeId];
+                                                                            const displayValue = isHalf && showCirc && currentValue?.value
+                                                                                ? currentValue.value * 2
+                                                                                : currentValue?.value || '';
+
+                                                                            return (
+                                                                                <div key={`${pomId}-${sizeId}`}>
+                                                                                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase text-center">
+                                                                                        {size?.name || 'Unknown'}
+                                                                                    </label>
+                                                                                    <div className="relative">
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            step="any"
+                                                                                            onKeyDown={(e) => e.stopPropagation()}
+                                                                                            placeholder="0"
+                                                                                            className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 pr-8 text-center"
+                                                                                            value={displayValue}
+                                                                                            onChange={(e) => {
+                                                                                                const valStr = e.target.value;
+                                                                                                const val = valStr === '' ? undefined : parseFloat(valStr);
+
+                                                                                                setMeasurements(prev => {
+                                                                                                    const next = { ...prev };
+                                                                                                    if (!next[measurementKey]) next[measurementKey] = {};
+
+                                                                                                    if (val === undefined) {
+                                                                                                        delete next[measurementKey][sizeId];
+                                                                                                        if (Object.keys(next[measurementKey]).length === 0) delete next[measurementKey];
+                                                                                                    } else {
+                                                                                                        const flatVal = isHalf && showCirc ? val / 2 : val;
+                                                                                                        next[measurementKey][sizeId] = {
+                                                                                                            value: flatVal,
+                                                                                                            tolerance: currentValue?.tolerance || pom.default_tolerance || 0.5
+                                                                                                        };
+                                                                                                    }
+                                                                                                    return next;
+                                                                                                });
+                                                                                            }}
+                                                                                        />
+                                                                                        <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+                                                                                            <span className="text-[10px] text-gray-400">
+                                                                                                {pom.measurement_unit || 'cm'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+
+                                                                        {/* Grade Increment Field */}
+                                                                        {formData.selectedSizes.length > 1 && (
+                                                                            <div className="flex flex-col justify-end min-w-[110px] group relative">
+                                                                                <div className="flex items-center justify-center gap-1 mb-1 relative group">
+                                                                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                                                                                        Grade
+                                                                                    </label>
+                                                                                    <InformationCircleIcon
+                                                                                        className="w-3.5 h-3.5 text-gray-300 hover:text-blue-500 cursor-help transition-colors"
+                                                                                    />
+
+                                                                                    {/* Tooltip */}
+                                                                                    <div className="hidden group-hover:block absolute bottom-full right-0 mb-2 w-52 p-3 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl z-[200] text-center font-normal leading-relaxed border border-slate-700 pointer-events-none">
+                                                                                        <p>Enter an increment (e.g. 1.0) to auto-fill measurements for all larger sizes, starting from the value in the first size.</p>
+                                                                                        <div className="absolute top-full right-5 border-[6px] border-transparent border-t-slate-900"></div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                                                                                    <input
+                                                                                        type="number"
+                                                                                        step="any"
+                                                                                        placeholder="0"
+                                                                                        onKeyDown={(e) => e.stopPropagation()}
+                                                                                        value={gradeValues[pom.pom_id] || ''}
+                                                                                        onChange={(e) => setGradeValues({ ...gradeValues, [pom.pom_id]: e.target.value })}
+                                                                                        className="w-16 bg-transparent text-xs font-semibold text-gray-900 focus:outline-none text-center"
+                                                                                    />
+                                                                                    <div className="w-px h-4 bg-gray-300 mx-0.5" />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            const pomId = String(pom.pom_id);
+                                                                                            const increment = parseFloat(gradeValues[pomId] || '0');
+                                                                                            if (!increment || formData.selectedSizes.length < 2) {
+                                                                                                toast.error('Enter a grade increment value');
+                                                                                                return;
+                                                                                            }
+
+                                                                                            // Get first size value
+                                                                                            const firstSizeId = formData.selectedSizes[0];
+                                                                                            const firstValue = measurements[pomId]?.[firstSizeId]?.value;
+                                                                                            if (firstValue === undefined) {
+                                                                                                toast.error('Enter the first size value first');
+                                                                                                return;
+                                                                                            }
+
+                                                                                            // Apply grading to all subsequent sizes
+                                                                                            const newMeasurements = { ...measurements };
+                                                                                            if (!newMeasurements[pomId]) newMeasurements[pomId] = {};
+
+                                                                                            formData.selectedSizes.forEach((sizeId, index) => {
+                                                                                                if (index === 0) return; // Skip first size
+                                                                                                const gradedValue = firstValue + (increment * index);
+                                                                                                newMeasurements[pomId][sizeId] = {
+                                                                                                    value: Math.round(gradedValue * 10) / 10, // Round to 1 decimal
+                                                                                                    tolerance: pom.default_tolerance || 0.5
+                                                                                                };
+                                                                                            });
+
+                                                                                            setMeasurements(newMeasurements);
+                                                                                            toast.success(`Applied +${increment}cm grading`);
+                                                                                        }}
+                                                                                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wider px-1"
+                                                                                    >
+                                                                                        Apply
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Variant Selector - Only show when editing and variants exist */}
-                                    {editingSku && relatedVariants.length > 0 && (
-                                        <div className="col-span-2 border-t border-b border-gray-200 py-4 bg-blue-50 rounded-lg p-4">
-                                            <div className="flex items-start justify-between mb-3">
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-900">
-                                                        Apply changes to related variants
-                                                    </label>
-                                                    <p className="text-xs text-gray-600 mt-1">
-                                                        Select which size/color variants should receive the same updates
-                                                    </p>
+                                                        );
+                                                    })}
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (selectedVariants.length === relatedVariants.length) {
-                                                            setSelectedVariants([]);
+                                            </div>
+                                        )}
+
+                                        {/* Variant Selector - Only show when editing and variants exist */}
+                                        {editingSku && relatedVariants.length > 0 && (
+                                            <div className="col-span-2 border-t border-b border-gray-200 py-4 bg-blue-50 rounded-lg p-4">
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-900">
+                                                            Apply changes to related variants
+                                                        </label>
+                                                        <p className="text-xs text-gray-600 mt-1">
+                                                            Select which size/color variants should receive the same updates
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (selectedVariants.length === relatedVariants.length) {
+                                                                setSelectedVariants([]);
+                                                            } else {
+                                                                setSelectedVariants(relatedVariants.map(v => v.id));
+                                                            }
+                                                        }}
+                                                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                    >
+                                                        {selectedVariants.length === relatedVariants.length ? 'Deselect All' : 'Select All'}
+                                                    </button>
+                                                </div>
+                                                <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                    {relatedVariants.map(variant => (
+                                                        <label key={variant.id} className="flex items-center p-2 hover:bg-blue-100 rounded cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedVariants.includes(variant.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedVariants([...selectedVariants, variant.id]);
+                                                                    } else {
+                                                                        setSelectedVariants(selectedVariants.filter(id => id !== variant.id));
+                                                                    }
+                                                                }}
+                                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                            />
+                                                            <span className="ml-3 text-sm text-gray-900">{getVariantDisplayName(variant, relatedVariants)}</span>
+                                                            <span className="ml-auto text-xs text-gray-500">{variant.code}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Media Uploaders - Hidden in parent mode */}
+                                        {editMode !== 'parent' && (
+                                            <div className="col-span-2 space-y-6 border-t pt-6 mt-2">
+                                                <MediaUploader
+                                                    type="image"
+                                                    media={formData.images}
+                                                    onChange={(images) => setFormData({ ...formData, images })}
+                                                    label="Product Images"
+                                                    helperText="Upload high-quality images of the product."
+                                                    onTagImage={(imageUrl) => {
+                                                        if (editingSku?.id) {
+                                                            // Convert URL to canonical storage path
+                                                            let convertedUrl = imageUrl;
+                                                            if (!imageUrl.startsWith('http') && !imageUrl.startsWith('data:') && !imageUrl.startsWith('/api')) {
+                                                                let path = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
+                                                                if (path.startsWith('storage/')) {
+                                                                    path = path.substring('storage/'.length);
+                                                                }
+                                                                // Map uploads/... -> storage/uploads/... to match getImageUrl
+                                                                convertedUrl = `/storage/${path}`;
+                                                            } else if (imageUrl.startsWith('/api/storage/')) {
+                                                                // Convert /api/storage/uploads/x -> /storage/uploads/x
+                                                                convertedUrl = imageUrl.replace('/api/storage/', '/storage/');
+                                                            }
+                                                            // Fetch existing tags
+                                                            setTaggingTags([]); // Reset while loading
+                                                            tagApi.getTagsBySource('sku_image', editingSku.id, convertedUrl)
+                                                                .then(tags => setTaggingTags(tags))
+                                                                .catch(err => console.error('Failed to fetch tags', err));
+
+                                                            setTaggingModal({ isOpen: true, imageUrl: convertedUrl, skuId: editingSku.id });
                                                         } else {
-                                                            setSelectedVariants(relatedVariants.map(v => v.id));
+                                                            toast.error('Please save the SKU first before tagging images');
                                                         }
                                                     }}
-                                                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                                                >
-                                                    {selectedVariants.length === relatedVariants.length ? 'Deselect All' : 'Select All'}
-                                                </button>
+                                                />
+
+                                                <MediaUploader
+                                                    type="video"
+                                                    media={formData.videos}
+                                                    onChange={(videos) => setFormData({ ...formData, videos })}
+                                                    label="Product Videos"
+                                                    helperText="Upload videos showing the product in motion."
+                                                />
                                             </div>
-                                            <div className="space-y-2 max-h-40 overflow-y-auto">
-                                                {relatedVariants.map(variant => (
-                                                    <label key={variant.id} className="flex items-center p-2 hover:bg-blue-100 rounded cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedVariants.includes(variant.id)}
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) {
-                                                                    setSelectedVariants([...selectedVariants, variant.id]);
-                                                                } else {
-                                                                    setSelectedVariants(selectedVariants.filter(id => id !== variant.id));
-                                                                }
-                                                            }}
-                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                                        />
-                                                        <span className="ml-3 text-sm text-gray-900">{getVariantDisplayName(variant, relatedVariants)}</span>
-                                                        <span className="ml-auto text-xs text-gray-500">{variant.code}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
 
-                                    {/* Media Uploaders - Hidden in parent mode */}
-                                    {editMode !== 'parent' && (
-                                        <div className="col-span-2 space-y-6 border-t pt-6 mt-2">
-                                            <MediaUploader
-                                                type="image"
-                                                media={formData.images}
-                                                onChange={(images) => setFormData({ ...formData, images })}
-                                                label="Product Images"
-                                                helperText="Upload high-quality images of the product."
-                                                onTagImage={(imageUrl) => {
-                                                    if (editingSku?.id) {
-                                                        // Convert URL to canonical storage path
-                                                        let convertedUrl = imageUrl;
-                                                        if (!imageUrl.startsWith('http') && !imageUrl.startsWith('data:') && !imageUrl.startsWith('/api')) {
-                                                            let path = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
-                                                            if (path.startsWith('storage/')) {
-                                                                path = path.substring('storage/'.length);
-                                                            }
-                                                            // Map uploads/... -> storage/uploads/... to match getImageUrl
-                                                            convertedUrl = `/storage/${path}`;
-                                                        } else if (imageUrl.startsWith('/api/storage/')) {
-                                                            // Convert /api/storage/uploads/x -> /storage/uploads/x
-                                                            convertedUrl = imageUrl.replace('/api/storage/', '/storage/');
-                                                        }
-                                                        // Fetch existing tags
-                                                        setTaggingTags([]); // Reset while loading
-                                                        tagApi.getTagsBySource('sku_image', editingSku.id, convertedUrl)
-                                                            .then(tags => setTaggingTags(tags))
-                                                            .catch(err => console.error('Failed to fetch tags', err));
-
-                                                        setTaggingModal({ isOpen: true, imageUrl: convertedUrl, skuId: editingSku.id });
-                                                    } else {
-                                                        toast.error('Please save the SKU first before tagging images');
-                                                    }
-                                                }}
-                                            />
-
-                                            <MediaUploader
-                                                type="video"
-                                                media={formData.videos}
-                                                onChange={(videos) => setFormData({ ...formData, videos })}
-                                                label="Product Videos"
-                                                helperText="Upload videos showing the product in motion."
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-                                    <button
-                                        type="submit"
-                                        disabled={modalLoading}
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
-                                    >
-                                        {modalLoading ? (editingSku ? 'Saving...' : 'Creating...') : (editingSku ? 'Save Changes' : 'Create SKUs')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:col-start-1 sm:text-sm"
-                                        onClick={() => setShowModal(false)}
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Image Tagging Modal */}
-            {taggingModal.isOpen && (
-                <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="tagging-modal-title" role="dialog" aria-modal="true">
-                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })} />
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-medium text-gray-900" id="tagging-modal-title">
-                                        Tag People & Entities
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })}
-                                        className="text-gray-400 hover:text-gray-500"
-                                    >
-                                        <XMarkIcon className="h-6 w-6" />
-                                    </button>
-                                </div>
-                                <p className="text-sm text-gray-500 mb-4">Click on the image to add tags. Click the + button to enter edit mode.</p>
-                                <ImageTagEditor
-                                    imageUrl={taggingModal.imageUrl}
-                                    sourceType="sku_image"
-                                    sourceId={taggingModal.skuId}
-                                    existingTags={taggingTags}
-                                    className="max-h-[60vh] overflow-auto"
-                                />
+                                    <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+                                        <button
+                                            type="submit"
+                                            disabled={modalLoading}
+                                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
+                                        >
+                                            {modalLoading ? (editingSku ? 'Saving...' : 'Creating...') : (editingSku ? 'Save Changes' : 'Create SKUs')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+                                            onClick={() => setShowModal(false)}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
+
+            {/* Image Tagging Modal */}
+            {
+                taggingModal.isOpen && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="tagging-modal-title" role="dialog" aria-modal="true">
+                        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })} />
+                            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-medium text-gray-900" id="tagging-modal-title">
+                                            Tag People & Entities
+                                        </h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })}
+                                            className="text-gray-400 hover:text-gray-500"
+                                        >
+                                            <XMarkIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mb-4">Click on the image to add tags. Click the + button to enter edit mode.</p>
+                                    <ImageTagEditor
+                                        imageUrl={taggingModal.imageUrl}
+                                        sourceType="sku_image"
+                                        sourceId={taggingModal.skuId}
+                                        existingTags={taggingTags}
+                                        className="max-h-[60vh] overflow-auto"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
 
             {/* Confirmation Modal */}
             <ConfirmationModal
@@ -3282,7 +3009,7 @@ export default function GlobalSKUManagement({ brandId }: GlobalSKUManagementProp
                 isLoading={confirmModal.isLoading}
                 confirmText={confirmModal.variant === 'danger' ? 'Delete' : 'Confirm'}
             />
-        </div>
+        </ItemsFilter>
     );
 }
 

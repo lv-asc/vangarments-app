@@ -8,8 +8,9 @@ import Link from 'next/link';
 import { getImageUrl } from '@/utils/imageUrl';
 import { debounce } from '@/lib/utils';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
+import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 
-type EntityTypeFilter = 'all' | 'user' | 'brand' | 'store' | 'supplier' | 'non_profit' | 'page' | 'sport_org';
+type EntityTypeFilter = 'all' | 'user' | 'brand' | 'store' | 'supplier' | 'non_profit' | 'page' | 'sport_org' | 'event';
 
 export default function FollowingPage() {
     const { user } = useAuth();
@@ -29,7 +30,7 @@ export default function FollowingPage() {
 
             const promises: Promise<any>[] = [];
             const fetchUsers = type === 'all' || type === 'user';
-            const fetchEntities = type === 'all' || ['brand', 'store', 'supplier', 'non_profit', 'page', 'sport_org'].includes(type as string);
+            const fetchEntities = type === 'all' || ['brand', 'store', 'supplier', 'non_profit', 'page', 'sport_org', 'event'].includes(type as string);
 
             if (fetchUsers) {
                 promises.push(apiClient.getFollowing(user.id, 1, 100, query));
@@ -82,7 +83,7 @@ export default function FollowingPage() {
             name: e.name || 'Unnamed Entity',
             subtitle: e.entityType.charAt(0).toUpperCase() + e.entityType.slice(1).replace('_', '-'),
             image: e.logo,
-            link: `/${e.entityType === 'brand' ? 'brands' : e.entityType === 'store' ? 'stores' : e.entityType === 'non_profit' ? 'non-profits' : e.entityType === 'sport_org' ? 'sport-orgs' : 'pages'}/${e.slug || e.entityId}`,
+            link: `/${e.entityType === 'brand' ? 'brands' : e.entityType === 'store' ? 'stores' : e.entityType === 'non_profit' ? 'non-profits' : e.entityType === 'sport_org' ? 'sport-orgs' : e.entityType === 'event' ? 'events' : 'pages'}/${e.slug || e.entityId}`,
             verificationStatus: e.verificationStatus
         }));
 
@@ -95,7 +96,8 @@ export default function FollowingPage() {
                     item.type === 'store' ? 'Stores' :
                         item.type === 'supplier' ? 'Suppliers' :
                             item.type === 'non_profit' ? 'Non-Profits' :
-                                item.type === 'sport_org' ? 'Sport ORGs' : 'Pages';
+                                item.type === 'sport_org' ? 'Sport ORGs' :
+                                    item.type === 'event' ? 'Events' : 'Pages';
 
             if (!grouped[typeLabel]) grouped[typeLabel] = [];
             grouped[typeLabel].push(item);
@@ -121,6 +123,7 @@ export default function FollowingPage() {
         { id: 'non_profit', label: 'Non-Profits', icon: BuildingStorefrontIcon },
         { id: 'page', label: 'Pages', icon: RectangleStackIcon },
         { id: 'sport_org', label: 'Sport ORGs', icon: BuildingStorefrontIcon },
+        { id: 'event', label: 'Events', icon: CalendarDaysIcon },
     ];
 
     return (

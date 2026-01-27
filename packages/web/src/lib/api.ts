@@ -770,6 +770,13 @@ class ApiClient {
     });
   }
 
+  async removeBackground(itemId: string, imageId: string): Promise<{ image: any }> {
+    const response = await this.request<any>(`/wardrobe/items/${itemId}/images/${imageId}/remove-background`, {
+      method: 'POST',
+    });
+    return response as any;
+  }
+
   async uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
     const formData = new FormData();
     formData.append('avatar', file);
@@ -953,12 +960,36 @@ class ApiClient {
   }
 
   // Wardrobe Methods
-  async getWardrobeItems(filters?: {
-    category?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<{
+
+  async getWardrobeFacets(): Promise<{
+    brands: any[];
+    categories: any[];
+    colors: any[];
+    patterns: any[];
+    materials: any[];
+    lines: any[];
+    collections: any[];
+  }> {
+    try {
+      // Try to fetch from dedicated endpoint
+      const response = await this.request<any>('/wardrobe/items/facets');
+      return response as any;
+    } catch (error) {
+      console.warn('Backend facets endpoint failed, falling back to empty facets or handling gracefully', error);
+      // Return empty structure so UI doesn't crash, or could trigger a client-side calculation fallback
+      return {
+        brands: [],
+        categories: [],
+        colors: [],
+        patterns: [],
+        materials: [],
+        lines: [],
+        collections: []
+      };
+    }
+  }
+
+  async getWardrobeItems(filters?: Record<string, any>): Promise<{
     items: any[];
     total: number;
     page: number;

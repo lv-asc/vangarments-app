@@ -1,8 +1,11 @@
+import fs from 'fs/promises';
+import path from 'path';
 import { Request, Response } from 'express';
 import multer from 'multer';
 import { VUFSItemModel } from '../models/VUFSItem';
 import { ItemImageModel } from '../models/ItemImage';
 import { AIProcessingService } from '../services/aiProcessingService';
+import { BackgroundRemovalService } from '../services/backgroundRemovalService';
 import { LocalStorageService } from '../services/localStorageService';
 import { AuthenticatedRequest } from '../utils/auth';
 import { VUFSUtils } from '../utils/vufs';
@@ -1010,5 +1013,124 @@ export class WardrobeController {
     return merged;
   }
 
+
+  /**
+   * Remove background from an existing wardrobe item image
+   */
+  static async removeImageBackground(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id, imageId } = req.params;
+
+      // 1. Fetch item and check ownership
+      const item = await VUFSItemModel.findById(id);
+      if (!item) {
+        res.status(404).json({
+          error: {
+            code: 'ITEM_NOT_FOUND',
+            message: 'Wardrobe item not found',
+          },
+        });
+        return;
+      }
+
+      if (item.ownerId !== req.user.userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You can only process your own items',
+          },
+        });
+        return;
+      }
+
+      // 2. Fetch specific image
+      const images = await ItemImageModel.findByItemId(id);
+      const originalImage = images.find(img => img.id === imageId);
+
+      if (!originalImage) {
+        res.status(404).json({
+          error: {
+            code: 'IMAGE_NOT_FOUND',
+            message: 'Image not found for this item',
+          },
+        });
+        return;
+      }
+
+      // 3. Process image background removal
+      // Load image buffer (handling both local and remote URLs)
+      let imageBuffer: Buffer;
+      if (originalImage.imageUrl.startsWith('http')) {
+        const response = await fetch(originalImage.imageUrl);
+        imageBuffer = Buffer.from(await response.arrayBuffer());
+      } else {
+        // Assume local storage path
+        const relativePath = originalImage.imageUrl.startsWith('/')
+          ? originalImage.imageUrl.replace(/^\//, '').replace(/^storage\//, '')
+          : originalImage.imageUrl.replace(/^storage\//, '');
+
+        const fullPath = path.join(process.cwd(), 'storage', relativePath);
+        imageBuffer = await fs.readFile(fullPath);
+      }
+
+      // Perform background removal
+      const processedBuffer = await BackgroundRemovalService.removeBackground(imageBuffer);
+
+      // 4. Save processed image
+      const originalFilename = path.basename(originalImage.imageUrl);
+      const newFilename = `bg_removed_${originalFilename}`;
+
+      const uploadResult = await LocalStorageService.uploadImage(
+        processedBuffer,
+        newFilename,
+        'image/png', // imgly outputs png by default for transparency
+        'wardrobe',
+        req.user.userId
+      );
+
+      // 5. Create image record in DB
+      const bgRemovedImage = await ItemImageModel.create({
+        itemId: item.id,
+        imageUrl: uploadResult.optimizedUrl || uploadResult.url,
+        imageType: 'background_removed',
+        isPrimary: false, // Don't automatically make it primary
+        aiAnalysis: {
+          backgroundRemoved: true,
+          originalImageId: originalImage.id
+        },
+        fileSize: uploadResult.size,
+        mimeType: uploadResult.mimetype,
+      });
+
+      res.status(200).json({
+        message: 'Background removed successfully',
+        image: {
+          ...bgRemovedImage,
+          url: bgRemovedImage.imageUrl.startsWith('http')
+            ? bgRemovedImage.imageUrl
+            : `${process.env.API_URL || 'http://localhost:3001'}/${bgRemovedImage.imageUrl}`
+        },
+      });
+
+    } catch (error) {
+      console.error('Remove background error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while removing the background',
+        },
+      });
+    }
+  }
 
 }

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,6 +9,7 @@ import MediaUploader from '@/components/admin/MediaUploader';
 import { PencilIcon, TrashIcon, MagnifyingGlassIcon, PlusIcon, PhotoIcon, EyeIcon } from '@heroicons/react/24/outline';
 import SearchableCombobox from '@/components/ui/Combobox';
 import { getImageUrl } from '@/utils/imageUrl';
+import ItemsFilter, { ItemsFilters } from '@/components/common/ItemsFilter';
 
 interface WardrobeManagementProps {
 }
@@ -20,11 +20,11 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [search, setSearch] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filters, setFilters] = useState<ItemsFilters>({});
     const [openDropdown, setOpenDropdown] = useState<'sizes' | 'colors' | null>(null);
 
-    // VUFS Data Options
+    // VUFS Data Options (Global) - Used for Add/Edit Modal
     const [vufsBrands, setVufsBrands] = useState<any[]>([]);
     const [lines, setLines] = useState<any[]>([]);
     const [collections, setCollections] = useState<any[]>([]);
@@ -35,6 +35,26 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
     const [colors, setColors] = useState<any[]>([]);
     const [sizes, setSizes] = useState<any[]>([]);
     const [genders, setGenders] = useState<any[]>([]);
+
+    // Facet Options (Wardrobe Context) - Used for Filters
+    const [wardrobeFacets, setWardrobeFacets] = useState<{
+        brands: any[];
+        categories: any[];
+        colors: any[];
+        patterns: any[];
+        materials: any[];
+        lines: any[];
+        collections: any[];
+    }>({
+        brands: [],
+        categories: [],
+        colors: [],
+        patterns: [],
+        materials: [],
+        lines: [],
+        collections: []
+    });
+
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -69,12 +89,15 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
 
     useEffect(() => {
         fetchAllVUFSData();
-        fetchItems();
+        fetchWardrobeFacets(); // Fetch initial facets
     }, []);
 
     useEffect(() => {
-        fetchItems();
-    }, [page, search, selectedCategory]);
+        const timer = setTimeout(() => {
+            fetchItems();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [page, searchQuery, filters]);
 
     // Fetch lines/collections when brand changes
     useEffect(() => {
@@ -180,28 +203,54 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
 
         } catch (error) {
             console.error('Failed to fetch VUFS data', error);
-            toast.error('Failed to load form data');
+            // toast.error('Failed to load form data');
+        }
+    };
+
+    const fetchWardrobeFacets = async () => {
+        try {
+            const facets = await apiClient.getWardrobeFacets();
+            // If the endpoint is mocked/empty, we might want to fallback to client-side derivation if we have items
+            // check implementation of getWardrobeFacets in api.ts
+            if (!facets || (!facets.brands?.length && !facets.categories?.length)) {
+                 // optionally derived from items if we loaded them, but let's trust api.ts or use fallback
+                 // If we have items loaded and facets are empty, we might calculate them here?
+                 // But fetchItems is async. Let's just use what API returns.
+            }
+            setWardrobeFacets(facets || {
+                 brands: [],
+                 categories: [],
+                 colors: [],
+                 patterns: [],
+                 materials: [],
+                 lines: [],
+                 collections: []
+            });
+        } catch (error) {
+            console.error('Failed to fetch wardrobe facets', error);
         }
     };
 
     const fetchItems = async () => {
         setLoading(true);
         try {
-            const filters: any = {};
-            if (selectedCategory) {
-                filters.category = { page: selectedCategory };
-            }
-            if (search) {
-                filters.search = search;
-            }
-
-            const res = await apiClient.getWardrobeItems(filters);
+            const res = await apiClient.getWardrobeItems({
+                ...filters,
+                search: searchQuery,
+                page
+            });
             setItems(res.items || []);
-            // Pagination handled by backend if supported
             setTotalPages(res.totalPages || 1);
+            
+            // Re-fetch facets after filter changes? 
+            // Ideally facets should reflect the current search context (if we support narrowing), 
+            // OR reflect the global wardrobe context (if we only want "filters for owned items").
+            // User request: "allow the user to use only filters that match to existing items in their wardrobe"
+            // This implies global wardrobe context, not necessarily narrowed by current filter.
+            // So calling it once on mount (or when items undergo structural changes like add/delete) is enough.
         } catch (error) {
             console.error('Failed to fetch wardrobe items', error);
-            toast.error('Failed to load items');
+            // toast.error('Failed to load items');
         } finally {
             setLoading(false);
         }
@@ -388,6 +437,7 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
 
             setShowModal(false);
             fetchItems();
+            fetchWardrobeFacets(); // Refresh facets too
         } catch (error) {
             console.error('Failed to save item', error);
             toast.error('Failed to save item');
@@ -402,6 +452,7 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
             await apiClient.deleteWardrobeItem(id);
             toast.success('Item deleted');
             fetchItems();
+            fetchWardrobeFacets(); // Refresh facets too
         } catch (error) {
             console.error('Failed to delete item', error);
             toast.error('Failed to delete item');
@@ -416,130 +467,111 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="relative w-full sm:w-96">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                        type="text"
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="Search items by name, brand..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                </div>
-                <Button onClick={() => openModal()}>
+        <ItemsFilter
+            filters={filters}
+            onChange={setFilters}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            availableFacets={wardrobeFacets}
+        >
+            <div className="flex justify-end mb-6">
+                <Button onClick={() => openModal()} className="shadow-sm">
                     <PlusIcon className="h-5 w-5 mr-2" />
                     New Item
                 </Button>
             </div>
 
-            {/* Card Grid Layout */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {items.map(item => (
-                    <div
-                        key={item.id}
-                        className="group bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => router.push(`/wardrobe/${item.id}`)}
-                    >
-                        {/* Image Container - Large aspect ratio */}
-                        <div className="relative aspect-square bg-gray-200">
-                            {getItemImage(item) ? (
-                                <img
-                                    src={getItemImage(item)}
-                                    alt={item.metadata?.name}
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                    <PhotoIcon className="h-16 w-16" />
-                                </div>
-                            )}
-
-                            {/* Status Badge */}
-                            {item.ownership?.status && item.ownership.status !== 'owned' && (
-                                <div className="absolute bottom-3 left-3">
-                                    <span className="px-3 py-1 text-xs font-medium bg-white/90 backdrop-blur-sm rounded-full text-gray-700 border border-gray-300">
-                                        {item.ownership.status === 'borrowed' ? 'Emprestado' :
-                                            item.ownership.status === 'sold' ? 'Vendido' :
-                                                item.ownership.status}
-                                    </span>
-                                </div>
-                            )}
-
-                            {/* Hover Actions */}
-                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); router.push(`/wardrobe/${item.id}`); }}
-                                    className="p-2 bg-white/90 backdrop-blur-sm rounded-full text-gray-600 hover:text-blue-600 hover:bg-white shadow-sm"
-                                    title="View"
-                                >
-                                    <EyeIcon className="h-4 w-4" />
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); openModal(item); }}
-                                    className="p-2 bg-white/90 backdrop-blur-sm rounded-full text-gray-600 hover:text-blue-600 hover:bg-white shadow-sm"
-                                    title="Edit"
-                                >
-                                    <PencilIcon className="h-4 w-4" />
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                                    className="p-2 bg-white/90 backdrop-blur-sm rounded-full text-gray-600 hover:text-red-600 hover:bg-white shadow-sm"
-                                    title="Delete"
-                                >
-                                    <TrashIcon className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Item Info */}
-                        <div className="p-3 bg-white">
-                            <p className="text-sm font-medium text-gray-900 uppercase tracking-wide truncate">
-                                {item.brand?.brand || 'Unknown Brand'}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                {item.metadata?.name || item.category?.whiteSubcategory || 'Item'}
-                            </p>
-                            {item.metadata?.size && (
-                                <p className="text-xs text-gray-400 mt-0.5">
-                                    Size: {item.metadata.size}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Empty State */}
-            {items.length === 0 && !loading && (
-                <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                    <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No items</h3>
-                    <p className="mt-1 text-sm text-gray-500">Get started by adding your first wardrobe item.</p>
-                    <div className="mt-6">
-                        <Button onClick={() => openModal()}>
-                            <PlusIcon className="h-5 w-5 mr-2" />
-                            New Item
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* Loading State */}
-            {loading && (
+            {loading ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="animate-pulse bg-gray-100 rounded-lg overflow-hidden">
-                            <div className="aspect-square bg-gray-300"></div>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                        <div key={i} className="animate-pulse bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+                            <div className="aspect-square bg-gray-200"></div>
                             <div className="p-3 space-y-2">
-                                <div className="h-4 bg-gray-300 rounded w-2/3"></div>
-                                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                                <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                                <div className="h-3 bg-gray-100 rounded w-1/2"></div>
                             </div>
                         </div>
                     ))}
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {items.map(item => (
+                        <div
+                            key={item.id}
+                            className="group bg-white rounded-xl overflow-hidden border border-gray-200 hover:shadow-xl transition-all duration-300 cursor-pointer"
+                            onClick={() => router.push(`/wardrobe/${item.id}`)}
+                        >
+                            {/* Image Container */}
+                            <div className="relative aspect-square bg-gray-50">
+                                {getItemImage(item) ? (
+                                    <img
+                                        src={getItemImage(item)}
+                                        alt={item.metadata?.name}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <PhotoIcon className="h-12 w-12 opacity-20" />
+                                    </div>
+                                )}
+
+                                {/* Hover Actions */}
+                                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="absolute top-2 right-2 flex gap-1.5 translate-y-[-10px] opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); openModal(item); }}
+                                        className="p-2 bg-white/95 backdrop-blur-sm rounded-full text-gray-600 hover:text-gray-900 shadow-lg border border-gray-100 transition-colors"
+                                        title="Edit"
+                                    >
+                                        <PencilIcon className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                                        className="p-2 bg-white/95 backdrop-blur-sm rounded-full text-gray-600 hover:text-red-600 shadow-lg border border-gray-100 transition-colors"
+                                        title="Delete"
+                                    >
+                                        <TrashIcon className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Info */}
+                            <div className="p-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                                    {item.brand?.brand || 'Generic'}
+                                </p>
+                                <h3 className="text-sm font-bold text-gray-900 truncate">
+                                    {item.metadata?.name || 'Untitled Piece'}
+                                </h3>
+                                <div className="flex items-center gap-2 mt-2">
+                                    {item.metadata?.size && (
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                            {item.metadata.size}
+                                        </span>
+                                    )}
+                                    {item.ownership?.status && item.ownership.status !== 'owned' && (
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded">
+                                            {item.ownership.status}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {items.length === 0 && !loading && (
+                <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                    <PhotoIcon className="mx-auto h-12 w-12 text-gray-300 opacity-50" />
+                    <h3 className="mt-4 text-sm font-bold text-gray-900">Your wardrobe is empty</h3>
+                    <p className="mt-1 text-sm text-gray-500">Try adjusting your filters or add a new piece.</p>
+                    <div className="mt-8">
+                        <Button onClick={() => openModal()} className="rounded-xl px-8">
+                            <PlusIcon className="h-5 w-5 mr-2" />
+                            Add First Piece
+                        </Button>
+                    </div>
                 </div>
             )}
 
@@ -756,16 +788,8 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                                                 className="h-4 w-4 text-blue-600 rounded border-gray-300"
                                                             />
                                                             <span className="ml-3 text-sm text-gray-700">{size.name}</span>
-                                                            {formData.selectedSizes.includes(size.id) && (
-                                                                <svg className="ml-auto h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                </svg>
-                                                            )}
                                                         </label>
                                                     ))}
-                                                </div>
-                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
-                                                    <button type="button" onClick={() => setOpenDropdown(null)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded">Done</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -779,10 +803,9 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                                 {formData.selectedColors.map((id: string) => {
                                                     const color = colors.find(c => c.id === id);
                                                     return (
-                                                        <span key={id} className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs gap-1 border border-gray-200">
-                                                            <span className="w-3 h-3 rounded-full border border-gray-300" style={{ backgroundColor: color?.hex }}></span>
+                                                        <span key={id} className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs">
                                                             {color?.name || id}
-                                                            <button type="button" onClick={() => handleMultiSelect('colors', id)} className="ml-1 hover:text-gray-900 font-bold">&times;</button>
+                                                            <button type="button" onClick={() => handleMultiSelect('colors', id)} className="ml-1 hover:text-blue-900 font-bold">&times;</button>
                                                         </span>
                                                     );
                                                 })}
@@ -824,18 +847,12 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                                                 onChange={(e) => { e.stopPropagation(); handleMultiSelect('colors', color.id); }}
                                                                 className="h-4 w-4 text-blue-600 rounded border-gray-300"
                                                             />
-                                                            <span className="ml-3 w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: color.hex }}></span>
-                                                            <span className="ml-2 text-sm text-gray-700">{color.name}</span>
-                                                            {formData.selectedColors.includes(color.id) && (
-                                                                <svg className="ml-auto h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                </svg>
-                                                            )}
+                                                            <div className="ml-3 flex items-center">
+                                                                <div className="h-4 w-4 rounded-full border border-gray-200 mr-2" style={{ backgroundColor: color.hex || '#ccc' }}></div>
+                                                                <span className="text-sm text-gray-700">{color.name}</span>
+                                                            </div>
                                                         </label>
                                                     ))}
-                                                </div>
-                                                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-2 text-right">
-                                                    <button type="button" onClick={() => setOpenDropdown(null)} className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1 bg-white border border-blue-200 rounded">Done</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -909,6 +926,6 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                     </div>
                 </div>
             )}
-        </div>
+        </ItemsFilter>
     );
 }

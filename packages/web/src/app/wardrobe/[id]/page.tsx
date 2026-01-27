@@ -20,6 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import { Switch } from '@/components/ui/Switch'; // Assuming a Switch component exists or I will create it
 
 interface WardrobeItem {
   id: string;
@@ -78,6 +79,8 @@ export default function WardrobeItemDetailPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isRemovingBackground, setIsRemovingBackground] = useState(false);
+  const [showOriginalBackground, setShowOriginalBackground] = useState(true);
 
   // Hidden Fields State
   const [attributes, setAttributes] = useState<Attribute[]>([]);
@@ -222,6 +225,33 @@ export default function WardrobeItemDetailPage() {
     }
   };
 
+  const handleRemoveBackground = async () => {
+    if (!item) return;
+    const currentImage = item.images?.[selectedImageIndex];
+    if (!currentImage) return;
+
+    setIsRemovingBackground(true);
+    try {
+      const response = await apiClient.removeBackground(item.id, currentImage.id);
+      if (response.image) {
+        // Update item state with new image
+        const updatedItem = {
+          ...item,
+          images: [...(item.images || []), response.image]
+        };
+        setItem(updatedItem);
+        // Find index of the newly added image
+        const newIndex = updatedItem.images.length - 1;
+        setSelectedImageIndex(newIndex);
+        setShowOriginalBackground(false);
+      }
+    } catch (err: any) {
+      alert('Falha ao remover fundo: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setIsRemovingBackground(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -268,51 +298,115 @@ export default function WardrobeItemDetailPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
-        <div className="mb-6">
+        {/* Back Button and Actions */}
+        <div className="mb-6 flex items-center space-x-4">
           <Button
             variant="outline"
             onClick={() => router.back()}
             className="flex items-center space-x-2"
           >
-            ←
+            <span>←</span>
             <span>Voltar</span>
           </Button>
+
+          {/* Background Removal Controls */}
+          {item.images && item.images.length > 0 && (
+            <div>
+              {item.images.some(img =>
+                img.imageType === 'background_removed' &&
+                (img.aiAnalysis?.originalImageId === item.images[selectedImageIndex]?.id ||
+                  item.images[selectedImageIndex]?.id === img.id)
+              ) ? (
+                <div className="bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 flex items-center space-x-3">
+                  <span className={`text-xs font-medium ${showOriginalBackground ? 'text-gray-900' : 'text-gray-500'}`}>Original</span>
+                  <Switch
+                    checked={!showOriginalBackground}
+                    onCheckedChange={(checked) => setShowOriginalBackground(!checked)}
+                  />
+                  <span className={`text-xs font-medium ${!showOriginalBackground ? 'text-gray-900' : 'text-gray-500'}`}>Sem Fundo</span>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-white shadow-sm"
+                  onClick={handleRemoveBackground}
+                  loading={isRemovingBackground}
+                >
+                  <PhotoIcon className="h-4 w-4 mr-1 text-gray-500" />
+                  Remover Fundo
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8 items-start">
           {/* Image Gallery */}
           <div className="space-y-4">
-            <div className="aspect-[3/4] bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-              {item.images && item.images.length > 0 ? (
-                <img
-                  src={getImageUrl(item.images[selectedImageIndex]?.url || item.images[0].url)}
-                  alt={item.metadata.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                  <PhotoIcon className="h-16 w-16 text-gray-400" />
-                </div>
-              )}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative max-h-[500px] flex items-center justify-center">
+              <div className="w-full aspect-square">
+                {item.images && item.images.length > 0 ? (
+                  <img
+                    src={getImageUrl(
+                      !showOriginalBackground &&
+                      item.images.find(img => img.imageType === 'background_removed' &&
+                        (img.aiAnalysis?.originalImageId === item.images[selectedImageIndex]?.id ||
+                          item.images[selectedImageIndex]?.imageType === 'background_removed'))?.url
+                      || item.images[selectedImageIndex]?.url
+                      || item.images[0].url
+                    )}
+                    alt={item.metadata.name}
+                    className="w-full h-full object-cover transition-opacity duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                    <PhotoIcon className="h-16 w-16 text-gray-400" />
+                  </div>
+                )}
+
+                {/* Background Removal Controls */}
+              </div>
             </div>
 
             {/* Image Thumbnails */}
             {item.images && item.images.length > 1 && (
-              <div className="flex space-x-2">
-                {item.images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImageIndex(index)}
-                    className={`w-16 h-20 rounded border-2 overflow-hidden ${selectedImageIndex === index ? 'border-[#00132d]' : 'border-gray-200'
-                      }`}
-                  >
-                    <img
-                      src={getImageUrl(image.url)}
-                      alt={`${item.metadata.name} ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
+              <div className="flex space-x-2 overflow-x-auto pb-2">
+                {item.images
+                  .filter(img => img.imageType !== 'background_removed')
+                  .map((image, index) => {
+                    // Find actual index in original array
+                    const originalIndex = item.images!.indexOf(image);
+
+                    // Determine which URL to show in thumbnail
+                    let thumbnailUrl = image.url;
+                    if (!showOriginalBackground) {
+                      const bgRemovedImg = item.images!.find(img =>
+                        img.imageType === 'background_removed' &&
+                        img.aiAnalysis?.originalImageId === image.id
+                      );
+                      if (bgRemovedImg) {
+                        thumbnailUrl = bgRemovedImg.url;
+                      }
+                    }
+
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          setSelectedImageIndex(originalIndex);
+                        }}
+                        className={`w-16 h-20 rounded border-2 overflow-hidden flex-shrink-0 ${selectedImageIndex === originalIndex ? 'border-[#00132d]' : 'border-gray-200'
+                          }`}
+                      >
+                        <img
+                          src={getImageUrl(thumbnailUrl)}
+                          alt={`${item.metadata.name} ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -522,12 +616,13 @@ export default function WardrobeItemDetailPage() {
             </div>
           </div>
         </div>
-      </main>
+      </main >
 
       {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
+      < ConfirmDialog
         isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
+        onClose={() => setShowDeleteConfirm(false)
+        }
         onConfirm={handleDeleteConfirm}
         title="Excluir Peça"
         message="Tem certeza que deseja excluir esta peça? Esta ação não pode ser desfeita."
@@ -536,6 +631,6 @@ export default function WardrobeItemDetailPage() {
         variant="danger"
         loading={deleting}
       />
-    </div>
+    </div >
   );
 }
