@@ -45,9 +45,15 @@ import {
     CalendarIcon,
     TagIcon,
     UserGroupIcon,
-    EllipsisHorizontalIcon
+    EllipsisHorizontalIcon,
+    UserIcon,
+    CubeIcon,
+    BeakerIcon,
+    ArrowsPointingInIcon,
+    ArrowsRightLeftIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
 
 // Helper for slugs
 const slugify = (text: string) => {
@@ -96,6 +102,13 @@ interface WardrobeItem {
         description?: string;
     };
     images?: Array<{ url: string; type: string; isPrimary: boolean; id: string; aiAnalysis?: any }>;
+    ownership?: {
+        status: 'owned' | 'loaned' | 'borrowed' | 'sold';
+        visibility: 'public' | 'private' | 'friends';
+        owner?: { id: string; type: string; name: string; image?: string };
+        lentTo?: { id: string; type: string; name: string; image?: string };
+        lentBy?: { id: string; type: string; name: string; image?: string };
+    };
     createdAt: string;
     [key: string]: any;
 }
@@ -947,6 +960,122 @@ export default function WardrobeItemDetailClient() {
                                                 <div className="p-2 bg-gray-100 rounded-lg"><TagIcon className="h-5 w-5 text-gray-600" /></div>
                                                 <div><p className="text-xs text-gray-500">VUFS Code</p><p className="text-sm font-mono text-gray-900">{item.vufsCode}</p></div>
                                             </div>
+
+                                            {/* VUFS Attributes */}
+                                            {item.category?.page && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg">
+                                                        <ApparelIcon name={item.category.page} className="h-5 w-5 text-gray-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Apparel</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.category.page}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {(item.category?.blueSubcategory || item.category?.whiteSubcategory) && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg"><CubeIcon className="h-5 w-5 text-gray-600" /></div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Style</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.category.blueSubcategory || item.category.whiteSubcategory}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {item.metadata.pattern && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
+                                                        {React.createElement(getPatternIcon(item.metadata.pattern), { className: 'h-5 w-5' })}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Pattern</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.metadata.pattern}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {item.metadata.material && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg"><BeakerIcon className="h-5 w-5 text-gray-600" /></div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Material</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.metadata.material}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {item.metadata.fit && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg"><ArrowsPointingInIcon className="h-5 w-5 text-gray-600" /></div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Fit</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.metadata.fit}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {item.metadata.gender && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
+                                                        {React.createElement(getGenderIcon(item.metadata.gender), { className: 'h-5 w-5' })}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Gender</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.metadata.gender}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Ownership Info */}
+                                            {item.ownership?.owner && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg">
+                                                        {item.ownership.owner.image ? (
+                                                            <img src={getImageUrl(item.ownership.owner.image)} alt={item.ownership.owner.name} className="w-5 h-5 rounded-full object-cover" />
+                                                        ) : (
+                                                            <UserGroupIcon className="h-5 w-5 text-gray-600" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Owner</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.ownership.owner.name}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {item.ownership?.status === 'loaned' && item.ownership?.lentTo && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg border border-yellow-200">
+                                                        {item.ownership.lentTo.image ? (
+                                                            <img src={getImageUrl(item.ownership.lentTo.image)} alt={item.ownership.lentTo.name} className="w-5 h-5 rounded-full object-cover" />
+                                                        ) : (
+                                                            <UserGroupIcon className="h-5 w-5 text-yellow-600" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Lent To</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.ownership.lentTo.name}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {item.ownership?.status === 'borrowed' && item.ownership?.lentBy && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-gray-100 rounded-lg border border-blue-200">
+                                                        {item.ownership.lentBy.image ? (
+                                                            <img src={getImageUrl(item.ownership.lentBy.image)} alt={item.ownership.lentBy.name} className="w-5 h-5 rounded-full object-cover" />
+                                                        ) : (
+                                                            <UserGroupIcon className="h-5 w-5 text-blue-600" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">Lent By</p>
+                                                        <p className="text-sm font-medium text-gray-900">{item.ownership.lentBy.name}</p>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

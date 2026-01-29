@@ -42,6 +42,9 @@ import VerificationRequestModal from '@/components/verification/VerificationRequ
 import SwitchAccountModal from '@/components/profile/SwitchAccountModal';
 import { LikedItemsTab } from '@/components/profile/LikedItemsTab';
 import { WishlistTab } from '@/components/profile/WishlistTab';
+import { WardrobeItemCard } from '@/components/wardrobe/WardrobeItemCard';
+import { Switch } from '@/components/ui/Switch';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   closestCenter,
@@ -207,6 +210,111 @@ function SortableSocialLinkItem({ id, platform, url, index, onChange, onRemove, 
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+    </div>
+  );
+}
+
+
+// WardrobeTabContent component - matches the main wardrobe page styling
+function WardrobeTabContent({ wardrobeItems, wardrobeLoading }: { wardrobeItems: any[], wardrobeLoading: boolean }) {
+  const router = useRouter();
+
+  // Initialize from localStorage, default to false (show No BG) - Synced with WardrobeManagement
+  const [showOriginalBackgrounds, setShowOriginalBackgrounds] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('wardrobe-show-original-bg');
+      return saved === 'true';
+    }
+    return false;
+  });
+
+  // Sync to localStorage when changed
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('wardrobe-show-original-bg', String(showOriginalBackgrounds));
+    }
+  }, [showOriginalBackgrounds]);
+
+  // Image processing logic to match WardrobeManagement.tsx
+  const isProcessed = (img: any) => img.type === 'background_removed' || img.imageType === 'background_removed';
+
+  const processItemImages = (item: any) => {
+    // Sort all images by sortOrder first
+    const sortedImages = [...(item.images || [])].sort((a: any, b: any) =>
+      (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
+
+    // Get originals in sort order
+    const originalImages = sortedImages.filter((img: any) => !isProcessed(img));
+
+    // Build image list for card
+    let cardImages: any[];
+    if (!showOriginalBackgrounds) {
+      // No BG mode: for each original, prefer its No BG version if available
+      cardImages = originalImages.map(orig => {
+        const noBgVersion = sortedImages.find((img: any) =>
+          isProcessed(img) &&
+          (img.aiAnalysis?.originalImageId === orig.id || img.originalImageId === orig.id)
+        );
+        return noBgVersion || orig;
+      });
+    } else {
+      // Original mode: just use originals
+      cardImages = originalImages;
+    }
+
+    return { ...item, images: cardImages };
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <h3 className="text-lg font-semibold text-gray-900">Wardrobe Items</h3>
+          {/* Switch Control */}
+          <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+            <span className={`text-[10px] font-bold transition-colors ${showOriginalBackgrounds ? 'text-gray-900' : 'text-gray-400'}`}>Original</span>
+            <Switch
+              checked={!showOriginalBackgrounds}
+              onCheckedChange={(checked) => setShowOriginalBackgrounds(!checked)}
+              className="scale-75"
+            />
+            <span className={`text-[10px] font-bold transition-colors ${!showOriginalBackgrounds ? 'text-indigo-600' : 'text-gray-400'}`}>No BG</span>
+          </div>
+        </div>
+        <a href="/wardrobe" className="text-[#00132d] hover:text-[#00132d]/70 text-sm font-medium flex items-center gap-1">
+          View All →
+        </a>
+      </div>
+      {wardrobeLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="animate-pulse bg-gray-50 rounded-xl aspect-[3/4] border border-gray-100" />
+          ))}
+        </div>
+      ) : wardrobeItems.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-600">No wardrobe items yet.</p>
+          <Button onClick={() => window.location.href = '/wardrobe/add'} className="mt-4">
+            Add Your First Item
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {wardrobeItems.slice(0, 8).map(item => {
+            const cardItem = processItemImages(item);
+            return (
+              <WardrobeItemCard
+                key={item.id}
+                item={cardItem}
+                onToggleFavorite={() => { }}
+                onToggleForSale={() => { }}
+                onView={() => router.push(`/wardrobe/${item.vufsCode}`)}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2041,56 +2149,10 @@ export default function ProfilePage() {
           <div className="p-6">
 
             {activeTab === 'wardrobe' && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900">Wardrobe Items</h3>
-                  <a href="/wardrobe" className="text-[#00132d] hover:text-[#00132d]/70 text-sm font-medium">
-                    View All →
-                  </a>
-                </div>
-                {wardrobeLoading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00132d] mx-auto"></div>
-                    <p className="text-gray-500 mt-3">Loading items...</p>
-                  </div>
-                ) : wardrobeItems.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-600">No wardrobe items yet.</p>
-                    <Button onClick={() => window.location.href = '/wardrobe/add'} className="mt-4">
-                      Add Your First Item
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {wardrobeItems.slice(0, 6).map((item) => (
-                      <a
-                        key={item.id}
-                        href={`/wardrobe/${item.vufsCode}`}
-                        className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-                      >
-                        <div className="aspect-square bg-gray-100 relative">
-                          {item.images?.[0] || item.imageUrl ? (
-                            <img
-                              src={getImageUrl(item.images?.[0]?.url || item.images?.[0] || item.imageUrl)}
-                              alt={item.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400">
-                              <span className="text-4xl">👕</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-3">
-                          <p className="font-medium text-gray-900 text-sm truncate">{typeof item.brand === 'string' ? item.brand : item.brand?.brand || 'Unknown Brand'}</p>
-                          <p className="text-gray-600 text-xs truncate">{item.name}</p>
-                          {item.size && <p className="text-gray-400 text-xs">Size: {item.size}</p>}
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <WardrobeTabContent
+                wardrobeItems={wardrobeItems}
+                wardrobeLoading={wardrobeLoading}
+              />
             )}
 
             {activeTab === 'likes' && <LikedItemsTab />}

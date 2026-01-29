@@ -33,6 +33,13 @@ interface WardrobeItem {
   isForSale: boolean;
   tags: string[];
   vufsCode: string;
+  ownership?: {
+    status: 'owned' | 'loaned' | 'borrowed' | 'sold';
+    visibility: 'public' | 'private' | 'friends';
+    owner?: { id: string; type: string; name: string; image?: string };
+    lentTo?: { id: string; type: string; name: string; image?: string };
+    lentBy?: { id: string; type: string; name: string; image?: string };
+  };
   // Enriched fields
   metadata?: {
     name?: string;
@@ -58,8 +65,8 @@ interface WardrobeItem {
 
 interface WardrobeItemCardProps {
   item: WardrobeItem;
-  onEdit: (item: WardrobeItem) => void;
-  onDelete: (itemId: string) => void;
+  onEdit?: (item: WardrobeItem) => void;
+  onDelete?: (itemId: string) => void;
   onToggleFavorite: (itemId: string) => void;
   onToggleForSale: (itemId: string) => void;
   onView: (item: WardrobeItem) => void;
@@ -139,8 +146,8 @@ export function WardrobeItemCard({
     return item.name || item.metadata?.name || 'Untitled Piece';
   };
 
-  const brandName = item.brandInfo?.name || item.brand || 'Generic';
-  const brandSlug = item.brandInfo?.slug || (brandName.toLowerCase().replace(/\s+/g, '-'));
+  const brandName = item.brandInfo?.name || (typeof item.brand === 'object' ? (item.brand as any)?.name : item.brand) || 'Generic';
+  const brandSlug = item.brandInfo?.slug || (typeof item.brand === 'object' ? (item.brand as any)?.slug : null) || (String(brandName).toLowerCase().replace(/\s+/g, '-'));
   const lineName = item.lineInfo?.name;
   const lineLogo = item.lineInfo?.logo;
   const collectionName = item.collectionInfo?.name;
@@ -269,17 +276,19 @@ export function WardrobeItemCard({
 
               {showMenu && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(item);
-                      setShowMenu(false);
-                    }}
-                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    <PencilIcon className="h-4 w-4 mr-3" />
-                    Editar
-                  </button>
+                  {onEdit && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(item);
+                        setShowMenu(false);
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <PencilIcon className="h-4 w-4 mr-3" />
+                      Editar
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -291,17 +300,19 @@ export function WardrobeItemCard({
                     <ShoppingBagIcon className="h-4 w-4 mr-3" />
                     {item.isForSale ? 'Remover da venda' : 'Colocar à venda'}
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(item.id);
-                      setShowMenu(false);
-                    }}
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    <TrashIcon className="h-4 w-4 mr-3" />
-                    Excluir
-                  </button>
+                  {onDelete && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(item.id);
+                        setShowMenu(false);
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <TrashIcon className="h-4 w-4 mr-3" />
+                      Excluir
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -338,7 +349,7 @@ export function WardrobeItemCard({
                 <img src={getImageUrl(item.brandInfo.logo)} className="h-full w-full object-contain" />
               ) : (
                 <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
-                  {brandName.charAt(0)}
+                  {String(brandName).charAt(0)}
                 </div>
               )}
             </div>
@@ -397,6 +408,40 @@ export function WardrobeItemCard({
               <span className="text-[11px] font-bold text-gray-500">
                 Size {displaySize}
               </span>
+            )}
+
+            {/* Ownership Tag & Avatar */}
+            {item.ownership && item.ownership.status !== 'owned' && (
+              <div className="flex items-center gap-1.5 ml-auto">
+                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${item.ownership.status === 'loaned' ? 'bg-yellow-100 text-yellow-700' :
+                  item.ownership.status === 'borrowed' ? 'bg-blue-100 text-blue-700' :
+                    item.ownership.status === 'sold' ? 'bg-red-100 text-red-700' :
+                      'bg-gray-100 text-gray-700'
+                  }`}>
+                  [{item.ownership.status === 'loaned' ? 'Lent Out' :
+                    item.ownership.status === 'borrowed' ? 'Borrowed' :
+                      item.ownership.status}]
+                </span>
+
+                {/* Entity Avatar */}
+                {(() => {
+                  const entity = item.ownership.status === 'loaned' ? item.ownership.lentTo :
+                    item.ownership.status === 'borrowed' ? item.ownership.lentBy :
+                      null;
+                  if (!entity) return null;
+                  return (
+                    <div className="h-5 w-5 rounded-full overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0" title={entity.name}>
+                      {entity.image ? (
+                        <img src={getImageUrl(entity.image)} alt={entity.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400 bg-gray-100">
+                          {entity.name.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             )}
           </div>
         </div>

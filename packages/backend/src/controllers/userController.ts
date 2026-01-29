@@ -15,6 +15,7 @@ import { SocialService } from '../services/socialService';
 import { OutfitModel } from '../models/Outfit';
 import { BrandTeamModel } from '../models/BrandTeam';
 import { UserFollowModel } from '../models/UserFollow';
+import { ItemImageModel } from '../models/ItemImage';
 import axios from 'axios';
 
 const socialService = new SocialService();
@@ -1724,6 +1725,97 @@ export class UserController {
       console.error('Update notification preferences error:', error);
       res.status(500).json({
         error: { code: 'INTERNAL_SERVER_ERROR', message: 'Failed to update notification preferences' }
+      });
+    }
+  }
+
+  static async getPublicWardrobe(req: Request, res: Response) {
+    try {
+      const { username } = req.params;
+      const {
+        category,
+        brand,
+        condition,
+        search,
+        page = 1,
+        limit = 20
+      } = req.query;
+
+      const user = await UserModel.findByUsername(username);
+      if (!user) {
+        return res.status(404).json({
+          error: { code: 'USER_NOT_FOUND', message: 'User not found' }
+        });
+      }
+
+      const filters: any = {
+        category: category ? { page: category as string } : undefined,
+        brand: brand as string,
+        condition: condition as string,
+        visibility: 'public', // Only show public items
+        search: search as string,
+      };
+
+      const items = await VUFSItemModel.findByOwner(user.id, filters);
+
+      // Add pagination
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const startIndex = (pageNum - 1) * limitNum;
+      const endIndex = startIndex + limitNum;
+      const paginatedItems = items.slice(startIndex, endIndex);
+
+      // Fetch images for each item
+      const itemsWithImages = await Promise.all(
+        paginatedItems.map(async (item) => {
+          const images = await ItemImageModel.findByItemId(item.id);
+          const imagesWithUrls = images.map(img => ({
+            ...img,
+            url: img.imageUrl.startsWith('http')
+              ? img.imageUrl
+              : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+          }));
+          return {
+            ...item,
+            images: imagesWithUrls,
+          };
+        })
+      );
+
+      res.json({
+        items: itemsWithImages,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: items.length,
+          totalPages: Math.ceil(items.length / limitNum),
+        },
+      });
+    } catch (error) {
+      console.error('Get public wardrobe error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'An error occurred while fetching public wardrobe' }
+      });
+    }
+  }
+
+  static async getPublicWardrobeFacets(req: Request, res: Response) {
+    try {
+      const { username } = req.params;
+      const user = await UserModel.findByUsername(username);
+      if (!user) {
+        return res.status(404).json({
+          error: { code: 'USER_NOT_FOUND', message: 'User not found' }
+        });
+      }
+
+      const facets = await VUFSItemModel.getFacetsByOwner(user.id);
+
+      res.json(facets);
+    } catch (error) {
+      console.error('Get public wardrobe facets error:', error);
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'An error occurred while fetching wardrobe facets' }
       });
     }
   }

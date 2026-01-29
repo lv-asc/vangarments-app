@@ -159,10 +159,11 @@ export class WardrobeController {
           category: itemData.category!,
           brand: itemData.brand!,
           metadata: itemData.metadata as any,
+          vufsCode: (itemData as any).code, // Map frontend 'code' to 'vufsCode'
           condition: { ...(itemData.condition as any), defects: (itemData.condition as any).defects || [] } as any,
           ownership: itemData.ownership as any,
         });
-        console.log('VUFS item created:', vufsItem.id);
+        console.log('VUFS item created:', vufsItem.id, 'Code:', vufsItem.vufsCode);
       } catch (dbError) {
         console.error('Failed to create VUFS item in DB:', dbError);
         throw dbError; // Re-throw to be caught by outer catch
@@ -212,9 +213,20 @@ export class WardrobeController {
 
       // Process body images if any (pre-uploaded URLs)
       if (bodyImages && bodyImages.length > 0) {
+        console.log(`Processing ${bodyImages.length} body images:`, JSON.stringify(bodyImages, null, 2));
         for (let i = 0; i < bodyImages.length; i++) {
           const img = bodyImages[i];
-          console.log(`Processing body image ${i + 1}/${bodyImages.length}: ${img.url}`);
+          console.log(`Processing body image ${i + 1}/${bodyImages.length}:`, {
+            url: img.url,
+            imageType: img.imageType,
+            isPrimary: img.isPrimary,
+            hasUrl: !!img.url
+          });
+
+          if (!img.url) {
+            console.error(`Body image ${i + 1} has no URL, skipping`);
+            continue;
+          }
 
           try {
             const imageType = img.imageType || (i === 0 ? 'front' : (i === 1 ? 'back' : 'detail'));
@@ -232,12 +244,20 @@ export class WardrobeController {
             imageRecords.push(imageRecord);
           } catch (imgError) {
             console.error(`Failed to process body image ${img.url}:`, imgError);
+            console.error('Image error details:', {
+              error: imgError instanceof Error ? imgError.message : imgError,
+              stack: imgError instanceof Error ? imgError.stack : undefined,
+              imageData: { url: img.url, type: img.imageType, isPrimary: img.isPrimary }
+            });
           }
         }
+      } else {
+        console.log('No body images provided');
       }
 
+      // Log warning if no images were processed but don't fail the entire request
       if (imageRecords.length === 0) {
-        throw new Error('All image processing failed');
+        console.warn('Warning: No images were successfully processed for item', vufsItem.id);
       }
 
       // Get complete item with images
@@ -482,6 +502,8 @@ export class WardrobeController {
 
       const { id } = req.params;
       const updateData = req.body;
+      console.log(`[DEBUG] updateItem called for ${id}`);
+      console.log(`[DEBUG] Request Body Images:`, JSON.stringify(req.body.images));
 
       // UUID Regex for validation
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -544,9 +566,77 @@ export class WardrobeController {
 
       const updatedItem = await VUFSItemModel.update(id, updatePayload);
 
+      // Handle Image Updates if images array is provided
+      let currentImages: any[] = [];
+      if (req.body.images && Array.isArray(req.body.images)) {
+        console.log(`Updating images for item ${existingItem.id} (slug: ${id}). Count: ${req.body.images.length}`);
+
+        try {
+          // 1. Delete existing images using UUID (CRITICAL FIX: Use existingItem.id not id)
+          await ItemImageModel.deleteByItemId(existingItem.id);
+
+          // 2. Create new images
+          const newImages = req.body.images;
+          const imageRecords = [];
+
+          for (let i = 0; i < newImages.length; i++) {
+            const img = newImages[i];
+
+            // Skip invalid entries
+            if (!img.url) {
+              console.warn(`Skipping invalid image at index ${i}: No URL`);
+              continue;
+            }
+
+            try {
+              const imageType = img.imageType || (i === 0 ? 'front' : (i === 1 ? 'back' : 'detail'));
+
+              const imageRecord = await ItemImageModel.create({
+                itemId: existingItem.id, // Use UUID
+                imageUrl: img.url,
+                imageType: imageType as any,
+                isPrimary: img.isPrimary || i === 0,
+                fileSize: img.size || 0,
+                mimeType: img.mimetype || 'image/jpeg',
+              });
+
+              imageRecords.push(imageRecord);
+            } catch (imgError) {
+              console.error(`Failed to create image record for ${img.url}:`, imgError);
+              // Continue processing other images
+            }
+          }
+
+          // Convert to response format
+          currentImages = imageRecords.map(img => ({
+            ...img,
+            url: img.imageUrl.startsWith('http')
+              ? img.imageUrl
+              : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+          }));
+
+          console.log(`Successfully updated ${currentImages.length} images for item ${existingItem.id}`);
+
+        } catch (imageSyncError) {
+          console.error('Failed to sync images during update:', imageSyncError);
+        }
+      } else {
+        // If no images provided in update, fetch existing ones to return complete object
+        const images = await ItemImageModel.findByItemId(existingItem.id);
+        currentImages = images.map(img => ({
+          ...img,
+          url: img.imageUrl.startsWith('http')
+            ? img.imageUrl
+            : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+        }));
+      }
+
       res.json({
         message: 'Wardrobe item updated successfully',
-        item: updatedItem,
+        item: {
+          ...updatedItem,
+          images: currentImages
+        }
       });
     } catch (error) {
       console.error('Update wardrobe item error:', error);

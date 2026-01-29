@@ -135,6 +135,23 @@ export class VUFSUtils {
   }
 
   /**
+   * Generate standardized VUFS code
+   * Format: VG-XXXX-XXXX-XXXXXXXX
+   * Page/Subcategory Initials (4) - Brand Initials (4) - Unique ID (8)
+   */
+  static generateVUFSCode(category: CategoryHierarchy, brand: BrandHierarchy): string {
+    const catText = category.blueSubcategory || category.page || 'UNKN';
+    const catInitials = this.getInitials(catText, 4).toUpperCase();
+
+    const brandInitials = this.getInitials(brand.brand || 'GENR', 4).toUpperCase();
+
+    // Use last 8 chars of a new UUID for uniqueness
+    const uniquePart = uuidv4().replace(/-/g, '').substring(0, 8).toUpperCase();
+
+    return `VG-${catInitials}-${brandInitials}-${uniquePart}`;
+  }
+
+  /**
    * Extract initials from text
    */
   private static getInitials(text: string, maxLength: number): string {
@@ -259,7 +276,11 @@ export class VUFSUtils {
   /**
    * Normalize text for consistency
    */
-  private static normalizeText(text: string): string {
+  private static normalizeText(text: string | null | undefined): string {
+    if (!text) {
+      return '';
+    }
+
     return text.trim()
       .replace(/\s+/g, ' ') // Replace multiple spaces with single space
       .split(' ')

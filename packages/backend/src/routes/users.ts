@@ -19,6 +19,8 @@ router.get('/team-memberships', AuthUtils.authenticateToken, UserController.getA
 router.get('/my-memberships', AuthUtils.authenticateToken, UserController.getMyMemberships);
 router.get('/:id/profile', UserController.getProfile);
 router.get('/u/:username', UserController.getByUsername);
+router.get('/u/:username/wardrobe', UserController.getPublicWardrobe);
+router.get('/u/:username/wardrobe/facets', UserController.getPublicWardrobeFacets);
 router.get('/check-username/:username', UserController.checkUsernameAvailability);
 router.get('/lookup-cep/:cep', UserController.lookupCEP);
 router.post('/avatar', AuthUtils.authenticateToken, UserController.uploadAvatarMiddleware, UserController.uploadAvatar);

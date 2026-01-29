@@ -361,7 +361,7 @@ export default function MediaUploader({
 
         // Final URL should use /storage prefix to match next.config.js rewrites
         const finalUrl = `/storage/${path}`;
-        console.log('[MediaUploader] Converted URL:', { original: url, final: finalUrl });
+
         return finalUrl;
     };
 

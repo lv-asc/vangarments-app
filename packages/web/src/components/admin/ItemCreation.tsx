@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
-import { PencilIcon, TrashIcon, PlusIcon, MagnifyingGlassIcon, XMarkIcon, InformationCircleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, PlusIcon, MagnifyingGlassIcon, XMarkIcon, InformationCircleIcon, UserCircleIcon, ChevronDownIcon, ChevronUpIcon, CubeIcon } from '@heroicons/react/24/outline';
 import { tagApi } from '@/lib/tagApi';
 import { sportOrgApi } from '@/lib/sportOrgApi';
 import { ImageTagEditor } from '@/components/tagging';
@@ -76,6 +76,7 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
         skuId: ''
     });
     const [taggingTags, setTaggingTags] = useState<any[]>([]);
+    const [showVufsDetails, setShowVufsDetails] = useState(false);
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -1397,96 +1398,114 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             </div>
 
             {/* Categories */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Apparel */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Apparel</label>
-                    <SearchableCombobox
-                        options={apparels.map(a => ({ id: a.id, name: a.name, icon: <ApparelIcon name={a.name} className="w-5 h-5" /> }))}
-                        value={apparels.find(a => a.id === formData.apparelId)?.name || ''}
-                        onChange={(val) => {
-                            const app = apparels.find(a => a.name === val);
-                            setFormData(prev => ({ ...prev, apparelId: app?.id || '' }));
-                        }}
-                        placeholder="Select Category"
-                    />
-                </div>
-                {/* Style */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Style</label>
-                    <SearchableCombobox
-                        options={styles.map(s => ({ id: s.id, name: s.name }))}
-                        value={styles.find(s => s.id === formData.styleId)?.name || ''}
-                        onChange={(val) => {
-                            const style = styles.find(s => s.name === val);
-                            setFormData(prev => ({ ...prev, styleId: style?.id || '' }));
-                        }}
-                        placeholder="Select Style"
-                    />
-                </div>
-            </div>
+            {/* Detailed VUFS Attributes Section */}
+            <div className="border border-gray-100 rounded-xl overflow-hidden mb-6">
+                <button
+                    type="button"
+                    onClick={() => setShowVufsDetails(!showVufsDetails)}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                    <div className="flex items-center gap-2">
+                        <CubeIcon className="w-5 h-5 text-gray-500" />
+                        <h3 className="text-md font-bold text-gray-700 uppercase tracking-tight">See More / Detailed Attributes</h3>
+                    </div>
+                    {showVufsDetails ? <ChevronUpIcon className="w-5 h-5 text-gray-400" /> : <ChevronDownIcon className="w-5 h-5 text-gray-400" />}
+                </button>
 
-            {/* Attributes: Pattern, Material, Fit, Gender */}
-            {/* Attributes: Pattern, Material, Fit, Gender */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Pattern</label>
-                    <SearchableCombobox
-                        options={patterns.map(p => ({ id: p.id, name: p.name, icon: React.createElement(getPatternIcon(p.name), { className: 'w-full h-full' }) }))}
-                        value={patterns.find(p => p.id === formData.patternId)?.name || ''}
-                        onChange={v => {
-                            const p = patterns.find(item => item.name === v);
-                            setFormData(prev => ({ ...prev, patternId: p?.id || '' }));
-                        }}
-                        placeholder="Select Pattern"
-                    />
-                    {mode === 'wardrobe' && (
-                        <div className="mt-4">
-                            {renderSizeSelector('Size', 'Select Size')}
+                {showVufsDetails && (
+                    <div className="p-6 space-y-6 bg-white border-t border-gray-100">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Apparel */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Apparel</label>
+                                <SearchableCombobox
+                                    options={apparels.map(a => ({ id: a.id, name: a.name, icon: <ApparelIcon name={a.name} className="w-5 h-5" /> }))}
+                                    value={apparels.find(a => a.id === formData.apparelId)?.name || ''}
+                                    onChange={(val) => {
+                                        const app = apparels.find(a => a.name === val);
+                                        setFormData(prev => ({ ...prev, apparelId: app?.id || '' }));
+                                    }}
+                                    placeholder="Select Category"
+                                />
+                            </div>
+                            {/* Style */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Style</label>
+                                <SearchableCombobox
+                                    options={styles.map(s => ({ id: s.id, name: s.name }))}
+                                    value={styles.find(s => s.id === formData.styleId)?.name || ''}
+                                    onChange={(val) => {
+                                        const style = styles.find(s => s.name === val);
+                                        setFormData(prev => ({ ...prev, styleId: style?.id || '' }));
+                                    }}
+                                    placeholder="Select Style"
+                                />
+                            </div>
                         </div>
-                    )}
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Material</label>
-                    <SearchableCombobox
-                        options={materials.map(m => ({ id: m.id, name: m.name }))}
-                        value={materials.find(m => m.id === formData.materialId)?.name || ''}
-                        onChange={v => {
-                            const m = materials.find(item => item.name === v);
-                            setFormData(prev => ({ ...prev, materialId: m?.id || '' }));
-                        }}
-                        placeholder="Select Material"
-                    />
-                    {mode === 'wardrobe' && (
-                        <div className="mt-4">
-                            {renderColorSelector('Color', 'Select Color')}
+
+                        {/* Attributes: Pattern, Material, Fit, Gender */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Pattern</label>
+                                <SearchableCombobox
+                                    options={patterns.map(p => ({ id: p.id, name: p.name, icon: React.createElement(getPatternIcon(p.name), { className: 'w-full h-full' }) }))}
+                                    value={patterns.find(p => p.id === formData.patternId)?.name || ''}
+                                    onChange={v => {
+                                        const p = patterns.find(item => item.name === v);
+                                        setFormData(prev => ({ ...prev, patternId: p?.id || '' }));
+                                    }}
+                                    placeholder="Select Pattern"
+                                />
+                                {mode === 'wardrobe' && (
+                                    <div className="mt-4">
+                                        {renderSizeSelector('Size', 'Select Size')}
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Material</label>
+                                <SearchableCombobox
+                                    options={materials.map(m => ({ id: m.id, name: m.name }))}
+                                    value={materials.find(m => m.id === formData.materialId)?.name || ''}
+                                    onChange={v => {
+                                        const m = materials.find(item => item.name === v);
+                                        setFormData(prev => ({ ...prev, materialId: m?.id || '' }));
+                                    }}
+                                    placeholder="Select Material"
+                                />
+                                {mode === 'wardrobe' && (
+                                    <div className="mt-4">
+                                        {renderColorSelector('Color', 'Select Color')}
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Fit</label>
+                                <SearchableCombobox
+                                    options={fits.map(f => ({ id: f.id, name: f.name }))}
+                                    value={fits.find(f => f.id === formData.fitId)?.name || ''}
+                                    onChange={v => {
+                                        const f = fits.find(item => item.name === v);
+                                        setFormData(prev => ({ ...prev, fitId: f?.id || '' }));
+                                    }}
+                                    placeholder="Select Fit"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                                <SearchableCombobox
+                                    options={genders.map(g => ({ id: g.id, name: g.name, icon: React.createElement(getGenderIcon(g.name), { className: 'w-full h-full' }) }))}
+                                    value={genders.find(g => g.id === formData.genderId)?.name || ''}
+                                    onChange={v => {
+                                        const g = genders.find(item => item.name === v);
+                                        setFormData(prev => ({ ...prev, genderId: g?.id || '' }));
+                                    }}
+                                    placeholder="Select Gender"
+                                />
+                            </div>
                         </div>
-                    )}
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fit</label>
-                    <SearchableCombobox
-                        options={fits.map(f => ({ id: f.id, name: f.name }))}
-                        value={fits.find(f => f.id === formData.fitId)?.name || ''}
-                        onChange={v => {
-                            const f = fits.find(item => item.name === v);
-                            setFormData(prev => ({ ...prev, fitId: f?.id || '' }));
-                        }}
-                        placeholder="Select Fit"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                    <SearchableCombobox
-                        options={genders.map(g => ({ id: g.id, name: g.name, icon: React.createElement(getGenderIcon(g.name), { className: 'w-full h-full' }) }))}
-                        value={genders.find(g => g.id === formData.genderId)?.name || ''}
-                        onChange={v => {
-                            const g = genders.find(item => item.name === v);
-                            setFormData(prev => ({ ...prev, genderId: g?.id || '' }));
-                        }}
-                        placeholder="Select Gender"
-                    />
-                </div>
+                    </div>
+                )}
             </div>
 
             {/* Ownership & Lending Section - Wardrobe Mode Only */}

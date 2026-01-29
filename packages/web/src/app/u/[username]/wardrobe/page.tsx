@@ -2,6 +2,7 @@
 
 import { useProfile } from '../ProfileLayoutClient';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
+import WardrobeManagement from '@/components/wardrobe/WardrobeManagement';
 
 export default function UserWardrobePage() {
     const { profile, loading, canViewSection, followStatus } = useProfile();
@@ -30,10 +31,10 @@ export default function UserWardrobePage() {
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Wardrobe</h2>
-            <div className="text-center py-12 border-2 border-dashed border-gray-100 rounded-xl">
-                <p className="text-gray-500">No wardrobe items shared publicly.</p>
-            </div>
+            <WardrobeManagement
+                username={profile.username}
+                displayName={profile.name}
+            />
         </div>
     );
 }

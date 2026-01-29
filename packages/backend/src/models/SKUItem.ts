@@ -45,6 +45,12 @@ export interface SKUItem {
     apparelLine?: string;
     itemStatus?: string;
     sponsorRestrictionFlag?: boolean;
+    style?: string;
+    pattern?: string;
+    fit?: string;
+    gender?: string;
+    apparel?: string;
+    materialName?: string;
 }
 
 export interface CreateSKUItemData {
@@ -643,7 +649,13 @@ export class SKUItemModel {
             playerName: row.player_name,
             apparelLine: row.apparel_line,
             itemStatus: row.item_status,
-            sponsorRestrictionFlag: row.sponsor_restriction_flag
+            sponsorRestrictionFlag: row.sponsor_restriction_flag,
+            style: row.style_name,
+            pattern: row.pattern_name,
+            fit: row.fit_name,
+            gender: row.gender_name,
+            apparel: row.apparel_name,
+            materialName: row.material_name
         };
 
         if (row.line_name || row.line_logo || row.line_id) {

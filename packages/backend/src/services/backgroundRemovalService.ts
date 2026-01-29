@@ -54,14 +54,18 @@ export class BackgroundRemovalService {
         console.log(`BackgroundRemovalService: Quality=${quality}, Feather=${featherRadius}px, Ratio=${outputRatio}`);
 
         try {
+            // Auto-rotate image based on EXIF data before processing
+            // This ensures the image isn't sideways if it has orientation metadata
+            const rotatedBuffer = await sharp(imageBuffer).rotate().toBuffer();
+
             // Create a Blob from the buffer for imgly
-            const metadata = await sharp(imageBuffer).metadata();
+            const metadata = await sharp(rotatedBuffer).metadata();
             const mimeType = metadata.format === 'jpeg' ? 'image/jpeg'
                 : metadata.format === 'png' ? 'image/png'
                     : metadata.format === 'webp' ? 'image/webp'
                         : 'image/png';
 
-            const blob = new Blob([imageBuffer as any], { type: mimeType });
+            const blob = new Blob([rotatedBuffer as any], { type: mimeType });
 
             // Calculate absolute path to resources
             const rootDir = path.resolve(process.cwd(), '../../');

@@ -15,9 +15,11 @@ import { WardrobeItemCard } from './WardrobeItemCard';
 import { Switch } from '@/components/ui/Switch';
 
 interface WardrobeManagementProps {
+    username?: string;
+    displayName?: string;
 }
 
-export default function WardrobeManagement({ }: WardrobeManagementProps) {
+export default function WardrobeManagement({ username, displayName }: WardrobeManagementProps) {
     const router = useRouter();
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -26,13 +28,14 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState<ItemsFilters>({});
 
+    const isPublicView = !!username;
+
     // Initialize from localStorage, default to false (show No BG)
     const [showOriginalBackgrounds, setShowOriginalBackgrounds] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('wardrobe-show-original-bg');
             return saved === 'true';
         }
-        return false;
     });
 
     // Sync to localStorage when changed
@@ -95,7 +98,10 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
 
     const fetchWardrobeFacets = async () => {
         try {
-            const facets = await apiClient.getWardrobeFacets();
+            const facets = isPublicView && username
+                ? await apiClient.getPublicWardrobeFacets(username)
+                : await apiClient.getWardrobeFacets();
+
             setWardrobeFacets(facets || {
                 brands: [],
                 categories: [],
@@ -113,11 +119,18 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
     const fetchItems = async () => {
         setLoading(true);
         try {
-            const res = await apiClient.getWardrobeItems({
-                ...filters,
-                search: searchQuery,
-                page
-            });
+            const res = isPublicView && username
+                ? await apiClient.getPublicWardrobeItems(username, {
+                    ...filters,
+                    search: searchQuery,
+                    page
+                })
+                : await apiClient.getWardrobeItems({
+                    ...filters,
+                    search: searchQuery,
+                    page
+                });
+
             setItems(res.items || []);
             setTotalPages(res.totalPages || 1);
         } catch (error) {
@@ -171,8 +184,12 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
             >
                 <div className="flex justify-between items-center mb-10">
                     <div>
-                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">Your Wardrobe</h1>
-                        <p className="text-gray-500 mt-2 font-medium">Manage and curate your digital closet</p>
+                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">
+                            {isPublicView ? (displayName ? `${displayName}'s Wardrobe` : 'Wardrobe') : 'Your Wardrobe'}
+                        </h1>
+                        <p className="text-gray-500 mt-2 font-medium">
+                            {isPublicView ? `Curated digital closet by ${displayName || 'this user'}` : 'Manage and curate your digital closet'}
+                        </p>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-3 bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 mr-2">
@@ -185,17 +202,21 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                 <span className={`text-xs font-bold transition-colors ${!showOriginalBackgrounds ? 'text-indigo-600' : 'text-gray-400'}`}>No BG</span>
                             </div>
                         </div>
-                        <button
-                            onClick={() => router.push('/wardrobe/trash')}
-                            className="flex items-center text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors bg-gray-50 hover:bg-gray-100 px-4 py-3 rounded-xl border border-gray-100"
-                        >
-                            <TrashIcon className="h-5 w-5 mr-2 opacity-50" />
-                            View Trash
-                        </button>
-                        <Button onClick={() => openModal()} className="rounded-2xl px-6 h-14 text-base shadow-xl hover:shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98]">
-                            <PlusIcon className="h-6 w-6 mr-2" />
-                            Add New Item
-                        </Button>
+                        {!isPublicView && (
+                            <>
+                                <button
+                                    onClick={() => router.push('/wardrobe/trash')}
+                                    className="flex items-center text-sm font-bold text-gray-500 hover:text-gray-900 transition-colors bg-gray-50 hover:bg-gray-100 px-4 py-3 rounded-xl border border-gray-100"
+                                >
+                                    <TrashIcon className="h-5 w-5 mr-2 opacity-50" />
+                                    View Trash
+                                </button>
+                                <Button onClick={() => openModal()} className="rounded-2xl px-6 h-14 text-base shadow-xl hover:shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98]">
+                                    <PlusIcon className="h-6 w-6 mr-2" />
+                                    Add New Item
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -254,11 +275,11 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                         <WardrobeItemCard
                                             key={item.id}
                                             item={cardItem}
-                                            onEdit={() => router.push(`/wardrobe/${item.vufsCode}/edit`)}
-                                            onDelete={() => handleDeleteClick(item.id)}
+                                            onEdit={isPublicView ? undefined : () => router.push(`/wardrobe/${item.vufsCode}/edit`)}
+                                            onDelete={isPublicView ? undefined : () => handleDeleteClick(item.id)}
                                             onToggleFavorite={() => { /* Not implemented yet */ }}
                                             onToggleForSale={() => { /* Not implemented yet */ }}
-                                            onView={() => router.push(`/wardrobe/${item.vufsCode}`)}
+                                            onView={() => router.push(isPublicView ? `/u/${username}/wardrobe/${item.vufsCode}` : `/wardrobe/${item.vufsCode}`)}
                                         />
                                     );
                                 })}
@@ -266,14 +287,20 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                         ) : (
                             <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                                 <PhotoIcon className="mx-auto h-12 w-12 text-gray-300 opacity-50" />
-                                <h3 className="mt-4 text-sm font-bold text-gray-900">Your wardrobe is empty</h3>
-                                <p className="mt-1 text-sm text-gray-500">Try adjusting your filters or add a new piece.</p>
-                                <div className="mt-8">
-                                    <Button onClick={() => openModal()} className="rounded-xl px-8">
-                                        <PlusIcon className="h-5 w-5 mr-2" />
-                                        Add First Piece
-                                    </Button>
-                                </div>
+                                <h3 className="mt-4 text-sm font-bold text-gray-900">
+                                    {isPublicView ? `${displayName || 'This user'}'s wardrobe is empty` : 'Your wardrobe is empty'}
+                                </h3>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    {isPublicView ? 'No public items found for this user.' : 'Try adjusting your filters or add a new piece.'}
+                                </p>
+                                {!isPublicView && (
+                                    <div className="mt-8">
+                                        <Button onClick={() => openModal()} className="rounded-xl px-8">
+                                            <PlusIcon className="h-5 w-5 mr-2" />
+                                            Add First Piece
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>

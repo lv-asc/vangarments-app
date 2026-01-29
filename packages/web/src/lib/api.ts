@@ -629,6 +629,39 @@ class ApiClient {
     return response as any;
   }
 
+  async getPublicWardrobeItems(username: string, filters?: Record<string, any>): Promise<{
+    items: any[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined) {
+          params.append(key, value.toString());
+        }
+      });
+    }
+
+    const endpoint = `/users/u/${username}/wardrobe${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await this.request<any>(endpoint);
+    return response as any;
+  }
+
+  async getPublicWardrobeFacets(username: string): Promise<{
+    brands: any[];
+    categories: any[];
+    colors: any[];
+    patterns: any[];
+    materials: any[];
+    lines: any[];
+    collections: any[];
+  }> {
+    const response = await this.request<any>(`/users/u/${username}/wardrobe/facets`);
+    return response as any;
+  }
+
   async checkUsernameAvailability(username: string): Promise<{ available: boolean; error?: string }> {
     const response = await this.request<any>(`/users/check-username/${encodeURIComponent(username)}`);
     return response as any;

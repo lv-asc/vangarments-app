@@ -929,6 +929,18 @@ export default function ProductPageClient() {
                                                         </div>
                                                     )}
 
+                                                    {product.gender && (
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
+                                                                {React.createElement(getGenderIcon(product.gender), { className: 'h-5 w-5' })}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">Gender</p>
+                                                                <p className="text-sm font-medium text-gray-900 capitalize">{product.gender}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     {product.sportSquad && (
                                                         <div className="flex items-center gap-3">
                                                             <div className="p-2 bg-yellow-50 rounded-lg">
