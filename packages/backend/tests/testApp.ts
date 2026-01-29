@@ -139,7 +139,7 @@ app.post('/wardrobe/items', (req, res) => {
 
 app.get('/wardrobe/items/:id', (req, res) => {
   const { id } = req.params;
-  
+
   if (id === 'nonexistent-id') {
     return res.status(404).json({
       success: false,
@@ -168,7 +168,7 @@ app.get('/wardrobe/items/:id', (req, res) => {
 
 app.put('/wardrobe/items/:id', (req, res) => {
   const { id } = req.params;
-  
+
   // Get existing item or create base item
   const existingItem = itemStore[id] || {
     id,
@@ -227,7 +227,7 @@ app.get('/social/feed', (req, res) => {
 // Batch operations
 app.post('/wardrobe/items/batch', (req, res) => {
   const { items, batchId } = req.body;
-  
+
   if (!items || !Array.isArray(items)) {
     return res.status(400).json({
       success: false,
@@ -306,7 +306,7 @@ app.post('/wardrobe/items/batch', (req, res) => {
 
 app.get('/wardrobe/items/batch/:batchId/progress', (req, res) => {
   const { batchId } = req.params;
-  
+
   res.status(200).json({
     success: true,
     data: {
@@ -323,7 +323,7 @@ app.get('/wardrobe/items/batch/:batchId/progress', (req, res) => {
 // Sync endpoints
 app.post('/sync/wardrobe-items', (req, res) => {
   const { items } = req.body;
-  
+
   if (!items || !Array.isArray(items)) {
     return res.status(400).json({
       success: false,
@@ -372,7 +372,7 @@ app.get('/sync/wardrobe-items/incremental', (req, res) => {
 // Additional sync endpoints
 app.get('/sync/wardrobe-items/paginated', (req, res) => {
   const { page = 1, limit = 50 } = req.query;
-  
+
   res.status(200).json({
     success: true,
     data: {
@@ -389,7 +389,7 @@ app.get('/sync/wardrobe-items/paginated', (req, res) => {
 
 app.post('/sync/queue-operations', (req, res) => {
   const { operations } = req.body;
-  
+
   res.status(200).json({
     success: true,
     data: {
@@ -398,58 +398,6 @@ app.post('/sync/queue-operations', (req, res) => {
   });
 });
 
-// Outfit endpoints for referential integrity tests
-app.post('/outfits', (req, res) => {
-  const { items } = req.body;
-  
-  // Check if all referenced items exist (simplified check)
-  const validItems = items.filter((id: string) => id.startsWith('item-'));
-  
-  if (validItems.length !== items.length) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'REFERENCE_ERROR',
-        message: 'Some referenced items do not exist'
-      }
-    });
-  }
-
-  res.status(201).json({
-    success: true,
-    data: {
-      id: `outfit-${Date.now()}`,
-      ...req.body,
-      items: validItems
-    }
-  });
-});
-
-app.post('/sync/outfits', (req, res) => {
-  const { outfits } = req.body;
-  
-  // Check for orphaned references
-  const orphanedOutfits = outfits.filter((outfit: any) => 
-    outfit.items.some((itemId: string) => itemId.startsWith('nonexistent'))
-  );
-
-  if (orphanedOutfits.length > 0) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'REFERENCE_ERROR',
-        message: 'Orphaned references found'
-      }
-    });
-  }
-
-  res.status(200).json({
-    success: true,
-    data: {
-      syncedOutfits: outfits
-    }
-  });
-});
 
 // Batch history and cleanup endpoints
 app.get('/wardrobe/items/batch/history', (req, res) => {
@@ -478,7 +426,7 @@ app.delete('/wardrobe/items/batch/cleanup', (req, res) => {
 // Batch image upload endpoints
 app.post('/wardrobe/items/batch-images', (req, res) => {
   const batchId = req.body.batchId || `batch-${Date.now()}`;
-  
+
   res.status(202).json({
     success: true,
     data: {
@@ -490,7 +438,7 @@ app.post('/wardrobe/items/batch-images', (req, res) => {
 
 app.get('/wardrobe/items/batch-images/:batchId/progress', (req, res) => {
   const { batchId } = req.params;
-  
+
   res.status(200).json({
     success: true,
     data: {
@@ -523,5 +471,6 @@ app.use((req: express.Request, res: express.Response) => {
       message: 'Endpoint not found'
     }
   });
-});export {
- app };
+}); export {
+  app
+};

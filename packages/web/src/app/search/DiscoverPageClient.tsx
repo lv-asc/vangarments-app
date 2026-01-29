@@ -10,7 +10,7 @@ import { apiClient } from '@/lib/api';
 import { WardrobeAPI, WardrobeItem } from '@/lib/wardrobeApi';
 import { skuApi } from '@/lib/skuApi';
 import { pageApi, IPage } from '@/lib/pageApi';
-import { socialApi } from '@/lib/socialApi';
+
 import {
   FireIcon,
   BuildingStorefrontIcon,
@@ -32,7 +32,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useRecentVisits } from '@/hooks/useRecentVisits';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
-type FilterType = 'all' | 'item' | 'brand' | 'store' | 'user' | 'post' | 'page' | 'non_profit' | 'supplier' | 'editorial' | 'event';
+type FilterType = 'all' | 'item' | 'brand' | 'store' | 'user' | 'page' | 'non_profit' | 'supplier' | 'editorial' | 'event';
 
 const ResultSection = ({ title, items, renderItem, icon: Icon }: { title: string, items: any[], renderItem: (item: any) => React.ReactNode, icon: any }) => {
   if (!items || items.length === 0) return null;
@@ -324,25 +324,7 @@ const RecentCard = ({ item }: { item: any }) => {
   return null;
 };
 
-const PostCard = ({ post }: { post: any }) => (
-  <Link href={`/social/post/${post.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-    <div className="flex items-center gap-3">
-      <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-        {post.images?.[0] ? (
-          <img src={getImageUrl(post.images[0])} alt="Post" className="h-full w-full object-cover" />
-        ) : (
-          <div className="h-full w-full flex items-center justify-center text-gray-400">
-            <ChatBubbleLeftRightIcon className="h-6 w-6" />
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-900 truncate">{post.caption || 'Untitled Post'}</p>
-        <p className="text-xs text-gray-500 truncate">@{post.author?.username || 'user'}</p>
-      </div>
-    </div>
-  </Link>
-);
+
 
 const PageCard = ({ page }: { page: IPage }) => (
   <Link href={`/pages/${page.slug || page.id}`} className="block p-3 rounded-lg bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
@@ -484,7 +466,7 @@ export default function DiscoverPage() {
       const fetchNonProfits = type === 'all' || type === 'non_profit';
       const fetchUsers = type === 'all' || type === 'user';
       const fetchItems = type === 'all' || type === 'item';
-      const fetchPosts = type === 'all' || type === 'post';
+
       const fetchPages = type === 'all' || type === 'page';
       const fetchEditorial = type === 'all' || type === 'editorial';
       const fetchEvents = type === 'all' || type === 'event';
@@ -527,14 +509,7 @@ export default function DiscoverPage() {
         promises.push(skuPromise);
       } else promises.push(Promise.resolve([]));
 
-      // Posts (Social)
-      if (fetchPosts) {
-        const postLimit = query ? 5 : 20;
-        promises.push(socialApi.searchPosts({ q: query || undefined, limit: postLimit })
-          .then((res: any) => res.posts || [])
-          .catch(() => [])
-        );
-      } else promises.push(Promise.resolve([]));
+
 
       // Pages
       if (fetchPages) {
@@ -650,7 +625,7 @@ export default function DiscoverPage() {
               { id: 'brand', label: 'Brands' },
               { id: 'store', label: 'Stores' },
               { id: 'user', label: 'Users' },
-              { id: 'post', label: 'Posts' },
+
               { id: 'page', label: 'Pages' },
               { id: 'non_profit', label: 'Non-Profits' },
               { id: 'supplier', label: 'Suppliers' },
@@ -694,9 +669,7 @@ export default function DiscoverPage() {
                 {(filterType === 'all' || filterType === 'user') && (
                   <ResultSection title="Users" items={results.users} icon={UsersIcon} renderItem={item => <UserCard user={item} />} />
                 )}
-                {(filterType === 'all' || filterType === 'post') && (
-                  <ResultSection title="Posts" items={results.posts} icon={ChatBubbleLeftRightIcon} renderItem={item => <PostCard post={item} />} />
-                )}
+
                 {(filterType === 'all' || filterType === 'page') && (
                   <ResultSection title="Pages" items={results.pages} icon={RectangleStackIcon} renderItem={item => <PageCard page={item} />} />
                 )}

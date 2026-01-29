@@ -65,6 +65,14 @@ export interface VUFSItemFilters {
   condition?: string;
   visibility?: string;
   search?: string;
+  // Extended filters
+  sizes?: string[];
+  colors?: string[];
+  materials?: string[];
+  patterns?: string[];
+  genders?: string[];
+  styles?: string[];
+  nationalities?: string[];
 }
 
 export class VUFSItemModel {
@@ -209,6 +217,76 @@ export class VUFSItemModel {
       values.push(filters.search.toLowerCase());
       values.push(`%${filters.search}%`);
       paramCount += 2;
+    }
+
+    // Extended Filters
+    if (filters?.sizes && filters.sizes.length > 0) {
+      // Check both size and sizeId
+      query += ` AND (metadata->>'size' = ANY($${paramCount}) OR metadata->>'sizeId' = ANY($${paramCount}))`;
+      values.push(filters.sizes);
+      paramCount++;
+    }
+
+    if (filters?.genders && filters.genders.length > 0) {
+      // Check both gender and genderId
+      query += ` AND (metadata->>'gender' = ANY($${paramCount}) OR metadata->>'genderId' = ANY($${paramCount}))`;
+      values.push(filters.genders);
+      paramCount++;
+    }
+
+    if (filters?.patterns && filters.patterns.length > 0) {
+      query += ` AND metadata->>'pattern' = ANY($${paramCount})`;
+      values.push(filters.patterns);
+      paramCount++;
+    }
+
+    // JSON Array checks (Colors, Materials)
+    if (filters?.colors && filters.colors.length > 0) {
+      // Check for name/id/primary in array OR top-level color/colorId
+      query += ` AND (
+        EXISTS (
+          SELECT 1 FROM jsonb_array_elements(metadata->'colors') c 
+          WHERE COALESCE(c->>'name', c->>'id', c->>'primary') = ANY($${paramCount})
+        )
+        OR
+        COALESCE(metadata->>'color', metadata->>'colorId') = ANY($${paramCount})
+      )`;
+      values.push(filters.colors);
+      paramCount++;
+    }
+
+    if (filters?.materials && filters.materials.length > 0) {
+      // Check for name/id/material in array OR top-level material/materialId
+      query += ` AND (
+        EXISTS (
+          SELECT 1 FROM jsonb_array_elements(metadata->'composition') m 
+          WHERE COALESCE(m->>'name', m->>'id', m->>'material') = ANY($${paramCount})
+        )
+        OR
+        COALESCE(metadata->>'material', metadata->>'materialId') = ANY($${paramCount})
+      )`;
+      values.push(filters.materials);
+      paramCount++;
+    }
+
+    if (filters?.styles && filters.styles.length > 0) {
+      // metadata->'style' might be an array or string? Assuming array of strings usually, or comma string.
+      // It seems style wasn't in getFacets? 
+      // Assume metadata->'styles' (array of strings) if it exists
+      query += ` AND (
+         (jsonb_typeof(metadata->'styles') = 'array' AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(metadata->'styles') s WHERE s = ANY($${paramCount})))
+         OR
+         (metadata->>'style' = ANY($${paramCount}))
+       )`;
+      values.push(filters.styles);
+      paramCount++;
+    }
+
+    if (filters?.nationalities && filters.nationalities.length > 0) {
+      // metadata->>'origin' or 'madeIn'?
+      query += ` AND metadata->>'madeIn' = ANY($${paramCount})`;
+      values.push(filters.nationalities);
+      paramCount++;
     }
 
     query += ' ORDER BY created_at DESC';
@@ -476,12 +554,17 @@ export class VUFSItemModel {
 
   static async getFacetsByOwner(ownerId: string): Promise<{
     brands: string[];
-    categories: string[];
+    departments: string[]; // page
+    categories: string[]; // blueSubcategory
+    subcategories: string[]; // whiteSubcategory
+    apparelTypes: string[]; // graySubcategory/Item
     colors: string[];
     patterns: string[];
     materials: string[];
     lines: string[];
     collections: string[];
+    sizes: string[];
+    genders: string[];
   }> {
     const query = `
       WITH item_data AS (
@@ -498,12 +581,32 @@ export class VUFSItemModel {
       )
       SELECT 
         (SELECT jsonb_agg(DISTINCT brand) FROM item_data WHERE brand IS NOT NULL) as brands,
-        (SELECT jsonb_agg(DISTINCT category) FROM item_data WHERE category IS NOT NULL) as categories,
+        (SELECT jsonb_agg(DISTINCT category) FROM item_data WHERE category IS NOT NULL) as departments,
         (SELECT jsonb_agg(DISTINCT line) FROM item_data WHERE line IS NOT NULL) as lines,
         (SELECT jsonb_agg(DISTINCT collection) FROM item_data WHERE collection IS NOT NULL) as collections,
         (SELECT jsonb_agg(DISTINCT pattern) FROM item_data WHERE pattern IS NOT NULL) as patterns,
-        (SELECT jsonb_agg(DISTINCT c->>'name') FROM item_data, jsonb_array_elements(colors) c WHERE c->>'name' IS NOT NULL) as colors,
-        (SELECT jsonb_agg(DISTINCT m->>'name') FROM item_data, jsonb_array_elements(composition) m WHERE m->>'name' IS NOT NULL) as materials
+        (
+          SELECT jsonb_agg(DISTINCT val)
+          FROM (
+            SELECT COALESCE(c->>'name', c->>'id', c->>'primary') as val FROM vufs_items, jsonb_array_elements(metadata->'colors') c WHERE owner_id = $1 AND deleted_at IS NULL
+            UNION
+            SELECT COALESCE(metadata->>'color', metadata->>'colorId') as val FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL
+          ) t WHERE val IS NOT NULL
+        ) as colors,
+        (
+          SELECT jsonb_agg(DISTINCT val)
+          FROM (
+            SELECT COALESCE(m->>'name', m->>'id', m->>'material') as val FROM vufs_items, jsonb_array_elements(metadata->'composition') m WHERE owner_id = $1 AND deleted_at IS NULL
+            UNION
+            SELECT COALESCE(metadata->>'material', metadata->>'materialId') as val FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL
+          ) t WHERE val IS NOT NULL
+        ) as materials,
+        (SELECT jsonb_agg(DISTINCT category_hierarchy->>'blueSubcategory') FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND category_hierarchy->>'blueSubcategory' IS NOT NULL) as categories,
+        (SELECT jsonb_agg(DISTINCT category_hierarchy->>'whiteSubcategory') FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND category_hierarchy->>'whiteSubcategory' IS NOT NULL) as subcategories,
+        (SELECT jsonb_agg(DISTINCT category_hierarchy->>'graySubcategory') FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND category_hierarchy->>'graySubcategory' IS NOT NULL) as apparel_types,
+        (SELECT jsonb_agg(DISTINCT COALESCE(metadata->>'size', metadata->>'sizeId')) FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND (metadata->>'size' IS NOT NULL OR metadata->>'sizeId' IS NOT NULL)) as sizes,
+        (SELECT jsonb_agg(DISTINCT COALESCE(metadata->>'gender', metadata->>'genderId')) FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND (metadata->>'gender' IS NOT NULL OR metadata->>'genderId' IS NOT NULL)) as genders
+
     `;
 
     const result = await db.query(query, [ownerId]);
@@ -511,12 +614,17 @@ export class VUFSItemModel {
 
     return {
       brands: row.brands || [],
+      departments: row.departments || [],
       categories: row.categories || [],
+      subcategories: row.subcategories || [],
+      apparelTypes: row.apparel_types || [],
       colors: row.colors || [],
       patterns: row.patterns || [],
       materials: row.materials || [],
       lines: row.lines || [],
       collections: row.collections || [],
+      sizes: row.sizes || [],
+      genders: row.genders || [],
     };
   }
 

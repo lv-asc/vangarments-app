@@ -14,7 +14,7 @@ router.get(
   AuthUtils.optionalAuth, // Allow both authenticated and anonymous users
   query('category').optional().isString(),
   query('tags').optional(),
-  query('contentType').optional().isIn(['outfit', 'item', 'inspiration']),
+  query('contentType').optional().isIn(['item', 'inspiration']),
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 50 }),
   validateRequest,
@@ -46,7 +46,7 @@ router.get(
 router.get(
   '/search',
   query('q').optional().isString(),
-  query('contentType').optional().isIn(['outfit', 'item', 'inspiration']),
+  query('contentType').optional().isIn(['item', 'inspiration']),
   query('tags').optional(),
   query('userId').optional().isUUID(),
   query('category').optional().isString(),

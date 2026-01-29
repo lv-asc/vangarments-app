@@ -48,20 +48,30 @@ export default function WardrobeManagement({ username, displayName }: WardrobeMa
     // Facet Options (Wardrobe Context) - Used for Filters
     const [wardrobeFacets, setWardrobeFacets] = useState<{
         brands: any[];
+        departments: any[];
         categories: any[];
+        subcategories: any[];
+        apparelTypes: any[];
         colors: any[];
         patterns: any[];
         materials: any[];
         lines: any[];
         collections: any[];
+        sizes: any[];
+        genders: any[];
     }>({
         brands: [],
+        departments: [],
         categories: [],
+        subcategories: [],
+        apparelTypes: [],
         colors: [],
         patterns: [],
         materials: [],
         lines: [],
-        collections: []
+        collections: [],
+        sizes: [],
+        genders: []
     });
 
 
@@ -104,13 +114,19 @@ export default function WardrobeManagement({ username, displayName }: WardrobeMa
 
             setWardrobeFacets(facets || {
                 brands: [],
+                departments: [],
                 categories: [],
+                subcategories: [],
+                apparelTypes: [],
                 colors: [],
                 patterns: [],
                 materials: [],
                 lines: [],
-                collections: []
+                collections: [],
+                sizes: [],
+                genders: []
             });
+            console.log('[DEBUG] Fetched Wardrobe Facets:', facets);
         } catch (error) {
             console.error('Failed to fetch wardrobe facets', error);
         }
@@ -179,6 +195,7 @@ export default function WardrobeManagement({ username, displayName }: WardrobeMa
             <ItemsFilter
                 filters={filters}
                 onChange={setFilters}
+                availableFacets={wardrobeFacets}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
             >

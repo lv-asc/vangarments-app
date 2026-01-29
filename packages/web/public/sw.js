@@ -7,7 +7,6 @@ const IMAGE_CACHE = 'vangarments-images-v1.0.0';
 const STATIC_ASSETS = [
   '/',
   '/wardrobe',
-  '/outfits',
   '/social',
   '/marketplace',
   '/profile',
@@ -21,7 +20,6 @@ const STATIC_ASSETS = [
 // API endpoints to cache
 const API_CACHE_PATTERNS = [
   /^https:\/\/api\.vangarments\.com\/v1\/wardrobe/,
-  /^https:\/\/api\.vangarments\.com\/v1\/outfits/,
   /^https:\/\/api\.vangarments\.com\/v1\/social/,
   /^https:\/\/api\.vangarments\.com\/v1\/marketplace/,
 ];
@@ -35,7 +33,7 @@ const IMAGE_PATTERNS = [
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
-  
+
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
@@ -55,15 +53,15 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating service worker...');
-  
+
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE && 
-                cacheName !== DYNAMIC_CACHE && 
-                cacheName !== IMAGE_CACHE) {
+            if (cacheName !== STATIC_CACHE &&
+              cacheName !== DYNAMIC_CACHE &&
+              cacheName !== IMAGE_CACHE) {
               console.log('[SW] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
             }
@@ -109,20 +107,20 @@ self.addEventListener('fetch', (event) => {
 // Check if request is for an image
 function isImageRequest(request) {
   return IMAGE_PATTERNS.some(pattern => pattern.test(request.url)) ||
-         request.destination === 'image';
+    request.destination === 'image';
 }
 
 // Check if request is for API
 function isAPIRequest(request) {
   return API_CACHE_PATTERNS.some(pattern => pattern.test(request.url)) ||
-         request.url.includes('/api/');
+    request.url.includes('/api/');
 }
 
 // Check if request is for static asset
 function isStaticAsset(request) {
   return STATIC_ASSETS.includes(new URL(request.url).pathname) ||
-         request.url.includes('/assets/') ||
-         request.url.includes('/_next/static/');
+    request.url.includes('/assets/') ||
+    request.url.includes('/_next/static/');
 }
 
 // Check if request is navigation
@@ -135,17 +133,17 @@ async function handleImageRequest(request) {
   try {
     const cache = await caches.open(IMAGE_CACHE);
     const cachedResponse = await cache.match(request);
-    
+
     if (cachedResponse) {
       return cachedResponse;
     }
 
     const networkResponse = await fetch(request);
-    
+
     if (networkResponse.ok) {
       cache.put(request, networkResponse.clone());
     }
-    
+
     return networkResponse;
   } catch (error) {
     console.error('[SW] Image request failed:', error);
@@ -158,30 +156,30 @@ async function handleImageRequest(request) {
 async function handleAPIRequest(request) {
   try {
     const cache = await caches.open(DYNAMIC_CACHE);
-    
+
     try {
       const networkResponse = await fetch(request);
-      
+
       if (networkResponse.ok) {
         cache.put(request, networkResponse.clone());
       }
-      
+
       return networkResponse;
     } catch (networkError) {
       console.log('[SW] Network failed, trying cache for API request');
       const cachedResponse = await cache.match(request);
-      
+
       if (cachedResponse) {
         return cachedResponse;
       }
-      
+
       throw networkError;
     }
   } catch (error) {
     console.error('[SW] API request failed:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Offline', 
-      message: 'Você está offline. Algumas funcionalidades podem estar limitadas.' 
+    return new Response(JSON.stringify({
+      error: 'Offline',
+      message: 'Você está offline. Algumas funcionalidades podem estar limitadas.'
     }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }
@@ -194,17 +192,17 @@ async function handleStaticAsset(request) {
   try {
     const cache = await caches.open(STATIC_CACHE);
     const cachedResponse = await cache.match(request);
-    
+
     if (cachedResponse) {
       return cachedResponse;
     }
 
     const networkResponse = await fetch(request);
-    
+
     if (networkResponse.ok) {
       cache.put(request, networkResponse.clone());
     }
-    
+
     return networkResponse;
   } catch (error) {
     console.error('[SW] Static asset request failed:', error);
@@ -219,10 +217,10 @@ async function handleNavigationRequest(request) {
     return networkResponse;
   } catch (error) {
     console.log('[SW] Navigation request failed, serving offline page');
-    
+
     const cache = await caches.open(STATIC_CACHE);
     const offlinePage = await cache.match('/');
-    
+
     return offlinePage || new Response('Offline', { status: 503 });
   }
 }
@@ -240,11 +238,9 @@ async function handleGenericRequest(request) {
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync triggered:', event.tag);
-  
+
   if (event.tag === 'wardrobe-sync') {
     event.waitUntil(syncWardrobeData());
-  } else if (event.tag === 'outfit-sync') {
-    event.waitUntil(syncOutfitData());
   }
 });
 
@@ -252,10 +248,10 @@ self.addEventListener('sync', (event) => {
 async function syncWardrobeData() {
   try {
     console.log('[SW] Syncing wardrobe data...');
-    
+
     // Get offline data from IndexedDB
     const offlineData = await getOfflineWardrobeData();
-    
+
     if (offlineData.length > 0) {
       // Send to server
       const response = await fetch('/api/v1/wardrobe/sync', {
@@ -265,7 +261,7 @@ async function syncWardrobeData() {
         },
         body: JSON.stringify({ items: offlineData }),
       });
-      
+
       if (response.ok) {
         // Clear offline data
         await clearOfflineWardrobeData();
@@ -274,33 +270,6 @@ async function syncWardrobeData() {
     }
   } catch (error) {
     console.error('[SW] Failed to sync wardrobe data:', error);
-  }
-}
-
-// Sync outfit data when back online
-async function syncOutfitData() {
-  try {
-    console.log('[SW] Syncing outfit data...');
-    
-    // Similar implementation for outfits
-    const offlineData = await getOfflineOutfitData();
-    
-    if (offlineData.length > 0) {
-      const response = await fetch('/api/v1/outfits/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ outfits: offlineData }),
-      });
-      
-      if (response.ok) {
-        await clearOfflineOutfitData();
-        console.log('[SW] Outfit data synced successfully');
-      }
-    }
-  } catch (error) {
-    console.error('[SW] Failed to sync outfit data:', error);
   }
 }
 
@@ -314,19 +283,10 @@ async function clearOfflineWardrobeData() {
   // Implementation would clear IndexedDB offline data
 }
 
-async function getOfflineOutfitData() {
-  // Implementation would use IndexedDB to get offline data
-  return [];
-}
-
-async function clearOfflineOutfitData() {
-  // Implementation would clear IndexedDB offline data
-}
-
 // Push notification handling
 self.addEventListener('push', (event) => {
   console.log('[SW] Push notification received');
-  
+
   const options = {
     body: event.data ? event.data.text() : 'Nova notificação do Vangarments',
     icon: '/assets/images/logo.svg',
@@ -349,7 +309,7 @@ self.addEventListener('push', (event) => {
       }
     ]
   };
-  
+
   event.waitUntil(
     self.registration.showNotification('Vangarments', options)
   );
@@ -358,9 +318,9 @@ self.addEventListener('push', (event) => {
 // Notification click handling
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked:', event.action);
-  
+
   event.notification.close();
-  
+
   if (event.action === 'explore') {
     event.waitUntil(
       clients.openWindow('/')
@@ -371,11 +331,11 @@ self.addEventListener('notificationclick', (event) => {
 // Message handling for communication with main thread
 self.addEventListener('message', (event) => {
   console.log('[SW] Message received:', event.data);
-  
+
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  
+
   if (event.data && event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({ version: CACHE_NAME });
   }

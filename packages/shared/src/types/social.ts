@@ -4,7 +4,7 @@ export interface SocialPost {
   id: string;
   slug: string;
   userId: string;
-  postType: 'outfit' | 'item' | 'inspiration';
+  postType: 'item' | 'inspiration';
   content: {
     title?: string;
     description?: string;
@@ -177,6 +177,8 @@ export interface UserProfile {
     socialLinks?: SocialLink[];
   };
   badges?: Badge[];
+  verificationStatus?: string;
+  roles?: string[];
 }
 
 export interface SocialLink {
@@ -271,7 +273,7 @@ export interface ItemCondition {
 
 // API Request/Response types
 export interface CreatePostRequest {
-  postType: 'outfit' | 'item' | 'inspiration';
+  postType: 'item' | 'inspiration';
   content: {
     title?: string;
     description?: string;
@@ -290,7 +292,7 @@ export interface FeedRequest {
 
 export interface SearchPostsRequest {
   q?: string;
-  postType?: 'outfit' | 'item' | 'inspiration';
+  postType?: 'item' | 'inspiration';
   tags?: string[];
   userId?: string;
   page?: number;
@@ -335,16 +337,6 @@ export interface UserSocialStats {
   friendsCount: number;
 }
 
-export interface OutfitCombination {
-  id: string;
-  name: string;
-  items: VUFSItem[];
-  occasion?: string;
-  season?: string;
-  tags?: string[];
-  createdAt: string;
-  updatedAt: string;
-}
 
 // Pinterest-like content discovery types
 export interface ContentCategory {
@@ -393,17 +385,6 @@ export interface PhotoGuide {
   tips?: string[];
 }
 
-export interface OutfitCreationSession {
-  id: string;
-  userId: string;
-  pinnedItem?: VUFSItem;
-  selectedItems: VUFSItem[];
-  suggestions: VUFSItem[];
-  occasion?: string;
-  season?: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 // Social proof and recommendations
 export interface StyleRecommendation {

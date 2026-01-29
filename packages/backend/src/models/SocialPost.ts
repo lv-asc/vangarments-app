@@ -4,7 +4,7 @@ import { slugify } from '../utils/slugify';
 
 export interface CreateSocialPostData {
   userId: string;
-  postType: 'outfit' | 'item' | 'inspiration';
+  postType: 'item' | 'inspiration';
   content: {
     title?: string;
     description?: string;
@@ -28,7 +28,7 @@ export interface UpdateSocialPostData {
 
 export interface SocialPostFilters {
   userId?: string;
-  postType?: 'outfit' | 'item' | 'inspiration';
+  postType?: 'item' | 'inspiration';
   visibility?: 'public' | 'followers' | 'private';
   tags?: string[];
   followingIds?: string[];

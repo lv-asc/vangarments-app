@@ -249,31 +249,7 @@ export function SystemSettingsEditor({ type, data, onUpdate }: SystemSettingsEdi
             </label>
           </div>
 
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="enableMarketplace"
-              checked={formData.enableMarketplace !== false}
-              onChange={(e) => handleChange('enableMarketplace', e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="enableMarketplace" className="ml-2 block text-sm text-gray-900">
-              Enable Marketplace
-            </label>
-          </div>
 
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="enableSocial"
-              checked={formData.enableSocial !== false}
-              onChange={(e) => handleChange('enableSocial', e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="enableSocial" className="ml-2 block text-sm text-gray-900">
-              Enable Social Features
-            </label>
-          </div>
 
           <div className="flex items-center">
             <input

@@ -46,7 +46,6 @@ interface UserProfile {
         followers: number;
         following: number;
         friendsCount: number;
-        outfitsCreated: number;
         pendingFollowRequests?: number;
     };
     measurements?: {
@@ -60,7 +59,6 @@ interface UserProfile {
         isPrivate?: boolean;
         wardrobe?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
         activity?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
-        outfits?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
         marketplace?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
     };
 }
@@ -71,7 +69,7 @@ const ProfileContext = createContext<{
     loading: boolean;
     followLoading: boolean;
     handleFollowClick: () => Promise<void>;
-    canViewSection: (section: 'wardrobe' | 'activity' | 'outfits' | 'marketplace') => boolean;
+    canViewSection: (section: 'wardrobe' | 'activity' | 'marketplace') => boolean;
 } | null>(null);
 
 export const useProfile = () => {
@@ -258,7 +256,7 @@ export default function UserProfileLayout({
     /**
      * Check if the current viewer can see a specific section based on privacy settings
      */
-    const canViewSection = (section: 'wardrobe' | 'activity' | 'outfits' | 'marketplace'): boolean => {
+    const canViewSection = (section: 'wardrobe' | 'activity' | 'marketplace'): boolean => {
         // If profile doesn't have privacy settings, default to public
         if (!profile?.privacySettings) return true;
 

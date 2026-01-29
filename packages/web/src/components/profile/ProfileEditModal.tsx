@@ -40,8 +40,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
     isPrivate: false,
     wardrobe: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] },
     activity: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] },
-    outfits: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] },
-    marketplace: { visibility: 'public' as 'public' | 'followers' | 'custom' | 'hidden', exceptUsers: [] as string[] }
+
   });
 
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
@@ -54,8 +53,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
         isPrivate: user.privacySettings?.isPrivate || false,
         wardrobe: user.privacySettings?.wardrobe || prev.wardrobe,
         activity: user.privacySettings?.activity || prev.activity,
-        outfits: user.privacySettings?.outfits || prev.outfits,
-        marketplace: user.privacySettings?.marketplace || prev.marketplace
+
       }));
     }
   }, [user]);
@@ -388,8 +386,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                 {[
                   { id: 'wardrobe', label: 'Guarda-roupa' },
                   { id: 'activity', label: 'Atividade' },
-                  { id: 'outfits', label: 'Looks' },
-                  { id: 'marketplace', label: 'Marketplace' }
+
                 ].map((feature) => (
                   <div key={feature.id} className="space-y-2">
                     <div className="flex items-center justify-between">

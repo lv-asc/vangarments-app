@@ -355,9 +355,7 @@ export default function WardrobeItemDetailClient() {
         else toast(message);
     };
 
-    const handleSellItem = () => {
-        router.push(`/marketplace/create?itemId=${item?.id}`);
-    };
+
 
     const handleEditItem = () => {
         router.push(`/wardrobe/${item?.vufsCode}/edit`);

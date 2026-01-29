@@ -15,40 +15,6 @@ const { width } = Dimensions.get('window');
 const itemWidth = (width - 48) / 2;
 
 // Mock discover data
-const mockTrendingItems = [
-  {
-    id: '1',
-    title: 'Summer Vibes',
-    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&h=600&fit=crop',
-    likes: 234,
-    user: 'fashionista',
-    userAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop&crop=face',
-  },
-  {
-    id: '2',
-    title: 'Minimalist Chic',
-    image: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400&h=600&fit=crop',
-    likes: 189,
-    user: 'stylequeen',
-    userAvatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
-  },
-  {
-    id: '3',
-    title: 'Street Style',
-    image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400&h=600&fit=crop',
-    likes: 312,
-    user: 'urbanstyle',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-  },
-  {
-    id: '4',
-    title: 'Elegant Evening',
-    image: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&h=600&fit=crop',
-    likes: 156,
-    user: 'elegantlady',
-    userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-  },
-];
 
 const mockCategories = [
   { id: '1', name: 'Trending', icon: 'trending-up', color: '#EF4444' },
@@ -110,33 +76,6 @@ export default function DiscoverScreen() {
     setFollowedUsers(newFollowedUsers);
   };
 
-  const renderTrendingItem = ({ item }: { item: any }) => (
-    <View style={[styles.trendingItem, { width: itemWidth }]}>
-      <Image source={{ uri: item.image }} style={styles.trendingImage} />
-      <View style={styles.trendingOverlay}>
-        <View style={styles.trendingHeader}>
-          <View style={styles.userInfo}>
-            <Image source={{ uri: item.userAvatar }} style={styles.userAvatar} />
-            <Text style={styles.username}>@{item.user}</Text>
-          </View>
-          <TouchableOpacity onPress={() => toggleLike(item.id)}>
-            <Ionicons
-              name={likedItems.has(item.id) ? 'heart' : 'heart-outline'}
-              size={20}
-              color={likedItems.has(item.id) ? '#EF4444' : '#FFFFFF'}
-            />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.trendingFooter}>
-          <Text style={styles.trendingTitle}>{item.title}</Text>
-          <View style={styles.likesContainer}>
-            <Ionicons name="heart" size={14} color="#EF4444" />
-            <Text style={styles.likesText}>{item.likes}</Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
 
   const renderCategory = ({ item }: { item: any }) => (
     <TouchableOpacity style={styles.categoryItem}>
@@ -195,24 +134,6 @@ export default function DiscoverScreen() {
         />
       </View>
 
-      {/* Trending Outfits */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Trending Outfits</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAllText}>View All</Text>
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={mockTrendingItems}
-          renderItem={renderTrendingItem}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          scrollEnabled={false}
-          columnWrapperStyle={styles.trendingRow}
-          contentContainerStyle={styles.trendingContainer}
-        />
-      </View>
 
       {/* Featured Influencers */}
       <View style={styles.section}>
@@ -241,7 +162,7 @@ export default function DiscoverScreen() {
             <Ionicons name="resize" size={24} color="#00132d" />
             <Text style={styles.tipTitle}>Perfect Fit</Text>
             <Text style={styles.tipDescription}>
-              Discover how proper fit can transform any outfit
+              Discover how proper fit can transform any look
             </Text>
           </View>
           <View style={styles.tipCard}>
@@ -320,71 +241,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#374151',
     fontWeight: '500',
-  },
-  trendingContainer: {
-    marginHorizontal: -8,
-  },
-  trendingRow: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  trendingItem: {
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  trendingImage: {
-    width: '100%',
-    height: 200,
-  },
-  trendingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'space-between',
-    padding: 12,
-  },
-  trendingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  userAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  username: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  trendingFooter: {
-    alignItems: 'flex-start',
-  },
-  trendingTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  likesContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  likesText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    marginLeft: 4,
   },
   influencersContainer: {
     gap: 12,

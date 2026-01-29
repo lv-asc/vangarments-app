@@ -23,9 +23,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   home: HomeIcon,
   discover: MagnifyingGlassIcon,
   wardrobe: HomeIcon,
-  outfits: EyeIcon,
-  marketplace: ShoppingBagIcon,
-  social: UserGroupIcon,
+
   profile: UserIcon,
   analytics: ChartBarIcon,
   advertising: MegaphoneIcon,

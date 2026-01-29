@@ -62,11 +62,11 @@ export default function UsersDirectoryPage() {
         <div className="min-h-screen bg-gray-50 pb-20">
             {/* Header / Hero */}
             <div className="bg-white border-b border-gray-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center">
                     <motion.div
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex justify-center mb-6"
+                        className="flex justify-center mb-3"
                     >
                         <div className="p-3 bg-blue-50 rounded-2xl">
                             <UsersIcon className="h-10 w-10 text-blue-600" />
@@ -76,7 +76,7 @@ export default function UsersDirectoryPage() {
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="text-4xl font-extrabold text-gray-900 tracking-tight sm:text-5xl mb-4"
+                        className="text-4xl font-extrabold text-gray-900 tracking-tight sm:text-5xl mb-2"
                     >
                         Community Directory
                     </motion.h1>
@@ -84,7 +84,7 @@ export default function UsersDirectoryPage() {
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="max-w-xl mx-auto text-xl text-gray-500 mb-8"
+                        className="max-w-xl mx-auto text-xl text-gray-500 mb-4"
                     >
                         Discover and connect with fashion enthusiasts, designers, and stylists on Vangarments.
                     </motion.p>
@@ -117,7 +117,7 @@ export default function UsersDirectoryPage() {
             />
 
             {/* Users Grid */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-20 space-y-4">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>

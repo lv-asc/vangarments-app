@@ -20,10 +20,6 @@ SET privacy_settings = jsonb_build_object(
         'visibility', COALESCE(privacy_settings->'activity'->>'visibility', 'public'),
         'exceptUsers', COALESCE(privacy_settings->'activity'->'exceptUsers', '[]'::jsonb)
     ),
-    'outfits', jsonb_build_object(
-        'visibility', COALESCE(privacy_settings->'outfits'->>'visibility', 'public'),
-        'exceptUsers', COALESCE(privacy_settings->'outfits'->'exceptUsers', '[]'::jsonb)
-    ),
     'marketplace', jsonb_build_object(
         'visibility', COALESCE(privacy_settings->'marketplace'->>'visibility', 'public'),
         'exceptUsers', COALESCE(privacy_settings->'marketplace'->'exceptUsers', '[]'::jsonb)
@@ -42,7 +38,6 @@ SET privacy_settings = '{
     "isPrivate": false,
     "wardrobe": {"visibility": "public", "exceptUsers": []},
     "activity": {"visibility": "public", "exceptUsers": []},
-    "outfits": {"visibility": "public", "exceptUsers": []},
     "marketplace": {"visibility": "public", "exceptUsers": []},
     "height": false,
     "weight": false,

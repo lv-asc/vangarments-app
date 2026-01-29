@@ -17,14 +17,14 @@ The Vangarments platform implements a sophisticated freemium model designed to p
 - **Brand Partnership Links**: Access to national brand partnership links
 
 #### Basic Social Features (Requires Account Linking)
-- **Social Sharing**: Share outfits with bio links (similar to VSCO)
+- **Social Sharing**: Share looks with bio links (similar to VSCO)
 - **Profile Customization**: Basic profile setup and customization
 - **Content Discovery**: Browse and discover fashion content
 - **Following**: Follow up to 50 other users
 - **Bio Link Generation**: Personal bio link with QR code
 
 ### Premium Tier Features (R$ 29.90/month)
-- **Unlimited Cataloging**: No limits on wardrobe items or outfits
+- **Unlimited Cataloging**: No limits on wardrobe items or looks
 - **Marketplace Trading**: Buy and sell fashion items
 - **Enhanced Social Features**: Unlimited follows, priority in feeds
 - **Advanced Analytics**: Detailed wardrobe and usage insights
@@ -289,7 +289,7 @@ GET /api/v1/freemium/mvp-demo
 - **Feature Usage**: Which features drive the most engagement
 - **Limit Interactions**: How often users hit usage limits
 - **Social Linking**: Percentage of users with linked accounts
-- **Content Creation**: Outfit creation and sharing rates
+- **Content Creation**: Look creation and sharing rates
 
 #### Conversion Metrics
 - **Conversion Rate**: Overall free-to-paid conversion

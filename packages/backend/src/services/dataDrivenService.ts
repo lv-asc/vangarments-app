@@ -212,7 +212,7 @@ export class DataDrivenService {
         lastTrainingDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
         performanceMetrics: {
           categoryAccuracy: {
-            outfit_matching: 0.89,
+            wardrobe_matching: 0.89,
             color_coordination: 0.91,
             style_consistency: 0.84,
           },
@@ -220,7 +220,7 @@ export class DataDrivenService {
       },
     ];
 
-    return modelName 
+    return modelName
       ? mockMetrics.filter(m => m.modelName === modelName)
       : mockMetrics;
   }
@@ -235,7 +235,7 @@ export class DataDrivenService {
     categories?: string[];
   } = {}): Promise<{
     recommendations: Array<{
-      type: 'outfit' | 'item' | 'styling_tip';
+      type: 'wardrobe' | 'item' | 'styling_tip';
       title: string;
       description: string;
       confidence: number;
@@ -248,11 +248,11 @@ export class DataDrivenService {
   }> {
     // Get user's style DNA
     const styleDNA = await this.analyzeUserStyleDNA(userId);
-    
+
     // Mock recommendations based on style DNA and context
     const recommendations = [
       {
-        type: 'outfit' as const,
+        type: 'wardrobe' as const,
         title: 'Sustainable Chic Look',
         description: 'Perfect for casual Friday or weekend brunch',
         confidence: 0.89,
@@ -262,7 +262,6 @@ export class DataDrivenService {
           'Uses earth tones from your color palette',
         ],
         items: ['organic_cotton_tee', 'recycled_denim', 'sustainable_sneakers'],
-        imageUrl: 'https://example.com/outfit1.jpg',
       },
       {
         type: 'item' as const,
@@ -291,11 +290,11 @@ export class DataDrivenService {
 
     // Filter by context if provided
     const filteredRecommendations = recommendations;
-    
+
     if (context.occasion) {
       // Filter by occasion logic would go here
     }
-    
+
     if (context.budget) {
       // Filter by budget logic would go here
     }
@@ -424,10 +423,10 @@ export class DataDrivenService {
     ];
 
     const averageCostPerWear = items.reduce((sum, item) => sum + item.costPerWear, 0) / items.length;
-    const bestValue = items.reduce((best, item) => 
+    const bestValue = items.reduce((best, item) =>
       item.costPerWear < best.costPerWear ? item : best
     ).name;
-    const worstValue = items.reduce((worst, item) => 
+    const worstValue = items.reduce((worst, item) =>
       item.costPerWear > worst.costPerWear ? item : worst
     ).name;
 

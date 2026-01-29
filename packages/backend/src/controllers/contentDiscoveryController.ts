@@ -11,18 +11,18 @@ export class ContentDiscoveryController {
   async getDiscoveryFeed(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
-      const { 
-        category, 
-        tags, 
-        contentType, 
-        page = 1, 
-        limit = 20 
+      const {
+        category,
+        tags,
+        contentType,
+        page = 1,
+        limit = 20
       } = req.query;
 
       const filters = {
         category: category as string,
         tags: tags ? (Array.isArray(tags) ? tags : [tags]) as string[] : undefined,
-        contentType: contentType as 'outfit' | 'item' | 'inspiration',
+        contentType: contentType as 'item' | 'inspiration',
       };
 
       const result = await contentDiscoveryService.getDiscoveryFeed(
@@ -126,19 +126,19 @@ export class ContentDiscoveryController {
    */
   async searchContent(req: Request, res: Response): Promise<void> {
     try {
-      const { 
-        q: query = '', 
-        contentType, 
-        tags, 
-        userId, 
+      const {
+        q: query = '',
+        contentType,
+        tags,
+        userId,
         category,
         sortBy = 'relevance',
-        page = 1, 
-        limit = 20 
+        page = 1,
+        limit = 20
       } = req.query;
 
       const filters = {
-        contentType: contentType as 'outfit' | 'item' | 'inspiration',
+        contentType: contentType as 'item' | 'inspiration',
         tags: tags ? (Array.isArray(tags) ? tags : [tags]) as string[] : undefined,
         userId: userId as string,
         category: category as string,

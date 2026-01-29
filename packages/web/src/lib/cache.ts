@@ -391,8 +391,6 @@ export const cacheKeys = {
   wardrobeItems: (userId: string, filters?: any) =>
     `wardrobe_${userId}_${JSON.stringify(filters || {})}`,
 
-  outfits: (userId: string, filters?: any) =>
-    `outfits_${userId}_${JSON.stringify(filters || {})}`,
 
   socialFeed: (userId: string, page: number) =>
     `social_feed_${userId}_${page}`,
@@ -413,7 +411,6 @@ export const invalidateCache = {
     // Invalidate all wardrobe-related cache entries for user
     const patterns = [
       `wardrobe_${userId}`,
-      `outfits_${userId}`,
       `social_feed_${userId}`,
     ];
 

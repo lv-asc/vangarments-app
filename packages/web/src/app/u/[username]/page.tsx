@@ -35,7 +35,6 @@ export default function PublicUserProfilePage() {
 
     useEffect(() => {
         if (profile) {
-            // @ts-ignore - visitedAt might be added by hook automatically or type is strict
             addVisit({
                 id: profile.id,
                 name: profile.name,
@@ -43,8 +42,7 @@ export default function PublicUserProfilePage() {
                 businessType: 'user',
                 type: 'user',
                 username: profile.username,
-                verificationStatus: profile.verificationStatus,
-                visitedAt: Date.now()
+                verificationStatus: profile.verificationStatus
             });
 
             if (canViewSection('wardrobe')) {
@@ -118,12 +116,6 @@ export default function PublicUserProfilePage() {
                             className="py-4 px-1 border-b-2 font-medium text-sm transition-colors border-[#00132d] text-[#00132d]"
                         >
                             Wardrobe
-                        </Link>
-                        <Link
-                            href={`/u/${profile.username}/outfits`}
-                            className="py-4 px-1 border-b-2 font-medium text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                        >
-                            Outfits
                         </Link>
                     </nav>
                 </div>

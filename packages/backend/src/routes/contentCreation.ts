@@ -38,48 +38,6 @@ const createFitPicValidation = [
     .withMessage('Visibility must be public, followers, or private'),
 ];
 
-const startOutfitValidation = [
-  body('pinnedItemId')
-    .optional()
-    .isUUID()
-    .withMessage('Pinned item ID must be a valid UUID'),
-];
-
-const addItemValidation = [
-  param('sessionId')
-    .isUUID()
-    .withMessage('Session ID must be a valid UUID'),
-  body('itemId')
-    .isUUID()
-    .withMessage('Item ID must be a valid UUID'),
-];
-
-const removeItemValidation = [
-  param('sessionId')
-    .isUUID()
-    .withMessage('Session ID must be a valid UUID'),
-  param('itemId')
-    .isUUID()
-    .withMessage('Item ID must be a valid UUID'),
-];
-
-const outfitSuggestionsValidation = [
-  query('pinnedItemId')
-    .isUUID()
-    .withMessage('Pinned item ID must be a valid UUID'),
-  query('occasion')
-    .optional()
-    .isLength({ min: 1, max: 50 })
-    .withMessage('Occasion must be between 1 and 50 characters'),
-  query('season')
-    .optional()
-    .isIn(['spring', 'summer', 'fall', 'winter', 'all_season'])
-    .withMessage('Season must be a valid season'),
-  query('stylePreferences')
-    .optional()
-    .isLength({ max: 200 })
-    .withMessage('Style preferences must be 200 characters or less'),
-];
 
 const personalizedFeedValidation = [
   query('interests')
@@ -109,39 +67,6 @@ router.post(
   contentCreationController.createFitPic.bind(contentCreationController)
 );
 
-// Outfit creation routes
-router.post(
-  '/outfit-sessions',
-  AuthUtils.authenticateToken,
-  startOutfitValidation,
-  validateRequest,
-  contentCreationController.startOutfitCreation.bind(contentCreationController)
-);
-
-router.post(
-  '/outfit-sessions/:sessionId/items',
-  AuthUtils.authenticateToken,
-  addItemValidation,
-  validateRequest,
-  contentCreationController.addItemToOutfit.bind(contentCreationController)
-);
-
-router.delete(
-  '/outfit-sessions/:sessionId/items/:itemId',
-  AuthUtils.authenticateToken,
-  removeItemValidation,
-  validateRequest,
-  contentCreationController.removeItemFromOutfit.bind(contentCreationController)
-);
-
-// Outfit suggestions
-router.get(
-  '/outfit-suggestions',
-  AuthUtils.authenticateToken,
-  outfitSuggestionsValidation,
-  validateRequest,
-  contentCreationController.getOutfitSuggestions.bind(contentCreationController)
-);
 
 // Personalized feed
 router.get(

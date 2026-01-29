@@ -583,6 +583,19 @@ class ApiClient {
     return response as any;
   }
 
+  async followUser(userId: string): Promise<any> {
+    const response = await this.request<any>(`/social/users/${userId}/follow`, {
+      method: 'POST'
+    });
+    return response.data || response;
+  }
+
+  async unfollowUser(userId: string): Promise<void> {
+    await this.request(`/social/users/${userId}/follow`, {
+      method: 'DELETE'
+    });
+  }
+
   async getFollowRelationship(userId: string): Promise<{ isFollowing: boolean, status?: 'pending' | 'accepted' }> {
     const response = await this.request<any>(`/social/users/${userId}/follow-status`);
     return response.data;
@@ -651,12 +664,17 @@ class ApiClient {
 
   async getPublicWardrobeFacets(username: string): Promise<{
     brands: any[];
+    departments: any[];
     categories: any[];
+    subcategories: any[];
+    apparelTypes: any[];
     colors: any[];
     patterns: any[];
     materials: any[];
     lines: any[];
     collections: any[];
+    sizes: any[];
+    genders: any[];
   }> {
     const response = await this.request<any>(`/users/u/${username}/wardrobe/facets`);
     return response as any;
@@ -1025,12 +1043,17 @@ class ApiClient {
 
   async getWardrobeFacets(): Promise<{
     brands: any[];
+    departments: any[];
     categories: any[];
+    subcategories: any[];
+    apparelTypes: any[];
     colors: any[];
     patterns: any[];
     materials: any[];
     lines: any[];
     collections: any[];
+    sizes: any[];
+    genders: any[];
   }> {
     try {
       // Try to fetch from dedicated endpoint
@@ -1041,12 +1064,17 @@ class ApiClient {
       // Return empty structure so UI doesn't crash, or could trigger a client-side calculation fallback
       return {
         brands: [],
+        departments: [],
         categories: [],
+        subcategories: [],
+        apparelTypes: [],
         colors: [],
         patterns: [],
         materials: [],
         lines: [],
-        collections: []
+        collections: [],
+        sizes: [],
+        genders: [],
       };
     }
   }
@@ -1211,42 +1239,7 @@ class ApiClient {
     return data.data;
   }
 
-  // Marketplace Methods
-  async getMarketplaceItems(filters?: {
-    category?: string;
-    search?: string;
-    minPrice?: number;
-    maxPrice?: number;
-    condition?: string;
-    brand?: string;
-    size?: string;
-    color?: string;
-    sortBy?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<{
-    listings: any[];
-    total: number;
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      pages: number;
-    };
-  }> {
-    const params = new URLSearchParams();
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.append(key, value.toString());
-        }
-      });
-    }
 
-    const endpoint = `/marketplace/items?${params.toString()}`;
-    const response = await this.request<any>(endpoint);
-    return response as any;
-  }
 
   async addVUFSCategory(data: { name: string; level: string; parentId?: string }) {
     return this.request('/vufs-management/categories', {
@@ -1651,152 +1644,7 @@ class ApiClient {
     });
   }
 
-  async createMarketplaceListing(listingData: any): Promise<any> {
-    const response = await this.request<any>('/marketplace/listings', {
-      method: 'POST',
-      body: JSON.stringify(listingData),
-    });
-    return response;
-  }
-  async getMarketplaceListing(id: string): Promise<any> {
-    const response = await this.request<any>(`/marketplace/listings/${id}`);
-    return response;
-  }
 
-  async updateMarketplaceListing(id: string, updateData: any): Promise<any> {
-    const response = await this.request<any>(`/marketplace/listings/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updateData),
-    });
-    return response;
-  }
-
-  async deleteMarketplaceListing(id: string): Promise<any> {
-    const response = await this.request<any>(`/marketplace/listings/${id}`, {
-      method: 'DELETE',
-    });
-    return response;
-  }
-
-  async getUserMarketplaceListings(status?: string): Promise<any> {
-    const params = status ? `?status=${status}` : '';
-    const response = await this.request<any>(`/marketplace/listings/my${params}`);
-    return response;
-  }
-
-  async toggleMarketplaceLike(listingId: string): Promise<any> {
-    const response = await this.request<any>(`/marketplace/listings/${listingId}/like`, {
-      method: 'POST',
-    });
-    return response;
-  }
-
-  async getMarketplaceStats(): Promise<any> {
-    const response = await this.request<any>('/marketplace/stats');
-    return response;
-  }
-
-  async getMarketplaceCategories(): Promise<any> {
-    const response = await this.request<any>('/marketplace/categories');
-    return response;
-  }
-
-  async searchMarketplace(filters: any): Promise<any> {
-    const params = new URLSearchParams();
-
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(key, v.toString()));
-        } else {
-          params.append(key, value.toString());
-        }
-      }
-    });
-
-    const response = await this.request<any>(`/marketplace/discovery/search?${params.toString()}`);
-    return response;
-  }
-
-  async getMarketplaceTrending(category?: string, timeframe?: string, limit?: number): Promise<any> {
-    const params = new URLSearchParams();
-    if (category) params.append('category', category);
-    if (timeframe) params.append('timeframe', timeframe);
-    if (limit) params.append('limit', limit.toString());
-
-    const response = await this.request<any>(`/marketplace/trending?${params.toString()}`);
-    return response;
-  }
-
-  async getMarketplaceSimilar(itemId: string, limit?: number): Promise<any> {
-    const params = new URLSearchParams();
-    if (limit) params.append('limit', limit.toString());
-
-    const response = await this.request<any>(`/marketplace/similar/${itemId}?${params.toString()}`);
-    return response;
-  }
-
-  async getMarketplaceRecommendations(limit?: number): Promise<any> {
-    const params = new URLSearchParams();
-    if (limit) params.append('limit', limit.toString());
-
-    const response = await this.request<any>(`/marketplace/feed?${params.toString()}`);
-    return response;
-  }
-
-  // Social Methods
-  async getSocialFeed(params?: { feedType?: string; page?: number; limit?: number }): Promise<{
-    posts: any[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    const searchParams = new URLSearchParams();
-    if (params?.feedType) searchParams.set('feedType', params.feedType);
-    if (params?.page) searchParams.set('page', params.page.toString());
-    if (params?.limit) searchParams.set('limit', params.limit.toString());
-
-    const response = await this.request<any>(`/social/feed?${searchParams.toString()}`);
-    return response.data;
-  }
-
-  async createPost(postData: any): Promise<any> {
-    const response = await this.request<any>('/social/posts', {
-      method: 'POST',
-      body: JSON.stringify(postData),
-    });
-    return response.data;
-  }
-
-  async togglePostLike(postId: string, like: boolean): Promise<void> {
-    await this.request(`/social/posts/${postId}/like`, {
-      method: like ? 'POST' : 'DELETE',
-    });
-  }
-
-  async likePost(postId: string): Promise<void> {
-    await this.request(`/social/posts/${postId}/like`, {
-      method: 'POST',
-    });
-  }
-
-  async followUser(userId: string): Promise<any> {
-    return this.request<any>(`/social/users/${userId}/follow`, {
-      method: 'POST',
-    });
-  }
-
-  async unfollowUser(userId: string): Promise<any> {
-    return this.request<any>(`/social/users/${userId}/follow`, {
-      method: 'DELETE',
-    });
-  }
-
-  async removeFollower(followerId: string): Promise<any> {
-    return this.request<any>(`/social/users/${followerId}/follower`, {
-      method: 'DELETE',
-    });
-  }
 
   // --- SKU MANAGEMENT ---
   async createSKU(brandId: string, skuData: any) {
@@ -2321,8 +2169,7 @@ class ApiClient {
     isPrivate?: boolean;
     wardrobe?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
     activity?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
-    outfits?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
-    marketplace?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
+
     height?: boolean;
     weight?: boolean;
     birthDate?: boolean;

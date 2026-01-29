@@ -122,7 +122,6 @@ export const PreferencesSchema = z.object({
   ai: z.object({
     autoTagging: z.boolean(),
     backgroundRemoval: z.boolean(),
-    outfitSuggestions: z.boolean(),
     styleAnalysis: z.boolean(),
     confidenceThreshold: z.number(),
   }).optional(),

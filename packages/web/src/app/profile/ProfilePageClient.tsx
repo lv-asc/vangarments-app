@@ -93,7 +93,6 @@ interface UserProfile {
   createdAt: string;
   stats: {
     wardrobeItems: number;
-    outfitsCreated: number;
     followers: number;
     following: number;
     pendingFollowRequests?: number;
@@ -2126,7 +2125,6 @@ export default function ProfilePage() {
             <nav className="flex space-x-8 px-6">
               {[
                 { id: 'wardrobe', name: 'Wardrobe' },
-                { id: 'outfits', name: 'Outfits' },
                 { id: 'likes', name: 'Liked Items' },
                 { id: 'wishlists', name: 'Wishlists' },
                 { id: 'activity', name: 'Activity' }

@@ -27,7 +27,6 @@ export interface UserProfile {
   profileImage?: string;
   stats: {
     wardrobeItems: number;
-    outfitsCreated: number;
     followers: number;
     following: number;
   };
@@ -73,7 +72,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           profileImage: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=400&h=400&fit=crop&crop=face',
           stats: {
             wardrobeItems: 0,
-            outfitsCreated: 0,
             followers: 127,
             following: 89
           },
@@ -155,11 +153,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    
+
     const updatedItems = [...wardrobeItems, newItem];
     setWardrobeItems(updatedItems);
     await AsyncStorage.setItem('wardrobeItems', JSON.stringify(updatedItems));
-    
+
     // Update profile stats
     if (userProfile) {
       const updatedProfile = {
@@ -177,13 +175,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const updateUserProfile = async (updates: Partial<UserProfile>) => {
     if (!userProfile) return;
-    
+
     const updatedProfile = {
       ...userProfile,
       ...updates,
       updatedAt: new Date().toISOString()
     };
-    
+
     setUserProfile(updatedProfile);
     await AsyncStorage.setItem('userProfile', JSON.stringify(updatedProfile));
   };

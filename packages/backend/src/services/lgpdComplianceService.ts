@@ -385,14 +385,13 @@ export class LGPDComplianceService {
     const queries = {
       profile: 'SELECT * FROM users WHERE id = $1',
       wardrobe: 'SELECT * FROM vufs_items WHERE user_id = $1',
-      outfits: 'SELECT * FROM outfits WHERE user_id = $1',
       social: 'SELECT * FROM social_account_links WHERE user_id = $1',
       consents: 'SELECT * FROM user_consents WHERE user_id = $1',
       analytics: 'SELECT * FROM user_analytics WHERE user_id = $1',
     };
 
     const userData: any = {};
-    
+
     for (const [key, query] of Object.entries(queries)) {
       try {
         const result = await db.query(query, [userId]);
@@ -409,11 +408,11 @@ export class LGPDComplianceService {
   private async canEraseUserData(userId: string): Promise<{ allowed: boolean; reason?: string }> {
     // Check if user has any legal obligations that prevent erasure
     // For example: ongoing contracts, legal disputes, etc.
-    
+
     // Check for active subscriptions
     const subscriptionQuery = 'SELECT * FROM premium_subscriptions WHERE user_id = $1 AND status = $2';
     const subscriptions = await db.query(subscriptionQuery, [userId, 'active']);
-    
+
     if (subscriptions.rows.length > 0) {
       return {
         allowed: false,
@@ -433,7 +432,6 @@ export class LGPDComplianceService {
     const tables = [
       'users',
       'vufs_items',
-      'outfits',
       'social_account_links',
       'user_analytics',
       'user_interactions',
@@ -452,7 +450,7 @@ export class LGPDComplianceService {
             updated_at = NOW()
           WHERE user_id = $1 OR id = $1
         `;
-        
+
         await db.query(anonymizeQuery, [userId]);
       } catch (error) {
         console.error(`Error anonymizing data in ${table}:`, error);
@@ -475,7 +473,7 @@ export class LGPDComplianceService {
 
   private async exportUserDataForPortability(userId: string): Promise<any> {
     const userData = await this.collectUserData(userId);
-    
+
     // Format data for portability (structured, machine-readable format)
     return {
       exportDate: new Date().toISOString(),
@@ -503,7 +501,7 @@ export class LGPDComplianceService {
     const setClause = Object.keys(updates)
       .map((key, index) => `${key} = $${index + 2}`)
       .join(', ');
-    
+
     const query = `
       UPDATE data_subject_requests 
       SET ${setClause}, updated_at = NOW()

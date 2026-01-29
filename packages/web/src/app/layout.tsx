@@ -39,8 +39,6 @@ export const metadata: Metadata = {
     'tendências',
     'brasil',
     'roupas',
-    'looks',
-    'outfit',
     'styling',
   ],
   authors: [{ name: 'Vangarments Team' }],

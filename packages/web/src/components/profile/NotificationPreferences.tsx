@@ -19,7 +19,6 @@ export function NotificationPreferences() {
         comments: user?.preferences?.notifications?.comments ?? true,
         mentions: user?.preferences?.notifications?.mentions ?? true,
         marketplaceActivity: user?.preferences?.notifications?.marketplaceActivity ?? true,
-        outfitSuggestions: user?.preferences?.notifications?.outfitSuggestions ?? false,
         trendAlerts: user?.preferences?.notifications?.trendAlerts ?? false,
         priceDrops: user?.preferences?.notifications?.priceDrops ?? true,
         weeklyDigest: user?.preferences?.notifications?.weeklyDigest ?? true
@@ -62,7 +61,6 @@ export function NotificationPreferences() {
         { key: 'comments', label: 'Comentários', description: 'Quando alguém comentar em seus posts' },
         { key: 'mentions', label: 'Menções', description: 'Quando alguém te mencionar' },
         { key: 'marketplaceActivity', label: 'Atividade do Marketplace', description: 'Vendas, compras e ofertas' },
-        { key: 'outfitSuggestions', label: 'Sugestões de Looks', description: 'Recomendações personalizadas de outfits' },
         { key: 'trendAlerts', label: 'Alertas de Tendências', description: 'Novas tendências baseadas no seu estilo' },
         { key: 'priceDrops', label: 'Quedas de Preço', description: 'Quando itens da sua wishlist ficarem mais baratos' },
         { key: 'weeklyDigest', label: 'Resumo Semanal', description: 'Resumo das suas atividades e estatísticas' }

@@ -1,4 +1,4 @@
-import { ContentCreationModel, FitPicData, OutfitCreationSession } from '../models/ContentCreation';
+import { ContentCreationModel, FitPicData } from '../models/ContentCreation';
 import { VUFSItemModel } from '../models/VUFSItem';
 import { UserFollowModel } from '../models/UserFollow';
 
@@ -11,12 +11,6 @@ export interface CreateFitPicRequest {
   visibility?: 'public' | 'followers' | 'private';
 }
 
-export interface OutfitSuggestionRequest {
-  pinnedItemId: string;
-  occasion?: string;
-  season?: string;
-  stylePreferences?: string[];
-}
 
 export interface PersonalizedFeedOptions {
   interests?: string[];
@@ -55,123 +49,6 @@ export class ContentCreationService {
     return await ContentCreationModel.createFitPic(fitPic);
   }
 
-  /**
-   * Start or update outfit creation session
-   */
-  async startOutfitCreation(userId: string, pinnedItemId?: string): Promise<OutfitCreationSession> {
-    // Check if user has an active session
-    const activeSession = await ContentCreationModel.getActiveOutfitSession(userId);
-
-    if (activeSession) {
-      // Update existing session with new pinned item if provided
-      if (pinnedItemId) {
-        return await ContentCreationModel.updateOutfitSession(activeSession.id, {
-          pinnedItemId,
-        }) as OutfitCreationSession;
-      }
-      return activeSession;
-    }
-
-    // Create new session
-    return await ContentCreationModel.createOutfitSession({
-      userId,
-      pinnedItemId,
-    });
-  }
-
-  /**
-   * Add item to outfit creation session
-   */
-  async addItemToOutfit(userId: string, sessionId: string, itemId: string): Promise<OutfitCreationSession> {
-    const session = await ContentCreationModel.getOutfitSession(sessionId);
-
-    if (!session || session.userId !== userId) {
-      throw new Error('Outfit session not found or access denied');
-    }
-
-    // Verify item belongs to user
-    const userItems = await VUFSItemModel.findByOwner(userId);
-    const userItemIds = userItems.map(item => item.id);
-
-    if (!userItemIds.includes(itemId)) {
-      throw new Error('Item does not belong to user');
-    }
-
-    const updatedSelectedItems = [...session.selectedItemIds];
-    if (!updatedSelectedItems.includes(itemId)) {
-      updatedSelectedItems.push(itemId);
-    }
-
-    return await ContentCreationModel.updateOutfitSession(sessionId, {
-      selectedItemIds: updatedSelectedItems,
-    }) as OutfitCreationSession;
-  }
-
-  /**
-   * Remove item from outfit creation session
-   */
-  async removeItemFromOutfit(userId: string, sessionId: string, itemId: string): Promise<OutfitCreationSession> {
-    const session = await ContentCreationModel.getOutfitSession(sessionId);
-
-    if (!session || session.userId !== userId) {
-      throw new Error('Outfit session not found or access denied');
-    }
-
-    const updatedSelectedItems = session.selectedItemIds.filter(id => id !== itemId);
-
-    return await ContentCreationModel.updateOutfitSession(sessionId, {
-      selectedItemIds: updatedSelectedItems,
-    }) as OutfitCreationSession;
-  }
-
-  /**
-   * Get outfit suggestions based on selected items
-   */
-  async getOutfitSuggestions(userId: string, request: OutfitSuggestionRequest): Promise<{
-    suggestions: any[];
-    reasoning: string[];
-  }> {
-    const { pinnedItemId, occasion, season } = request;
-
-    // Get suggestions from the model
-    const suggestionIds = await ContentCreationModel.generateOutfitSuggestions(
-      userId,
-      pinnedItemId,
-      occasion,
-      season
-    );
-
-    // Get full item details for suggestions
-    const suggestions = [];
-    const reasoning = [];
-
-    for (const itemId of suggestionIds) {
-      const item = await VUFSItemModel.findById(itemId);
-      if (item) {
-        suggestions.push(item);
-
-        // Generate reasoning based on item properties
-        // @ts-ignore
-        const itemCategory = item.categoryHierarchy.page;
-        const itemColors = item.metadata.colors?.map((c: any) => c.name) || [];
-
-        let reason = `Complements your selection`;
-        if (occasion) {
-          reason += ` for ${occasion}`;
-        }
-        if (season) {
-          reason += ` in ${season}`;
-        }
-        if (itemColors.length > 0) {
-          reason += ` with matching ${itemColors.join(', ')} tones`;
-        }
-
-        reasoning.push(reason);
-      }
-    }
-
-    return { suggestions, reasoning };
-  }
 
   /**
    * Get personalized content feed
@@ -188,7 +65,7 @@ export class ContentCreationService {
     let userInterests = interests;
     if (userInterests.length === 0) {
       // TODO: Implement interest extraction from user activity
-      userInterests = ['fashion', 'style', 'outfit'];
+      userInterests = ['fashion', 'style'];
     }
 
     const { posts, total } = await ContentCreationModel.getPersonalizedFeed(
@@ -286,7 +163,7 @@ export class ContentCreationService {
    */
   async getContentCreationTips(userId: string): Promise<{
     tips: string[];
-    suggestedOutfits: any[];
+    suggestedLooks: any[];
     photoTips: string[];
   }> {
     const userItems = await VUFSItemModel.findByOwner(userId);
@@ -295,15 +172,15 @@ export class ContentCreationService {
     const tips = [];
     const photoTips = [
       'Use natural lighting for the best colors',
-      'Try different angles to showcase the outfit details',
+      'Try different angles to showcase the item details',
       'Include close-ups of interesting textures or patterns',
-      'Show the full outfit and detail shots',
+      'Show the full look and detail shots',
       'Use a clean, uncluttered background',
     ];
 
     // Generate personalized tips based on wardrobe
     if (userItems.length > 10) {
-      tips.push('You have a great wardrobe! Try creating outfit combinations with pieces you haven\'t worn together.');
+      tips.push('You have a great wardrobe!');
     }
 
     if (socialProof.engagementRate < 2) {
@@ -311,30 +188,13 @@ export class ContentCreationService {
     }
 
     if (socialProof.totalPosts < 5) {
-      tips.push('Share more of your daily outfits to build your fashion profile and connect with others.');
+      tips.push('Share more of your daily looks to build your fashion profile and connect with others.');
     }
 
-    // Suggest outfit combinations
-    const suggestedOutfits = [];
-    if (userItems.length >= 2) {
-      // Simple algorithm to suggest outfit combinations
-      // @ts-ignore
-      const tops = userItems.filter(item => item.categoryHierarchy.page === 'Tops');
-      // @ts-ignore
-      const bottoms = userItems.filter(item => item.categoryHierarchy.page === 'Bottoms');
-
-      if (tops.length > 0 && bottoms.length > 0) {
-        suggestedOutfits.push({
-          items: [tops[0], bottoms[0]],
-          occasion: 'casual',
-          reason: 'Classic combination for everyday wear',
-        });
-      }
-    }
 
     return {
       tips,
-      suggestedOutfits,
+      suggestedLooks: [],
       photoTips,
     };
   }

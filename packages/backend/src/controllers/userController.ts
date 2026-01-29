@@ -11,14 +11,13 @@ import { BrandAccountModel } from '../models/BrandAccount';
 import { StoreModel } from '../models/Store';
 import { SupplierModel } from '../models/Supplier';
 import { PageModel } from '../models/Page';
-import { SocialService } from '../services/socialService';
-import { OutfitModel } from '../models/Outfit';
-import { BrandTeamModel } from '../models/BrandTeam';
-import { UserFollowModel } from '../models/UserFollow';
+// import { SocialService } from '../services/socialService';
+import { BrandTeamModel } from '../models/BrandTeam'; import { UserFollowModel } from '../models/UserFollow';
+import { EntityFollowModel } from '../models/EntityFollow';
 import { ItemImageModel } from '../models/ItemImage';
 import axios from 'axios';
 
-const socialService = new SocialService();
+// const socialService = new SocialService();
 
 // Configure multer for avatar uploads
 const upload = multer({
@@ -527,17 +526,16 @@ export class UserController {
       // Get stats
       const stats = await VUFSItemModel.getStatsByOwner(id);
 
-      // Get outfit count
-      const userOutfits = await OutfitModel.getUserOutfits(id);
-
       // Get social stats
-      const socialStatsRaw = await socialService.getUserSocialStats(id);
+      const [socialCounts, entityFollowingCount] = await Promise.all([
+        UserFollowModel.getFollowCounts(id),
+        EntityFollowModel.getFollowingCount(id)
+      ]);
 
       const socialStats = {
-        followers: socialStatsRaw.followersCount,
-        following: socialStatsRaw.followingCount,
-        pendingFollowRequests: socialStatsRaw.pendingFollowRequestsCount,
-        outfitsCreated: userOutfits.length
+        followers: socialCounts.followersCount,
+        following: socialCounts.followingCount + entityFollowingCount,
+        pendingFollowRequests: socialCounts.pendingCount,
       };
 
       const profile = {
@@ -603,10 +601,10 @@ export class UserController {
       }
 
       // Get stats
-      const [itemStats, outfitStats, socialStats] = await Promise.all([
+      const [itemStats, socialCounts, entityFollowingCount] = await Promise.all([
         VUFSItemModel.getStatsByOwner(user.id),
-        OutfitModel.getUserOutfitStats(user.id),
-        socialService.getUserSocialStats(user.id)
+        UserFollowModel.getFollowCounts(user.id),
+        EntityFollowModel.getFollowingCount(user.id)
       ]);
 
       const profile = {
@@ -638,11 +636,10 @@ export class UserController {
         measurements: (user.privacySettings as any)?.weight || (user.privacySettings as any)?.height ? {} : user.measurements,
         stats: {
           wardrobeItems: itemStats.totalItems || 0,
-          followers: socialStats.followersCount || 0,
-          following: socialStats.followingCount || 0,
-          friendsCount: socialStats.friendsCount || 0,
-          pendingFollowRequests: socialStats.pendingFollowRequestsCount || 0,
-          outfitsCreated: outfitStats.totalOutfits || 0
+          followers: socialCounts.followersCount || 0,
+          following: (socialCounts.followingCount || 0) + (entityFollowingCount || 0),
+          friendsCount: socialCounts.friendsCount || 0,
+          pendingFollowRequests: socialCounts.pendingCount || 0,
         },
         preferences: {
           style: user.preferences?.styleProfile || [],
@@ -1420,7 +1417,7 @@ export class UserController {
         });
       }
 
-      const { isPrivate, wardrobe, activity, outfits, marketplace, height, weight, birthDate, gender, telephone } = req.body;
+      const { isPrivate, wardrobe, activity, marketplace, height, weight, birthDate, gender, telephone } = req.body;
 
       // Build the privacy settings object
       const privacySettings: any = {};
@@ -1428,7 +1425,6 @@ export class UserController {
       if (isPrivate !== undefined) privacySettings.isPrivate = isPrivate;
       if (wardrobe !== undefined) privacySettings.wardrobe = wardrobe;
       if (activity !== undefined) privacySettings.activity = activity;
-      if (outfits !== undefined) privacySettings.outfits = outfits;
       if (marketplace !== undefined) privacySettings.marketplace = marketplace;
       if (height !== undefined) privacySettings.height = height;
       if (weight !== undefined) privacySettings.weight = weight;

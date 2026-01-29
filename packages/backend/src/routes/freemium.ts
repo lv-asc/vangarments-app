@@ -422,7 +422,6 @@ router.get(
               features: FeatureAccessService.getFeaturesByTier('free'),
               limitations: {
                 wardrobeItems: 100,
-                outfits: 50,
                 socialFollows: 50,
               },
             },
@@ -486,14 +485,6 @@ router.get(
               brand: 'Demo Denim',
               color: 'Indigo',
               image: 'https://example.com/demo-jeans.jpg',
-            },
-          ],
-          outfits: [
-            {
-              id: 'outfit_1',
-              name: 'Casual Friday',
-              items: ['demo_1', 'demo_2'],
-              image: 'https://example.com/demo-outfit.jpg',
             },
           ],
           brandPartners: [

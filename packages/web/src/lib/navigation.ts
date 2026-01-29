@@ -32,12 +32,6 @@ export const APP_ROUTES: NavigationRoute[] = [
     description: 'Manage your digital wardrobe'
   },
   {
-    path: '/outfits',
-    name: 'Outfits',
-    requiresAuth: true,
-    description: 'Create and manage outfit combinations'
-  },
-  {
     path: '/marketplace',
     name: 'Marketplace',
     requiresAuth: true,

@@ -6,7 +6,7 @@ import { SocialPost, ContentCategory, TrendingTag, StyleRecommendation } from '@
 export interface DiscoveryFilters {
   category?: string;
   tags?: string[];
-  contentType?: 'outfit' | 'item' | 'inspiration';
+  contentType?: 'item' | 'inspiration';
 }
 
 export interface SearchFilters extends DiscoveryFilters {
@@ -19,7 +19,7 @@ export interface FeedPreferences {
   showTrending: boolean;
   preferredStyles: string[];
   preferredOccasions: string[];
-  contentTypes: ('outfit' | 'item' | 'inspiration')[];
+  contentTypes: ('item' | 'inspiration')[];
   blockedUsers: string[];
   blockedTags: string[];
 }
@@ -388,7 +388,7 @@ export class ContentDiscoveryService {
       showTrending: true,
       preferredStyles: [],
       preferredOccasions: [],
-      contentTypes: ['outfit', 'item', 'inspiration'],
+      contentTypes: ['item', 'inspiration'],
       blockedUsers: [],
       blockedTags: [],
     };

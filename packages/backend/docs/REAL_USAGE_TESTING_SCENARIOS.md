@@ -105,7 +105,7 @@ The real usage testing follows these core principles:
    - Materials: Viscose
    - Size: P
    - Condition: New with tags
-   - Images: Full outfit view
+   - Images: Full look view
 
 #### Scenario 2.2: Wardrobe Data Validation
 **Objective**: Ensure wardrobe data is correctly stored and retrievable

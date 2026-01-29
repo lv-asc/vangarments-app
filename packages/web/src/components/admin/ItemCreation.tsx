@@ -453,7 +453,8 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                         id: userRes.id,
                         type: 'user',
                         name: userRes.name || userRes.firstName + (userRes.lastName ? ' ' + userRes.lastName : ''),
-                        image: userRes.profilePicture || userRes.avatarUrl || userRes.image
+                        image: userRes.profilePicture || userRes.avatarUrl || userRes.image,
+                        username: userRes.username
                     };
                     setCurrentUser(mappedUser);
                     // If not in edit mode and creating a wardrobe item, default the owner immediately if formData.owner is empty
@@ -709,9 +710,14 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             sizeId ? getSluggifiedOrRef(size, undefined) : null
         ];
 
-        // Join and truncate to 50 chars (DB constraint on vufs_code column)
-        const fullCode = codeParts.filter(Boolean).join('-');
-        return fullCode.substring(0, 50);
+        // Join and truncate to 40 chars to leave space for prefix/suffix
+        const baseCode = codeParts.filter(Boolean).join('-');
+
+        if (mode === 'wardrobe') {
+            return `w-${baseCode}`.substring(0, 50);
+        }
+
+        return baseCode.substring(0, 50);
     };
 
     // Auto-update name/code
@@ -980,7 +986,21 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 loanDate: (formData.lentTo || formData.lentBy) ? new Date() : undefined
             },
             images: formData.images,
-            code: formData.generatedCode
+            code: (() => {
+                const username = (formData.owner as any)?.username || (currentUser as any)?.username || 'user';
+                const suffix = `-${username}`;
+                let uniqueCode = formData.generatedCode;
+
+                // If it already starts with w-, we don't need to add it again (it comes from generateSKUCode)
+                if (!uniqueCode.startsWith('w-')) {
+                    uniqueCode = `w-${uniqueCode}`;
+                }
+
+                if (uniqueCode.length + suffix.length > 50) {
+                    uniqueCode = uniqueCode.substring(0, 50 - suffix.length);
+                }
+                return uniqueCode + suffix;
+            })()
         };
 
         // Add officialItemLink to metadata if present

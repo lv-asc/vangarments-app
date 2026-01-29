@@ -26,13 +26,13 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      
+
       if (currentScrollY > lastScrollY && currentScrollY > 100) {
         setIsVisible(false);
       } else {
         setIsVisible(true);
       }
-      
+
       setLastScrollY(currentScrollY);
     };
 
@@ -42,23 +42,21 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   return (
     <nav
-      className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 transition-transform duration-300 md:hidden ${
-        isVisible ? 'translate-y-0' : 'translate-y-full'
-      } ${className}`}
+      className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 transition-transform duration-300 md:hidden ${isVisible ? 'translate-y-0' : 'translate-y-full'
+        } ${className}`}
     >
       <div className="flex items-center justify-around py-2">
         {items.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-          
+
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex flex-col items-center justify-center px-3 py-2 text-xs font-medium transition-colors touch-target ${
-                isActive
+              className={`flex flex-col items-center justify-center px-3 py-2 text-xs font-medium transition-colors touch-target ${isActive
                   ? 'text-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               <div className="relative">
                 <div className={`w-6 h-6 mb-1 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
@@ -97,16 +95,15 @@ export const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
     <nav className={`hidden md:flex items-center space-x-8 ${className}`}>
       {items.map((item) => {
         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-        
+
         return (
           <Link
             key={item.name}
             href={item.href}
-            className={`nav-item flex items-center px-3 py-2 text-sm font-medium transition-colors ${
-              isActive
+            className={`nav-item flex items-center px-3 py-2 text-sm font-medium transition-colors ${isActive
                 ? 'text-blue-600 active'
                 : 'text-gray-700 hover:text-blue-600'
-            }`}
+              }`}
           >
             <div className="w-5 h-5 mr-2">
               {item.icon}
@@ -199,16 +196,6 @@ export const defaultNavigationItems: NavigationItem[] = [
     name: 'Wardrobe',
     href: '/wardrobe',
     icon: NavigationIcons.Wardrobe,
-  },
-  {
-    name: 'Marketplace',
-    href: '/marketplace',
-    icon: NavigationIcons.Marketplace,
-  },
-  {
-    name: 'Social',
-    href: '/social',
-    icon: NavigationIcons.Social,
   },
   {
     name: 'Profile',

@@ -41,15 +41,6 @@ export class FeatureAccessService {
       category: 'core',
       tier: 'free',
     },
-    'outfit_creation': {
-      name: 'Outfit Creation',
-      description: 'Create and save outfit combinations',
-      category: 'core',
-      tier: 'free',
-      limitations: {
-        maxItems: 50, // Free users can create up to 50 outfits
-      },
-    },
     'photo_guides': {
       name: 'Photography Guides',
       description: 'Step-by-step photo instruction guides',
@@ -66,7 +57,7 @@ export class FeatureAccessService {
     // Basic Social Features (Requires Account Linking)
     'basic_social_sharing': {
       name: 'Basic Social Sharing',
-      description: 'Share outfits and items with bio links',
+      description: 'Share items with bio links',
       category: 'social',
       tier: 'free',
       requiresAccountLinking: true,
@@ -127,7 +118,7 @@ export class FeatureAccessService {
     },
     'unlimited_cataloging': {
       name: 'Unlimited Cataloging',
-      description: 'Unlimited wardrobe items and outfits',
+      description: 'Unlimited wardrobe items',
       category: 'core',
       tier: 'premium',
     },
@@ -248,7 +239,7 @@ export class FeatureAccessService {
 
     for (const [key, feature] of Object.entries(FeatureAccessService.FEATURES)) {
       const access = await this.hasFeatureAccess(userId, key, { hasAccountLinking });
-      
+
       if (access.hasAccess) {
         available.push(feature);
       } else {
@@ -268,7 +259,6 @@ export class FeatureAccessService {
    */
   async getUserFeatureUsage(userId: string): Promise<{
     wardrobeItems: number;
-    outfits: number;
     socialFollows: number;
     marketplaceListings: number;
     monthlyUploads: number;
@@ -277,7 +267,6 @@ export class FeatureAccessService {
     // For now, return mock data
     return {
       wardrobeItems: 45,
-      outfits: 12,
       socialFollows: 23,
       marketplaceListings: 3,
       monthlyUploads: 8,
@@ -308,10 +297,6 @@ export class FeatureAccessService {
       features.push(FeatureAccessService.FEATURES['unlimited_cataloging']);
     }
 
-    if (usage.outfits > 40) {
-      reasons.push('You\'re approaching the free tier limit of 50 outfits');
-      features.push(FeatureAccessService.FEATURES['unlimited_cataloging']);
-    }
 
     if (usage.socialFollows > 40) {
       reasons.push('Unlock enhanced social features for better engagement');
@@ -397,7 +382,7 @@ export class FeatureAccessService {
       // Check wardrobe items limit
       const wardrobeLimit = 100;
       const wardrobePercentage = (usage.wardrobeItems / wardrobeLimit) * 100;
-      
+
       if (wardrobePercentage >= 100) {
         blocked.push({
           feature: 'wardrobe_cataloging',
@@ -415,31 +400,11 @@ export class FeatureAccessService {
         });
       }
 
-      // Check outfits limit
-      const outfitsLimit = 50;
-      const outfitsPercentage = (usage.outfits / outfitsLimit) * 100;
-      
-      if (outfitsPercentage >= 100) {
-        blocked.push({
-          feature: 'outfit_creation',
-          current: usage.outfits,
-          limit: outfitsLimit,
-          message: 'Outfit limit reached. Upgrade to create more outfits.',
-        });
-      } else if (outfitsPercentage >= 80) {
-        warnings.push({
-          feature: 'outfit_creation',
-          current: usage.outfits,
-          limit: outfitsLimit,
-          percentage: outfitsPercentage,
-          message: `You're using ${Math.round(outfitsPercentage)}% of your outfit limit.`,
-        });
-      }
 
       // Check social follows limit
       const followsLimit = 50;
       const followsPercentage = (usage.socialFollows / followsLimit) * 100;
-      
+
       if (followsPercentage >= 100) {
         blocked.push({
           feature: 'basic_social_sharing',
@@ -506,7 +471,7 @@ export class FeatureAccessService {
   private calculateEstimatedValue(features: FeatureDefinition[]): number {
     // Calculate estimated monthly value based on features
     let value = 0;
-    
+
     features.forEach(feature => {
       switch (feature.name) {
         case 'Marketplace Trading':

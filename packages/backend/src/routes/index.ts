@@ -8,9 +8,8 @@ import searchRoutes from './search';
 import anteroomRoutes from './anteroom';
 import trackingRoutes from './tracking';
 import aiRoutes from './ai';
-import outfitRoutes from './outfits';
 import photographyRoutes from './photography';
-import marketplaceRoutes from './marketplace';
+
 import advertisingRoutes from './advertising';
 import subscriptionRoutes from './subscriptions';
 import dataDrivenRoutes from './dataDriven';
@@ -18,7 +17,7 @@ import freemiumRoutes from './freemium';
 import upgradeRoutes from './upgrade';
 import lgpdRoutes from './lgpd';
 
-import socialRoutes from './social';
+
 import securityRoutes from './security';
 import { contentDiscoveryRoutes } from './contentDiscovery';
 import { contentModerationRoutes } from './contentModeration';
@@ -57,12 +56,15 @@ import appleCalendarRoutes from './appleCalendarRoutes';
 import sportOrgRoutes from './sportOrgs';
 import eventRoutes from './events';
 
+import socialRoutes from './social';
+
 const router = Router();
 
 // API version 1 routes
 router.use('/auth', authRoutes);
 router.use('/oauth', simpleOAuthRoutes);
 router.use('/users', userRoutes);
+router.use('/social', socialRoutes);
 router.use('/admin', adminRoutes);
 router.use('/vufs', vufsRoutes);
 router.use('/brands', brandRoutes);
@@ -70,9 +72,8 @@ router.use('/wardrobe', wardrobeRoutes);
 router.use('/anteroom', anteroomRoutes);
 router.use('/tracking', trackingRoutes);
 router.use('/ai', aiRoutes);
-router.use('/outfits', outfitRoutes);
 router.use('/photography', photographyRoutes);
-router.use('/marketplace', marketplaceRoutes);
+
 router.use('/advertising', advertisingRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/data-driven', dataDrivenRoutes);
@@ -81,7 +82,7 @@ router.use('/upgrade', upgradeRoutes);
 router.use('/lgpd', lgpdRoutes);
 router.use('/skus', skuRoutes); // New SKU routes
 
-router.use('/social', socialRoutes);
+
 router.use('/security', securityRoutes);
 router.use('/content-discovery', contentDiscoveryRoutes);
 router.use('/content-moderation', contentModerationRoutes);

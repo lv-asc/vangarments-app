@@ -312,16 +312,34 @@ export class WardrobeController {
         condition,
         visibility,
         search,
+        // Extended search params matching ItemsFilter
+        subcategory1Id, subcategory2Id, subcategory3Id, apparelId,
+        brandId,
+        sizeId, colorId, materialId, patternId, genderId, styleId, nationality,
         page = 1,
         limit = 20
       } = req.query;
 
-      const filters = {
-        category: category ? { page: category as string } : undefined,
-        brand: brand as string,
+      const filters: any = {
+        category: {
+          page: (subcategory1Id || category) as string, // Fallback to 'category' if subcategory1Id not present
+          blueSubcategory: subcategory2Id as string,
+          whiteSubcategory: subcategory3Id as string,
+          graySubcategory: apparelId as string
+        },
+        brand: (brandId || brand) as string,
         condition: condition as string,
         visibility: visibility as string,
         search: search as string,
+
+        // Extended
+        sizes: sizeId ? (sizeId as string).split(',') : undefined,
+        colors: colorId ? (colorId as string).split(',') : undefined,
+        materials: materialId ? (materialId as string).split(',') : undefined,
+        patterns: patternId ? (patternId as string).split(',') : undefined,
+        genders: genderId ? (genderId as string).split(',') : undefined,
+        styles: styleId ? (styleId as string).split(',') : undefined,
+        nationalities: nationality ? (nationality as string).split(',') : undefined,
       };
 
       const items = await VUFSItemModel.findByOwner(req.user.userId, filters);

@@ -10,17 +10,6 @@ export interface FitPicData {
   visibility: 'public' | 'followers' | 'private';
 }
 
-export interface OutfitCreationSession {
-  id: string;
-  userId: string;
-  pinnedItemId?: string;
-  selectedItemIds: string[];
-  suggestions: string[];
-  occasion?: string;
-  season?: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export class ContentCreationModel {
   /**
@@ -45,7 +34,7 @@ export class ContentCreationModel {
 
     const values = [
       userId,
-      'outfit',
+      'inspiration',
       JSON.stringify(content),
       wardrobeItemIds,
       visibility,
@@ -55,153 +44,6 @@ export class ContentCreationModel {
     return result.rows[0];
   }
 
-  /**
-   * Create or update outfit creation session
-   */
-  static async createOutfitSession(sessionData: Partial<OutfitCreationSession>): Promise<OutfitCreationSession> {
-    const { userId, pinnedItemId, selectedItemIds = [], suggestions = [], occasion, season } = sessionData;
-
-    const query = `
-      INSERT INTO outfit_creation_sessions (
-        user_id, pinned_item, selected_items, preferences, suggestions, expires_at, current_step
-      )
-      VALUES ($1, $2, $3, $4, $5, NOW() + INTERVAL '1 hour', 'select_base_item')
-      RETURNING *
-    `;
-
-    const preferences = { occasion, season };
-    const values = [
-      userId,
-      pinnedItemId || null,
-      JSON.stringify(selectedItemIds),
-      JSON.stringify(preferences),
-      JSON.stringify(suggestions),
-    ];
-
-    const result = await db.query(query, values);
-    return this.mapRowToOutfitSession(result.rows[0]);
-  }
-
-  /**
-   * Update outfit creation session
-   */
-  static async updateOutfitSession(
-    sessionId: string,
-    updateData: Partial<OutfitCreationSession>
-  ): Promise<OutfitCreationSession | null> {
-    const setClause: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
-
-    if (updateData.pinnedItemId !== undefined) {
-      setClause.push(`pinned_item = $${paramIndex++}`);
-      values.push(updateData.pinnedItemId);
-    }
-
-    if (updateData.selectedItemIds) {
-      setClause.push(`selected_items = $${paramIndex++}`);
-      values.push(JSON.stringify(updateData.selectedItemIds));
-    }
-
-    if (updateData.suggestions) {
-      setClause.push(`suggestions = $${paramIndex++}`);
-      values.push(JSON.stringify(updateData.suggestions));
-    }
-
-    if (updateData.occasion || updateData.season) {
-      const preferences = { occasion: updateData.occasion, season: updateData.season };
-      setClause.push(`preferences = $${paramIndex++}`);
-      values.push(JSON.stringify(preferences));
-    }
-
-    if (setClause.length === 0) {
-      throw new Error('No fields to update');
-    }
-
-    values.push(sessionId);
-
-    const query = `
-      UPDATE outfit_creation_sessions 
-      SET ${setClause.join(', ')}, updated_at = NOW()
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `;
-
-    const result = await db.query(query, values);
-    return result.rows.length > 0 ? this.mapRowToOutfitSession(result.rows[0]) : null;
-  }
-
-  /**
-   * Get outfit creation session by ID
-   */
-  static async getOutfitSession(sessionId: string): Promise<OutfitCreationSession | null> {
-    const query = 'SELECT * FROM outfit_creation_sessions WHERE id = $1 AND expires_at > NOW()';
-    const result = await db.query(query, [sessionId]);
-    return result.rows.length > 0 ? this.mapRowToOutfitSession(result.rows[0]) : null;
-  }
-
-  /**
-   * Get active outfit session for user
-   */
-  static async getActiveOutfitSession(userId: string): Promise<OutfitCreationSession | null> {
-    const query = `
-      SELECT * FROM outfit_creation_sessions 
-      WHERE user_id = $1 AND expires_at > NOW()
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-    const result = await db.query(query, [userId]);
-    return result.rows.length > 0 ? this.mapRowToOutfitSession(result.rows[0]) : null;
-  }
-
-  /**
-   * Generate outfit suggestions based on pinned item
-   */
-  static async generateOutfitSuggestions(
-    userId: string,
-    pinnedItemId: string,
-    occasion?: string,
-    season?: string
-  ): Promise<string[]> {
-    // Get the pinned item details
-    const pinnedItemQuery = 'SELECT * FROM vufs_items WHERE id = $1 AND owner_id = $2';
-    const pinnedItemResult = await db.query(pinnedItemQuery, [pinnedItemId, userId]);
-
-    if (pinnedItemResult.rows.length === 0) {
-      throw new Error('Pinned item not found or does not belong to user');
-    }
-
-    const pinnedItem = pinnedItemResult.rows[0];
-    const pinnedCategory = pinnedItem.category_hierarchy;
-
-    // Simple suggestion algorithm - find complementary items
-    let suggestionQuery = `
-      SELECT id FROM vufs_items 
-      WHERE owner_id = $1 
-      AND id != $2
-      AND (category_hierarchy->>'page') != $3
-    `;
-
-    const queryParams = [userId, pinnedItemId, pinnedCategory.page];
-    let paramIndex = 4;
-
-    // Add occasion-based filtering if provided
-    if (occasion) {
-      suggestionQuery += ` AND (metadata->>'occasion' IS NULL OR metadata->>'occasion' = $${paramIndex++})`;
-      queryParams.push(occasion);
-    }
-
-    // Add season-based filtering if provided
-    if (season) {
-      suggestionQuery += ` AND (metadata->>'season' IS NULL OR metadata->>'season' = $${paramIndex++})`;
-      queryParams.push(season);
-    }
-
-    suggestionQuery += ' ORDER BY created_at DESC LIMIT 10';
-
-    const result = await db.query(suggestionQuery, queryParams as any[]);
-    return result.rows.map(row => row.id);
-  }
 
   /**
    * Get personalized content feed with engagement metrics
@@ -337,17 +179,4 @@ export class ContentCreationModel {
     };
   }
 
-  private static mapRowToOutfitSession(row: any): OutfitCreationSession {
-    return {
-      id: row.id,
-      userId: row.user_id,
-      pinnedItemId: row.pinned_item,
-      selectedItemIds: row.selected_items || [],
-      suggestions: row.suggestions || [],
-      occasion: row.preferences?.occasion,
-      season: row.preferences?.season,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
-  }
 }

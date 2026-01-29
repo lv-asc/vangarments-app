@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user_feed_preferences (
     show_trending BOOLEAN DEFAULT true,
     preferred_styles TEXT[] DEFAULT '{}',
     preferred_occasions TEXT[] DEFAULT '{}',
-    content_types TEXT[] DEFAULT '{outfit,item,inspiration}',
+    content_types TEXT[] DEFAULT '{item,inspiration}',
     blocked_users UUID[] DEFAULT '{}',
     blocked_tags TEXT[] DEFAULT '{}',
     created_at TIMESTAMP DEFAULT NOW(),

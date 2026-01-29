@@ -283,16 +283,16 @@ export class DataIntelligenceModel {
   static async getUserBehaviorAnalytics(userId: string): Promise<UserBehaviorAnalytics> {
     // Analyze user's fashion DNA
     const fashionDNA = await this.analyzeFashionDNA(userId);
-    
+
     // Analyze engagement patterns
     const engagementPatterns = await this.analyzeEngagementPatterns(userId);
-    
+
     // Calculate purchase intent
     const purchaseIntent = await this.calculatePurchaseIntent(userId);
-    
+
     // Analyze wardrobe
     const wardrobeAnalytics = await this.analyzeWardrobe(userId);
-    
+
     // Get social metrics
     const socialMetrics = await this.getSocialMetrics(userId);
 
@@ -314,7 +314,7 @@ export class DataIntelligenceModel {
     accessLevel: 'public' | 'premium' | 'enterprise' = 'premium'
   ): Promise<MarketIntelligence> {
     const reportName = `${category.replace('_', ' ').toUpperCase()} Report`;
-    
+
     // Generate market intelligence based on category
     let data: any = {};
     let methodology = '';
@@ -328,28 +328,28 @@ export class DataIntelligenceModel {
         dataPoints = 50000;
         confidenceLevel = 85;
         break;
-        
+
       case 'brand_analysis':
         data = await this.generateBrandAnalysis();
         methodology = 'Brand mention analysis, user preference tracking, and engagement metrics';
         dataPoints = 25000;
         confidenceLevel = 80;
         break;
-        
+
       case 'consumer_behavior':
         data = await this.generateConsumerBehaviorAnalysis();
         methodology = 'User interaction analysis, purchase patterns, and demographic segmentation';
         dataPoints = 75000;
         confidenceLevel = 90;
         break;
-        
+
       case 'price_intelligence':
         data = await this.generatePriceIntelligence();
         methodology = 'Marketplace price tracking, brand pricing analysis, and demand elasticity modeling';
         dataPoints = 30000;
         confidenceLevel = 88;
         break;
-        
+
       case 'trend_forecast':
         data = await this.generateTrendForecast();
         methodology = 'Machine learning trend analysis, social media sentiment, and historical pattern recognition';
@@ -392,7 +392,7 @@ export class DataIntelligenceModel {
     trendAlerts: string[];
   }> {
     const analytics = await this.getUserBehaviorAnalytics(userId);
-    
+
     // Generate personalized recommendations based on analytics
     const wardrobeOptimization = this.generateWardrobeOptimization(analytics);
     const styleRecommendations = this.generateStyleRecommendations(analytics);
@@ -505,7 +505,7 @@ export class DataIntelligenceModel {
     return {
       activeHours: [9, 12, 18, 21], // Peak activity hours
       sessionDuration: 15.5, // Average minutes
-      contentPreferences: ['outfit_inspiration', 'brand_content', 'trend_updates'],
+      contentPreferences: ['wardrobe_ideas', 'brand_content', 'trend_updates'],
       interactionTypes: {
         likes: 45,
         comments: 12,
@@ -679,7 +679,7 @@ export class DataIntelligenceModel {
     return [
       'Consider donating 15 unworn items to improve utilization rate',
       'Your cost-per-wear could decrease by 25% with more frequent rotation',
-      'Add 2-3 versatile pieces to increase outfit combinations by 40%',
+      'Add 2-3 versatile pieces to maximize your wardrobe utility',
     ];
   }
 

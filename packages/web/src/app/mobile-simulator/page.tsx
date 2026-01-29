@@ -528,10 +528,7 @@ export default function MobileSimulator() {
                 <span className="stat-number">{userProfile?.stats.wardrobeItems || 0}</span>
                 <span className="stat-label">Items</span>
               </div>
-              <div className="stat-item">
-                <span className="stat-number">{userProfile?.stats.outfitsCreated || 0}</span>
-                <span className="stat-label">Outfits</span>
-              </div>
+
               <div className="stat-item">
                 <span className="stat-number">{userProfile?.stats.followers || 0}</span>
                 <span className="stat-label">Followers</span>

@@ -57,7 +57,6 @@ export interface UserProfile {
   };
   stats: {
     wardrobeItems: number;
-    outfitsCreated: number;
     followers: number;
     following: number;
   };
@@ -198,7 +197,6 @@ class LocalStorage {
       },
       stats: {
         wardrobeItems: 0,
-        outfitsCreated: 0,
         followers: 127,
         following: 89
       },

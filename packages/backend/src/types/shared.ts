@@ -23,73 +23,11 @@ export interface FootwearItem extends VUFSItem {
   shoeType: string;
 }
 
-// Outfit types
-export type OutfitPosition = 
-  | 'headwear'
-  | 'eyewear'
-  | 'jewelry_neck'
-  | 'jewelry_ears'
-  | 'top_base'
-  | 'top_mid'
-  | 'top_outer'
-  | 'bottom'
-  | 'footwear'
-  | 'accessories'
-  | 'bag';
-
-export interface OutfitItem {
-  vufsItemId: string;
-  position: OutfitPosition;
-  layerOrder: number;
-}
-
-export interface OutfitSuggestion {
-  id: string;
-  baseItemId: string;
-  suggestedItems: {
-    itemId: string;
-    position: OutfitPosition;
-    confidence: number;
-    reason: string;
-  }[];
-  styleScore: number;
-  colorHarmony: number;
-  occasionMatch: number;
-  overallScore: number;
-  explanation: string;
-}
-
-export interface OutfitAnalysis {
-  outfitId: string;
-  scores: {
-    colorHarmony: number;
-    styleCoherence: number;
-    occasionAppropriate: number;
-    seasonalFit: number;
-    overall: number;
-  };
-  insights: {
-    strengths: string[];
-    improvements: string[];
-    missingPieces: string[];
-    alternativeSuggestions: string[];
-  };
-  colorAnalysis: {
-    dominantColors: string[];
-    colorScheme: string;
-    harmony: number;
-  };
-  styleAnalysis: {
-    dominantStyles: string[];
-    coherence: number;
-    mixedStylesWorking: boolean;
-  };
-}
-
+// Style Recommendation types
 export interface StyleRecommendation {
   recommendationType: string;
   suggestions: {
-    position: OutfitPosition;
+    position: string;
     description: string;
     reasoning: string;
     priority: string;
@@ -180,7 +118,7 @@ export interface ShippingOptions {
   };
 }
 
-export type ListingStatus = 
+export type ListingStatus =
   | 'draft'
   | 'active'
   | 'sold'
@@ -217,7 +155,7 @@ export interface MarketplaceListing {
   expiresAt?: Date;
 }
 
-export type TransactionStatus = 
+export type TransactionStatus =
   | 'pending_payment'
   | 'payment_confirmed'
   | 'processing'

@@ -31,7 +31,7 @@ export interface FeedPreferences {
   showTrending: boolean;
   preferredStyles: string[];
   preferredOccasions: string[];
-  contentTypes: ('outfit' | 'item' | 'inspiration')[];
+  contentTypes: ('item' | 'inspiration')[];
   blockedUsers: string[];
   blockedTags: string[];
 }
@@ -74,7 +74,7 @@ class ContentDiscoveryAPI {
   async getDiscoveryFeed(params: {
     category?: string;
     tags?: string[];
-    contentType?: 'outfit' | 'item' | 'inspiration';
+    contentType?: 'item' | 'inspiration';
     page?: number;
     limit?: number;
   } = {}): Promise<DiscoveryFeedResponse> {
@@ -139,7 +139,7 @@ class ContentDiscoveryAPI {
    */
   async searchContent(params: {
     q?: string;
-    contentType?: 'outfit' | 'item' | 'inspiration';
+    contentType?: 'item' | 'inspiration';
     tags?: string[];
     userId?: string;
     category?: string;
@@ -200,113 +200,6 @@ class ContentDiscoveryAPI {
     );
   }
 
-  /**
-   * Get similar content
-   */
-  async getSimilarContent(
-    postId: string,
-    params: { limit?: number } = {}
-  ): Promise<{ posts: SocialPost[] }> {
-    const searchParams = new URLSearchParams();
-
-    if (params.limit) searchParams.append('limit', params.limit.toString());
-
-    return this.request<{ posts: SocialPost[] }>(
-      `/content-discovery/similar/${postId}?${searchParams.toString()}`
-    );
-  }
-
-  /**
-   * Report content
-   */
-  async reportContent(reportData: ReportContentData): Promise<{ report: any }> {
-    return this.request<{ report: any }>('/content-discovery/report', {
-      method: 'POST',
-      body: JSON.stringify(reportData),
-    });
-  }
-
-  /**
-   * Get user's feed preferences
-   */
-  async getFeedPreferences(): Promise<{ preferences: FeedPreferences }> {
-    return this.request<{ preferences: FeedPreferences }>(
-      '/content-discovery/preferences'
-    );
-  }
-
-  /**
-   * Update user's feed preferences
-   */
-  async updateFeedPreferences(
-    preferences: Partial<FeedPreferences>
-  ): Promise<{ preferences: FeedPreferences }> {
-    return this.request<{ preferences: FeedPreferences }>(
-      '/content-discovery/preferences',
-      {
-        method: 'PUT',
-        body: JSON.stringify(preferences),
-      }
-    );
-  }
-
-  /**
-   * Share outfit with "where to buy" information
-   */
-  async shareOutfit(shareData: {
-    title: string;
-    description: string;
-    images: File[];
-    wardrobeItemIds: string[];
-    tags: string[];
-    location?: string;
-    visibility: 'public' | 'followers' | 'private';
-    whereToBuy: Array<{
-      itemId: string;
-      storeName?: string;
-      storeUrl?: string;
-      price?: number;
-      availability: 'available' | 'out_of_stock' | 'limited';
-    }>;
-  }): Promise<{ post: SocialPost }> {
-    // Create FormData for file upload
-    const formData = new FormData();
-
-    // Add images
-    shareData.images.forEach((image, index) => {
-      formData.append(`images`, image);
-    });
-
-    // Add other data
-    formData.append('postType', 'outfit');
-    formData.append('content', JSON.stringify({
-      title: shareData.title,
-      description: shareData.description,
-      tags: shareData.tags,
-      location: shareData.location,
-      whereToBuy: shareData.whereToBuy,
-    }));
-    formData.append('wardrobeItemIds', JSON.stringify(shareData.wardrobeItemIds));
-    formData.append('visibility', shareData.visibility);
-
-    const token = localStorage.getItem('auth_token');
-
-    const response = await fetch(`${API_BASE_URL}/social/posts`, {
-      method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Network error' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  }
 }
 
 export const contentDiscoveryApi = new ContentDiscoveryAPI();

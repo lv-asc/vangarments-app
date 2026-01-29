@@ -182,6 +182,7 @@ export interface CustomPrivacy {
 }
 
 export interface PrivacySettings {
+  isPrivate?: boolean;
   height: PrivacyVisibility;
   weight: PrivacyVisibility;
   birthDate: PrivacyVisibility;
@@ -248,7 +249,6 @@ export interface FashionPreferences {
   ai?: {
     autoTagging: boolean;
     backgroundRemoval: boolean;
-    outfitSuggestions: boolean;
     styleAnalysis: boolean;
     confidenceThreshold: number;
   };

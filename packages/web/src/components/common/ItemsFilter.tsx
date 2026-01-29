@@ -47,6 +47,21 @@ export interface ItemsFilters {
     [key: string]: string | undefined;
 }
 
+export interface AvailableFacets {
+    brands?: string[];
+    departments?: string[];
+    categories?: string[];
+    subcategories?: string[];
+    apparelTypes?: string[];
+    colors?: string[];
+    patterns?: string[];
+    materials?: string[];
+    lines?: string[];
+    collections?: string[];
+    sizes?: string[];
+    genders?: string[];
+}
+
 interface FilterOptions {
     brands: any[];
     subcategory1: VUFSAttributeValue[];
@@ -71,6 +86,8 @@ interface FilterOptions {
 interface ItemsFilterProps {
     filters: ItemsFilters;
     onChange: (filters: ItemsFilters | ((prev: ItemsFilters) => ItemsFilters)) => void;
+    availableFacets?: AvailableFacets;
+    useNameAsValue?: boolean;
     lockedFilters?: Partial<ItemsFilters>;
     searchQuery?: string;
     onSearchChange?: (query: string) => void;
@@ -102,6 +119,8 @@ const monthNames = [
 export default function ItemsFilter({
     filters,
     onChange,
+    availableFacets,
+    useNameAsValue = false,
     lockedFilters = {},
     searchQuery,
     onSearchChange,
@@ -256,6 +275,30 @@ export default function ItemsFilter({
         fetchDynamicOptions();
     }, [filters.brandId, lockedFilters.brandId]);
 
+    // Helper to check if an option should be shown based on available facets
+    const shouldShowOption = (key: keyof AvailableFacets, value: string | any) => {
+        if (!availableFacets) return true;
+        const available = availableFacets[key];
+        // Log for debugging (throttle or only log specific keys if needed)
+        // if (key === 'departments' || key === 'brands') console.log(`[DEBUG] Check ${key}:`, { available, value });
+
+        if (!available) return true; // If facet type not provided in availableFacets, show all (backward compat)
+
+        const valueToCheck = typeof value === 'string' ? value : (value.name || value.label || value.value || value.id);
+        if (!valueToCheck) return true;
+
+        const match = available.some(av => {
+            const avLower = av.toLowerCase();
+            return avLower === valueToCheck.toLowerCase() || (value.id && avLower === value.id.toLowerCase());
+        });
+        return match;
+    };
+
+    const getFilteredOptions = (key: keyof AvailableFacets, allOptions: any[]) => {
+        if (!availableFacets || !availableFacets[key]) return allOptions;
+        return allOptions.filter(opt => shouldShowOption(key, opt));
+    };
+
     const [filteredBrandOptions, setFilteredBrandOptions] = useState<any[]>([]);
 
     useEffect(() => {
@@ -359,65 +402,82 @@ export default function ItemsFilter({
                 </button>
                 {isExpanded && (
                     <div className="space-y-1 mt-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                        {items.map((item: any) => {
-                            const id = item[idKey];
-                            const label = item[labelKey];
-                            const isSelected = selectedValues.includes(id);
-                            const image = item.logo || item.swatchUrl || item.iconUrl || item.coverImageUrl || item.cover_image_url;
-                            const color = item.hex;
-                            const flag = countryFlags[label];
+                        {items
+                            .filter((item: any) => {
+                                // Map filterKey to facetKey for filtering
+                                let facetKey: keyof AvailableFacets | undefined;
+                                if (filterKey === 'genderId') facetKey = 'genders';
+                                else if (filterKey === 'sizeId') facetKey = 'sizes';
+                                else if (filterKey === 'colorId') facetKey = 'colors';
+                                else if (filterKey === 'styleId') return true; // Styles usually not in facet list yet
+                                else if (filterKey === 'patternId') facetKey = 'patterns';
+                                else if (filterKey === 'materialId') facetKey = 'materials';
+                                else if (filterKey === 'fitId') return true; // Fits usually not in facet list yet
 
-                            let fallbackIcon = null;
-                            if (!image && !color) {
-                                if (filterKey === 'apparelId' || filterKey === 'styleId') {
-                                    fallbackIcon = <ApparelIcon name={label} className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />;
-                                } else if (filterKey === 'genderId') {
-                                    const GenderIcon = getGenderIcon(label);
-                                    fallbackIcon = <GenderIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />;
-                                } else if (filterKey === 'patternId') {
-                                    const PatternIcon = getPatternIcon(label);
-                                    fallbackIcon = <PatternIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />;
+                                if (facetKey) {
+                                    return shouldShowOption(facetKey, item);
                                 }
-                            }
+                                return true;
+                            })
+                            .map((item: any) => {
+                                const id = item[idKey];
+                                const label = item[labelKey];
+                                const isSelected = selectedValues.includes(id);
+                                const image = item.logo || item.swatchUrl || item.iconUrl || item.coverImageUrl || item.cover_image_url;
+                                const color = item.hex;
+                                const flag = countryFlags[label];
 
-                            return (
-                                <button
-                                    key={id}
-                                    onClick={() => handleMultiFilterChange(filterKey as keyof ItemsFilters, id)}
-                                    className={`flex items-center w-full px-2 py-1.5 rounded-md text-sm transition-colors ${isSelected
-                                        ? 'bg-gray-900 text-white font-semibold shadow-sm'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-left'
-                                        }`}
-                                >
-                                    <div className={`w-4 h-4 rounded-md mr-2 flex-shrink-0 flex items-center justify-center ${isSelected ? 'bg-gray-900' : 'bg-gray-100 group-hover:bg-gray-200'}`}>
-                                        {isSelected && (
-                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-grow min-w-0">
-                                        {image ? (
-                                            <div className="h-5 w-5 rounded-md overflow-hidden flex-shrink-0 bg-white border border-gray-100 flex items-center justify-center p-0.5">
-                                                <img src={getImageUrl(image)} alt="" className="h-full w-full object-contain" />
-                                            </div>
-                                        ) : color ? (
-                                            <div
-                                                className="h-4 w-4 rounded-full flex-shrink-0 border border-gray-200 shadow-sm"
-                                                style={{ backgroundColor: color }}
-                                            />
-                                        ) : flag ? (
-                                            <span className="text-lg leading-none">{flag}</span>
-                                        ) : fallbackIcon ? (
-                                            <div className={`h-5 w-5 flex items-center justify-center flex-shrink-0 ${isSelected ? 'text-white' : 'text-gray-400'}`}>
-                                                {fallbackIcon}
-                                            </div>
-                                        ) : null}
-                                        <span className="truncate">{label}</span>
-                                    </div>
-                                </button>
-                            );
-                        })}
+                                let fallbackIcon = null;
+                                if (!image && !color) {
+                                    if (filterKey === 'apparelId' || filterKey === 'styleId') {
+                                        fallbackIcon = <ApparelIcon name={label} className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />;
+                                    } else if (filterKey === 'genderId') {
+                                        const GenderIcon = getGenderIcon(label);
+                                        fallbackIcon = <GenderIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />;
+                                    } else if (filterKey === 'patternId') {
+                                        const PatternIcon = getPatternIcon(label);
+                                        fallbackIcon = <PatternIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />;
+                                    }
+                                }
+
+                                return (
+                                    <button
+                                        key={id}
+                                        onClick={() => handleMultiFilterChange(filterKey as keyof ItemsFilters, id)}
+                                        className={`flex items-center w-full px-2 py-1.5 rounded-md text-sm transition-colors ${isSelected
+                                            ? 'bg-gray-900 text-white font-semibold shadow-sm'
+                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-left'
+                                            }`}
+                                    >
+                                        <div className={`w-4 h-4 rounded-md mr-2 flex-shrink-0 flex items-center justify-center ${isSelected ? 'bg-gray-900' : 'bg-gray-100 group-hover:bg-gray-200'}`}>
+                                            {isSelected && (
+                                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-grow min-w-0">
+                                            {image ? (
+                                                <div className="h-5 w-5 rounded-md overflow-hidden flex-shrink-0 bg-white border border-gray-100 flex items-center justify-center p-0.5">
+                                                    <img src={getImageUrl(image)} alt="" className="h-full w-full object-contain" />
+                                                </div>
+                                            ) : color ? (
+                                                <div
+                                                    className="h-4 w-4 rounded-full flex-shrink-0 border border-gray-200 shadow-sm"
+                                                    style={{ backgroundColor: color }}
+                                                />
+                                            ) : flag ? (
+                                                <span className="text-lg leading-none">{flag}</span>
+                                            ) : fallbackIcon ? (
+                                                <div className={`h-5 w-5 flex items-center justify-center flex-shrink-0 ${isSelected ? 'text-white' : 'text-gray-400'}`}>
+                                                    {fallbackIcon}
+                                                </div>
+                                            ) : null}
+                                            <span className="truncate">{label}</span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                     </div>
                 )}
             </div>
@@ -432,63 +492,68 @@ export default function ItemsFilter({
                     <div className="flex flex-wrap items-center gap-3">
                         {/* Subcategory 1-3 & Apparel (Item) Dropdowns */}
                         {[
-                            { key: 'subcategory1Id' as keyof ItemsFilters, label: 'Department', header: 'headerSub1', options: options.subcategory1 },
-                            { key: 'subcategory2Id' as keyof ItemsFilters, label: 'Category', header: 'headerSub2', options: options.subcategory2, parentKey: 'subcategory1Id' },
-                            { key: 'subcategory3Id' as keyof ItemsFilters, label: 'Subcategory', header: 'headerSub3', options: options.subcategory3, parentKey: 'subcategory2Id' },
-                            { key: 'apparelId' as keyof ItemsFilters, label: 'Item', header: 'headerApparel', options: options.apparelTypes, parentKey: 'subcategory3Id' }
-                        ].map((dropdown) => (
-                            <div
-                                key={dropdown.key}
-                                className="relative group/filter"
-                                onMouseEnter={() => setExpandedGroups(prev => ({ ...prev, [dropdown.header]: true }))}
-                                onMouseLeave={() => setExpandedGroups(prev => ({ ...prev, [dropdown.header]: false }))}
-                            >
-                                <button
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${filters[dropdown.key]
-                                        ? 'bg-gray-900 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
+                            { key: 'subcategory1Id' as keyof ItemsFilters, label: 'Department', header: 'headerSub1', options: getFilteredOptions('departments', options.subcategory1), facetKey: 'departments' },
+                            { key: 'subcategory2Id' as keyof ItemsFilters, label: 'Category', header: 'headerSub2', options: getFilteredOptions('categories', options.subcategory2), parentKey: 'subcategory1Id', facetKey: 'categories' },
+                            { key: 'subcategory3Id' as keyof ItemsFilters, label: 'Subcategory', header: 'headerSub3', options: getFilteredOptions('subcategories', options.subcategory3), parentKey: 'subcategory2Id', facetKey: 'subcategories' },
+                            { key: 'apparelId' as keyof ItemsFilters, label: 'Item', header: 'headerApparel', options: getFilteredOptions('apparelTypes', options.apparelTypes), parentKey: 'subcategory3Id', facetKey: 'apparelTypes' }
+                        ].map((dropdown) => {
+                            const selectedCount = filters[dropdown.key] ? (filters[dropdown.key] as string).split(',').length : 0;
+                            const isDropdownExpanded = expandedGroups[dropdown.header];
+
+                            return (
+                                <div
+                                    key={dropdown.key}
+                                    className="relative group/filter"
+                                    onMouseEnter={() => setExpandedGroups(prev => ({ ...prev, [dropdown.header]: true }))}
+                                    onMouseLeave={() => setExpandedGroups(prev => ({ ...prev, [dropdown.header]: false }))}
                                 >
-                                    <span>{filters[dropdown.key] ? `${(filters[dropdown.key] as string).split(',').length} Selected` : dropdown.label}</span>
-                                    <ChevronDownIcon className="h-4 w-4" />
-                                </button>
-                                {expandedGroups[dropdown.header] && (
-                                    <>
-                                        <div className="absolute top-full left-0 w-full h-2 z-40" />
-                                        <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl z-40 max-h-96 overflow-y-auto custom-scrollbar p-1">
-                                            <button
-                                                onClick={() => handleFilterChange(dropdown.key, undefined)}
-                                                className="w-full px-4 py-2.5 text-left text-sm text-gray-500 hover:bg-gray-50 rounded-lg"
-                                            >
-                                                All {dropdown.label}s
-                                            </button>
-                                            {dropdown.options
-                                                .filter(opt => !dropdown.parentKey || !filters[dropdown.parentKey] || (filters[dropdown.parentKey] as string).split(',').includes(opt.parentId || ''))
-                                                .map(opt => {
-                                                    const isSelected = (filters[dropdown.key] as string)?.split(',').includes(opt.id);
-                                                    return (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => handleMultiFilterChange(dropdown.key, opt.id)}
-                                                            className={`w-full px-4 py-2.5 text-left text-sm rounded-lg hover:bg-gray-50 ${isSelected ? 'bg-gray-100 font-bold' : ''}`}
-                                                        >
-                                                            <div className="flex items-center justify-between w-full">
-                                                                <div className="flex items-center gap-2">
-                                                                    {dropdown.key === 'apparelId' && (
-                                                                        <ApparelIcon name={opt.name} className={`h-4 w-4 ${isSelected ? 'text-gray-900' : 'text-gray-400'}`} />
-                                                                    )}
-                                                                    <span className="truncate">{opt.name}</span>
+                                    <button
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${filters[dropdown.key]
+                                            ? 'bg-gray-900 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                    >
+                                        <span>{filters[dropdown.key] ? `${(filters[dropdown.key] as string).split(',').length} Selected` : dropdown.label}</span>
+                                        <ChevronDownIcon className="h-4 w-4" />
+                                    </button>
+                                    {expandedGroups[dropdown.header] && (
+                                        <>
+                                            <div className="absolute top-full left-0 w-full h-2 z-40" />
+                                            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl z-40 max-h-96 overflow-y-auto custom-scrollbar p-1">
+                                                <button
+                                                    onClick={() => handleFilterChange(dropdown.key, undefined)}
+                                                    className="w-full px-4 py-2.5 text-left text-sm text-gray-500 hover:bg-gray-50 rounded-lg"
+                                                >
+                                                    All {dropdown.label}s
+                                                </button>
+                                                {dropdown.options
+                                                    .filter(opt => !dropdown.parentKey || !filters[dropdown.parentKey] || (filters[dropdown.parentKey] as string).split(',').includes(opt.parentId || ''))
+                                                    .map(opt => {
+                                                        const isSelected = (filters[dropdown.key] as string)?.split(',').includes(opt.id);
+                                                        return (
+                                                            <button
+                                                                key={opt.id}
+                                                                onClick={() => handleMultiFilterChange(dropdown.key, opt.id)}
+                                                                className={`w-full px-4 py-2.5 text-left text-sm rounded-lg hover:bg-gray-50 ${isSelected ? 'bg-gray-100 font-bold' : ''}`}
+                                                            >
+                                                                <div className="flex items-center justify-between w-full">
+                                                                    <div className="flex items-center gap-2">
+                                                                        {dropdown.key === 'apparelId' && (
+                                                                            <ApparelIcon name={opt.name} className={`h-4 w-4 ${isSelected ? 'text-gray-900' : 'text-gray-400'}`} />
+                                                                        )}
+                                                                        <span className="truncate">{opt.name}</span>
+                                                                    </div>
+                                                                    {isSelected && <svg className="w-4 h-4 text-gray-900 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
                                                                 </div>
-                                                                {isSelected && <svg className="w-4 h-4 text-gray-900 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        ))}
+                                                            </button>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
 
                         {/* Nationality & Brand also in Top Bar */}
                         <div
@@ -566,18 +631,20 @@ export default function ItemsFilter({
                                                 </div>
                                             </div>
                                             <div className="overflow-y-auto custom-scrollbar p-1">
-                                                {filteredBrandOptions.map((brand: any) => {
-                                                    const isSelected = filters.brandId?.split(',').includes(brand.id);
-                                                    return (
-                                                        <button key={brand.id} onClick={() => handleMultiFilterChange('brandId', brand.id)} className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 rounded-lg transition-colors ${isSelected ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
-                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-gray-900 border-gray-900' : 'border-gray-300'}`}>
-                                                                {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-                                                            </div>
-                                                            {brand.brandInfo?.logo ? <img src={brand.brandInfo.logo} alt="" className="h-6 w-6 rounded object-contain bg-gray-50 p-0.5" /> : <div className="h-6 w-6 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400 font-bold">{(brand.brandInfo?.name || brand.name || "??").substring(0, 2)}</div>}
-                                                            <span className="truncate">{brand.brandInfo?.name || brand.name}</span>
-                                                        </button>
-                                                    );
-                                                })}
+                                                {filteredBrandOptions
+                                                    .filter(brand => shouldShowOption('brands', brand))
+                                                    .map((brand: any) => {
+                                                        const isSelected = filters.brandId?.split(',').includes(brand.id);
+                                                        return (
+                                                            <button key={brand.id} onClick={() => handleMultiFilterChange('brandId', brand.id)} className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 rounded-lg transition-colors ${isSelected ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
+                                                                <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-gray-900 border-gray-900' : 'border-gray-300'}`}>
+                                                                    {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                                </div>
+                                                                {brand.brandInfo?.logo ? <img src={brand.brandInfo.logo} alt="" className="h-6 w-6 rounded object-contain bg-gray-50 p-0.5" /> : <div className="h-6 w-6 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400 font-bold">{(brand.brandInfo?.name || brand.name || "??").substring(0, 2)}</div>}
+                                                                <span className="truncate">{brand.brandInfo?.name || brand.name}</span>
+                                                            </button>
+                                                        );
+                                                    })}
                                             </div>
                                         </div>
                                     </>

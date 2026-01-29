@@ -49,11 +49,11 @@ export default function ProfileScreen() {
       'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop&crop=face',
       'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face'
     ];
-    
+
     const currentIndex = sampleImages.findIndex(img => img === userProfile?.profileImage);
     const nextIndex = (currentIndex + 1) % sampleImages.length;
     const newImage = sampleImages[nextIndex];
-    
+
     updateUserProfile({ profileImage: newImage });
     Alert.alert('Profile Photo Updated!', 'Your profile photo has been changed.');
   };
@@ -150,10 +150,6 @@ export default function ProfileScreen() {
           <Text style={styles.statLabel}>Wardrobe Items</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{userProfile.stats.outfitsCreated}</Text>
-          <Text style={styles.statLabel}>Outfits Created</Text>
-        </View>
-        <View style={styles.statCard}>
           <Text style={styles.statNumber}>{userProfile.stats.followers}</Text>
           <Text style={styles.statLabel}>Followers</Text>
         </View>
@@ -171,7 +167,7 @@ export default function ProfileScreen() {
             <Text style={styles.viewAllText}>View All</Text>
           </TouchableOpacity>
         </View>
-        
+
         {wardrobeItems.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsScroll}>
             {wardrobeItems.slice(0, 6).map((item) => (

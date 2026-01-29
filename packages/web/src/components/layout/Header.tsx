@@ -95,15 +95,12 @@ export function Header() {
 
   /* Swapped Icons: 
      - Wardrobe: TagIcon (closest to item/clothing) 
-     - Outfits: SparklesIcon (represents 'Outfits'/Creation better than Eye) 
+     - Looks: SparklesIcon (represents 'Looks'/Creation better than Eye) 
   */
   const navigation = [
     { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
-    { name: 'Social', href: '/social', icon: UserGroupIcon },
     { name: t('wardrobe'), href: '/wardrobe', icon: TagIcon },
-    { name: 'Outfits', href: '/outfits', icon: SparklesIcon },
     { name: 'Design Studio', href: '/design-studio', icon: SwatchIcon },
-    { name: t('marketplace'), href: '/marketplace', icon: ShoppingBagIcon },
     { name: 'DMs', href: '/messages', icon: ChatBubbleLeftRightIcon },
     { name: 'Calendar', href: '/calendar', icon: CalendarDaysIcon },
   ];

@@ -312,6 +312,7 @@ export interface EntityRef {
   type: 'user' | 'brand' | 'store' | 'organization' | 'other';
   name: string;
   image?: string; // Avatar or Logo URL
+  username?: string;
 }
 
 export interface OwnershipInfo {

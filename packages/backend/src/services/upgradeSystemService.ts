@@ -49,7 +49,7 @@ export class UpgradeSystemService {
     }
   ): Promise<UpgradePrompt> {
     const promptContent = this.generatePromptContent(context);
-    
+
     const prompt: Omit<UpgradePrompt, 'id'> = {
       userId,
       promptType: 'usage_limit',
@@ -208,7 +208,7 @@ export class UpgradeSystemService {
 
     // Get newly unlocked features
     const unlockedFeatures = this.getUnlockedFeatures(subscriptionData.subscriptionType);
-    
+
     // Generate onboarding steps
     const onboardingSteps = this.getOnboardingSteps(subscriptionData.subscriptionType);
 
@@ -277,10 +277,10 @@ export class UpgradeSystemService {
     // Select variant based on weights
     const totalWeight = testVariants.reduce((sum, variant) => sum + variant.weight, 0);
     const random = Math.random() * totalWeight;
-    
+
     let currentWeight = 0;
     let selectedVariant = testVariants[0];
-    
+
     for (const variant of testVariants) {
       currentWeight += variant.weight;
       if (random <= currentWeight) {
@@ -317,8 +317,8 @@ export class UpgradeSystemService {
     const usage = await this.featureAccessService.getUserFeatureUsage(userId);
 
     let urgency: 'low' | 'medium' | 'high' = 'low';
-    if (usage.wardrobeItems > 90 || usage.outfits > 45) urgency = 'high';
-    else if (usage.wardrobeItems > 70 || usage.outfits > 35) urgency = 'medium';
+    if (usage.wardrobeItems > 90) urgency = 'high';
+    else if (usage.wardrobeItems > 70) urgency = 'medium';
 
     const personalizedMessage = this.generatePersonalizedMessage(usage, recommendations);
     const keyBenefits = recommendations.features.slice(0, 3).map(f => f.description);

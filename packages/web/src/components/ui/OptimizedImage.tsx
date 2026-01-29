@@ -179,7 +179,7 @@ export function WardrobeItemImage({
   );
 }
 
-export function OutfitImage({
+export function LookImage({
   src,
   alt,
   className,
