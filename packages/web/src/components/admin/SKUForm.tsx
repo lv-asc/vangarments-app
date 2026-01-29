@@ -742,7 +742,7 @@ export default function SKUForm({ initialData, isEditMode = false }: SKUFormProp
 
                 <div className="h-24 w-24 bg-gray-100 rounded-xl border border-gray-200 text-gray-400 flex items-center justify-center overflow-hidden shadow-sm">
                     {formData.images && formData.images.length > 0 ? (
-                        <img src={getImageUrl(formData.images[0].url)} alt="SKU Preview" className="h-full w-full object-cover" />
+                        <img src={getImageUrl(formData.images[0].url)} alt="Item Preview" className="h-full w-full object-cover" />
                     ) : (
                         <ApparelIcon name={apparels.find(a => a.id === formData.apparelId)?.name || 'T-Shirt'} className="h-12 w-12" />
                     )}

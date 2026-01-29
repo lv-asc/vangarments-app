@@ -217,9 +217,12 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
 
         let resolvedDescription = metadata.description || sku.description || '';
 
+        // Preserve the raw URL/path from API - MediaUploader.getUrl will handle normalization
+        // Using getImageUrl here would double-process paths, causing broken URLs
         let resolvedImages = (sku.images || sku.media || []).map((img: any) => ({
             ...img,
-            url: img.url || img.imageUrl || (img.path ? getImageUrl(img.path) : '') // Normalize URL for MediaUploader
+            url: img.url || img.imageUrl || img.path || '', // Keep raw path, let MediaUploader normalize
+            type: 'image' as const
         }));
 
         // If it's a wardrobe item, we need to resolve names to IDs
@@ -1143,7 +1146,7 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
 
                 <div className="h-24 w-24 bg-gray-100 rounded-xl border border-gray-200 text-gray-400 flex items-center justify-center overflow-hidden shadow-sm">
                     {formData.images && formData.images.length > 0 ? (
-                        <img src={getImageUrl(formData.images[0].url)} alt="SKU Preview" className="h-full w-full object-cover" />
+                        <img src={getImageUrl(formData.images[0].url)} alt="Item Preview" className="h-full w-full object-cover" />
                     ) : (
                         <ApparelIcon name={apparels.find(a => a.id === formData.apparelId)?.name || 'T-Shirt'} className="h-12 w-12" />
                     )}

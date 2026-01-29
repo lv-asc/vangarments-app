@@ -76,6 +76,12 @@ app.use('/api/auth', authRateLimit);
 app.use('/api', standardRateLimit);
 
 // CORS for static files - allow frontend to load images from backend
+// The securityHeaders middleware sets Cross-Origin-Resource-Policy: same-origin globally,
+// which blocks cross-origin image loading. We need to override it for /storage.
+app.use('/storage', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
 app.use('/storage', cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)

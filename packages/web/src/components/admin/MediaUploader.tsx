@@ -27,11 +27,14 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 interface MediaItem {
+    id?: string; // Database ID for linking
     url: string;
     isPrimary?: boolean;
     title?: string; // For videos
     type: 'image' | 'video';
-    labelId?: string; // Add this
+    imageType?: string; // Was labelId, mapped to backend imageType
+    originalImageId?: string; // For background_removed images, links to parent
+    aiAnalysis?: { originalImageId?: string }; // Alternative location for originalImageId
 }
 
 interface MediaLabel {
@@ -58,6 +61,10 @@ interface SortableMediaItemProps {
     onLabelChange: (index: number, labelId: string) => void;
     mediaLabels: MediaLabel[];
     onTagImage?: (imageUrl: string, index: number) => void;
+    isSelected: boolean;
+    onToggleSelection: (url: string) => void;
+    selectionMode: boolean;
+    hasNoBgVersion?: boolean; // Indicates if this image has a linked no-BG version
 }
 
 function SortableMediaItem({
@@ -69,7 +76,11 @@ function SortableMediaItem({
     onMakePrimary,
     onLabelChange,
     mediaLabels,
-    onTagImage
+    onTagImage,
+    isSelected,
+    onToggleSelection,
+    selectionMode,
+    hasNoBgVersion
 }: SortableMediaItemProps) {
     const {
         attributes,
@@ -104,6 +115,16 @@ function SortableMediaItem({
             className={`relative rounded-lg border-2 p-2 ${item.isPrimary ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
                 }`}
         >
+            {/* Selection Checkbox */}
+            <div className={`absolute top-1 right-1 z-10 ${selectionMode || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => onToggleSelection(item.url)}
+                    className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shadow-sm"
+                />
+            </div>
+
             {/* Drag Handle */}
             <div
                 {...attributes}
@@ -134,6 +155,14 @@ function SortableMediaItem({
                             console.error('[MediaUploader] Video failed to load:', item.url);
                         }}
                     />
+                )}
+                {/* No-BG Version Indicator */}
+                {hasNoBgVersion && (
+                    <div className="absolute bottom-1 right-1 z-10" title="Background-removed version available">
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-indigo-600 text-white rounded shadow-sm">
+                            BG ✓
+                        </span>
+                    </div>
                 )}
             </div>
 
@@ -175,18 +204,19 @@ function SortableMediaItem({
 
             {/* Media Label Selection */}
             <div className="mt-2 pt-2 border-t border-gray-100">
-                <Combobox value={item.labelId || ''} onChange={(val) => onLabelChange(index, val)}>
+                <Combobox value={item.imageType || ''} onChange={(val) => onLabelChange(index, val)}>
                     <div className="relative">
                         <div className="relative w-full cursor-default overflow-hidden rounded-lg bg-white text-left shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-300 sm:text-xs">
                             <Combobox.Input
-                                className="w-full border-none py-1.5 pl-2 pr-8 text-xs leading-5 text-gray-900 focus:ring-0 bg-gray-50 hover:bg-white transition-colors"
+                                className="w-full border-none py-1.5 pl-2 pr-8 text-xs leading-5 text-gray-900 focus:ring-0 bg-gray-50 hover:bg-white transition-colors placeholder:text-gray-400"
                                 displayValue={(labelId: string) =>
-                                    mediaLabels.find((l) => l.id === labelId)?.name || 'Select Label...'
+                                    mediaLabels.find((l) => l.id === labelId)?.name || ''
                                 }
                                 onChange={(event) => setLabelQuery(event.target.value)}
-                                placeholder="Search labels..."
+                                placeholder="Select Label..."
+                                autoComplete="off"
                             />
-                            <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+                            <Combobox.Button className="absolute inset-0 w-full h-full bg-transparent flex items-center justify-end pr-2 cursor-text">
                                 <ChevronUpDownIcon
                                     className="h-4 w-4 text-gray-400"
                                     aria-hidden="true"
@@ -272,6 +302,7 @@ export default function MediaUploader({
 }: MediaUploaderProps) {
     const [uploading, setUploading] = useState(false);
     const [mediaLabels, setMediaLabels] = useState<MediaLabel[]>([]);
+    const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const sensors = useSensors(
@@ -285,6 +316,11 @@ export default function MediaUploader({
         const fetchLabels = async () => {
             try {
                 const labels = await apiClient.getAllMediaLabels();
+                // Inject 'Measurements' label if not present
+                const hasMeasurements = labels.some((l: any) => l.name === 'Measurements');
+                if (!hasMeasurements && labels) {
+                    labels.push({ id: 'measurements', name: 'Measurements' }); // Use lowercase ID 'measurements' to match backend enums
+                }
                 setMediaLabels(labels || []);
             } catch (error) {
                 console.error('Failed to fetch media labels:', error);
@@ -298,11 +334,25 @@ export default function MediaUploader({
             console.warn('[MediaUploader] Empty URL provided');
             return '';
         }
-        if (url.startsWith('http') || url.startsWith('data:')) return url;
+
+        // Handle data URLs and API paths directly
+        if (url.startsWith('data:')) return url;
         if (url.startsWith('/api')) return url;
 
-        // Normalize path: strip leading slash
-        let path = url.startsWith('/') ? url.substring(1) : url;
+        // Strip backend domain from full URLs to enable Next.js proxy
+        let path = url;
+        if (path.includes('localhost:3001') || path.includes('localhost:3000')) {
+            // Remove the domain part
+            path = path
+                .replace(/https?:\/\/localhost:3001\/api\/v1/g, '')
+                .replace(/https?:\/\/localhost:3001/g, '')
+                .replace(/https?:\/\/localhost:3000/g, '');
+        }
+
+        // Clean up leading slashes
+        while (path.startsWith('/')) {
+            path = path.substring(1);
+        }
 
         // Handle /storage prefix from backend
         if (path.startsWith('storage/')) {
@@ -403,10 +453,51 @@ export default function MediaUploader({
         onChange(newMedia);
     };
 
-    const handleLabelChange = (index: number, labelId: string) => {
+    const handleLabelChange = (index: number, imageType: string) => {
         const newMedia = [...media];
-        newMedia[index] = { ...newMedia[index], labelId };
+        newMedia[index] = { ...newMedia[index], imageType };
         onChange(newMedia);
+    };
+
+    const handleToggleSelection = (url: string) => {
+        const newSelected = new Set(selectedUrls);
+        if (newSelected.has(url)) {
+            newSelected.delete(url);
+        } else {
+            newSelected.add(url);
+        }
+        setSelectedUrls(newSelected);
+    };
+
+    const handleBulkLabel = (imageType: string) => {
+        if (selectedUrls.size === 0) return;
+        const newMedia = media.map(item => {
+            if (selectedUrls.has(item.url)) {
+                return { ...item, imageType };
+            }
+            return item;
+        });
+        onChange(newMedia);
+        setSelectedUrls(new Set()); // Clear selection after action
+        toast.success(`Label applied to ${selectedUrls.size} items`);
+    };
+
+    const handleBulkDelete = () => {
+        if (selectedUrls.size === 0) return;
+        const newMedia = media.filter(item => !selectedUrls.has(item.url));
+
+        // Ensure primary consistency
+        if (newMedia.length > 0 && !newMedia.some(m => m.isPrimary)) {
+            newMedia[0].isPrimary = true;
+        }
+
+        onChange(newMedia);
+        setSelectedUrls(new Set());
+        toast.success(`${selectedUrls.size} items removed`);
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedUrls(new Set());
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
@@ -451,6 +542,59 @@ export default function MediaUploader({
                 </div>
             </div>
 
+            {/* Bulk Actions Bar */}
+            {selectedUrls.size > 0 && (
+                <div className="flex items-center gap-4 p-3 bg-blue-50 border border-blue-100 rounded-lg animate-fade-in mb-4">
+                    <span className="text-sm font-medium text-blue-900">{selectedUrls.size} selected</span>
+
+                    <div className="h-4 w-px bg-blue-200" />
+
+                    <Combobox value="" onChange={handleBulkLabel}>
+                        <div className="relative w-48">
+                            <Combobox.Input
+                                className="w-full rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 shadow-sm ring-1 ring-inset ring-blue-200 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs sm:leading-6 bg-white placeholder:text-blue-400"
+                                placeholder="Apply Label to Selected..."
+                                displayValue={() => ''}
+                                autoComplete="off"
+                            />
+                            <Combobox.Options className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                {mediaLabels.map((label) => (
+                                    <Combobox.Option
+                                        key={label.id}
+                                        value={label.id}
+                                        className={({ active }) =>
+                                            `relative cursor-default select-none py-2 pl-3 pr-9 ${active ? 'bg-blue-600 text-white' : 'text-gray-900'
+                                            }`
+                                        }
+                                    >
+                                        <span className="block truncate">{label.name}</span>
+                                    </Combobox.Option>
+                                ))}
+                            </Combobox.Options>
+                        </div>
+                    </Combobox>
+
+                    <button
+                        type="button"
+                        onClick={handleDeselectAll}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                    >
+                        Deselect All
+                    </button>
+
+                    <div className="flex-1" />
+
+                    <button
+                        type="button"
+                        onClick={handleBulkDelete}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 rounded text-xs font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors shadow-sm"
+                    >
+                        <TrashIcon className="h-3 w-3" />
+                        Delete Selected
+                    </button>
+                </div>
+            )}
+
             {media.length > 0 ? (
                 <DndContext
                     sensors={sensors}
@@ -462,20 +606,34 @@ export default function MediaUploader({
                         strategy={rectSortingStrategy}
                     >
                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
-                            {media.map((item, index) => (
-                                <SortableMediaItem
-                                    key={item.url}
-                                    item={item}
-                                    index={index}
-                                    type={type}
-                                    getUrl={getUrl}
-                                    onRemove={handleRemove}
-                                    onMakePrimary={handleMakePrimary}
-                                    onLabelChange={handleLabelChange}
-                                    mediaLabels={mediaLabels}
-                                    onTagImage={onTagImage}
-                                />
-                            ))}
+                            {/* Filter out background_removed images - they appear as indicators on their parent */}
+                            {media
+                                .filter(item => item.imageType !== 'background_removed')
+                                .map((item, index) => {
+                                    // Find if this item has a linked no-BG version
+                                    const hasNoBgVersion = media.some(m =>
+                                        m.imageType === 'background_removed' &&
+                                        (m.originalImageId === item.id || m.aiAnalysis?.originalImageId === item.id)
+                                    );
+                                    return (
+                                        <SortableMediaItem
+                                            key={item.url}
+                                            item={item}
+                                            index={media.indexOf(item)} // Use real index for operations
+                                            type={type}
+                                            getUrl={getUrl}
+                                            onRemove={handleRemove}
+                                            onMakePrimary={handleMakePrimary}
+                                            onLabelChange={handleLabelChange}
+                                            mediaLabels={mediaLabels}
+                                            onTagImage={onTagImage}
+                                            isSelected={selectedUrls.has(item.url)}
+                                            onToggleSelection={handleToggleSelection}
+                                            selectionMode={selectedUrls.size > 0}
+                                            hasNoBgVersion={hasNoBgVersion}
+                                        />
+                                    );
+                                })}
                         </div>
                     </SortableContext>
                 </DndContext>
