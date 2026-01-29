@@ -313,7 +313,7 @@ export class WardrobeValidationService {
     if (!ownership.status) {
       result.errors.push('Ownership status is required');
     } else {
-      const validStatuses = ['owned', 'sold', 'loaned', 'wishlist'];
+      const validStatuses = ['owned', 'sold', 'loaned', 'borrowed', 'wishlist'];
       if (!validStatuses.includes(ownership.status)) {
         result.errors.push(`Ownership status must be one of: ${validStatuses.join(', ')}`);
       }
@@ -328,6 +328,22 @@ export class WardrobeValidationService {
         result.errors.push(`Ownership visibility must be one of: ${validVisibilities.join(', ')}`);
       }
     }
+
+    // Validate EntityRefs (owner, lentTo, lentBy)
+    const validateEntityRef = (ref: any, fieldName: string) => {
+      if (!ref) return;
+      if (typeof ref !== 'object') {
+        result.errors.push(`${fieldName} must be an object`);
+        return;
+      }
+      if (!ref.id) result.errors.push(`${fieldName} must have an ID`);
+      if (!ref.name) result.errors.push(`${fieldName} must have a name`);
+      if (!ref.type) result.errors.push(`${fieldName} must have a type`);
+    };
+
+    if (ownership.owner) validateEntityRef(ownership.owner, 'Owner');
+    if (ownership.lentTo) validateEntityRef(ownership.lentTo, 'Lent To');
+    if (ownership.lentBy) validateEntityRef(ownership.lentBy, 'Lent By');
 
     result.isValid = result.errors.length === 0;
     return result;

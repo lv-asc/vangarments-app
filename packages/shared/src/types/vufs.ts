@@ -306,9 +306,26 @@ export interface ItemCondition {
 }
 
 // Ownership Information
+// Ownership Information
+export interface EntityRef {
+  id: string;
+  type: 'user' | 'brand' | 'store' | 'organization' | 'other';
+  name: string;
+  image?: string; // Avatar or Logo URL
+}
+
 export interface OwnershipInfo {
-  status: 'owned' | 'loaned' | 'sold';
+  status: 'owned' | 'loaned' | 'borrowed' | 'sold';
   visibility: 'public' | 'private' | 'friends';
-  loanedTo?: string;
+
+  // Who owns it (if not the current user)
+  owner?: EntityRef;
+
+  // If status is 'loaned' -> who it was lent TO
+  lentTo?: EntityRef;
   loanDate?: Date;
+  returnDate?: Date;
+
+  // If status is 'borrowed' -> who it was lent BY (lent FROM)
+  lentBy?: EntityRef;
 }

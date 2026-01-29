@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import MediaUploader from './MediaUploader';
-import { PencilIcon, TrashIcon, PlusIcon, MagnifyingGlassIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, PlusIcon, MagnifyingGlassIcon, XMarkIcon, InformationCircleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { tagApi } from '@/lib/tagApi';
 import { sportOrgApi } from '@/lib/sportOrgApi';
 import { ImageTagEditor } from '@/components/tagging';
@@ -13,6 +13,8 @@ import SearchableCombobox from '../ui/Combobox';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '../ui/ApparelIcons';
 import { getImageUrl } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { UserEntitySelect } from '@/components/ui/UserEntitySelect';
+import { EntityRef } from '@vangarments/shared/types/vufs';
 
 interface ItemCreationProps {
     initialData?: any; // For edit mode
@@ -65,6 +67,7 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
 
     // Multi-select dropdown state
     const [openDropdown, setOpenDropdown] = useState<'sizes' | 'colors' | null>(null);
+    const [currentUser, setCurrentUser] = useState<EntityRef | null>(null);
 
     // Image Tagging State
     const [taggingModal, setTaggingModal] = useState<{ isOpen: boolean; imageUrl: string; skuId: string }>({
@@ -124,7 +127,14 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
         sellingPriceBrl: '' as string | number,
         releaseDate: '',
         careInstructions: '',
-        officialItemLink: ''
+
+        officialItemLink: '',
+        // Ownership & Lending
+        owner: undefined as EntityRef | undefined,
+        lentTo: undefined as EntityRef | undefined,
+        lentBy: undefined as EntityRef | undefined,
+        ownershipStatus: 'owned' as 'owned' | 'loaned' | 'borrowed' | 'sold',
+        ownershipVisibility: 'public' as 'public' | 'private' | 'friends'
     });
 
     // Special effect to pre-fill brandId from query if not in edit mode
@@ -153,7 +163,10 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
     useEffect(() => {
         if (initialData && !loading && brandAccounts.length > 0) {
             // Check if this is a wardrobe item needing re-initialization
-            const isWardrobeItem = initialData.brand?.brand && typeof initialData.brand.brand === 'string' && !initialData.brandId;
+            // Wardrobe items typically have string brand names or we are in edit mode for wardrobe
+            // If initialData has 'ownership', it's likely a wardrobe item
+            const isWardrobeItem = (initialData.brand?.brand && typeof initialData.brand.brand === 'string') || initialData.ownership;
+
             if (isWardrobeItem) {
                 initializeForm(initialData);
             }
@@ -344,7 +357,13 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             conditionId: resolvedConditionId,
             releaseDate: sku.releaseDate ? new Date(sku.releaseDate).toISOString().split('T')[0] : '',
             careInstructions: sku.careInstructions || metadata.careInstructions?.join(', ') || '',
-            officialItemLink: sku.officialItemLink || ''
+            officialItemLink: sku.officialItemLink || '',
+            // Ownership initialization
+            owner: sku.ownership?.owner || (mode === 'wardrobe' && !isEditMode ? currentUser : undefined),
+            lentTo: sku.ownership?.lentTo,
+            lentBy: sku.ownership?.lentBy,
+            ownershipStatus: sku.ownership?.status || 'owned',
+            ownershipVisibility: sku.ownership?.visibility || 'public'
         }));
 
         // Fetch measurements (only for SKUs, not wardrobe items)
@@ -428,6 +447,19 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             try {
                 const userRes = await apiClient.getCurrentUser();
                 isAdmin = userRes?.roles?.includes('admin');
+                if (userRes) {
+                    const mappedUser: EntityRef = {
+                        id: userRes.id,
+                        type: 'user',
+                        name: userRes.name || userRes.firstName + (userRes.lastName ? ' ' + userRes.lastName : ''),
+                        image: userRes.profilePicture || userRes.avatarUrl || userRes.image
+                    };
+                    setCurrentUser(mappedUser);
+                    // If not in edit mode and creating a wardrobe item, default the owner immediately if formData.owner is empty
+                    if (mode === 'wardrobe' && !isEditMode) {
+                        setFormData(prev => ({ ...prev, owner: prev.owner || mappedUser }));
+                    }
+                }
             } catch (e) {
                 console.error('Failed to check admin status', e);
             }
@@ -734,7 +766,6 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
         if (formData.nameConfig.includeStyle && style?.name) nameParts.push(style.name);
         if (formData.nameConfig.includePattern && pattern?.name) nameParts.push(pattern.name);
         if (formData.nameConfig.includeMaterial && material?.name) nameParts.push(material.name);
-        if (formData.nameConfig.includeMaterial && material?.name) nameParts.push(material.name);
         if (formData.nameConfig.includeFit && fit?.name) nameParts.push(fit.name);
 
         if (apparel?.name) nameParts.push(apparel.name);
@@ -940,11 +971,15 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 defects: []
             },
             ownership: {
-                status: 'owned',
-                visibility: 'public'
+                status: formData.ownershipStatus || 'owned',
+                visibility: formData.ownershipVisibility || 'public',
+                owner: formData.owner,
+                lentTo: formData.lentTo,
+                lentBy: formData.lentBy,
+                loanDate: (formData.lentTo || formData.lentBy) ? new Date() : undefined
             },
             images: formData.images,
-            code: formData.generatedCode // Include generated code in payload so it saves correctly
+            code: formData.generatedCode
         };
 
         // Add officialItemLink to metadata if present
@@ -1248,6 +1283,7 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 )}
             </div>
 
+
             {/* Sport ORG Context */}
             {formData.sportOrgId && (
                 <div className="p-6 rounded-xl border border-gray-200">
@@ -1391,6 +1427,7 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             </div>
 
             {/* Attributes: Pattern, Material, Fit, Gender */}
+            {/* Attributes: Pattern, Material, Fit, Gender */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Pattern</label>
@@ -1452,6 +1489,83 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 </div>
             </div>
 
+            {/* Ownership & Lending Section - Wardrobe Mode Only */}
+            {mode === 'wardrobe' && (
+                <div className="border-t pt-6 mt-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                        <UserCircleIcon className="w-5 h-5 text-blue-500" />
+                        Ownership & Lending
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Status */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <SearchableCombobox
+                                options={[
+                                    { id: 'owned', name: 'Owned' },
+                                    { id: 'loaned', name: 'Lent Out' },
+                                    { id: 'borrowed', name: 'Borrowed' },
+                                    { id: 'sold', name: 'Sold' }
+                                ]}
+                                value={[
+                                    { id: 'owned', name: 'Owned' },
+                                    { id: 'loaned', name: 'Lent Out' },
+                                    { id: 'borrowed', name: 'Borrowed' },
+                                    { id: 'sold', name: 'Sold' }
+                                ].find(opt => opt.id === formData.ownershipStatus)?.name || ''}
+                                onChange={(val) => {
+                                    const status = [
+                                        { id: 'owned', name: 'Owned' },
+                                        { id: 'loaned', name: 'Lent Out' },
+                                        { id: 'borrowed', name: 'Borrowed' },
+                                        { id: 'sold', name: 'Sold' }
+                                    ].find(opt => opt.name === val)?.id;
+                                    if (status) {
+                                        setFormData(prev => ({ ...prev, ownershipStatus: status as any }));
+                                    }
+                                }}
+                                placeholder="Select Status"
+                            />
+                        </div>
+                        {/* Owner */}
+                        <div>
+                            <UserEntitySelect
+                                label="Owner (Who owns this item?)"
+                                placeholder="Search users or brands..."
+                                value={formData.owner}
+                                onChange={(val) => setFormData(prev => ({ ...prev, owner: val }))}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Leave unchanged if you are the owner.</p>
+                        </div>
+                        {/* Lent To */}
+                        {formData.ownershipStatus === 'loaned' && (
+                            <div className="md:col-span-2">
+                                <UserEntitySelect
+                                    label="Lent To (Who currently has this item?)"
+                                    placeholder="Search users or brands..."
+                                    value={formData.lentTo}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, lentTo: val }))}
+                                    excludeIds={formData.owner ? [formData.owner.id] : []}
+                                />
+                            </div>
+                        )}
+                        {/* Lent By */}
+                        {formData.ownershipStatus === 'borrowed' && (
+                            <div className="md:col-span-2">
+                                <UserEntitySelect
+                                    label="Lent By (Who did you borrow this from?)"
+                                    placeholder="Search users or brands..."
+                                    value={formData.lentBy}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, lentBy: val }))}
+                                    excludeIds={formData.owner ? [formData.owner.id] : []}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+
             {/* Images & Video */}
             <div>
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Media</h3>
@@ -1489,51 +1603,55 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
 
             {/* Image Tagging Modal */}
             {/* Image Tagging Modal */}
-            {taggingModal.isOpen && (
-                <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="tagging-modal-title" role="dialog" aria-modal="true">
-                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })} />
+            {
+                taggingModal.isOpen && (
+                    <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="tagging-modal-title" role="dialog" aria-modal="true">
+                        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })} />
 
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-medium text-gray-900" id="tagging-modal-title">
-                                        Tag People & Entities
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })}
-                                        className="text-gray-400 hover:text-gray-500"
-                                    >
-                                        <XMarkIcon className="h-6 w-6" />
-                                    </button>
+                            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-medium text-gray-900" id="tagging-modal-title">
+                                            Tag People & Entities
+                                        </h3>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTaggingModal({ isOpen: false, imageUrl: '', skuId: '' })}
+                                            className="text-gray-400 hover:text-gray-500"
+                                        >
+                                            <XMarkIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mb-4">Click on the image to add tags.</p>
+                                    <ImageTagEditor
+                                        imageUrl={taggingModal.imageUrl}
+                                        sourceType="sku_image"
+                                        sourceId={taggingModal.skuId}
+                                        existingTags={taggingTags}
+                                        className="max-h-[60vh] overflow-auto"
+                                    />
                                 </div>
-                                <p className="text-sm text-gray-500 mb-4">Click on the image to add tags.</p>
-                                <ImageTagEditor
-                                    imageUrl={taggingModal.imageUrl}
-                                    sourceType="sku_image"
-                                    sourceId={taggingModal.skuId}
-                                    existingTags={taggingTags}
-                                    className="max-h-[60vh] overflow-auto"
-                                />
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Variants (Sizes & Colors) - Enhanced Multi-Select UI */}
-            {mode !== 'wardrobe' && (
-                <div className="border-t pt-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Variants</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {renderSizeSelector('Sizes (Select multiple)', 'Search and Select Sizes...')}
-                        {renderColorSelector('Colors (Select multiple)', 'Search and Select Colors...')}
+            {
+                mode !== 'wardrobe' && (
+                    <div className="border-t pt-6">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">Variants</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {renderSizeSelector('Sizes (Select multiple)', 'Search and Select Sizes...')}
+                            {renderColorSelector('Colors (Select multiple)', 'Search and Select Colors...')}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Name Generation Config */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1955,6 +2073,6 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 </Button>
             </div>
 
-        </form>
+        </form >
     );
 }

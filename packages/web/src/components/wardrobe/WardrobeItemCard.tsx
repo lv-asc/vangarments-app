@@ -36,6 +36,8 @@ interface WardrobeItem {
   // Enriched fields
   metadata?: {
     name?: string;
+    size?: string;
+    colors?: Array<{ name?: string; primary?: string; hex?: string }>;
   };
   brandInfo?: {
     name: string;
@@ -154,6 +156,9 @@ export function WardrobeItemCard({
   const productUrl = `/wardrobe/${item.vufsCode}`;
 
   const displayColor = typeof item.color === 'string' ? item.color : (item.color as any)?.name || 'Unknown';
+  const metadataColor = item.metadata?.colors?.[0];
+  const colorHex = metadataColor?.hex || metadataColor?.primary || getColorHex(displayColor);
+  const displaySize = item.size || item.metadata?.size;
 
   return (
     <motion.div
@@ -379,18 +384,18 @@ export function WardrobeItemCard({
         </div>
 
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Color Circle */}
             <div
               className="w-4 h-4 rounded-full border border-gray-100 shadow-sm"
-              style={{ backgroundColor: getColorHex(displayColor) }}
-              title={displayColor}
+              style={{ backgroundColor: colorHex }}
+              title={metadataColor?.name || displayColor}
             />
 
-            {/* Size Badge */}
-            {item.size && (
-              <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                {item.size}
+            {/* Size Text */}
+            {displaySize && (
+              <span className="text-[11px] font-bold text-gray-500">
+                Size {displaySize}
               </span>
             )}
           </div>

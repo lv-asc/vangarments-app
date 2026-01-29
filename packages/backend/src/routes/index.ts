@@ -4,6 +4,7 @@ import simpleOAuthRoutes from './simpleOAuth';
 import userRoutes from './users';
 import vufsRoutes from './vufs';
 import wardrobeRoutes from './wardrobe';
+import searchRoutes from './search';
 import anteroomRoutes from './anteroom';
 import trackingRoutes from './tracking';
 import aiRoutes from './ai';
@@ -113,6 +114,7 @@ router.use('/google-calendar', googleCalendarRoutes); // Google Calendar integra
 router.use('/apple-calendar', appleCalendarRoutes); // Apple Calendar integration
 router.use('/sport-orgs', sportOrgRoutes); // Sport ORG competition system
 router.use('/events', eventRoutes); // Fashion events system
+router.use('/search', searchRoutes); // Search system
 
 // Health check for API
 router.get('/health', (req, res) => {

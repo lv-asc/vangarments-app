@@ -91,7 +91,19 @@ export function slugify(text: string): string {
 // Update getImageUrl to return relative paths to leverage Next.js rewrites
 export function getImageUrl(path: string | undefined | null, size?: 'sm' | 'md' | 'lg' | 'xl'): string {
   if (!path) return '';
-  if (path.startsWith('http')) return path;
+
+  // If it's an absolute URL pointing to our backend, convert to proxy
+  if (path.includes('localhost:3001') || path.includes('localhost:3000') || (process.env.NEXT_PUBLIC_API_URL && path.includes(process.env.NEXT_PUBLIC_API_URL))) {
+    // Continue to processing below to strip domain and storage prefix
+    path = path
+      .replace(/https?:\/\/localhost:3001\/api\/v1/g, '')
+      .replace(/https?:\/\/localhost:3001/g, '')
+      .replace(/https?:\/\/localhost:3000/g, '')
+      .replace(process.env.NEXT_PUBLIC_API_URL || '', '');
+  } else if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
   if (path.startsWith('data:')) return path;
 
   // Normalize path
@@ -127,6 +139,7 @@ export function getImageUrl(path: string | undefined | null, size?: 'sm' | 'md' 
 
   // Final check: if it is a storage path, return relative URL /storage/...
   if (cleanPath.startsWith('storage/')) {
+    // Use /storage/ path which is proxied to backend via next.config.js rewrites
     return `/${cleanPath}`;
   }
 

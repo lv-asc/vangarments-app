@@ -46,15 +46,18 @@ export function getImageUrl(path: string | undefined | null): string {
   if (!path || typeof path !== 'string') return '';
 
   // If it's an absolute URL pointing to our backend, convert to proxy
-  if (path.includes('localhost:3001') || (process.env.NEXT_PUBLIC_API_URL && path.includes(process.env.NEXT_PUBLIC_API_URL))) {
+  if (path.includes('localhost:3001') || path.includes('localhost:3000') || (process.env.NEXT_PUBLIC_API_URL && path.includes(process.env.NEXT_PUBLIC_API_URL))) {
     // Continue to processing below to strip domain and storage prefix
-    path = path.replace('http://localhost:3001/api/v1', '').replace('http://localhost:3001', '').replace(process.env.NEXT_PUBLIC_API_URL || '', '');
+    path = path
+      .replace(/https?:\/\/localhost:3001\/api\/v1/g, '')
+      .replace(/https?:\/\/localhost:3001/g, '')
+      .replace(/https?:\/\/localhost:3000/g, '')
+      .replace(process.env.NEXT_PUBLIC_API_URL || '', '');
   } else if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
 
-  // Remove /storage prefix if present since we'll add /api/storage
-  // NOTE: If we stripped the domain above, the path might start with /storage or //storage
+  // Remove /storage prefix if present since we'll add it back
   let cleanPath = path;
 
   // Clean up any double slashes at the start
@@ -72,10 +75,9 @@ export function getImageUrl(path: string | undefined | null): string {
     cleanPath = cleanPath.substring(1);
   }
 
-  // Use Next.js API route to proxy the image with cache-busting parameter
-  const cacheVersion = getCacheVersion();
-  const proxiedUrl = `/image-proxy/${cleanPath}?v=${cacheVersion}`;
-  // console.log('[getImageUrl]', { input: path, output: proxiedUrl });
+  // Use /storage/ path which is proxied to backend via next.config.js rewrites
+  // This matches the working strategy in MediaUploader.getUrl
+  const proxiedUrl = `/storage/${cleanPath}`;
   return proxiedUrl;
 }
 
