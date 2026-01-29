@@ -25,7 +25,22 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
     const [totalPages, setTotalPages] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState<ItemsFilters>({});
-    const [showOriginalBackgrounds, setShowOriginalBackgrounds] = useState(false); // Default to showing processed images if available
+
+    // Initialize from localStorage, default to false (show No BG)
+    const [showOriginalBackgrounds, setShowOriginalBackgrounds] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('wardrobe-show-original-bg');
+            return saved === 'true';
+        }
+        return false;
+    });
+
+    // Sync to localStorage when changed
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('wardrobe-show-original-bg', String(showOriginalBackgrounds));
+        }
+    }, [showOriginalBackgrounds]);
 
     // Facet Options (Wardrobe Context) - Used for Filters
     const [wardrobeFacets, setWardrobeFacets] = useState<{
@@ -76,6 +91,7 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
         }, 300);
         return () => clearTimeout(timer);
     }, [page, searchQuery, filters]);
+
 
     const fetchWardrobeFacets = async () => {
         try {
@@ -202,18 +218,37 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                 {items.map(item => {
                                     // Prepare images specifically for the card based on toggle
                                     const isProcessed = (img: any) => img.type === 'background_removed' || img.imageType === 'background_removed';
-                                    const processedImages = (item.images?.filter(isProcessed) || [])
-                                        .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-                                    const processedImage = processedImages[0];
-                                    const originalImages = item.images?.filter((img: any) => !isProcessed(img)) || [];
+
+                                    // Sort all images by sortOrder first
+                                    const sortedImages = [...(item.images || [])].sort((a: any, b: any) =>
+                                        (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+                                    );
+
+                                    // Get originals in sort order
+                                    const originalImages = sortedImages.filter((img: any) => !isProcessed(img));
+
+                                    // Build image list for card: for each original, find its No BG version
+                                    let cardImages: any[];
+                                    if (!showOriginalBackgrounds) {
+                                        // No BG mode: for each original, prefer its No BG version if available
+                                        cardImages = originalImages.map(orig => {
+                                            const noBgVersion = sortedImages.find((img: any) =>
+                                                isProcessed(img) &&
+                                                (img.aiAnalysis?.originalImageId === orig.id || img.originalImageId === orig.id)
+                                            );
+                                            return noBgVersion || orig;
+                                        });
+                                    } else {
+                                        // Original mode: just use originals
+                                        cardImages = originalImages;
+                                    }
 
                                     // Create a modified item for the card with correctly prioritized images
                                     const cardItem = {
                                         ...item,
-                                        images: !showOriginalBackgrounds && processedImage
-                                            ? [processedImage, ...originalImages]
-                                            : [...originalImages, ...processedImages]
+                                        images: cardImages
                                     };
+
 
                                     return (
                                         <WardrobeItemCard

@@ -58,6 +58,10 @@ router.post(
 // Delete specific image from item
 router.delete('/items/:id/images/:imageId', WardrobeController.deleteItemImage);
 
+// Reorder images for an item
+router.put('/items/:id/images/reorder', WardrobeController.reorderImages);
+
+
 // Get VUFS options for item creation
 router.get('/vufs-options', WardrobeController.getVUFSOptions);
 

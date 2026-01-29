@@ -9,6 +9,7 @@ export interface ItemImage {
   aiAnalysis?: any;
   isProcessed: boolean;
   isPrimary: boolean;
+  sortOrder: number;
   fileSize?: number;
   mimeType?: string;
   width?: number;
@@ -16,6 +17,7 @@ export interface ItemImage {
   createdAt: Date;
   updatedAt: Date;
 }
+
 
 export interface CreateItemImageData {
   itemId: string;
@@ -60,7 +62,7 @@ export class ItemImageModel {
     const query = `
       SELECT * FROM item_images 
       WHERE item_id = $1 
-      ORDER BY is_primary DESC, created_at ASC
+      ORDER BY sort_order ASC, is_primary DESC, created_at ASC
     `;
 
     const result = await db.query(query, [itemId]);
@@ -145,6 +147,46 @@ export class ItemImageModel {
     return result.rowCount || 0;
   }
 
+  /**
+   * Reorder images by updating their sort_order values.
+   * @param itemId The wardrobe item ID
+   * @param imageIds Array of image IDs in the desired order
+   */
+  static async reorderImages(itemId: string, imageIds: string[]): Promise<boolean> {
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Update sort_order for each image based on its position in the array
+      for (let i = 0; i < imageIds.length; i++) {
+        await client.query(
+          'UPDATE item_images SET sort_order = $1, updated_at = NOW() WHERE id = $2 AND item_id = $3',
+          [(i + 1) * 10, imageIds[i], itemId]
+        );
+      }
+
+      // Set first image as primary
+      if (imageIds.length > 0) {
+        await client.query(
+          'UPDATE item_images SET is_primary = false WHERE item_id = $1',
+          [itemId]
+        );
+        await client.query(
+          'UPDATE item_images SET is_primary = true WHERE id = $1 AND item_id = $2',
+          [imageIds[0], itemId]
+        );
+      }
+
+      await client.query('COMMIT');
+      return true;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   private static mapToItemImage(row: any): ItemImage {
     const aiAnalysis = row.ai_analysis ?
       (typeof row.ai_analysis === 'string' ? JSON.parse(row.ai_analysis) : row.ai_analysis) :
@@ -159,6 +201,7 @@ export class ItemImageModel {
       aiAnalysis,
       isProcessed: row.is_processed,
       isPrimary: row.is_primary,
+      sortOrder: row.sort_order ?? 0,
       fileSize: row.file_size,
       mimeType: row.mime_type,
       width: row.width,

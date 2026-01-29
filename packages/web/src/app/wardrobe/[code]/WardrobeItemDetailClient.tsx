@@ -44,7 +44,8 @@ import {
     CheckCircleIcon,
     CalendarIcon,
     TagIcon,
-    UserGroupIcon
+    UserGroupIcon,
+    EllipsisHorizontalIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 
@@ -81,6 +82,11 @@ interface WardrobeItem {
             retailPrice?: number;
             purchasePrice?: number;
             currentValue?: number;
+        };
+        acquisitionInfo?: {
+            purchasePrice?: number;
+            purchaseDate?: string;
+            store?: string;
         };
         measurements?: any[];
         [key: string]: any;
@@ -173,7 +179,15 @@ export default function WardrobeItemDetailClient() {
 
     // BG Removal State
     const [isRemovingBackground, setIsRemovingBackground] = useState(false);
-    const [showOriginalBackground, setShowOriginalBackground] = useState(true);
+    // Initialize from localStorage, default to true (show original)
+    const [showOriginalBackground, setShowOriginalBackground] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('wardrobe-show-original-bg');
+            // If saved is 'true', show original. If 'false', show No BG.
+            return saved !== 'false';
+        }
+        return true;
+    });
     const [showBgOptions, setShowBgOptions] = useState(false);
     const [bgQuality, setBgQuality] = useState<'fast' | 'medium' | 'high'>('medium');
     const [bgFeatherRadius, setBgFeatherRadius] = useState(0);
@@ -182,6 +196,14 @@ export default function WardrobeItemDetailClient() {
     const [pendingBatchImages, setPendingBatchImages] = useState<any[]>([]);
     const [showBatchPreview, setShowBatchPreview] = useState(false);
     const [isDeletingImage, setIsDeletingImage] = useState(false);
+
+    // Sync showOriginalBackground to localStorage when changed
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('wardrobe-show-original-bg', String(showOriginalBackground));
+        }
+    }, [showOriginalBackground]);
+
 
     // Attribute State
     const [attributes, setAttributes] = useState<any[]>([]);
@@ -200,6 +222,7 @@ export default function WardrobeItemDetailClient() {
 
     // Message Modal
     const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+    const [showMoreOptions, setShowMoreOptions] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -265,41 +288,34 @@ export default function WardrobeItemDetailClient() {
             if (currentImageIndex === oldIndex) setCurrentImageIndex(newIndex);
             else if (currentImageIndex === newIndex) setCurrentImageIndex(oldIndex);
 
-            // API Save - Send ONLY the IDs to avoid payload bloat issues or complex object merging on backend
-            // Or send full objects but ensure backend handles it.
-            // Assumption: Backend replaces images array or updates order based on this list.
+            // API Save - Use the dedicated reorder endpoint
             try {
-                // IMPORTANT: Backend likely needs the images to be refreshed.
-                // If updateWardrobeItem merges, we might need another strategy, but usually array replacement is standard for PUT/PATCH with arrays in this codebase.
-                await apiClient.updateWardrobeItem(item.id, {
-                    images: reorderedImages.map(img => ({ id: img.id })) // minimal payload if backend supports reorder by ID list, otherwise just send the list
-                });
-                // Note: If backend expects full objects, formatting might be needed. 
-                // Let's try sending the objects but maybe stripped of some props if needed, or just the ID list if the backend supports it. 
-                // Given I don't see `reorderImages` endpoint, standard update probably expects full array or IDs. 
-                // Let's stick to sending what we have but let's re-read the `updateWardrobeItem` implementation or usage elsewhere. 
-                // Actually, let's try sending the reorderedImages as is, but if that failed before, maybe the backend ignores it.
-                // Let's try another approach: Maybe we need to explicitely set an 'order' field? 
-                // Or maybe we need to call a specific endpoint? 
-
-                // Let's assume the previous failure was due to maybe incomplete data or silent merge.
-                // Let's retry with the full list.
-                await apiClient.updateWardrobeItem(item.id, { images: reorderedImages });
-
+                // Extract just the IDs in the new order (for all images, not just display images)
+                const orderedImageIds = reorderedImages.map(img => img.id);
+                await apiClient.reorderWardrobeItemImages(item.id, orderedImageIds);
                 toast.success('Image order saved');
             } catch (e) {
                 console.error('Failed to save order', e);
                 toast.error('Failed to save image order');
-                // Revert logic would go here
+                loadItem(); // Revert by reloading from server
             }
         }
     };
+
 
     useEffect(() => {
         if (code) {
             loadItem();
         }
     }, [code]);
+
+    // Close dropdown on click outside
+    useEffect(() => {
+        if (!showMoreOptions) return;
+        const handleClickOutside = () => setShowMoreOptions(false);
+        window.addEventListener('click', handleClickOutside);
+        return () => window.removeEventListener('click', handleClickOutside);
+    }, [showMoreOptions]);
 
     const loadItem = async () => {
         setLoading(true);
@@ -550,8 +566,16 @@ export default function WardrobeItemDetailClient() {
     if (!item) return null;
 
     const brandSlug = item.brand?.slug || (item.brand?.brand ? slugify(item.brand.brand) : 'brand');
-    const displayPrice = item.metadata.pricing?.retailPrice
+    const displayPriceBrl = item.metadata.pricing?.retailPrice
         ? `R$ ${item.metadata.pricing.retailPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : null;
+
+    const paidPriceBrl = item.metadata.acquisitionInfo?.purchasePrice
+        ? `R$ ${item.metadata.acquisitionInfo.purchasePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : null;
+
+    const sellingPriceBrl = item.metadata.pricing?.currentValue
+        ? `R$ ${item.metadata.pricing.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         : null;
 
     return (
@@ -773,15 +797,53 @@ export default function WardrobeItemDetailClient() {
                                         <button onClick={handleShare} className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 transition-colors">
                                             <ShareIcon className="h-5 w-5 text-gray-500" />
                                         </button>
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setShowMoreOptions(!showMoreOptions); }}
+                                                className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 transition-colors"
+                                            >
+                                                <EllipsisHorizontalIcon className="h-5 w-5 text-gray-500" />
+                                            </button>
+
+                                            {showMoreOptions && (
+                                                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                                                    <button
+                                                        onClick={handleEditItem}
+                                                        className="flex items-center w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        <PencilIcon className="h-4 w-4 mr-3 text-gray-400" />
+                                                        Edit Item
+                                                    </button>
+                                                    <button
+                                                        onClick={handleDeleteClick}
+                                                        className="flex items-center w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"
+                                                    >
+                                                        <TrashIcon className="h-4 w-4 mr-3 text-red-500" />
+                                                        Delete Item
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="flex items-baseline gap-4 mt-4">
-                                    {displayPrice ? (
+                                <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mt-4">
+                                    {displayPriceBrl && (
                                         <p className="text-2xl font-semibold text-gray-900">
-                                            {displayPrice} <span className="text-sm font-normal text-gray-400">Retail</span>
+                                            {displayPriceBrl} <span className="text-sm font-normal text-gray-400">Retail</span>
                                         </p>
-                                    ) : (
+                                    )}
+                                    {paidPriceBrl && (
+                                        <p className="text-2xl font-semibold text-gray-900">
+                                            {paidPriceBrl} <span className="text-sm font-normal text-gray-400">Paid</span>
+                                        </p>
+                                    )}
+                                    {sellingPriceBrl && (
+                                        <p className="text-2xl font-semibold text-gray-900">
+                                            {sellingPriceBrl} <span className="text-sm font-normal text-gray-400">Selling</span>
+                                        </p>
+                                    )}
+                                    {!displayPriceBrl && !paidPriceBrl && !sellingPriceBrl && (
                                         <p className="text-sm text-gray-400 italic">No price verified</p>
                                     )}
                                 </div>
@@ -792,16 +854,6 @@ export default function WardrobeItemDetailClient() {
                                     <ShoppingBagIcon className="h-6 w-6 mr-2" />
                                     Sell on Marketplace
                                 </Button>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Button variant="outline" className="py-4 font-medium rounded-xl" onClick={handleEditItem}>
-                                        <PencilIcon className="h-5 w-5 mr-2" />
-                                        Edit
-                                    </Button>
-                                    <Button variant="outline" className="py-4 font-medium rounded-xl text-red-600 border-red-100 hover:bg-red-50" onClick={handleDeleteClick}>
-                                        <TrashIcon className="h-5 w-5 mr-2" />
-                                        Delete
-                                    </Button>
-                                </div>
                             </div>
 
                             <div className="border-t border-gray-200 pt-6 space-y-4">

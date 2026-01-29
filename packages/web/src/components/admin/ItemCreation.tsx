@@ -111,7 +111,9 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             includeStyle: false,
             includePattern: false,
             includeMaterial: false,
-            includeFit: false
+            includeFit: false,
+            includeColor: true,
+            includeSize: true
         },
         generatedName: '',
         generatedCode: '',
@@ -203,6 +205,13 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 resolvedModelName = resolvedModelName.replace(brandRegex, '').trim();
                 // Double check for repeated brand
                 resolvedModelName = resolvedModelName.replace(brandRegex, '').trim();
+            }
+
+            // 3. Strip Apparel: If we know the apparel/category name, strip it from end
+            const apparelName = sku.category?.page;
+            if (apparelName) {
+                const apparelRegex = new RegExp(`\\s*${apparelName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+                resolvedModelName = resolvedModelName.replace(apparelRegex, '').trim();
             }
         }
 
@@ -308,7 +317,9 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 includeStyle: metadata.nameConfig?.includeStyle ?? false,
                 includePattern: metadata.nameConfig?.includePattern ?? false,
                 includeMaterial: metadata.nameConfig?.includeMaterial ?? false,
-                includeFit: metadata.nameConfig?.includeFit ?? false
+                includeFit: metadata.nameConfig?.includeFit ?? false,
+                includeColor: metadata.nameConfig?.includeColor ?? true,
+                includeSize: metadata.nameConfig?.includeSize ?? true
             },
             generatedName: sku.name || metadata.name || '',
             generatedCode: sku.code || sku.vufsCode || '',
@@ -720,9 +731,27 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
         if (formData.nameConfig.includeStyle && style?.name) nameParts.push(style.name);
         if (formData.nameConfig.includePattern && pattern?.name) nameParts.push(pattern.name);
         if (formData.nameConfig.includeMaterial && material?.name) nameParts.push(material.name);
+        if (formData.nameConfig.includeMaterial && material?.name) nameParts.push(material.name);
         if (formData.nameConfig.includeFit && fit?.name) nameParts.push(fit.name);
 
         if (apparel?.name) nameParts.push(apparel.name);
+
+        // Append Color and Size if configured (for visualization and Wardrobe/Single SKU final name)
+        // Note: For bulk SKU creation, these might be stripped and re-added per variant, but we want the preview to be accurate
+        if (formData.nameConfig.includeColor) {
+            // For wardrobe, use selectedColors[0] if available (single item)
+            // For SKU (multi-select), usually we don't show all colors in the base name, but maybe we show the first one?
+            // Actually, for Wardrobe it's single select usually.
+            const colorId = formData.selectedColors[0];
+            const color = colors.find(c => c.id === colorId);
+            if (color) nameParts.push(`(${color.name})`);
+        }
+
+        if (formData.nameConfig.includeSize) {
+            const sizeId = formData.selectedSizes[0];
+            const size = sizes.find(s => s.id === sizeId);
+            if (size) nameParts.push(`[${size.name}]`);
+        }
 
         const generatedName = nameParts.filter(Boolean).join(' ');
         const generatedCode = generateSKUCode(); // Basic code without variants for display
@@ -750,11 +779,11 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
 
         const nameParts = [baseName];
         if (isEdit) {
-            if (colorName && !baseName.includes(`(${colorName})`)) nameParts.push('(' + colorName + ')');
-            if (sizeName && !baseName.includes(`[${sizeName}]`)) nameParts.push('[' + sizeName + ']');
+            if (formData.nameConfig.includeColor && colorName && !baseName.includes(`(${colorName})`)) nameParts.push('(' + colorName + ')');
+            if (formData.nameConfig.includeSize && sizeName && !baseName.includes(`[${sizeName}]`)) nameParts.push('[' + sizeName + ']');
         } else {
-            if (colorName) nameParts.push('(' + colorName + ')');
-            if (sizeName) nameParts.push('[' + sizeName + ']');
+            if (formData.nameConfig.includeColor && colorName) nameParts.push('(' + colorName + ')');
+            if (formData.nameConfig.includeSize && sizeName) nameParts.push('[' + sizeName + ']');
         }
 
         const finalName = nameParts.join(' ');
@@ -838,8 +867,10 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
         const selectedCondition = conditions.find(c => c.id === formData.conditionId);
 
         const nameParts = [formData.generatedName];
-        if (colorName) nameParts.push('(' + colorName + ')');
-        if (sizeName) nameParts.push('[' + sizeName + ']');
+        // We rely on generatedName already including checking checks for includeColor/Size via useEffect
+        // But if generatedName was edited manually or is empty, we fall back.
+        // Actually, generatedName now includes them if checked. If unchecked, we shouldn't add them.
+        // So we just use generatedName.
         const finalName = nameParts.join(' ') || formData.modelName || 'Wardrobe Item';
 
         const conditionMapping: Record<string, string> = {
@@ -889,6 +920,8 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                     purchasePrice: formData.paidPriceBrl ? Number(formData.paidPriceBrl) : 0,
                     store: brand?.name || 'Generic'
                 },
+                modelName: formData.modelName,
+                nameConfig: formData.nameConfig,
                 // Store IDs for edit mapping
                 genderId: formData.genderId,
                 apparelId: formData.apparelId,
@@ -1537,6 +1570,14 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                         <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
                             <input type="checkbox" checked={formData.nameConfig.includeFit} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeFit: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                             <span className="text-sm font-medium text-gray-700">Fit</span>
+                        </label>
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeColor} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeColor: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Color</span>
+                        </label>
+                        <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" checked={formData.nameConfig.includeSize} onChange={e => setFormData(p => ({ ...p, nameConfig: { ...p.nameConfig, includeSize: e.target.checked } }))} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-gray-700">Size</span>
                         </label>
                     </div>
 

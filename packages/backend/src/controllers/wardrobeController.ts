@@ -1628,4 +1628,87 @@ export class WardrobeController {
     }
   }
 
+  /**
+   * Reorder images for a wardrobe item
+   */
+  static async reorderImages(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const { id } = req.params;
+      const { imageIds } = req.body;
+
+      if (!imageIds || !Array.isArray(imageIds)) {
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'imageIds must be an array of image IDs',
+          },
+        });
+        return;
+      }
+
+      // UUID Regex for validation
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const isUUID = uuidRegex.test(id);
+
+      // Check ownership
+      let existingItem = null;
+      if (isUUID) {
+        existingItem = await VUFSItemModel.findById(id);
+      }
+
+      if (!existingItem) {
+        existingItem = await VUFSItemModel.findByVUFSCode(id);
+      }
+
+      if (!existingItem) {
+        res.status(404).json({
+          error: {
+            code: 'ITEM_NOT_FOUND',
+            message: 'Wardrobe item not found',
+          },
+        });
+        return;
+      }
+
+      if (existingItem.ownerId !== req.user.userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You can only update your own items',
+          },
+        });
+        return;
+      }
+
+      // Reorder images
+      await ItemImageModel.reorderImages(existingItem.id, imageIds);
+
+      // Return updated images
+      const updatedImages = await ItemImageModel.findByItemId(existingItem.id);
+
+      res.json({
+        message: 'Images reordered successfully',
+        images: updatedImages,
+      });
+    } catch (error) {
+      console.error('Reorder images error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while reordering images',
+        },
+      });
+    }
+  }
+
 }

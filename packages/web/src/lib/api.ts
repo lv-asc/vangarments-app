@@ -1145,6 +1145,15 @@ class ApiClient {
     });
   }
 
+  async reorderWardrobeItemImages(itemId: string, imageIds: string[]): Promise<any> {
+    const response = await this.request<any>(`/wardrobe/items/${itemId}/images/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ imageIds }),
+    });
+    return response;
+  }
+
+
   async uploadItemImage(itemId: string, file: File): Promise<{ imageUrl: string }> {
     const formData = new FormData();
     formData.append('image', file);
