@@ -14,6 +14,39 @@ interface OutfitPreviewProps {
   pinnedItem?: any;
 }
 
+// Helper functions to extract displayable values from VUFS item structures
+const getBrandName = (item: any): string => {
+  if (!item) return '';
+  // If brand is a BrandHierarchy object with 'brand' key
+  if (typeof item.brand === 'object' && item.brand?.brand) {
+    return item.brand.brand;
+  }
+  // If it's already a string
+  if (typeof item.brand === 'string') {
+    return item.brand;
+  }
+  // Fallback to brandInfo if available
+  if (item.brandInfo?.name) {
+    return item.brandInfo.name;
+  }
+  return '';
+};
+
+const getColorName = (item: any): string => {
+  if (!item) return '';
+  // If color is directly available as string
+  if (typeof item.color === 'string') {
+    return item.color;
+  }
+  // If colors are in metadata.colors array
+  if (item.metadata?.colors && Array.isArray(item.metadata.colors) && item.metadata.colors.length > 0) {
+    const firstColor = item.metadata.colors[0];
+    if (typeof firstColor === 'string') return firstColor;
+    if (firstColor?.primary) return firstColor.primary;
+  }
+  return '';
+};
+
 export function OutfitPreview({ items, pinnedItem }: OutfitPreviewProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
 
@@ -62,8 +95,8 @@ export function OutfitPreview({ items, pinnedItem }: OutfitPreviewProps) {
   const analyzeOutfit = () => {
     if (items.length < 2) return null;
 
-    const colors = [...new Set(items.map(item => item.color))];
-    const brands = [...new Set(items.map(item => item.brand).filter(Boolean))];
+    const colors = [...new Set(items.map(item => getColorName(item)).filter(Boolean))];
+    const brands = [...new Set(items.map(item => getBrandName(item)).filter(Boolean))];
     const styles = [...new Set(items.flatMap(item => item.tags || []))];
 
     // Simple color harmony analysis
@@ -275,8 +308,8 @@ export function OutfitPreview({ items, pinnedItem }: OutfitPreviewProps) {
               <div
                 key={item.id}
                 className={`flex items-center space-x-3 p-3 rounded-lg border ${item.id === pinnedItem?.id
-                    ? 'border-pink-200 bg-pink-50'
-                    : 'border-gray-200 bg-white'
+                  ? 'border-pink-200 bg-pink-50'
+                  : 'border-gray-200 bg-white'
                   }`}
               >
                 <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
@@ -288,10 +321,10 @@ export function OutfitPreview({ items, pinnedItem }: OutfitPreviewProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h5 className="font-medium text-gray-900 truncate">
-                    {item.name}
+                    {item.name || item.metadata?.name || 'Unnamed Item'}
                   </h5>
                   <p className="text-sm text-gray-600">
-                    {item.brand} • {item.color}
+                    {getBrandName(item) || 'Unknown Brand'} • {getColorName(item) || 'Unknown Color'}
                   </p>
                 </div>
                 {item.id === pinnedItem?.id && (

@@ -9,6 +9,29 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getImageUrl } from '@/utils/imageUrl';
+
+const resolveImage = (item: any) => {
+  if (!item) return '/api/placeholder/300/400';
+  let raw = '';
+  if (item.images?.length) {
+    const first = item.images[0];
+    raw = typeof first === 'string' ? first : (first.url || first.imageUrl);
+  }
+  return getImageUrl(raw) || '/api/placeholder/300/400';
+};
+
+const getItemBrand = (item: any) => {
+  if (!item) return '';
+  if (item.brand && typeof item.brand === 'object') {
+    return item.brand.brand || item.brand.name || ''; // Fallback to name if brand property missing
+  }
+  return item.brand || '';
+};
+
+const getItemColor = (item: any) => {
+  return item?.metadata?.colors?.[0]?.primary || item?.color || '';
+};
 
 interface OutfitBuilderProps {
   pinnedItem: any;
@@ -47,8 +70,10 @@ export function OutfitBuilder({
   const filteredItems = availableItems.filter(item => {
     const isNotSelected = !selectedItems.find(selected => selected.id === item.id);
     const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.brand?.toLowerCase().includes(searchQuery.toLowerCase());
+    const itemName = item.name || '';
+    const itemBrand = getItemBrand(item);
+    const matchesSearch = itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      itemBrand.toLowerCase().includes(searchQuery.toLowerCase());
 
     return isNotSelected && matchesCategory && matchesSearch;
   });
@@ -126,7 +151,7 @@ export function OutfitBuilder({
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
             <img
-              src={pinnedItem?.images?.[0] || '/api/placeholder/300/400'}
+              src={resolveImage(pinnedItem)}
               alt={pinnedItem?.name}
               className="w-full h-full object-cover"
             />
@@ -136,7 +161,7 @@ export function OutfitBuilder({
               Peça base: {pinnedItem?.name}
             </h4>
             <p className="text-sm text-gray-600">
-              {pinnedItem?.brand} • {pinnedItem?.color}
+              {getItemBrand(pinnedItem)} • {getItemColor(pinnedItem)}
             </p>
           </div>
           <div className="text-pink-600">
@@ -161,7 +186,7 @@ export function OutfitBuilder({
               >
                 <div className="aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden">
                   <img
-                    src={item.images?.[0] || '/api/placeholder/300/400'}
+                    src={resolveImage(item)}
                     alt={item.name}
                     className="w-full h-full object-cover"
                   />
@@ -224,7 +249,7 @@ export function OutfitBuilder({
               >
                 <div className="aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden border-2 border-transparent group-hover:border-pink-300 transition-colors">
                   <img
-                    src={item.images?.[0] || '/api/placeholder/300/400'}
+                    src={resolveImage(item)}
                     alt={item.name}
                     className="w-full h-full object-cover"
                   />
@@ -241,7 +266,7 @@ export function OutfitBuilder({
                   {item.name}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {item.brand}
+                  {getItemBrand(item)}
                 </p>
               </motion.div>
             ))}
@@ -272,8 +297,8 @@ export function OutfitBuilder({
               key={category.value}
               onClick={() => setActiveCategory(category.value)}
               className={`px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${activeCategory === category.value
-                  ? 'bg-pink-100 text-pink-700'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                ? 'bg-pink-100 text-pink-700'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
             >
               {category.label}
@@ -325,7 +350,7 @@ export function OutfitBuilder({
                   {item.name}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {item.color}
+                  {getItemColor(item)}
                 </p>
               </motion.div>
             ))}

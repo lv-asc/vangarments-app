@@ -46,6 +46,7 @@ export interface CreateVUFSItemData {
   metadata: ItemMetadata;
   condition: ItemCondition;
   ownership?: OwnershipInfo;
+  vufsCode?: string; // Optional custom VUFS code
 }
 
 export interface UpdateVUFSItemData {
@@ -54,6 +55,7 @@ export interface UpdateVUFSItemData {
   metadata?: ItemMetadata;
   condition?: ItemCondition;
   ownership?: OwnershipInfo;
+  vufsCode?: string; // Optional custom VUFS code update
 }
 
 export interface VUFSItemFilters {
@@ -73,8 +75,8 @@ export class VUFSItemModel {
     const normalizedCategory = VUFSUtils.normalizeCategoryHierarchy(category);
     const normalizedBrand = VUFSUtils.normalizeBrandHierarchy(brand);
 
-    // Generate VUFS code (using SKU as unique identifier for now)
-    const vufsCode = `VG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Generate VUFS code (using custom code if provided, otherwise generate)
+    const vufsCode = itemData.vufsCode || `VG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Generate search keywords
     const searchKeywords = VUFSUtils.generateSearchKeywords(normalizedCategory, normalizedBrand);
@@ -294,6 +296,13 @@ export class VUFSItemModel {
     if (updateData.ownership) {
       updates.push(`ownership_info = $${paramCount}`);
       values.push(JSON.stringify(updateData.ownership));
+      paramCount++;
+    }
+
+    // Handle vufsCode update if provided
+    if (updateData.vufsCode) {
+      updates.push(`vufs_code = $${paramCount}`);
+      values.push(updateData.vufsCode);
       paramCount++;
     }
 

@@ -21,11 +21,20 @@ const getItemName = (item: any): string => {
 };
 
 const getItemBrand = (item: any): string => {
-  return item.brand?.brand || item.brand || '';
+  if (!item.brand) return '';
+  if (typeof item.brand === 'string') return item.brand;
+  return item.brand.brand || item.brand.name || '';
 };
 
 const getItemColor = (item: any): string => {
-  return item.metadata?.colors?.[0]?.primary || item.color || '';
+  const metaColor = item.metadata?.colors?.[0]?.primary;
+  if (metaColor) return metaColor;
+
+  if (item.color) {
+    if (typeof item.color === 'string') return item.color;
+    return item.color.name || item.color.primary || '';
+  }
+  return '';
 };
 
 const getItemCategory = (item: any): string => {
@@ -33,14 +42,20 @@ const getItemCategory = (item: any): string => {
   return item.category?.blueSubcategory || item.category?.page || '';
 };
 
+import { getImageUrl } from '@/utils/imageUrl';
+
 const getItemImage = (item: any): string => {
+  let rawUrl = '';
   // Handle array of image objects (VUFS format)
   if (item.images?.length > 0) {
     const firstImage = item.images[0];
-    if (typeof firstImage === 'string') return firstImage;
-    return firstImage?.url || firstImage?.imageUrl || '/api/placeholder/300/400';
+    rawUrl = typeof firstImage === 'string' ? firstImage : (firstImage?.url || firstImage?.imageUrl || '');
+  } else {
+    rawUrl = item.imageUrl || '';
   }
-  return item.imageUrl || '/api/placeholder/300/400';
+
+  if (!rawUrl) return '/api/placeholder/300/400';
+  return getImageUrl(rawUrl);
 };
 
 export function ItemSelector({ items, onSelectItem, selectedItem }: ItemSelectorProps) {

@@ -45,6 +45,7 @@ export default function ProductPageClient() {
     const [loading, setLoading] = useState(true);
     const [measurements, setMeasurements] = useState<Measurement[]>([]);
     const [showMeasurements, setShowMeasurements] = useState(false);
+    const [showDescription, setShowDescription] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [imageTags, setImageTags] = useState<any[]>([]);
@@ -444,7 +445,9 @@ export default function ProductPageClient() {
 
                                     <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
                                     {displayPrice && (
-                                        <p className="text-2xl font-semibold text-gray-900 mt-4">{displayPrice}</p>
+                                        <p className="text-2xl font-semibold text-gray-900 mt-4">
+                                            {displayPrice} <span className="text-sm font-normal text-gray-400">Retail</span>
+                                        </p>
                                     )}
                                 </div>
 
@@ -473,8 +476,23 @@ export default function ProductPageClient() {
                                 <div className="border-t border-gray-200 pt-6 space-y-4">
                                     {product.description && (
                                         <div>
-                                            <h3 className="text-sm font-medium text-gray-900 mb-2">Description</h3>
-                                            <p className="text-sm text-gray-600">{product.description}</p>
+                                            <button
+                                                onClick={() => setShowDescription(!showDescription)}
+                                                className="flex items-center justify-between w-full text-left"
+                                            >
+                                                <h3 className="text-sm font-medium text-gray-900">Description</h3>
+                                                {showDescription ? (
+                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                                )}
+                                            </button>
+
+                                            {showDescription && (
+                                                <div className="mt-4">
+                                                    <p className="text-sm text-gray-600">{product.description}</p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

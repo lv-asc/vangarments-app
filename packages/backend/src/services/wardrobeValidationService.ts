@@ -12,6 +12,8 @@ export interface WardrobeItemValidationData {
   metadata?: ItemMetadata;
   condition?: ItemCondition;
   ownership?: OwnershipInfo;
+  code?: string; // VUFS code for URL and identification
+  images?: any[]; // Images array
 }
 
 export class WardrobeValidationService {
@@ -106,7 +108,7 @@ export class WardrobeValidationService {
         'TOPS', 'BOTTOMS', 'DRESSES', 'OUTERWEAR', 'UNDERWEAR', 'SWIMWEAR',
         'ACCESSORIES', 'SHOES', 'BAGS', 'JEWELRY', 'WATCHES', 'EYEWEAR'
       ];
-      
+
       if (!validPages.includes(category.page.toUpperCase())) {
         result.warnings.push(`Category page '${category.page}' is not a standard VUFS category`);
       }
@@ -421,6 +423,16 @@ export class WardrobeValidationService {
     // Copy ownership as-is (already validated)
     if (itemData.ownership) {
       sanitized.ownership = { ...itemData.ownership };
+    }
+
+    // Pass through code if provided (for VUFS code/slug)
+    if (itemData.code) {
+      sanitized.code = itemData.code.trim();
+    }
+
+    // Pass through images if provided
+    if (itemData.images) {
+      sanitized.images = itemData.images;
     }
 
     return sanitized;

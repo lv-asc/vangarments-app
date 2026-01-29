@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { skuApi } from '@/lib/skuApi';
 import { apiClient } from '@/lib/api';
 import { getImageUrl, slugify } from '@/lib/utils';
-import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon, HeartIcon, PlusIcon, CheckIcon, CalendarIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ShoppingBagIcon, ChevronDownIcon, ChevronUpIcon, ChevronLeftIcon, ChevronRightIcon, TagIcon, SwatchIcon, RectangleGroupIcon, BeakerIcon, AdjustmentsHorizontalIcon, UserGroupIcon, HeartIcon, PlusIcon, CheckIcon, CalendarIcon, TrophyIcon, ShareIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import { ApparelIcon, getPatternIcon, getGenderIcon } from '@/components/ui/ApparelIcons';
 import Link from 'next/link';
@@ -62,6 +62,7 @@ export default function ProductPageClient() {
     const [measurements, setMeasurements] = useState<Measurement[]>([]);
     const [showMeasurements, setShowMeasurements] = useState(false);
     const [showCareInstructions, setShowCareInstructions] = useState(false);
+    const [showDescription, setShowDescription] = useState(false);
     const [isLiked, setIsLiked] = useState(false);
     const [isOnWishlist, setIsOnWishlist] = useState(false);
     const [showDetails, setShowDetails] = useState(false);
@@ -101,6 +102,26 @@ export default function ProductPageClient() {
             return;
         }
         setIsWishlistModalOpen(true);
+    };
+
+    const handleShare = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: product?.name || 'Vangarments',
+                    text: product?.description,
+                    url: window.location.href,
+                });
+            } else {
+                await navigator.clipboard.writeText(window.location.href);
+                toast.success('Link copied to clipboard');
+            }
+        } catch (error) {
+            console.error('Error sharing:', error);
+        }
     };
 
     useEffect(() => {
@@ -608,8 +629,7 @@ export default function ProductPageClient() {
                                     <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
                                     {displayPrice && (
                                         <p className="text-2xl font-semibold text-gray-900 mt-4">
-                                            <span className="text-sm font-normal text-gray-500 mr-1">Retail</span>
-                                            {displayPrice}
+                                            {displayPrice} <span className="text-sm font-normal text-gray-400">Retail</span>
                                         </p>
                                     )}
                                 </div>
@@ -618,7 +638,8 @@ export default function ProductPageClient() {
                                 <div className="flex items-center gap-3 mt-6 mb-6">
                                     <button
                                         onClick={handleLikeToggle}
-                                        className={`p-2 rounded-full transition-all ${isLiked ? 'bg-red-50' : 'bg-gray-50 hover:bg-gray-100'}`}
+                                        className={`p-2 rounded-full transition-all border ${isLiked ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
+                                        title={isLiked ? "Unlike" : "Like"}
                                     >
                                         {isLiked ? (
                                             <HeartIconSolid className="h-6 w-6 text-red-500 animate-like" />
@@ -629,7 +650,7 @@ export default function ProductPageClient() {
 
                                     <button
                                         onClick={handleWishlistToggle}
-                                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${isOnWishlist
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${isOnWishlist
                                             ? 'bg-blue-100 text-blue-700 border border-blue-200'
                                             : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
                                             }`}
@@ -645,6 +666,14 @@ export default function ProductPageClient() {
                                                 Wishlist
                                             </>
                                         )}
+                                    </button>
+
+                                    <button
+                                        onClick={handleShare}
+                                        className="p-2 rounded-full bg-gray-50 hover:bg-gray-100 transition-all text-gray-600 border border-gray-200"
+                                        title="Share"
+                                    >
+                                        <ShareIcon className="h-6 w-6 text-gray-400" />
                                     </button>
                                 </div>
 
@@ -677,8 +706,23 @@ export default function ProductPageClient() {
                                 <div className="border-t border-gray-200 pt-6 space-y-4">
                                     {product.description && (
                                         <div>
-                                            <h3 className="text-sm font-medium text-gray-900 mb-2">Description</h3>
-                                            <p className="text-sm text-gray-600">{product.description}</p>
+                                            <button
+                                                onClick={() => setShowDescription(!showDescription)}
+                                                className="flex items-center justify-between w-full text-left"
+                                            >
+                                                <h3 className="text-sm font-medium text-gray-900">Description</h3>
+                                                {showDescription ? (
+                                                    <ChevronUpIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                                ) : (
+                                                    <ChevronDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                                )}
+                                            </button>
+
+                                            {showDescription && (
+                                                <div className="mt-4">
+                                                    <p className="text-sm text-gray-600">{product.description}</p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

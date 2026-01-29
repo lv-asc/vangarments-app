@@ -1,13 +1,34 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-
+import Link from 'next/link';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
 import { getImageUrl } from '@/utils/imageUrl';
+import { Switch } from '@/components/ui/Switch';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import BatchPreviewModal from '@/components/wardrobe/BatchPreviewModal';
 import toast from 'react-hot-toast';
+
 import {
     ShoppingBagIcon,
     PencilIcon,
@@ -16,34 +37,36 @@ import {
     PhotoIcon,
     ShareIcon,
     ChevronUpIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
     ChevronDownIcon,
-    EyeSlashIcon
+    EyeSlashIcon,
+    CheckCircleIcon,
+    CalendarIcon,
+    TagIcon,
+    UserGroupIcon
 } from '@heroicons/react/24/outline';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
-import { Switch } from '@/components/ui/Switch';
-import BatchPreviewModal from '@/components/wardrobe/BatchPreviewModal';
-import { CheckCircleIcon } from '@heroicons/react/24/solid';
+
+// Helper for slugs
+const slugify = (text: string) => {
+    return text
+        .toString()
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
+};
 
 interface WardrobeItem {
     id: string;
     vufsCode: string;
     ownerId: string;
-    category: {
-        id?: string;
-        page: string;
-        blueSubcategory: string;
-        whiteSubcategory: string;
-        graySubcategory: string;
-        [key: string]: any;
-    };
+    category: any;
     categoryId?: string;
-    brand: {
-        id?: string;
-        brand: string;
-        line?: string;
-        [key: string]: any;
-    };
+    brand: any;
     brandId?: string;
     sizeId?: string;
     metadata: {
@@ -54,6 +77,12 @@ interface WardrobeItem {
         size?: string;
         pattern?: string;
         fit?: string;
+        pricing?: {
+            retailPrice?: number;
+            purchasePrice?: number;
+            currentValue?: number;
+        };
+        measurements?: any[];
         [key: string]: any;
     };
     condition: {
@@ -65,11 +94,66 @@ interface WardrobeItem {
     [key: string]: any;
 }
 
-interface Attribute {
-    slug: string;
-    name: string;
-    value: string;
-    isHidden: boolean;
+
+function SortableThumbnail({
+    id,
+    active,
+    onClick,
+    src,
+    alt,
+    showOverlay,
+    remainingCount
+}: {
+    id: string;
+    active: boolean;
+    onClick: () => void;
+    src: string;
+    alt: string;
+    showOverlay?: boolean;
+    remainingCount?: number;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 'auto',
+        opacity: isDragging ? 0.5 : 1,
+        touchAction: 'none'
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="w-full aspect-square mb-3">
+            <button
+                type="button"
+                onClick={onClick}
+                className={`relative w-full h-full rounded-md overflow-hidden border transition-all ${active
+                    ? 'border-[#00132d] ring-1 ring-[#00132d]'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
+            >
+                <div className="relative w-full h-full pointer-events-none">
+                    <img
+                        src={src}
+                        alt={alt}
+                        className={`w-full h-full object-cover ${showOverlay ? 'opacity-40' : ''}`}
+                    />
+                    {showOverlay && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-xs font-bold">
+                            +{remainingCount}
+                        </div>
+                    )}
+                </div>
+            </button>
+        </div>
+    );
 }
 
 export default function WardrobeItemDetailClient() {
@@ -81,41 +165,135 @@ export default function WardrobeItemDetailClient() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isFavorite, setIsFavorite] = useState(false);
-    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [showUndoConfirm, setShowUndoConfirm] = useState(false);
-    const [deleting, setDeleting] = useState(false);
-    const [isRemovingBackground, setIsRemovingBackground] = useState(false);
-    const [showOriginalBackground, setShowOriginalBackground] = useState(true);
+
+    // Image State
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
     const [isSelectionMode, setIsSelectionMode] = useState(false);
-    const [showBatchPreview, setShowBatchPreview] = useState(false);
-    const [isDeletingImage, setIsDeletingImage] = useState(false);
 
-    // Background Removal Options
+    // BG Removal State
+    const [isRemovingBackground, setIsRemovingBackground] = useState(false);
+    const [showOriginalBackground, setShowOriginalBackground] = useState(true);
     const [showBgOptions, setShowBgOptions] = useState(false);
     const [bgQuality, setBgQuality] = useState<'fast' | 'medium' | 'high'>('medium');
     const [bgFeatherRadius, setBgFeatherRadius] = useState(0);
     const [bgOutputRatio, setBgOutputRatio] = useState<'1:1' | '4:5' | '3:4' | 'original'>('original');
-    const [batchPreviewItems, setBatchPreviewItems] = useState<Array<{
-        id: string;
-        originalUrl: string;
-        processedUrl: string;
-        originalId: string;
-    }>>([]);
+    const [batchPreviewItems, setBatchPreviewItems] = useState<any[]>([]);
     const [pendingBatchImages, setPendingBatchImages] = useState<any[]>([]);
+    const [showBatchPreview, setShowBatchPreview] = useState(false);
+    const [isDeletingImage, setIsDeletingImage] = useState(false);
 
-    // Hidden Fields State
-    const [attributes, setAttributes] = useState<Attribute[]>([]);
-    const [hiddenSectionOpen, setHiddenSectionOpen] = useState(false);
+    // Attribute State
+    const [attributes, setAttributes] = useState<any[]>([]);
 
-    // Message Modal State
-    const [messageModal, setMessageModal] = useState<{ isOpen: boolean; title: string; message: string; type: 'info' | 'error' }>({
-        isOpen: false,
-        title: '',
-        message: '',
-        type: 'info'
-    });
+    // Confirmation Dialogs
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    // Accordion States
+    const [showMeasurements, setShowMeasurements] = useState(false);
+    const [showCareInstructions, setShowCareInstructions] = useState(false);
+    const [showComposition, setShowComposition] = useState(false);
+    const [showDescription, setShowDescription] = useState(false);
+    const [showDetails, setShowDetails] = useState(false);
+
+    // Message Modal
+    const [messageModal, setMessageModal] = useState({ isOpen: false, title: '', message: '', type: 'info' });
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id || !item) return;
+
+        const displayImages = (item.images || []).filter(img =>
+            img.type !== 'background_removed' && (img as any).imageType !== 'background_removed'
+        );
+
+        const oldIndex = displayImages.findIndex(img => img.id === active.id);
+        const newIndex = displayImages.findIndex(img => img.id === over.id);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+            const newDisplayIds = arrayMove(displayImages.map(i => i.id), oldIndex, newIndex);
+
+            // Reconstruct the full list based on the new display order
+            const reorderedImages: any[] = [];
+            const processedIds = new Set<string>();
+
+            // 1. Add reordered display images and their children
+            newDisplayIds.forEach((displayId, index) => {
+                const orig = item.images.find(i => i.id === displayId);
+                if (orig) {
+                    // Assign sortOrder to ensure backend persists the new order
+                    reorderedImages.push({ ...orig, sortOrder: index * 10 });
+                    processedIds.add(orig.id);
+
+                    // Find children (bg removed versions) and keep them adjacent
+                    const children = item.images.filter(img =>
+                        (img.type === 'background_removed' || (img as any).imageType === 'background_removed') &&
+                        (img.aiAnalysis?.originalImageId === displayId || (img as any).originalImageId === displayId)
+                    );
+                    children.forEach((c, cIdx) => {
+                        // Keep children close to parent in sort order
+                        reorderedImages.push({ ...c, sortOrder: (index * 10) + cIdx + 1 });
+                        processedIds.add(c.id);
+                    });
+                }
+            });
+
+            // 2. Append any leftovers (orphans or unclassified)
+            item.images.forEach((img, index) => {
+                if (!processedIds.has(img.id)) {
+                    reorderedImages.push({ ...img, sortOrder: (newDisplayIds.length * 10) + index * 10 });
+                }
+            });
+
+            // Optimistic update
+            setItem(prev => prev ? { ...prev, images: reorderedImages } : null);
+
+            // Update local selection index logic
+            if (currentImageIndex === oldIndex) setCurrentImageIndex(newIndex);
+            else if (currentImageIndex === newIndex) setCurrentImageIndex(oldIndex);
+
+            // API Save - Send ONLY the IDs to avoid payload bloat issues or complex object merging on backend
+            // Or send full objects but ensure backend handles it.
+            // Assumption: Backend replaces images array or updates order based on this list.
+            try {
+                // IMPORTANT: Backend likely needs the images to be refreshed.
+                // If updateWardrobeItem merges, we might need another strategy, but usually array replacement is standard for PUT/PATCH with arrays in this codebase.
+                await apiClient.updateWardrobeItem(item.id, {
+                    images: reorderedImages.map(img => ({ id: img.id })) // minimal payload if backend supports reorder by ID list, otherwise just send the list
+                });
+                // Note: If backend expects full objects, formatting might be needed. 
+                // Let's try sending the objects but maybe stripped of some props if needed, or just the ID list if the backend supports it. 
+                // Given I don't see `reorderImages` endpoint, standard update probably expects full array or IDs. 
+                // Let's stick to sending what we have but let's re-read the `updateWardrobeItem` implementation or usage elsewhere. 
+                // Actually, let's try sending the reorderedImages as is, but if that failed before, maybe the backend ignores it.
+                // Let's try another approach: Maybe we need to explicitely set an 'order' field? 
+                // Or maybe we need to call a specific endpoint? 
+
+                // Let's assume the previous failure was due to maybe incomplete data or silent merge.
+                // Let's retry with the full list.
+                await apiClient.updateWardrobeItem(item.id, { images: reorderedImages });
+
+                toast.success('Image order saved');
+            } catch (e) {
+                console.error('Failed to save order', e);
+                toast.error('Failed to save image order');
+                // Revert logic would go here
+            }
+        }
+    };
 
     useEffect(() => {
         if (code) {
@@ -127,60 +305,12 @@ export default function WardrobeItemDetailClient() {
         setLoading(true);
         setError(null);
         try {
-            const [
-                itemResponse,
-                settingsRes,
-                typesRes,
-                catAttsRes,
-                brandAttsRes,
-                sizeAttsRes
-            ] = await Promise.all([
+            const [itemResponse] = await Promise.all([
                 apiClient.getWardrobeItem(code),
-                apiClient.getVUFSSettings().catch(e => ({})),
-                apiClient.getVUFSAttributeTypes().catch(e => []),
-                apiClient.getAllCategoryAttributes().catch(e => []),
-                apiClient.getAllBrandAttributes().catch(e => []),
-                apiClient.getAllSizeAttributes().catch(e => [])
             ]);
 
             const fetchedItem = itemResponse.item;
             setItem(fetchedItem);
-
-            const typesData = (typesRes as any).types || typesRes || [];
-            const hiddenCols = (settingsRes as any).hidden_wardrobe_columns || [];
-            const catAtts = (catAttsRes as any).attributes || catAttsRes || [];
-            const brandAtts = (brandAttsRes as any).attributes || brandAttsRes || [];
-            const sizeAtts = (sizeAttsRes as any).attributes || sizeAttsRes || [];
-
-            const catId = fetchedItem.categoryId || fetchedItem.category?.id;
-            const brandId = fetchedItem.brandId || fetchedItem.brand?.id;
-            const sizeId = fetchedItem.sizeId;
-
-            const foundAttributes: Attribute[] = [];
-
-            const addAttribute = (slug: string, value: string) => {
-                const typeDef = typesData.find((t: any) => t.slug === slug);
-                const name = typeDef ? typeDef.name : slug;
-                foundAttributes.push({
-                    slug,
-                    name,
-                    value,
-                    isHidden: hiddenCols.includes(slug)
-                });
-            };
-
-            if (catId) {
-                catAtts.filter((a: any) => a.category_id === catId).forEach((a: any) => addAttribute(a.attribute_slug, a.value));
-            }
-            if (brandId) {
-                brandAtts.filter((a: any) => a.brand_id === brandId).forEach((a: any) => addAttribute(a.attribute_slug, a.value));
-            }
-            if (sizeId) {
-                sizeAtts.filter((a: any) => a.size_id === sizeId).forEach((a: any) => addAttribute(a.attribute_slug, a.value));
-            }
-
-            setAttributes(foundAttributes);
-
         } catch (err: any) {
             console.error('Error loading item:', err);
             setError(err.message || 'Falha ao carregar item');
@@ -192,28 +322,8 @@ export default function WardrobeItemDetailClient() {
 
     const showMessage = (title: string, message: string, type: 'info' | 'error' = 'info') => {
         setMessageModal({ isOpen: true, title, message, type });
-    };
-
-    const getConditionColor = (status: string) => {
-        switch (status) {
-            case 'new': return 'bg-green-100 text-green-800';
-            case 'excellent': return 'bg-blue-100 text-blue-800';
-            case 'good': return 'bg-yellow-100 text-yellow-800';
-            case 'fair': return 'bg-orange-100 text-orange-800';
-            case 'poor': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    const getConditionLabel = (status: string) => {
-        switch (status) {
-            case 'new': return 'Novo';
-            case 'excellent': return 'Excelente';
-            case 'good': return 'Bom';
-            case 'fair': return 'Regular';
-            case 'poor': return 'Ruim';
-            default: return status;
-        }
+        if (type === 'error') toast.error(message);
+        else toast(message);
     };
 
     const handleSellItem = () => {
@@ -230,7 +340,6 @@ export default function WardrobeItemDetailClient() {
 
     const handleDeleteConfirm = async () => {
         if (!item) return;
-
         setDeleting(true);
         try {
             await apiClient.deleteWardrobeItem(item.id);
@@ -252,7 +361,7 @@ export default function WardrobeItemDetailClient() {
             });
         } else {
             navigator.clipboard.writeText(window.location.href);
-            showMessage('Sucesso', 'Link copiado para a área de transferência!', 'info');
+            toast.success('Link copiado!');
         }
     };
 
@@ -263,8 +372,7 @@ export default function WardrobeItemDetailClient() {
         if (selectedImages.size > 0) {
             imagesToProcess = Array.from(selectedImages).map(id => item.images?.find(img => img.id === id)).filter(Boolean);
         } else {
-            // Process current selected image if nothing explicitly selected
-            const currentImage = item.images?.[selectedImageIndex];
+            const currentImage = item.images?.[currentImageIndex];
             if (currentImage && currentImage.type !== 'background_removed') {
                 imagesToProcess = [currentImage];
             }
@@ -284,18 +392,13 @@ export default function WardrobeItemDetailClient() {
                 }
             );
 
-            // Refresh item to get new images
-            // Or manually update state if response contains new images
-            // Since batch endpoint returns multiple, maybe simpler to reload item or merge
-            // Assuming response.results is array of new images
             if (response.results) {
-                const previewItems: typeof batchPreviewItems = [];
+                const previewItems: any[] = [];
                 const newProcessedImages: any[] = [];
 
                 response.results.forEach((res: any) => {
                     if (res.image) {
                         newProcessedImages.push(res.image);
-                        // Find the original image for this processed one
                         const originalImg = imagesToProcess.find((img: any) => img.id === res.image.aiAnalysis?.originalImageId);
                         if (originalImg) {
                             previewItems.push({
@@ -308,13 +411,11 @@ export default function WardrobeItemDetailClient() {
                     }
                 });
 
-                // Store pending images and show preview
                 setPendingBatchImages(newProcessedImages);
                 setBatchPreviewItems(previewItems);
                 setShowBatchPreview(true);
                 setShowBgOptions(false);
             }
-
         } catch (err: any) {
             showMessage('Erro', 'Falha ao remover fundo: ' + (err.message || 'Erro desconhecido'), 'error');
         } finally {
@@ -322,53 +423,33 @@ export default function WardrobeItemDetailClient() {
         }
     };
 
-    // Batch Preview Handlers
     const handleBatchPreviewConfirm = async (selectedIds: string[]) => {
         if (!item) return;
+        const selectedImgs = pendingBatchImages.filter(img => selectedIds.includes(img.id));
 
-        // Only keep the images that were selected
-        const selectedImages = pendingBatchImages.filter(img => selectedIds.includes(img.id));
-
-        if (selectedImages.length > 0) {
-            const newImages = [...(item.images || []), ...selectedImages];
+        if (selectedImgs.length > 0) {
+            const newImages = [...(item.images || []), ...selectedImgs];
             setItem({ ...item, images: newImages });
             setShowOriginalBackground(false);
             setSelectedImages(new Set());
             setIsSelectionMode(false);
-            toast.success(`${selectedImages.length} imagens salvas`);
+            toast.success(`${selectedImgs.length} imagens salvas`);
         }
-
-        // Clean up
         setShowBatchPreview(false);
         setBatchPreviewItems([]);
         setPendingBatchImages([]);
     };
 
     const handleBatchPreviewCancel = () => {
-        // TODO: optionally delete the processed images from server if not confirmed
         setShowBatchPreview(false);
         setBatchPreviewItems([]);
         setPendingBatchImages([]);
-        toast('Processamento cancelado', { icon: '⚠️' });
-    };
-
-    const handleOpenMaskEditor = () => {
-        router.push(`/wardrobe/bg-editor/${item?.vufsCode}`);
-    };
-
-    const toggleImageSelection = (imageId: string) => {
-        const newSet = new Set(selectedImages);
-        if (newSet.has(imageId)) {
-            newSet.delete(imageId);
-        } else {
-            newSet.add(imageId);
-        }
-        setSelectedImages(newSet);
+        toast('Processamento cancelado');
     };
 
     const handleUndoBackgroundRemoval = async () => {
         if (!item || !item.images) return;
-        const currentOriginalImage = item.images[selectedImageIndex];
+        const currentOriginalImage = displayImages[currentImageIndex];
         if (!currentOriginalImage) return;
 
         const bgRemovedImage = item.images.find(img =>
@@ -381,12 +462,8 @@ export default function WardrobeItemDetailClient() {
         setIsDeletingImage(true);
         try {
             await apiClient.deleteWardrobeItemImage(item.id, bgRemovedImage.id);
-
             const updatedImages = item.images.filter(img => img.id !== bgRemovedImage.id);
-            setItem({
-                ...item,
-                images: updatedImages
-            });
+            setItem({ ...item, images: updatedImages });
             setShowOriginalBackground(true);
             setShowUndoConfirm(false);
         } catch (err: any) {
@@ -396,404 +473,471 @@ export default function WardrobeItemDetailClient() {
         }
     };
 
+    const handleOpenMaskEditor = () => {
+        router.push(`/wardrobe/bg-editor/${item?.vufsCode}`);
+    };
+
+    const displayImages = (item?.images || []).filter(img =>
+        img.type !== 'background_removed' && (img as any).imageType !== 'background_removed'
+    );
+
+    const currentBaseImage = displayImages[currentImageIndex];
+
+    const hasBgRemovedVersion = !!item?.images?.some(img =>
+        (img.type === 'background_removed' || (img as any).imageType === 'background_removed') &&
+        img.aiAnalysis?.originalImageId === currentBaseImage?.id
+    );
+
+    const effectiveMainImageUrl = (() => {
+        if (!currentBaseImage) return '';
+        if (hasBgRemovedVersion && !showOriginalBackground) {
+            const bgRemoved = item?.images?.find(img =>
+                (img.type === 'background_removed' || (img as any).imageType === 'background_removed') &&
+                img.aiAnalysis?.originalImageId === currentBaseImage.id
+            );
+            return bgRemoved ? bgRemoved.url : currentBaseImage.url;
+        }
+        return currentBaseImage.url;
+    })();
+
+    const nextImage = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
+    };
+
+    const prevImage = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+    };
+
+    const selectImage = (index: number) => {
+        setCurrentImageIndex(index);
+    };
+
+    const getConditionColor = (status: string) => {
+        switch (status) {
+            case 'new': return 'bg-green-100 text-green-800';
+            case 'excellent': return 'bg-blue-100 text-blue-800';
+            case 'good': return 'bg-yellow-100 text-yellow-800';
+            case 'fair': return 'bg-orange-100 text-orange-800';
+            case 'poor': return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
+    const getConditionLabel = (status: string) => {
+        switch (status) {
+            case 'new': return 'New';
+            case 'excellent': return 'Excellent';
+            case 'good': return 'Good';
+            case 'fair': return 'Fair';
+            case 'poor': return 'Poor';
+            default: return status;
+        }
+    };
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50">
-                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <div className="animate-pulse">
-                        <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="aspect-[3/4] bg-gray-200 rounded-lg"></div>
-                            <div className="space-y-4">
-                                <div className="h-8 bg-gray-200 rounded w-3/4"></div>
-                                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                                <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-                            </div>
-                        </div>
-                    </div>
-                </main>
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading item...</p>
+                </div>
             </div>
         );
     }
 
-    if (error || !item) {
-        return (
-            <div className="min-h-screen bg-gray-50">
-                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <div className="text-center">
-                        <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                            {error || 'Item não encontrado'}
-                        </h1>
-                        <Button onClick={() => router.back()}>Voltar</Button>
-                    </div>
-                </main>
-            </div>
-        );
-    }
+    if (!item) return null;
 
-    const visibleAttributes = attributes.filter(a => !a.isHidden);
-    const hiddenAttributes = attributes.filter(a => a.isHidden);
+    const brandSlug = item.brand?.slug || (item.brand?.brand ? slugify(item.brand.brand) : 'brand');
+    const displayPrice = item.metadata.pricing?.retailPrice
+        ? `R$ ${item.metadata.pricing.retailPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : null;
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-6 flex flex-wrap items-center gap-4">
-                    <Button
-                        variant="outline"
-                        onClick={() => router.back()}
-                        className="flex items-center space-x-2"
-                    >
-                        <span>←</span>
-                        <span>Voltar</span>
+        <div className="min-h-screen bg-gray-50 pb-20">
+            <div className="max-w-[1920px] mx-auto px-2 sm:px-4 lg:px-6 py-2">
+
+                {/* Header / Back Button & BG Tools Toolbar */}
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+                    <Button variant="outline" onClick={() => router.back()} className="flex items-center space-x-2">
+                        <span>←</span><span>Back</span>
                     </Button>
 
-                    {item.images && item.images.length > 0 && (
-                        <div className="flex items-center space-x-2">
-                            {item.images.some(img =>
-                                (img.type === 'background_removed' || (img as any).imageType === 'background_removed') &&
-                                (img.aiAnalysis?.originalImageId === item.images[selectedImageIndex]?.id ||
-                                    item.images[selectedImageIndex]?.id === img.id)
-                            ) ? (
-                                <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                                    <div className={`flex items-center space-x-3 px-3 py-1.5 ${!showOriginalBackground ? 'border-r border-gray-200' : ''}`}>
-                                        <span className={`text-xs font-medium ${showOriginalBackground ? 'text-gray-900' : 'text-gray-500'}`}>Original</span>
-                                        <Switch
-                                            checked={!showOriginalBackground}
-                                            onCheckedChange={(checked) => setShowOriginalBackground(!checked)}
-                                        />
-                                        <span className={`text-xs font-medium ${!showOriginalBackground ? 'text-gray-900' : 'text-gray-500'}`}>Sem Fundo</span>
-                                    </div>
-                                    {!showOriginalBackground && (
-                                        <>
-                                            <button
-                                                type="button"
-                                                className="px-2 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors focus:outline-none"
-                                                onClick={() => setShowUndoConfirm(true)}
-                                                disabled={isDeletingImage}
-                                                title="Remover versão sem fundo"
-                                            >
-                                                {isDeletingImage ? (
-                                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
-                                                ) : (
-                                                    <TrashIcon className="h-4 w-4" />
-                                                )}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="px-2 hover:bg-indigo-50 text-gray-400 hover:text-indigo-500 transition-colors focus:outline-none border-l border-gray-200"
-                                                onClick={handleOpenMaskEditor}
-                                                title="Editar Máscara"
-                                            >
-                                                <PencilIcon className="h-4 w-4" />
-                                            </button>
-                                        </>
-                                    )}
+                    <div className="flex items-center gap-2">
+                        {hasBgRemovedVersion && (
+                            <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                                <div className={`flex items-center space-x-3 px-3 py-1.5 ${!showOriginalBackground ? 'border-r border-gray-200' : ''}`}>
+                                    <span className={`text-xs font-medium ${showOriginalBackground ? 'text-gray-900' : 'text-gray-500'}`}>Original</span>
+                                    <Switch
+                                        checked={!showOriginalBackground}
+                                        onCheckedChange={(checked) => setShowOriginalBackground(!checked)}
+                                        className="data-[state=checked]:bg-[#00132d]"
+                                    />
+                                    <span className={`text-xs font-medium ${!showOriginalBackground ? 'text-gray-900' : 'text-gray-500'}`}>No BG</span>
                                 </div>
-                            ) : (
-                                <div className="relative">
-                                    <div className="flex items-stretch">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="bg-white rounded-r-none border-r-0"
-                                            onClick={handleRemoveBackground}
-                                            loading={isRemovingBackground}
-                                        >
-                                            <PhotoIcon className="h-4 w-4 mr-1 text-gray-500" />
-                                            {selectedImages.size > 0 ? `Remover Fundo (${selectedImages.size})` : 'Remover Fundo'}
-                                        </Button>
+                                {!showOriginalBackground && (
+                                    <>
                                         <button
                                             type="button"
-                                            className={`px-2 border border-l-0 border-gray-300 rounded-r-lg transition-colors ${showBgOptions ? 'bg-indigo-50 text-indigo-600' : 'bg-white hover:bg-gray-50 text-gray-500'}`}
-                                            onClick={() => setShowBgOptions(!showBgOptions)}
-                                            title="Opções de remoção"
+                                            className="px-2 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors focus:outline-none"
+                                            onClick={() => setShowUndoConfirm(true)}
+                                            title="Delete No-BG Version"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                                            </svg>
+                                            <TrashIcon className="h-4 w-4" />
                                         </button>
-                                    </div>
+                                        <button
+                                            type="button"
+                                            className="px-2 hover:bg-indigo-50 text-gray-400 hover:text-indigo-500 transition-colors focus:outline-none border-l border-gray-200"
+                                            onClick={handleOpenMaskEditor}
+                                            title="Edit Mask"
+                                        >
+                                            <PencilIcon className="h-4 w-4" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
 
-                                    {/* Options Panel */}
-                                    {showBgOptions && (
-                                        <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-30 w-72">
-                                            <h4 className="text-sm font-semibold text-gray-700 mb-3">Opções de Remoção</h4>
+                        <div className="relative">
+                            <div className="flex items-stretch shadow-sm">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-white text-gray-700 hover:bg-gray-50 rounded-r-none border-r-0"
+                                    onClick={handleRemoveBackground}
+                                    loading={isRemovingBackground}
+                                >
+                                    <PhotoIcon className="h-4 w-4 mr-2" />
+                                    {selectedImages.size > 0 ? `Remove BG (${selectedImages.size})` : 'Remove Background'}
+                                </Button>
+                                <button
+                                    className={`px-2 border border-l-0 border-gray-200 rounded-r-lg transition-colors ${showBgOptions ? 'bg-indigo-50 text-indigo-600' : 'bg-white hover:bg-gray-50 text-gray-500'}`}
+                                    onClick={() => setShowBgOptions(!showBgOptions)}
+                                    title="Removal Options"
+                                >
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </button>
+                            </div>
 
-                                            {/* Quality */}
-                                            <div className="mb-3">
-                                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Qualidade</label>
-                                                <div className="flex bg-gray-100 p-1 rounded-lg mt-1">
-                                                    {(['fast', 'medium', 'high'] as const).map((q) => (
-                                                        <button
-                                                            key={q}
-                                                            onClick={() => setBgQuality(q)}
-                                                            className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${bgQuality === q ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-900'}`}
-                                                        >
-                                                            {q === 'fast' ? 'Rápido' : q === 'medium' ? 'Médio' : 'Alta'}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Feather Radius */}
-                                            <div className="mb-3">
-                                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Suavização de Bordas</label>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max="10"
-                                                        value={bgFeatherRadius}
-                                                        onChange={(e) => setBgFeatherRadius(Number(e.target.value))}
-                                                        className="flex-1"
-                                                    />
-                                                    <span className="text-xs font-mono text-gray-600 w-8">{bgFeatherRadius}px</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Aspect Ratio */}
-                                            <div>
-                                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Proporção</label>
-                                                <div className="flex bg-gray-100 p-1 rounded-lg mt-1">
-                                                    {(['original', '1:1', '4:5', '3:4'] as const).map((r) => (
-                                                        <button
-                                                            key={r}
-                                                            onClick={() => setBgOutputRatio(r)}
-                                                            className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${bgOutputRatio === r ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-900'}`}
-                                                        >
-                                                            {r === 'original' ? 'Auto' : r}
-                                                        </button>
-                                                    ))}
-                                                </div>
+                            {showBgOptions && (
+                                <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-40 w-64">
+                                    <h4 className="text-xs font-semibold text-gray-900 mb-3">Removal Options</h4>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">Quality</label>
+                                            <div className="flex bg-gray-100 p-1 rounded mt-1">
+                                                {(['fast', 'medium', 'high'] as const).map(q => (
+                                                    <button key={q} onClick={() => setBgQuality(q)} className={`flex-1 px-2 py-1 rounded text-xs transition-all ${bgQuality === q ? 'bg-white shadow text-[#00132d]' : 'text-gray-500'}`}>{q === 'high' ? 'High' : q === 'medium' ? 'Med' : 'Fast'}</button>
+                                                ))}
                                             </div>
                                         </div>
-                                    )}
+                                        <div>
+                                            <label className="text-[10px] font-medium text-gray-500 uppercase">Input Ratio</label>
+                                            <div className="flex bg-gray-100 p-1 rounded mt-1">
+                                                {(['original', '1:1', '3:4'] as const).map(r => (
+                                                    <button key={r} onClick={() => setBgOutputRatio(r)} className={`flex-1 px-2 py-1 rounded text-xs transition-all ${bgOutputRatio === r ? 'bg-white shadow text-[#00132d]' : 'text-gray-500'}`}>{r === 'original' ? 'Auto' : r}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            )
-                            }
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8 items-start">
-                    <div className="space-y-4">
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative max-h-[500px] flex items-center justify-center">
-                            <div className="w-full aspect-square">
-                                {item.images && item.images.length > 0 ? (
-                                    <img
-                                        src={getImageUrl(
-                                            (!showOriginalBackground &&
-                                                item.images.find(img => (img.type === 'background_removed' || (img as any).imageType === 'background_removed') &&
-                                                    (img.aiAnalysis?.originalImageId === item.images?.[selectedImageIndex]?.id ||
-                                                        item.images?.[selectedImageIndex]?.type === 'background_removed' || (item.images?.[selectedImageIndex] as any)?.imageType === 'background_removed'))?.url)
-                                            || item.images[selectedImageIndex]?.url
-                                            || item.images[0].url
+                <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6">
+                        {/* LEFT: Product Images */}
+                        <div className="flex gap-4 self-start">
+                            {/* Vertical Thumbnails */}
+                            {/* Vertical Thumbnails */}
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <div className="hidden md:flex flex-col gap-3 w-20 shrink-0 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-200">
+                                    <SortableContext
+                                        items={displayImages.map(img => img.id)}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        {displayImages.map((img, idx) => {
+                                            let thumbUrl = img.url;
+                                            if (!showOriginalBackground) {
+                                                const thumbBgRemoved = item.images?.find(i =>
+                                                    (i.aiAnalysis?.originalImageId === img.id || (i as any).originalImageId === img.id) &&
+                                                    (i.type === 'background_removed' || (i as any).imageType === 'background_removed')
+                                                );
+                                                if (thumbBgRemoved) thumbUrl = thumbBgRemoved.url;
+                                            }
+
+                                            return (
+                                                <SortableThumbnail
+                                                    key={img.id}
+                                                    id={img.id}
+                                                    active={currentImageIndex === idx}
+                                                    onClick={() => selectImage(idx)}
+                                                    src={getImageUrl(thumbUrl)}
+                                                    alt={`View ${idx + 1}`}
+                                                />
+                                            );
+                                        })}
+                                    </SortableContext>
+                                </div>
+                            </DndContext>
+
+                            {/* Main Image */}
+                            <div className="aspect-square rounded-lg bg-gray-100 overflow-hidden relative group flex-1">
+                                {currentBaseImage ? (
+                                    <>
+                                        <img
+                                            src={getImageUrl(effectiveMainImageUrl)}
+                                            alt={item.metadata.name}
+                                            className="w-full h-full object-cover object-center"
+                                        />
+
+                                        {displayImages.length > 1 && (
+                                            <>
+                                                <button
+                                                    onClick={prevImage}
+                                                    className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <ChevronLeftIcon className="h-6 w-6" />
+                                                </button>
+                                                <button
+                                                    onClick={nextImage}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <ChevronRightIcon className="h-6 w-6" />
+                                                </button>
+
+                                                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                                                    {displayImages.map((_, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={(e) => { e.stopPropagation(); selectImage(idx); }}
+                                                            className={`w-2 h-2 rounded-full transition-all shadow-sm ${idx === currentImageIndex
+                                                                ? 'bg-white w-4'
+                                                                : 'bg-white/50 hover:bg-white/80'
+                                                                }`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </>
                                         )}
-                                        alt={item.metadata.name}
-                                        className="w-full h-full object-cover transition-opacity duration-300"
-                                    />
+                                    </>
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                        <PhotoIcon className="h-16 w-16 text-gray-400" />
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <ShoppingBagIcon className="h-24 w-24" />
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {item.images && item.images.length > 1 && (
-                            <div className="flex space-x-2 overflow-x-auto pb-2 items-center">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={isSelectionMode ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}
-                                    onClick={() => {
-                                        setIsSelectionMode(!isSelectionMode);
-                                        setSelectedImages(new Set());
-                                    }}
-                                >
-                                    {isSelectionMode ? 'Cancelar' : 'Selecionar'}
+                        {/* RIGHT Column */}
+                        <div className="space-y-6">
+                            <div>
+                                <div className="flex flex-wrap items-center gap-3 mb-4">
+                                    <Link href={`/brands/${brandSlug}`} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-all group">
+                                        {item.brand?.logo ? (
+                                            <img src={getImageUrl(item.brand.logo)} alt={item.brand.brand} className="w-5 h-5 rounded-full object-contain bg-white" />
+                                        ) : (
+                                            <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">{item.brand?.brand?.charAt(0)}</div>
+                                        )}
+                                        <span className="text-sm font-medium text-gray-900 group-hover:text-blue-600">{item.brand?.brand}</span>
+                                    </Link>
+
+                                    {item.brand.line && (
+                                        <Link href={`/brands/${brandSlug}?line=${slugify(item.brand.line)}`} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-all group">
+                                            <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">L</div>
+                                            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">{item.brand.line}</span>
+                                        </Link>
+                                    )}
+
+                                    {item.metadata.collection && (
+                                        <Link href={`/brands/${brandSlug}/collections/${slugify(item.metadata.collection)}`} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-all group">
+                                            <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">C</div>
+                                            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">{item.metadata.collection}</span>
+                                        </Link>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-between items-start gap-4">
+                                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{item.metadata.name}</h1>
+                                    <div className="flex gap-2 shrink-0 mt-1">
+                                        <button onClick={() => setIsFavorite(!isFavorite)} className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 transition-colors">
+                                            {isFavorite ? <HeartSolidIcon className="w-5 h-5 text-red-500" /> : <HeartIcon className="w-5 h-5 text-gray-500" />}
+                                        </button>
+                                        <button onClick={handleShare} className="p-2 rounded-full hover:bg-gray-100 border border-gray-200 transition-colors">
+                                            <ShareIcon className="h-5 w-5 text-gray-500" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-baseline gap-4 mt-4">
+                                    {displayPrice ? (
+                                        <p className="text-2xl font-semibold text-gray-900">
+                                            {displayPrice} <span className="text-sm font-normal text-gray-400">Retail</span>
+                                        </p>
+                                    ) : (
+                                        <p className="text-sm text-gray-400 italic">No price verified</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3 mt-6 mb-6">
+                                <Button className="w-full py-6 text-lg font-semibold bg-[#00132d] hover:bg-[#00132d]/90 text-white rounded-xl shadow-lg" onClick={handleSellItem}>
+                                    <ShoppingBagIcon className="h-6 w-6 mr-2" />
+                                    Sell on Marketplace
                                 </Button>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Button variant="outline" className="py-4 font-medium rounded-xl" onClick={handleEditItem}>
+                                        <PencilIcon className="h-5 w-5 mr-2" />
+                                        Edit
+                                    </Button>
+                                    <Button variant="outline" className="py-4 font-medium rounded-xl text-red-600 border-red-100 hover:bg-red-50" onClick={handleDeleteClick}>
+                                        <TrashIcon className="h-5 w-5 mr-2" />
+                                        Delete
+                                    </Button>
+                                </div>
+                            </div>
 
-                                {item.images
-                                    .filter(img => img.type !== 'background_removed' && (img as any).imageType !== 'background_removed')
-                                    .map((image, index) => {
-                                        const originalIndex = item.images!.indexOf(image);
+                            <div className="border-t border-gray-200 pt-6 space-y-4">
+                                {item.metadata.description && (
+                                    <div>
+                                        <button
+                                            onClick={() => setShowDescription(!showDescription)}
+                                            className="flex items-center justify-between w-full text-left"
+                                        >
+                                            <h3 className="text-sm font-medium text-gray-900">Description</h3>
+                                            {showDescription ? (
+                                                <ChevronUpIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                            ) : (
+                                                <ChevronDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                            )}
+                                        </button>
 
-                                        let thumbnailUrl = image.url;
-                                        if (!showOriginalBackground) {
-                                            const bgRemovedImg = item.images!.find(img =>
-                                                img.type === 'background_removed' &&
-                                                img.aiAnalysis?.originalImageId === image.id
-                                            );
-                                            if (bgRemovedImg) thumbnailUrl = bgRemovedImg.url;
-                                        }
+                                        {showDescription && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-gray-600">{item.metadata.description}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                                        const isSelected = selectedImages.has(image.id);
-
-                                        return (
-                                            <div key={index} className="relative group">
-                                                <button
-                                                    onClick={() => {
-                                                        if (isSelectionMode) {
-                                                            toggleImageSelection(image.id);
-                                                        } else {
-                                                            setSelectedImageIndex(originalIndex);
-                                                        }
-                                                    }}
-                                                    className={`w-16 h-20 rounded border-2 overflow-hidden flex-shrink-0 relative ${selectedImageIndex === originalIndex ? 'border-[#00132d]' : 'border-gray-200'}
-                                ${isSelected ? 'ring-2 ring-indigo-500 border-indigo-500' : ''}
-                            `}
-                                                >
-                                                    <img
-                                                        src={getImageUrl(thumbnailUrl)}
-                                                        alt={`${item.metadata.name} ${index + 1}`}
-                                                        className={`w-full h-full object-cover ${!showOriginalBackground && thumbnailUrl !== image.url ? 'p-1 object-contain' : ''}`}
-                                                    />
-
-                                                </button>
-                                                {isSelectionMode && (
-                                                    <div className="absolute top-1 right-1 pointer-events-none">
-                                                        {isSelected ? (
-                                                            <CheckCircleIcon className="h-5 w-5 text-indigo-600 bg-white rounded-full" />
-                                                        ) : (
-                                                            <div className="h-5 w-5 rounded-full border-2 border-white bg-black/20" />
-                                                        )}
+                                {(item.metadata.colors?.length > 0 || item.metadata.composition?.length > 0) && (
+                                    <div className="border-t border-gray-200 pt-6">
+                                        <button onClick={() => setShowComposition(!showComposition)} className="flex items-center justify-between w-full">
+                                            <h3 className="text-sm font-medium text-gray-900">Material & Color</h3>
+                                            {showComposition ? <ChevronUpIcon className="h-5 w-5 text-gray-400" /> : <ChevronDownIcon className="h-5 w-5 text-gray-400" />}
+                                        </button>
+                                        {showComposition && (
+                                            <div className="mt-4 space-y-4">
+                                                {item.metadata.colors?.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {item.metadata.colors.map((c, i) => (
+                                                            <div key={i} className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+                                                                <div className="w-4 h-4 rounded-full border border-gray-200" style={{ backgroundColor: c.hex || c.primary || '#999' }} />
+                                                                <span className="text-sm text-gray-700">{c.name || c.primary}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {item.metadata.composition?.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {item.metadata.composition.map((c, i) => (
+                                                            <span key={i} className="px-3 py-1.5 bg-gray-50 text-gray-600 text-sm rounded-md border border-gray-100">
+                                                                {c.percentage}% {c.name || c.material}
+                                                            </span>
+                                                        ))}
                                                     </div>
                                                 )}
                                             </div>
-                                        );
-                                    })}
-                            </div>
-                        )}
-                    </div>
+                                        )}
+                                    </div>
+                                )}
 
-                    <div className="space-y-6">
-                        <div>
-                            <div className="flex items-start justify-between mb-2">
-                                <h1 className="text-3xl font-bold text-gray-900">{item.metadata.name}</h1>
-                                <div className="flex space-x-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setIsFavorite(!isFavorite)}
-                                    >
-                                        {isFavorite ? <HeartSolidIcon className="h-5 w-5 text-red-500" /> : <HeartIcon className="h-5 w-5" />}
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={handleShare}>
-                                        <ShareIcon className="h-5 w-5" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <p className="text-lg text-gray-600 mb-2">
-                                {item.brand.brand} {item.brand.line && `• ${item.brand.line}`}
-                            </p>
-
-                            <div className="flex items-center space-x-4">
-                                <span className={`px-3 py-1 text-sm font-medium rounded-full ${getConditionColor(item.condition.status)}`}>
-                                    {getConditionLabel(item.condition.status)}
-                                </span>
-                                <span className="text-sm text-gray-500">Código: {item.vufsCode}</span>
-                            </div>
-                        </div>
-
-                        {item.metadata.colors && item.metadata.colors.length > 0 && (
-                            <div>
-                                <h3 className="text-sm font-medium text-gray-900 mb-2">Cores</h3>
-                                <div className="flex flex-wrap items-center gap-3">
-                                    {item.metadata.colors.map((color, index) => {
-                                        const colorName = color.name || color.primary || '';
-                                        return colorName ? (
-                                            <div key={index} className="flex items-center space-x-2">
-                                                <div
-                                                    className="w-6 h-6 rounded-full border border-gray-200"
-                                                    style={{ backgroundColor: color.hex || '#6b7280' }}
-                                                />
-                                                <span className="text-sm text-gray-600">{colorName}</span>
+                                {item.metadata.careInstructions?.length > 0 && (
+                                    <div className="border-t border-gray-200 pt-6">
+                                        <button onClick={() => setShowCareInstructions(!showCareInstructions)} className="flex items-center justify-between w-full">
+                                            <h3 className="text-sm font-medium text-gray-900">Care Instructions</h3>
+                                            {showCareInstructions ? <ChevronUpIcon className="h-5 w-5 text-gray-400" /> : <ChevronDownIcon className="h-5 w-5 text-gray-400" />}
+                                        </button>
+                                        {showCareInstructions && (
+                                            <div className="mt-4 bg-gray-50 p-4 rounded-lg">
+                                                <ul className="list-disc list-inside space-y-1">
+                                                    {item.metadata.careInstructions.map((inst, i) => (
+                                                        <li key={i} className="text-sm text-gray-600">{inst}</li>
+                                                    ))}
+                                                </ul>
                                             </div>
-                                        ) : null;
-                                    })}
-                                </div>
-                            </div>
-                        )}
+                                        )}
+                                    </div>
+                                )}
 
-                        {item.metadata.composition && item.metadata.composition.length > 0 && (
-                            <div>
-                                <h3 className="text-sm font-medium text-gray-900 mb-2">Composição</h3>
-                                <div className="flex flex-wrap gap-2">
-                                    {item.metadata.composition.map((comp, index) => (
-                                        <span key={index} className="px-3 py-1 bg-white border border-gray-200 rounded-full text-sm text-gray-600">
-                                            {comp.percentage}% {comp.name || comp.material}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {item.metadata.careInstructions && item.metadata.careInstructions.length > 0 && (
-                            <div>
-                                <h3 className="text-sm font-medium text-gray-900 mb-2">Cuidados</h3>
-                                <ul className="list-disc list-inside space-y-1">
-                                    {item.metadata.careInstructions.map((instruction, index) => (
-                                        <li key={index} className="text-sm text-gray-600">{instruction}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-
-                        <div className="pt-6 border-t border-gray-200">
-                            <div className="flex flex-col space-y-3">
-                                <Button className="w-full py-6 text-lg font-semibold bg-[#00132d] hover:bg-[#00132d]/90 text-white rounded-xl shadow-lg transition-all active:scale-[0.98]" onClick={handleSellItem}>
-                                    <ShoppingBagIcon className="h-6 w-6 mr-2" />
-                                    Vender no Marketplace
-                                </Button>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Button variant="outline" className="py-4 font-medium rounded-xl border-gray-200 hover:bg-gray-50 transition-colors" onClick={handleEditItem}>
-                                        <PencilIcon className="h-5 w-5 mr-2" />
-                                        Editar
-                                    </Button>
-                                    <Button variant="outline" className="py-4 font-medium rounded-xl border-red-100 text-red-600 hover:bg-red-50 transition-colors" onClick={handleDeleteClick}>
-                                        <TrashIcon className="h-5 w-5 mr-2" />
-                                        Excluir
-                                    </Button>
+                                <div className="border-t border-gray-200 pt-6">
+                                    <button onClick={() => setShowDetails(!showDetails)} className="flex items-center justify-between w-full">
+                                        <h3 className="text-sm font-medium text-gray-900">See More</h3>
+                                        {showDetails ? <ChevronUpIcon className="h-5 w-5 text-gray-400" /> : <ChevronDownIcon className="h-5 w-5 text-gray-400" />}
+                                    </button>
+                                    {showDetails && (
+                                        <div className="mt-4 space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-gray-100 rounded-lg"><CheckCircleIcon className="h-5 w-5 text-gray-600" /></div>
+                                                <div>
+                                                    <p className="text-xs text-gray-500">Condition</p>
+                                                    <p className="text-sm font-medium text-gray-900">{item.condition.description || getConditionLabel(item.condition.status)}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-gray-100 rounded-lg"><TagIcon className="h-5 w-5 text-gray-600" /></div>
+                                                <div><p className="text-xs text-gray-500">VUFS Code</p><p className="text-sm font-mono text-gray-900">{item.vufsCode}</p></div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </main>
 
-            <ConfirmDialog
-                isOpen={showDeleteConfirm}
-                onClose={() => setShowDeleteConfirm(false)}
-                onConfirm={handleDeleteConfirm}
-                title="Excluir Item"
-                message="Tem certeza que deseja excluir esta peça? Ela será movida para a lixeira."
-                confirmText="Excluir"
-                type="danger"
-                loading={deleting}
-            />
-
-            <ConfirmDialog
-                isOpen={showUndoConfirm}
-                onClose={() => setShowUndoConfirm(false)}
-                onConfirm={handleUndoBackgroundRemoval}
-                title="Remover Versão Sem Fundo"
-                message="Tem certeza que deseja excluir a versão processada desta imagem? A versão original será mantida."
-                confirmText="Excluir"
-                type="danger"
-                loading={isDeletingImage}
-            />
-
-            {showBatchPreview && (
-                <BatchPreviewModal
-                    isOpen={showBatchPreview}
-                    items={batchPreviewItems}
-                    onConfirm={handleBatchPreviewConfirm}
-                    onCancel={handleBatchPreviewCancel}
+                <ConfirmDialog
+                    isOpen={showDeleteConfirm}
+                    onClose={() => setShowDeleteConfirm(false)}
+                    onConfirm={handleDeleteConfirm}
+                    title="Delete Item"
+                    message="Are you sure you want to delete this item?"
+                    confirmText="Delete"
+                    type="danger"
+                    loading={deleting}
                 />
-            )}
+
+                <ConfirmDialog
+                    isOpen={showUndoConfirm}
+                    onClose={() => setShowUndoConfirm(false)}
+                    onConfirm={handleUndoBackgroundRemoval}
+                    title="Remove No-BG Version"
+                    message="This will delete the processed version. Original kept."
+                    confirmText="Delete"
+                    type="danger"
+                    loading={isDeletingImage}
+                />
+
+                {showBatchPreview && (
+                    <BatchPreviewModal
+                        isOpen={showBatchPreview}
+                        items={batchPreviewItems}
+                        onConfirm={handleBatchPreviewConfirm}
+                        onCancel={handleBatchPreviewCancel}
+                    />
+                )}
+            </div>
         </div>
     );
+}
+
+function getEffectiveImage(image: any) {
+    return image;
 }

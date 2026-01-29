@@ -118,6 +118,8 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
         retailPriceBrl: '' as string | number,
         retailPriceUsd: '' as string | number,
         retailPriceEur: '' as string | number,
+        paidPriceBrl: '' as string | number,
+        sellingPriceBrl: '' as string | number,
         releaseDate: '',
         careInstructions: '',
         officialItemLink: ''
@@ -188,11 +190,27 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
         let resolvedColorIds: string[] = metadata.colorId ? [metadata.colorId] : [];
         let resolvedConditionId = sku.conditionId || metadata.conditionId || '';
         let resolvedModelName = metadata.modelName || metadata.name || sku.name || '';
+
+        // Fix for Name Duplication: If falling back to sku.name, strip existing brand and variants
+        if (!metadata.modelName && !metadata.name && sku.name) {
+            // 1. Strip Variants: Remove any trailing (...) or [...] groups
+            resolvedModelName = resolvedModelName.replace(/(\s*[\(\[][^)\]]+[\)\]])+$/, '').trim();
+
+            // 2. Strip Brand: If we know the brand name, strip it from start
+            const brandName = sku.brand?.brand;
+            if (brandName) {
+                const brandRegex = new RegExp(`^${brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i');
+                resolvedModelName = resolvedModelName.replace(brandRegex, '').trim();
+                // Double check for repeated brand
+                resolvedModelName = resolvedModelName.replace(brandRegex, '').trim();
+            }
+        }
+
         let resolvedDescription = metadata.description || sku.description || '';
 
-        let resolvedImages = (sku.images || []).map((img: any) => ({
+        let resolvedImages = (sku.images || sku.media || []).map((img: any) => ({
             ...img,
-            url: img.url || img.imageUrl // Normalize URL for MediaUploader
+            url: img.url || img.imageUrl || (img.path ? getImageUrl(img.path) : '') // Normalize URL for MediaUploader
         }));
 
         // If it's a wardrobe item, we need to resolve names to IDs
@@ -297,6 +315,8 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             retailPriceBrl: sku.retailPriceBrl || metadata.pricing?.retailPrice || '',
             retailPriceUsd: sku.retailPriceUsd || '',
             retailPriceEur: sku.retailPriceEur || '',
+            paidPriceBrl: metadata.acquisitionInfo?.purchasePrice || '',
+            sellingPriceBrl: metadata.pricing?.currentValue || '',
             officialSkuOrInstance: metadata.officialSkuOrInstance || '',
             isGeneric: metadata.isGeneric || false,
             // Sport Context initialization
@@ -642,7 +662,9 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             sizeId ? getSluggifiedOrRef(size, undefined) : null
         ];
 
-        return codeParts.filter(Boolean).join('-');
+        // Join and truncate to 50 chars (DB constraint on vufs_code column)
+        const fullCode = codeParts.filter(Boolean).join('-');
+        return fullCode.substring(0, 50);
     };
 
     // Auto-update name/code
@@ -666,10 +688,33 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
 
         if (modelName) {
             let cleanModelName = modelName;
-            if (formData.nameConfig.includeBrand && brand?.name && cleanModelName.toLowerCase().startsWith(brand.name.toLowerCase())) {
-                cleanModelName = cleanModelName.substring(brand.name.length).trim();
+            if (cleanModelName) {
+                // Robust Brand Stripping: Check if brand name is present at start, ignoring case and special chars
+                if (formData.nameConfig.includeBrand && brand?.name) {
+                    const normBrand = brand.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const normModel = cleanModelName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                    if (normModel.startsWith(normBrand)) {
+                        // Find where the brand name ends in the original string by length estimation or regex? 
+                        // Simpler: just match case-insensitive startsWith of the raw strings too
+                        if (cleanModelName.toLowerCase().startsWith(brand.name.toLowerCase())) {
+                            cleanModelName = cleanModelName.substring(brand.name.length).trim();
+                        } else {
+                            // Fallback: if normalized matched but raw didn't (due to special chars), try to strip roughly length
+                            // Or better: Use regex to remove brand name
+                            const brandRegex = new RegExp(`^${brand.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+                            cleanModelName = cleanModelName.replace(brandRegex, '').trim();
+                        }
+                    }
+                }
+
+                // Secondary check: if cleanModelName still looks like it starts with brand (e.g. repeated brand)
+                if (brand?.name && cleanModelName.toLowerCase().startsWith(brand.name.toLowerCase())) {
+                    cleanModelName = cleanModelName.substring(brand.name.length).trim();
+                }
+
+                if (cleanModelName) nameParts.push(cleanModelName);
             }
-            if (cleanModelName) nameParts.push(cleanModelName);
         }
 
         if (formData.nameConfig.includeStyle && style?.name) nameParts.push(style.name);
@@ -836,12 +881,12 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 careInstructions: formData.careInstructions ? [formData.careInstructions] : [],
                 pricing: {
                     retailPrice: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : 0,
-                    currentValue: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : 0,
+                    currentValue: formData.sellingPriceBrl ? Number(formData.sellingPriceBrl) : (formData.retailPriceBrl ? Number(formData.retailPriceBrl) : 0),
                     currency: 'BRL'
                 },
                 acquisitionInfo: {
                     purchaseDate: formData.releaseDate || new Date().toISOString(),
-                    purchasePrice: formData.retailPriceBrl ? Number(formData.retailPriceBrl) : 0,
+                    purchasePrice: formData.paidPriceBrl ? Number(formData.paidPriceBrl) : 0,
                     store: brand?.name || 'Generic'
                 },
                 // Store IDs for edit mapping
@@ -862,7 +907,8 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                 status: 'owned',
                 visibility: 'public'
             },
-            images: formData.images
+            images: formData.images,
+            code: formData.generatedCode // Include generated code in payload so it saves correctly
         };
 
         // Add officialItemLink to metadata if present
@@ -894,7 +940,10 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                     onSuccess();
                     return;
                 }
-                router.push('/wardrobe');
+                // Redirect to the item page using the code (generated or existing)
+                // Use payload.code or fallback to formData.generatedCode
+                const redirectCode = payload.code || formData.generatedCode;
+                router.push(redirectCode ? `/wardrobe/${redirectCode}` : '/wardrobe');
                 return;
             }
 
@@ -957,6 +1006,85 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
     if (loading && !initialData) {
         return <div className="p-8 text-center">Loading form data...</div>;
     }
+
+    const renderSizeSelector = (label: string, placeholder: string) => (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+            <SearchableCombobox
+                multiple={mode !== 'wardrobe'}
+                options={sizes.map(s => ({ id: s.id, name: s.name }))}
+                value={formData.selectedSizes.map(id => sizes.find(s => s.id === id)?.name).filter(Boolean) as string[]}
+                onChange={(val: string[] | string) => {
+                    const names = Array.isArray(val) ? val : [val];
+                    const selectedIds = names.map(name => sizes.find(s => s.name === name)?.id).filter(Boolean) as string[];
+                    setFormData(prev => ({ ...prev, selectedSizes: selectedIds }));
+                }}
+                placeholder={placeholder}
+            />
+            {formData.selectedSizes.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                    {formData.selectedSizes.map(sizeId => {
+                        const size = sizes.find(s => s.id === sizeId);
+                        return (
+                            <span
+                                key={sizeId}
+                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 shadow-sm"
+                            >
+                                {size?.name || sizeId}
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, selectedSizes: prev.selectedSizes.filter(i => i !== sizeId) }))}
+                                    className="ml-2 text-blue-400 hover:text-blue-600 focus:outline-none transition-colors"
+                                >
+                                    <XMarkIcon className="h-3 w-3" />
+                                </button>
+                            </span>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+
+    const renderColorSelector = (label: string, placeholder: string) => (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+            <SearchableCombobox
+                multiple={mode !== 'wardrobe'}
+                options={colors.map(c => ({ id: c.id, name: c.name, hex: c.hex }))}
+                value={formData.selectedColors.map(id => colors.find(c => c.id === id)?.name).filter(Boolean) as string[]}
+                onChange={(val: string[] | string) => {
+                    const names = Array.isArray(val) ? val : [val];
+                    const selectedIds = names.map(name => colors.find(c => c.name === name)?.id).filter(Boolean) as string[];
+                    setFormData(prev => ({ ...prev, selectedColors: selectedIds }));
+                }}
+                placeholder={placeholder}
+            />
+            {formData.selectedColors.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                    {formData.selectedColors.map(colorId => {
+                        const color = colors.find(c => c.id === colorId);
+                        return (
+                            <span
+                                key={colorId}
+                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100 shadow-sm"
+                            >
+                                <span className="w-3 h-3 rounded-full border border-gray-200 mr-2 flex-shrink-0" style={{ backgroundColor: color?.hex || '#ccc' }} />
+                                {color?.name || colorId}
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, selectedColors: prev.selectedColors.filter(i => i !== colorId) }))}
+                                    className="ml-2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                                >
+                                    <XMarkIcon className="h-3 w-3" />
+                                </button>
+                            </span>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
 
     return (
         <form onSubmit={handleSubmit} className="space-y-8 max-w-5xl mx-auto bg-white p-6 rounded-lg shadow">
@@ -1239,6 +1367,11 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                         }}
                         placeholder="Select Pattern"
                     />
+                    {mode === 'wardrobe' && (
+                        <div className="mt-4">
+                            {renderSizeSelector('Size', 'Select Size')}
+                        </div>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Material</label>
@@ -1251,6 +1384,11 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                         }}
                         placeholder="Select Material"
                     />
+                    {mode === 'wardrobe' && (
+                        <div className="mt-4">
+                            {renderColorSelector('Color', 'Select Color')}
+                        </div>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Fit</label>
@@ -1351,84 +1489,15 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
             )}
 
             {/* Variants (Sizes & Colors) - Enhanced Multi-Select UI */}
-            <div className="border-t pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Variants</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select multiple)</label>
-                        <SearchableCombobox
-                            multiple={mode !== 'wardrobe'}
-                            options={sizes.map(s => ({ id: s.id, name: s.name }))}
-                            value={formData.selectedSizes.map(id => sizes.find(s => s.id === id)?.name).filter(Boolean) as string[]}
-                            onChange={(val: string[] | string) => {
-                                const names = Array.isArray(val) ? val : [val];
-                                const selectedIds = names.map(name => sizes.find(s => s.name === name)?.id).filter(Boolean) as string[];
-                                setFormData(prev => ({ ...prev, selectedSizes: selectedIds }));
-                            }}
-                            placeholder={mode === 'wardrobe' ? "Select Size" : "Search and Select Sizes..."}
-                        />
-                        {formData.selectedSizes.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {formData.selectedSizes.map(sizeId => {
-                                    const size = sizes.find(s => s.id === sizeId);
-                                    return (
-                                        <span
-                                            key={sizeId}
-                                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100 shadow-sm"
-                                        >
-                                            {size?.name || sizeId}
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData(prev => ({ ...prev, selectedSizes: prev.selectedSizes.filter(i => i !== sizeId) }))}
-                                                className="ml-2 text-blue-400 hover:text-blue-600 focus:outline-none transition-colors"
-                                            >
-                                                <XMarkIcon className="h-3 w-3" />
-                                            </button>
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select multiple)</label>
-                        <SearchableCombobox
-                            multiple={mode !== 'wardrobe'}
-                            options={colors.map(c => ({ id: c.id, name: c.name, hex: c.hex }))}
-                            value={formData.selectedColors.map(id => colors.find(c => c.id === id)?.name).filter(Boolean) as string[]}
-                            onChange={(val: string[] | string) => {
-                                const names = Array.isArray(val) ? val : [val];
-                                const selectedIds = names.map(name => colors.find(c => c.name === name)?.id).filter(Boolean) as string[];
-                                setFormData(prev => ({ ...prev, selectedColors: selectedIds }));
-                            }}
-                            placeholder={mode === 'wardrobe' ? "Select Color" : "Search and Select Colors..."}
-                        />
-                        {formData.selectedColors.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {formData.selectedColors.map(colorId => {
-                                    const color = colors.find(c => c.id === colorId);
-                                    return (
-                                        <span
-                                            key={colorId}
-                                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-100 shadow-sm"
-                                        >
-                                            <span className="w-3 h-3 rounded-full border border-gray-200 mr-2 flex-shrink-0" style={{ backgroundColor: color?.hex || '#ccc' }} />
-                                            {color?.name || colorId}
-                                            <button
-                                                type="button"
-                                                onClick={() => setFormData(prev => ({ ...prev, selectedColors: prev.selectedColors.filter(i => i !== colorId) }))}
-                                                className="ml-2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
-                                            >
-                                                <XMarkIcon className="h-3 w-3" />
-                                            </button>
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                        )}
+            {mode !== 'wardrobe' && (
+                <div className="border-t pt-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Variants</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {renderSizeSelector('Sizes (Select multiple)', 'Search and Select Sizes...')}
+                        {renderColorSelector('Colors (Select multiple)', 'Search and Select Colors...')}
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Name Generation Config */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1711,14 +1780,29 @@ export default function ItemCreation({ initialData, isEditMode = false, mode, on
                     <label className="block text-sm font-medium text-gray-700 mb-1">Retail Price (BRL)</label>
                     <input type="number" step="0.01" className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border" value={formData.retailPriceBrl} onChange={e => setFormData(prev => ({ ...prev, retailPriceBrl: e.target.value }))} />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Retail Price (USD)</label>
-                    <input type="number" step="0.01" className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border" value={formData.retailPriceUsd} onChange={e => setFormData(prev => ({ ...prev, retailPriceUsd: e.target.value }))} />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Retail Price (EUR)</label>
-                    <input type="number" step="0.01" className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border" value={formData.retailPriceEur} onChange={e => setFormData(prev => ({ ...prev, retailPriceEur: e.target.value }))} />
-                </div>
+                {mode === 'wardrobe' ? (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Paid Price (BRL)</label>
+                            <input type="number" step="0.01" className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border" value={formData.paidPriceBrl} onChange={e => setFormData(prev => ({ ...prev, paidPriceBrl: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (BRL)</label>
+                            <input type="number" step="0.01" className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border" value={formData.sellingPriceBrl} onChange={e => setFormData(prev => ({ ...prev, sellingPriceBrl: e.target.value }))} />
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Retail Price (USD)</label>
+                            <input type="number" step="0.01" className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border" value={formData.retailPriceUsd} onChange={e => setFormData(prev => ({ ...prev, retailPriceUsd: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Retail Price (EUR)</label>
+                            <input type="number" step="0.01" className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border" value={formData.retailPriceEur} onChange={e => setFormData(prev => ({ ...prev, retailPriceEur: e.target.value }))} />
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Release Date */}

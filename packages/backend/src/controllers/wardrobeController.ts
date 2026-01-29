@@ -535,7 +535,14 @@ export class WardrobeController {
 
       const validatedUpdateData = sanitizedUpdateData;
 
-      const updatedItem = await VUFSItemModel.update(id, validatedUpdateData as any);
+      // Map 'code' to 'vufsCode' for the model
+      const updatePayload: any = { ...validatedUpdateData };
+      if (updatePayload.code) {
+        updatePayload.vufsCode = updatePayload.code;
+        delete updatePayload.code;
+      }
+
+      const updatedItem = await VUFSItemModel.update(id, updatePayload);
 
       res.json({
         message: 'Wardrobe item updated successfully',

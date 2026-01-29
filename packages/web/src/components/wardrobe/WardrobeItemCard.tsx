@@ -188,18 +188,27 @@ export function WardrobeItemCard({
       {/* Image */}
       <div className="relative aspect-[3/4] overflow-hidden bg-gray-50">
         {firstImage ? (
-          <img
-            key={`img-${item.id}-${refreshKey}`}
-            src={(() => {
-              const base = getImageUrl(firstImage) || '/api/placeholder/300/400';
-              // Add cache-busting timestamp to bypass browser cache
-              if (!refreshKey) return base;
-              const sep = base.includes('?') ? '&' : '?';
-              return `${base}${sep}t=${refreshKey}`;
-            })()}
-            alt={item.name}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
+          <>
+            <img
+              key={`img-${item.id}-${refreshKey}`}
+              src={(() => {
+                const base = getImageUrl(firstImage) || '/api/placeholder/300/400';
+                // Add cache-busting timestamp to bypass browser cache
+                if (!refreshKey) return base;
+                const sep = base.includes('?') ? '&' : '?';
+                return `${base}${sep}t=${refreshKey}`;
+              })()}
+              alt={item.name}
+              className={`w-full h-full object-cover transition-all duration-300 ${getImgUrl(item.images?.[1]) ? 'group-hover:opacity-0' : 'group-hover:scale-105'}`}
+            />
+            {getImgUrl(item.images?.[1]) && (
+              <img
+                src={getImageUrl(getImgUrl(item.images?.[1])) || '/api/placeholder/300/400'}
+                alt={`${item.name} - view 2`}
+                className="absolute inset-0 w-full h-full object-cover transition-all duration-300 opacity-0 group-hover:opacity-100"
+              />
+            )}
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300">
             <ShoppingBagIcon className="h-12 w-12" />
@@ -207,7 +216,7 @@ export function WardrobeItemCard({
         )}
 
         {/* Overlay */}
-        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300" />
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-0 transition-all duration-300" />
 
         {/* Top Actions */}
         <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
