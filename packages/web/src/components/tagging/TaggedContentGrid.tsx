@@ -60,14 +60,14 @@ export default function TaggedContentGrid({
     };
 
     // Get link for source
-    const getSourceLink = (sourceType: string, sourceId: string): string => {
-        switch (sourceType) {
+    const getSourceLink = (source: any): string => {
+        switch (source.type) {
             case 'lookbook_image':
-                return `/lookbooks/${sourceId}`;
+                return `/lookbooks/${source.id}`;
             case 'post_image':
-                return `/social/posts/${sourceId}`;
+                return `/social/posts/${source.id}`;
             case 'wardrobe_image':
-                return `/wardrobe/${sourceId}`;
+                return `/wardrobe/${source.vufsCode || source.id}`;
             default:
                 return '#';
         }
@@ -128,7 +128,7 @@ export default function TaggedContentGrid({
                 {data.items.map((item) => (
                     <Link
                         key={item.tag.id}
-                        href={getSourceLink(item.source.type, item.source.id)}
+                        href={getSourceLink(item.source)}
                         className="relative aspect-square group"
                     >
                         {/* Image */}

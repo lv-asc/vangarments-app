@@ -1,5 +1,5 @@
-import CompositionsClient from './CompositionsClient';
+import { redirect } from 'next/navigation';
 
 export default function AdminCompositionsPage() {
-    return <CompositionsClient />;
+    redirect('/admin/materials');
 }

@@ -21,6 +21,22 @@ export interface BackendVUFSItem {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  // Enriched fields
+  brandInfo?: {
+    name: string;
+    logo?: string;
+    slug?: string;
+  };
+  lineInfo?: {
+    id: string;
+    name: string;
+    logo?: string;
+  };
+  collectionInfo?: {
+    id: string;
+    name: string;
+    coverImage?: string;
+  };
 }
 
 export interface CreateVUFSItemData {
@@ -93,7 +109,19 @@ export class VUFSItemModel {
   }
 
   static async findById(id: string): Promise<BackendVUFSItem | null> {
-    const query = 'SELECT * FROM vufs_items WHERE id = $1';
+    const query = `
+      SELECT v.*, 
+             b.brand_info->>'name' as brand_account_name, 
+             b.brand_info->>'logo' as brand_logo, 
+             b.brand_info->>'slug' as brand_slug,
+             l.name as line_name, l.logo as line_logo,
+             c.name as collection_name, c.cover_image_url as collection_cover
+      FROM vufs_items v
+      LEFT JOIN brand_accounts b ON (v.brand_hierarchy->>'brand' ILIKE (b.brand_info->>'name'))
+      LEFT JOIN brand_lines l ON (v.brand_hierarchy->>'line' = l.name AND b.id = l.brand_id)
+      LEFT JOIN brand_collections c ON (v.metadata->>'collection' = c.name AND b.id = c.brand_id)
+      WHERE v.id = $1
+    `;
     const result = await db.query(query, [id]);
 
     if (result.rows.length === 0) {
@@ -104,7 +132,19 @@ export class VUFSItemModel {
   }
 
   static async findByVUFSCode(vufsCode: string): Promise<BackendVUFSItem | null> {
-    const query = 'SELECT * FROM vufs_items WHERE vufs_code = $1';
+    const query = `
+      SELECT v.*, 
+             b.brand_info->>'name' as brand_account_name, 
+             b.brand_info->>'logo' as brand_logo, 
+             b.brand_info->>'slug' as brand_slug,
+             l.name as line_name, l.logo as line_logo,
+             c.name as collection_name, c.cover_image_url as collection_cover
+      FROM vufs_items v
+      LEFT JOIN brand_accounts b ON (v.brand_hierarchy->>'brand' ILIKE (b.brand_info->>'name'))
+      LEFT JOIN brand_lines l ON (v.brand_hierarchy->>'line' = l.name AND b.id = l.brand_id)
+      LEFT JOIN brand_collections c ON (v.metadata->>'collection' = c.name AND b.id = c.brand_id)
+      WHERE v.vufs_code = $1
+    `;
     const result = await db.query(query, [vufsCode]);
 
     if (result.rows.length === 0) {
@@ -115,7 +155,20 @@ export class VUFSItemModel {
   }
 
   static async findByOwner(ownerId: string, filters?: VUFSItemFilters): Promise<BackendVUFSItem[]> {
-    let query = 'SELECT * FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL';
+    let query = `
+      SELECT v.*, 
+             b.brand_info->>'name' as brand_account_name, 
+             b.brand_info->>'logo' as brand_logo, 
+             b.brand_info->>'slug' as brand_slug,
+             l.name as line_name, l.logo as line_logo,
+             c.name as collection_name, c.cover_image_url as collection_cover
+      FROM vufs_items v
+      LEFT JOIN brand_accounts b ON (v.brand_hierarchy->>'brand' ILIKE (b.brand_info->>'name'))
+      LEFT JOIN brand_lines l ON (v.brand_hierarchy->>'line' = l.name AND b.id = l.brand_id)
+      LEFT JOIN brand_collections c ON (v.metadata->>'collection' = c.name AND b.id = c.brand_id)
+      WHERE v.owner_id = $1 AND v.deleted_at IS NULL
+    `;
+
     const values: any[] = [ownerId];
     let paramCount = 2;
 
@@ -366,12 +419,21 @@ export class VUFSItemModel {
 
   static async search(searchTerm: string, filters?: VUFSItemFilters): Promise<BackendVUFSItem[]> {
     let query = `
-      SELECT * FROM vufs_items 
+      SELECT v.*, 
+             b.brand_info->>'name' as brand_account_name, 
+             b.brand_info->>'logo' as brand_logo, 
+             b.brand_info->>'slug' as brand_slug,
+             l.name as line_name, l.logo as line_logo,
+             c.name as collection_name, c.cover_image_url as collection_cover
+      FROM vufs_items v
+      LEFT JOIN brand_accounts b ON (v.brand_hierarchy->>'brand' ILIKE (b.brand_info->>'name'))
+      LEFT JOIN brand_lines l ON (v.brand_hierarchy->>'line' = l.name AND b.id = l.brand_id)
+      LEFT JOIN brand_collections c ON (v.metadata->>'collection' = c.name AND b.id = c.brand_id)
       WHERE (
-        $1 = ANY(search_keywords) OR
-        category_hierarchy::text ILIKE $2 OR
-        brand_hierarchy::text ILIKE $2 OR
-        metadata::text ILIKE $2
+        $1 = ANY(v.search_keywords) OR
+        v.category_hierarchy::text ILIKE $2 OR
+        v.brand_hierarchy::text ILIKE $2 OR
+        v.metadata::text ILIKE $2
       )
     `;
 
@@ -401,6 +463,52 @@ export class VUFSItemModel {
 
     const result = await db.query(query, values);
     return result.rows.map(row => this.mapToVUFSItem(row));
+  }
+
+  static async getFacetsByOwner(ownerId: string): Promise<{
+    brands: string[];
+    categories: string[];
+    colors: string[];
+    patterns: string[];
+    materials: string[];
+    lines: string[];
+    collections: string[];
+  }> {
+    const query = `
+      WITH item_data AS (
+        SELECT 
+          category_hierarchy->>'page' as category,
+          brand_hierarchy->>'brand' as brand,
+          brand_hierarchy->>'line' as line,
+          metadata->>'collection' as collection,
+          metadata->>'pattern' as pattern,
+          metadata->'colors' as colors,
+          metadata->'composition' as composition
+        FROM vufs_items 
+        WHERE owner_id = $1 AND deleted_at IS NULL
+      )
+      SELECT 
+        (SELECT jsonb_agg(DISTINCT brand) FROM item_data WHERE brand IS NOT NULL) as brands,
+        (SELECT jsonb_agg(DISTINCT category) FROM item_data WHERE category IS NOT NULL) as categories,
+        (SELECT jsonb_agg(DISTINCT line) FROM item_data WHERE line IS NOT NULL) as lines,
+        (SELECT jsonb_agg(DISTINCT collection) FROM item_data WHERE collection IS NOT NULL) as collections,
+        (SELECT jsonb_agg(DISTINCT pattern) FROM item_data WHERE pattern IS NOT NULL) as patterns,
+        (SELECT jsonb_agg(DISTINCT c->>'name') FROM item_data, jsonb_array_elements(colors) c WHERE c->>'name' IS NOT NULL) as colors,
+        (SELECT jsonb_agg(DISTINCT m->>'name') FROM item_data, jsonb_array_elements(composition) m WHERE m->>'name' IS NOT NULL) as materials
+    `;
+
+    const result = await db.query(query, [ownerId]);
+    const row = result.rows[0] || {};
+
+    return {
+      brands: row.brands || [],
+      categories: row.categories || [],
+      colors: row.colors || [],
+      patterns: row.patterns || [],
+      materials: row.materials || [],
+      lines: row.lines || [],
+      collections: row.collections || [],
+    };
   }
 
   static async getStatsByOwner(ownerId: string): Promise<{
@@ -483,6 +591,21 @@ export class VUFSItemModel {
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
+      brandInfo: row.brand_account_name ? {
+        name: row.brand_account_name,
+        logo: row.brand_logo,
+        slug: row.brand_slug,
+      } : undefined,
+      lineInfo: row.line_name ? {
+        id: row.line_id, // Note: we should select id if needed
+        name: row.line_name,
+        logo: row.line_logo,
+      } : undefined,
+      collectionInfo: row.collection_name ? {
+        id: row.collection_id,
+        name: row.collection_name,
+        coverImage: row.collection_cover,
+      } : undefined,
     };
   }
 }

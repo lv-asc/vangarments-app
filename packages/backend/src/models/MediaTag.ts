@@ -278,7 +278,7 @@ export class MediaTagModel {
             } else if (tag.sourceType === 'wardrobe_image') {
                 // Get wardrobe item info
                 const itemQuery = `
-          SELECT vi.id, vi.metadata, vi.owner_id, u.profile
+          SELECT vi.id, vi.vufs_code, vi.metadata, vi.owner_id, u.profile
           FROM vufs_items vi
           LEFT JOIN users u ON vi.owner_id = u.id
           WHERE vi.id = $1
@@ -291,6 +291,7 @@ export class MediaTagModel {
                     source = {
                         type: tag.sourceType,
                         id: tag.sourceId,
+                        vufsCode: item.vufs_code,
                         imageUrl: tag.imageUrl,
                         title: metadata.name,
                         owner: {
@@ -299,7 +300,7 @@ export class MediaTagModel {
                             imageUrl: profile.profilePicture,
                             type: 'user',
                         },
-                    };
+                    } as any;
                 }
             }
 

@@ -63,6 +63,7 @@ export interface VUFSComposition {
   categoryId: string;
   categoryName?: string;
   description?: string;
+  careInstructions?: string;
   isActive: boolean;
   isDeleted: boolean;
 }
@@ -576,19 +577,21 @@ export class VUFSManagementService {
       categoryId: row.category_id?.toString(),
       categoryName: row.category_name,
       description: row.description,
+      careInstructions: row.care_instructions,
       isActive: row.is_active,
       isDeleted: row.is_deleted
     }));
   }
 
-  static async addComposition(name: string, categoryId: string, description: string = ''): Promise<VUFSComposition> {
-    return this.addItem('vufs_compositions', name, { category_id: categoryId, description });
+  static async addComposition(name: string, categoryId: string, description: string = '', careInstructions: string = ''): Promise<VUFSComposition> {
+    return this.addItem('vufs_compositions', name, { category_id: categoryId, description, care_instructions: careInstructions });
   }
 
-  static async updateComposition(id: string, name: string, categoryId?: string, description?: string): Promise<any> {
+  static async updateComposition(id: string, name: string, categoryId?: string, description?: string, careInstructions?: string): Promise<any> {
     const updates: any = {};
     if (categoryId !== undefined) updates.category_id = categoryId;
     if (description !== undefined) updates.description = description;
+    if (careInstructions !== undefined) updates.care_instructions = careInstructions;
     return this.updateItem('vufs_compositions', id, name, updates);
   }
 

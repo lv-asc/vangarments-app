@@ -800,12 +800,12 @@ export class VUFSManagementController {
 
   static async addComposition(req: Request, res: Response): Promise<void> {
     try {
-      const { name, categoryId, description } = req.body;
+      const { name, categoryId, description, careInstructions } = req.body;
       if (!name || !categoryId) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Name and CategoryId are required' } });
         return;
       }
-      const composition = await VUFSManagementService.addComposition(name, categoryId, description);
+      const composition = await VUFSManagementService.addComposition(name, categoryId, description, careInstructions);
       res.status(201).json({ message: 'Composition created', composition });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });
@@ -815,8 +815,8 @@ export class VUFSManagementController {
   static async updateComposition(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { name, categoryId, description } = req.body;
-      const composition = await VUFSManagementService.updateComposition(id, name, categoryId, description);
+      const { name, categoryId, description, careInstructions } = req.body;
+      const composition = await VUFSManagementService.updateComposition(id, name, categoryId, description, careInstructions);
       res.json({ message: 'Composition updated', composition });
     } catch (error: any) {
       res.status(500).json({ error: { code: 'INTERNAL_SERVER_ERROR', message: error.message } });

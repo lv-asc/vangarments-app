@@ -351,6 +351,35 @@ export class WardrobeController {
   }
 
   /**
+   * Get unique facets for current user's wardrobe (for filtering)
+   */
+  static async getFacets(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+          },
+        });
+        return;
+      }
+
+      const facets = await VUFSItemModel.getFacetsByOwner(req.user.userId);
+
+      res.json(facets);
+    } catch (error) {
+      console.error('Get facets error:', error);
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An error occurred while fetching wardrobe facets',
+        },
+      });
+    }
+  }
+
+  /**
    * Get single wardrobe item by ID
    */
   static async getItem(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -367,7 +396,20 @@ export class WardrobeController {
 
       const { id } = req.params;
 
-      const item = await VUFSItemModel.findById(id);
+      // UUID Regex for validation
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const isUUID = uuidRegex.test(id);
+
+      let item = null;
+      if (isUUID) {
+        item = await VUFSItemModel.findById(id);
+      }
+
+      // If not found by ID or if ID is not a UUID, try finding by VUFS code
+      if (!item) {
+        item = await VUFSItemModel.findByVUFSCode(id);
+      }
+
       if (!item) {
         res.status(404).json({
           error: {
@@ -441,8 +483,20 @@ export class WardrobeController {
       const { id } = req.params;
       const updateData = req.body;
 
+      // UUID Regex for validation
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const isUUID = uuidRegex.test(id);
+
       // Check ownership
-      const existingItem = await VUFSItemModel.findById(id);
+      let existingItem = null;
+      if (isUUID) {
+        existingItem = await VUFSItemModel.findById(id);
+      }
+
+      if (!existingItem) {
+        existingItem = await VUFSItemModel.findByVUFSCode(id);
+      }
+
       if (!existingItem) {
         res.status(404).json({
           error: {
@@ -632,8 +686,20 @@ export class WardrobeController {
 
       const { id } = req.params;
 
+      // UUID Regex for validation
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const isUUID = uuidRegex.test(id);
+
       // Check ownership
-      const existingItem = await VUFSItemModel.findById(id);
+      let existingItem = null;
+      if (isUUID) {
+        existingItem = await VUFSItemModel.findById(id);
+      }
+
+      if (!existingItem) {
+        existingItem = await VUFSItemModel.findByVUFSCode(id);
+      }
+
       if (!existingItem) {
         res.status(404).json({
           error: {

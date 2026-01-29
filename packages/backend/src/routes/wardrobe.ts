@@ -24,6 +24,9 @@ router.post(
 // Get user's wardrobe items
 router.get('/items', WardrobeController.getUserWardrobe);
 
+// Get wardrobe facets for filtering
+router.get('/items/facets', WardrobeController.getFacets);
+
 // Get single wardrobe item
 router.get('/items/:id', WardrobeController.getItem);
 

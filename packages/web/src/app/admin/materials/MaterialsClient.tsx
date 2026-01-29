@@ -6,7 +6,8 @@ import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import {
     TrashIcon, PencilSquareIcon, PlusIcon, ArrowPathIcon,
     ArchiveBoxXMarkIcon, ChevronDownIcon, ChevronRightIcon,
-    SparklesIcon, XMarkIcon, DocumentTextIcon
+    SparklesIcon, XMarkIcon, DocumentTextIcon, BeakerIcon,
+    RectangleStackIcon, FolderIcon, TagIcon, MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -100,7 +101,16 @@ interface Material {
 interface CompositionOption {
     id: string;
     name: string;
+    categoryId: string;
     categoryName?: string;
+    description?: string;
+    careInstructions?: string;
+}
+
+interface FiberCategory {
+    id: string;
+    name: string;
+    description?: string;
 }
 
 interface CategoryOption {
@@ -129,8 +139,10 @@ function getDefaultCareInstructions(materialName: string): string {
 }
 
 export default function AdminMaterialsPage() {
+    const [activeTab, setActiveTab] = useState<'library' | 'taxonomy'>('library');
     const [materials, setMaterials] = useState<Material[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
     const [showTrash, setShowTrash] = useState(false);
@@ -149,11 +161,31 @@ export default function AdminMaterialsPage() {
     const [availableCompositions, setAvailableCompositions] = useState<CompositionOption[]>([]);
     const [availableCategories, setAvailableCategories] = useState<CategoryOption[]>([]);
 
-    const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; id: string | null; permanent?: boolean }>({
+    const [deleteModalState, setDeleteModalState] = useState<{
+        isOpen: boolean;
+        type: 'material' | 'fiber' | 'category';
+        id: string | null;
+        permanent?: boolean;
+        name?: string;
+    }>({
         isOpen: false,
+        type: 'material',
         id: null,
         permanent: false
     });
+
+    // Fiber Taxonomy State
+    const [isFiberModalOpen, setIsFiberModalOpen] = useState(false);
+    const [editingFiber, setEditingFiber] = useState<CompositionOption | null>(null);
+    const [fiberName, setFiberName] = useState('');
+    const [fiberCategoryId, setFiberCategoryId] = useState('');
+    const [fiberDesc, setFiberDesc] = useState('');
+    const [fiberCare, setFiberCare] = useState('');
+
+    const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+    const [editingCat, setEditingCat] = useState<FiberCategory | null>(null);
+    const [catName, setCatName] = useState('');
+    const [catDesc, setCatDesc] = useState('');
 
     // Expanded rows for viewing care instructions
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -213,6 +245,14 @@ export default function AdminMaterialsPage() {
         });
     };
 
+    const filteredMaterials = React.useMemo(() => {
+        return materials.filter(m =>
+            m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            m.skuRef?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            m.compositions?.some(c => c.compositionName?.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    }, [materials, searchTerm]);
+
     // Group materials by category
     const groupedMaterials = React.useMemo(() => {
         const groups: Record<string, Material[]> = {
@@ -222,7 +262,7 @@ export default function AdminMaterialsPage() {
             other: []
         };
 
-        materials.forEach(m => {
+        filteredMaterials.forEach(m => {
             const cat = m.category?.toLowerCase() || 'other';
             if (groups[cat]) {
                 groups[cat].push(m);
@@ -232,7 +272,7 @@ export default function AdminMaterialsPage() {
         });
 
         return groups;
-    }, [materials]);
+    }, [filteredMaterials]);
 
     const categoryLabels: Record<string, { label: string; emoji: string; color: string }> = {
         natural: { label: 'Natural Fibers', emoji: '🌿', color: 'green' },
@@ -260,6 +300,71 @@ export default function AdminMaterialsPage() {
         setIsModalOpen(true);
     };
 
+    // --- TAXONOMY HANDLERS ---
+    const handleOpenCatModal = (cat?: FiberCategory) => {
+        if (cat) {
+            setEditingCat(cat);
+            setCatName(cat.name);
+            setCatDesc(cat.description || '');
+        } else {
+            setEditingCat(null);
+            setCatName('');
+            setCatDesc('');
+        }
+        setIsCatModalOpen(true);
+    };
+
+    const handleSaveCat = async () => {
+        if (!catName.trim()) { toast.error('Category name required'); return; }
+        try {
+            if (editingCat) {
+                await apiClient.updateVUFSCompositionCategory(editingCat.id, catName, catDesc);
+                toast.success('Category updated');
+            } else {
+                await apiClient.addVUFSCompositionCategory(catName, catDesc);
+                toast.success('Category added');
+            }
+            setIsCatModalOpen(false);
+            fetchReferences();
+        } catch (error) {
+            toast.error('Failed to save category');
+        }
+    };
+
+    const handleOpenFiberModal = (fiber?: CompositionOption) => {
+        if (fiber) {
+            setEditingFiber(fiber);
+            setFiberName(fiber.name);
+            setFiberCategoryId(fiber.categoryId);
+            setFiberDesc(fiber.description || '');
+            setFiberCare(fiber.careInstructions || '');
+        } else {
+            setEditingFiber(null);
+            setFiberName('');
+            setFiberCategoryId(availableCategories[0]?.id || '');
+            setFiberDesc('');
+            setFiberCare('');
+        }
+        setIsFiberModalOpen(true);
+    };
+
+    const handleSaveFiber = async () => {
+        if (!fiberName.trim() || !fiberCategoryId) { toast.error('Name and Category required'); return; }
+        try {
+            if (editingFiber) {
+                await apiClient.updateVUFSComposition(editingFiber.id, fiberName, fiberCategoryId, fiberDesc, fiberCare);
+                toast.success('Fiber updated');
+            } else {
+                await apiClient.addVUFSComposition(fiberName, fiberCategoryId, fiberDesc, fiberCare);
+                toast.success('Fiber added');
+            }
+            setIsFiberModalOpen(false);
+            fetchReferences();
+        } catch (error) {
+            toast.error('Failed to save fiber');
+        }
+    };
+
     // Auto-populate care instructions when name changes
     const handleNameChange = (newName: string) => {
         setName(newName);
@@ -278,7 +383,18 @@ export default function AdminMaterialsPage() {
             updated[index].percentage = Number(value);
         } else {
             updated[index].compositionId = value;
-            updated[index].compositionName = availableCompositions.find(c => c.id === value)?.name;
+            const fiber = availableCompositions.find(c => c.id === value);
+            updated[index].compositionName = fiber?.name;
+
+            // Inheritance logic: If a fiber has care instructions, offer to inherit them
+            if (fiber?.careInstructions) {
+                const currentDefault = getDefaultCareInstructions(name);
+                // Inherit if current instructions are empty or just the auto-filled default
+                if (!careInstructions || careInstructions === currentDefault) {
+                    setCareInstructions(fiber.careInstructions);
+                    toast.success(`Inheriting care logic from ${fiber.name}`, { icon: '✨', duration: 2000 });
+                }
+            }
         }
         setSelectedCompositions(updated);
     };
@@ -322,24 +438,34 @@ export default function AdminMaterialsPage() {
         }
     };
 
-    const handleDeleteClick = (id: string, permanent = false) => {
-        setDeleteModalState({ isOpen: true, id, permanent });
+    const handleDeleteClick = (id: string, type: 'material' | 'fiber' | 'category' = 'material', permanent = false, name: string = '') => {
+        setDeleteModalState({ isOpen: true, id, type, permanent, name });
     };
 
     const handleConfirmDelete = async () => {
         if (!deleteModalState.id) return;
         try {
-            if (deleteModalState.permanent) {
-                await apiClient.permanentlyDeleteVUFSMaterial(deleteModalState.id);
-                toast.success('Material permanently deleted');
-            } else {
-                await apiClient.deleteVUFSMaterial(deleteModalState.id);
-                toast.success('Material moved to trash');
+            if (deleteModalState.type === 'material') {
+                if (deleteModalState.permanent) {
+                    await apiClient.permanentlyDeleteVUFSMaterial(deleteModalState.id);
+                    toast.success('Material permanently deleted');
+                } else {
+                    await apiClient.deleteVUFSMaterial(deleteModalState.id);
+                    toast.success('Material moved to trash');
+                }
+            } else if (deleteModalState.type === 'fiber') {
+                await apiClient.deleteVUFSComposition(deleteModalState.id);
+                toast.success('Fiber deleted');
+                fetchReferences();
+            } else if (deleteModalState.type === 'category') {
+                await apiClient.deleteVUFSCompositionCategory(deleteModalState.id);
+                toast.success('Category deleted');
+                fetchReferences();
             }
-            setDeleteModalState({ ...deleteModalState, isOpen: false });
+            setDeleteModalState(prev => ({ ...prev, isOpen: false }));
             fetchData();
         } catch (error) {
-            toast.error('Failed to delete material');
+            toast.error('Failed to delete');
         }
     };
 
@@ -364,37 +490,158 @@ export default function AdminMaterialsPage() {
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
             {/* Header */}
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Materials Library</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Materials & Fibers</h1>
                     <p className="mt-2 text-sm text-gray-600">
-                        Manage fabric materials with care instructions for garment tags.
+                        Manage the physical makeup of all garments.
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <button
-                        onClick={() => setShowTrash(!showTrash)}
-                        className={`inline-flex items-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium transition-colors ${showTrash
-                            ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
-                            : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                            }`}
-                    >
-                        <ArchiveBoxXMarkIcon className="-ml-1 mr-2 h-5 w-5" />
-                        {showTrash ? 'View Active' : 'View Trash'}
-                    </button>
-                    {!showTrash && (
+                    {activeTab === 'library' && (
                         <button
-                            onClick={() => handleOpenModal()}
-                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                            onClick={() => setShowTrash(!showTrash)}
+                            className={`inline-flex items-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium transition-colors ${showTrash
+                                ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
+                                : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                                }`}
                         >
-                            <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-                            Add Material
+                            <ArchiveBoxXMarkIcon className="-ml-1 mr-2 h-5 w-5" />
+                            {showTrash ? 'View Active' : 'View Trash'}
                         </button>
                     )}
+                    <button
+                        onClick={() => {
+                            if (activeTab === 'library') handleOpenModal();
+                            else handleOpenFiberModal();
+                        }}
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                    >
+                        <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+                        Add {activeTab === 'library' ? 'Material' : 'Fiber'}
+                    </button>
                 </div>
             </div>
 
-            {showTrash ? (
+            {/* Primary Tabs and Search */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-200 mb-8 gap-4">
+                <nav className="-mb-px flex space-x-8">
+                    <button
+                        onClick={() => setActiveTab('library')}
+                        className={`group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-all ${activeTab === 'library'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                    >
+                        <RectangleStackIcon className={`-ml-0.5 mr-2 h-5 w-5 ${activeTab === 'library' ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                        Material Library
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('taxonomy')}
+                        className={`group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-all ${activeTab === 'taxonomy'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                    >
+                        <BeakerIcon className={`-ml-0.5 mr-2 h-5 w-5 ${activeTab === 'taxonomy' ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'}`} />
+                        Fiber Taxonomy
+                    </button>
+                </nav>
+
+                <div className="pb-3 md:pb-0">
+                    <div className="relative rounded-md shadow-sm max-w-xs">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <MagnifyingGlassIcon className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                        </div>
+                        <input
+                            type="text"
+                            className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg py-2"
+                            placeholder={activeTab === 'library' ? "Search materials..." : "Search fibers..."}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {activeTab === 'taxonomy' ? (
+                /* Fiber Taxonomy View */
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                        <div className="flex items-center gap-3">
+                            <FolderIcon className="h-6 w-6 text-indigo-600" />
+                            <div>
+                                <h2 className="text-lg font-bold text-indigo-900">Fiber Categories</h2>
+                                <p className="text-sm text-indigo-700">Group fibers into meaningful tags for your library.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => handleOpenCatModal()}
+                            className="text-sm font-medium text-indigo-700 hover:text-indigo-900 flex items-center gap-1"
+                        >
+                            <PlusIcon className="h-4 w-4" /> Add Category
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {availableCategories
+                            .filter(cat =>
+                                cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                availableCompositions.some(f => f.categoryId === cat.id && f.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                            )
+                            .map(cat => {
+                                const fibersInCategory = availableCompositions.filter(f =>
+                                    f.categoryId === cat.id &&
+                                    (f.name.toLowerCase().includes(searchTerm.toLowerCase()) || cat.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                                );
+                                return (
+                                    <div key={cat.id} className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-full">
+                                        <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50 rounded-t-xl">
+                                            <div className="flex items-center gap-2">
+                                                <TagIcon className="h-4 w-4 text-gray-400" />
+                                                <h3 className="font-bold text-gray-900">{cat.name}</h3>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => handleOpenCatModal(cat as any)} className="text-gray-400 hover:text-indigo-600 p-1 rounded-md transition-colors">
+                                                    <PencilSquareIcon className="h-4 w-4" />
+                                                </button>
+                                                <button onClick={() => handleDeleteClick(cat.id, 'category', false, cat.name)} className="text-gray-400 hover:text-red-600 p-1 rounded-md transition-colors">
+                                                    <TrashIcon className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="p-4 flex-grow space-y-3">
+                                            {fibersInCategory.map(fiber => (
+                                                <div key={fiber.id} className="group flex justify-between items-center p-2 rounded-lg hover:bg-indigo-50 transition-colors">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-medium text-gray-800">{fiber.name}</span>
+                                                        {fiber.careInstructions && (
+                                                            <span className="text-[10px] text-indigo-500 uppercase tracking-wider font-bold">Has Care Logic</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => handleOpenFiberModal(fiber)} className="text-indigo-600 hover:text-indigo-900 p-1" title="Edit Fiber">
+                                                            <PencilSquareIcon className="h-4 w-4" />
+                                                        </button>
+                                                        <button onClick={() => handleDeleteClick(fiber.id, 'fiber', false, fiber.name)} className="text-red-600 hover:text-red-900 p-1" title="Delete Fiber">
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <button
+                                                onClick={() => { handleOpenFiberModal(); setFiberCategoryId(cat.id); }}
+                                                className="w-full mt-2 py-2 border-2 border-dashed border-gray-100 rounded-lg text-xs font-medium text-gray-400 hover:border-indigo-200 hover:text-indigo-500 transition-all flex items-center justify-center gap-1"
+                                            >
+                                                <PlusIcon className="h-3 w-3" /> Add Fiber to {cat.name}
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                    </div>
+                </div>
+            ) : showTrash ? (
                 /* Trash View */
                 <div className="bg-white shadow overflow-hidden sm:rounded-lg">
                     <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md mx-4 mt-4">
@@ -420,7 +667,7 @@ export default function AdminMaterialsPage() {
                                         <ArrowPathIcon className="h-5 w-5" />
                                     </button>
                                     <button
-                                        onClick={() => handleDeleteClick(material.id, true)}
+                                        onClick={() => handleDeleteClick(material.id, 'material', true)}
                                         className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-full"
                                         title="Delete Permanently"
                                     >
@@ -493,8 +740,8 @@ export default function AdminMaterialsPage() {
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); toggleRowExpand(material.id); }}
                                                             className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${expandedRows.has(material.id)
-                                                                    ? 'bg-indigo-100 text-indigo-700'
-                                                                    : 'bg-gray-100 text-gray-600 hover:bg-indigo-50'
+                                                                ? 'bg-indigo-100 text-indigo-700'
+                                                                : 'bg-gray-100 text-gray-600 hover:bg-indigo-50'
                                                                 }`}
                                                             title="View care instructions"
                                                         >
@@ -512,7 +759,7 @@ export default function AdminMaterialsPage() {
                                                             <PencilSquareIcon className="h-5 w-5" />
                                                         </button>
                                                         <button
-                                                            onClick={() => handleDeleteClick(material.id)}
+                                                            onClick={() => handleDeleteClick(material.id, 'material')}
                                                             className="text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-50"
                                                             title="Delete"
                                                         >
@@ -554,7 +801,7 @@ export default function AdminMaterialsPage() {
             {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl">
                         <div className="flex justify-between items-center">
                             <h2 className="text-xl font-bold text-gray-900">
                                 {editingMaterial ? 'Edit Material' : 'Add Material'}
@@ -612,21 +859,21 @@ export default function AdminMaterialsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setCareInstructions(getDefaultCareInstructions(name))}
-                                    className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                                    className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium"
                                 >
                                     <SparklesIcon className="h-3 w-3" />
-                                    Auto-fill
+                                    Auto-fill from Global Library
                                 </button>
                             </div>
                             <textarea
                                 value={careInstructions}
                                 onChange={(e) => setCareInstructions(e.target.value)}
                                 rows={3}
-                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
                                 placeholder="e.g. Machine wash cold. Tumble dry low. Iron on medium heat."
                             />
-                            <p className="mt-1 text-xs text-gray-500">
-                                Care instructions will be auto-populated based on material type if left empty.
+                            <p className="mt-1 text-[10px] text-gray-400">
+                                Note: You can also choose fibers below to inherit their specific care instructions.
                             </p>
                         </div>
 
@@ -634,13 +881,22 @@ export default function AdminMaterialsPage() {
                         <div className="border-t pt-4">
                             <div className="flex justify-between items-center mb-2">
                                 <label className="block text-sm font-medium text-gray-700">Fiber Composition</label>
-                                <button
-                                    type="button"
-                                    onClick={addCompositionRow}
-                                    className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
-                                >
-                                    <PlusIcon className="w-4 h-4" /> Add Fiber
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenFiberModal()}
+                                        className="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1"
+                                    >
+                                        <PlusIcon className="w-3 h-3" /> New Fiber Type
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={addCompositionRow}
+                                        className="text-sm text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+                                    >
+                                        <PlusIcon className="w-4 h-4" /> Add Row
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
@@ -667,7 +923,7 @@ export default function AdminMaterialsPage() {
                                                 onChange={(e) => updateCompositionRow(index, 'percentage', e.target.value)}
                                                 className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none pr-6"
                                             />
-                                            <span className="absolute right-2 top-2 text-gray-400 text-xs">%</span>
+                                            <span className="absolute right-2 top-2 text-gray-400 text-xs font-bold font-outfit">%</span>
                                         </div>
                                         <button
                                             type="button"
@@ -679,10 +935,10 @@ export default function AdminMaterialsPage() {
                                     </div>
                                 ))}
                                 {selectedCompositions.length === 0 && (
-                                    <div className="text-sm text-gray-500 text-center py-2">No composition defined. Add a fiber.</div>
+                                    <div className="text-sm text-gray-500 text-center py-2 italic font-outfit">No composition defined. Add a fiber row.</div>
                                 )}
                                 {selectedCompositions.some(c => c.compositionId) && (
-                                    <div className={`text-right text-sm font-medium ${Math.abs(totalPercentage - 100) < 0.1 ? 'text-green-600' : 'text-orange-600'}`}>
+                                    <div className={`text-right text-sm font-bold font-outfit ${Math.abs(totalPercentage - 100) < 0.1 ? 'text-green-600' : 'text-orange-600'}`}>
                                         Total: {totalPercentage}%
                                     </div>
                                 )}
@@ -700,7 +956,7 @@ export default function AdminMaterialsPage() {
                             <button
                                 type="button"
                                 onClick={handleSave}
-                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+                                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md"
                             >
                                 {editingMaterial ? 'Save Changes' : 'Add Material'}
                             </button>
@@ -709,14 +965,113 @@ export default function AdminMaterialsPage() {
                 </div>
             )}
 
+            {/* Fiber Modal */}
+            {isFiberModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+                    <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-900">{editingFiber ? 'Edit Fiber' : 'Add New Fiber Type'}</h2>
+                            <button onClick={() => setIsFiberModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Fiber Name</label>
+                            <input
+                                type="text"
+                                value={fiberName}
+                                onChange={(e) => setFiberName(e.target.value)}
+                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder="e.g. Supima Cotton"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Hierarchy Category</label>
+                            <select
+                                value={fiberCategoryId}
+                                onChange={(e) => setFiberCategoryId(e.target.value)}
+                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                                <option value="">Select Category...</option>
+                                {availableCategories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                            <textarea
+                                value={fiberDesc}
+                                onChange={(e) => setFiberDesc(e.target.value)}
+                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
+                                rows={2}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Default Care Instructions (Inheritable)</label>
+                            <textarea
+                                value={fiberCare}
+                                onChange={(e) => setFiberCare(e.target.value)}
+                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm"
+                                rows={3}
+                                placeholder="e.g. Delicate wash only. Avoid high heat."
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <button onClick={() => setIsFiberModalOpen(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">Cancel</button>
+                            <button onClick={handleSaveFiber} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm text-sm font-medium transition-colors">Save Fiber</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Category Modal */}
+            {isCatModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[70]">
+                    <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-900">{editingCat ? 'Edit Category' : 'Add Fiber Category'}</h2>
+                            <button onClick={() => setIsCatModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
+                            <input
+                                type="text"
+                                value={catName}
+                                onChange={(e) => setCatName(e.target.value)}
+                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none"
+                                placeholder="e.g. Natural Plant Fibers"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea
+                                value={catDesc}
+                                onChange={(e) => setCatDesc(e.target.value)}
+                                className="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none"
+                                rows={2}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <button onClick={() => setIsCatModalOpen(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">Cancel</button>
+                            <button onClick={handleSaveCat} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm text-sm font-medium transition-colors">Save Category</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <ConfirmationModal
                 isOpen={deleteModalState.isOpen}
-                onClose={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
+                onClose={() => setDeleteModalState(prev => ({ ...prev, isOpen: false }))}
                 onConfirm={handleConfirmDelete}
-                title={deleteModalState.permanent ? "Delete Permanently?" : "Move to Trash?"}
-                message={deleteModalState.permanent
-                    ? "This action cannot be undone. The material will be permanently removed."
-                    : "The material will be moved to trash and can be restored later."}
+                title={deleteModalState.type === 'material' ? (deleteModalState.permanent ? "Delete Permanently?" : "Move to Trash?") : "Delete Item?"}
+                message={deleteModalState.type === 'material'
+                    ? (deleteModalState.permanent
+                        ? "This action cannot be undone. The material will be permanently removed."
+                        : "The material will be moved to trash and can be restored later.")
+                    : `Are you sure you want to delete ${deleteModalState.name}? This action cannot be undone.`}
             />
         </div>
     );

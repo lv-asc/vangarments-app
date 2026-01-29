@@ -7,9 +7,10 @@ import { apiClient } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { PencilIcon, TrashIcon, PlusIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import ItemCreation from '@/components/admin/ItemCreation';
-import { getImageUrl } from '@/utils/imageUrl';
 import ItemsFilter, { ItemsFilters } from '@/components/common/ItemsFilter';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { WardrobeItemCard } from './WardrobeItemCard';
+
 
 import { Switch } from '@/components/ui/Switch';
 
@@ -57,7 +58,17 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
 
     useEffect(() => {
         fetchWardrobeFacets(); // Fetch initial facets
-    }, []);
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (showModal) setShowModal(false);
+                if (showDeleteConfirm) setShowDeleteConfirm(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showModal, showDeleteConfirm]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -132,12 +143,7 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
         }
     };
 
-    const getItemImage = (item: any) => {
-        if (item.images?.[0]?.url) {
-            return getImageUrl(item.images[0].url);
-        }
-        return null;
-    };
+
 
     return (
         <Fragment>
@@ -192,94 +198,35 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                 ) : (
                     <>
                         {items.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {items.map(item => (
-                                    <div
-                                        key={item.id}
-                                        className="group bg-white rounded-xl overflow-hidden border border-gray-200 hover:shadow-xl transition-all duration-300 cursor-pointer relative"
-                                        onClick={() => router.push(`/wardrobe/${item.id}`)}
-                                    >
-                                        {/* Image Container */}
-                                        <div className="relative aspect-square bg-gray-50 overflow-hidden">
-                                            {(() => {
-                                                // Priority:
-                                                // 1. If showOriginalBackgrounds is FALSE (default) AND processed image exists -> Show most recent Processed
-                                                // 2. Else -> Show Original
-                                                let imageUrl = null;
-                                                const isProcessed = (img: any) => img.type === 'background_removed' || img.imageType === 'background_removed';
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                {items.map(item => {
+                                    // Prepare images specifically for the card based on toggle
+                                    const isProcessed = (img: any) => img.type === 'background_removed' || img.imageType === 'background_removed';
+                                    const processedImages = (item.images?.filter(isProcessed) || [])
+                                        .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+                                    const processedImage = processedImages[0];
+                                    const originalImages = item.images?.filter((img: any) => !isProcessed(img)) || [];
 
-                                                // Get ALL processed images and sort by createdAt descending to get the most recent
-                                                const processedImages = (item.images?.filter(isProcessed) || [])
-                                                    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-                                                const processedImage = processedImages[0]; // Most recent
+                                    // Create a modified item for the card with correctly prioritized images
+                                    const cardItem = {
+                                        ...item,
+                                        images: !showOriginalBackgrounds && processedImage
+                                            ? [processedImage, ...originalImages]
+                                            : [...originalImages, ...processedImages]
+                                    };
 
-                                                const originalImage = item.images?.find((img: any) => !isProcessed(img));
-
-                                                if (!showOriginalBackgrounds && processedImage) {
-                                                    imageUrl = getImageUrl(processedImage.url);
-                                                } else if (originalImage) {
-                                                    imageUrl = getImageUrl(originalImage.url);
-                                                } else if (item.images?.[0]) {
-                                                    // Fallback to first image if no specific type matched (legacy data)
-                                                    imageUrl = getImageUrl(item.images[0].url);
-                                                }
-
-                                                return imageUrl ? (
-                                                    <img
-                                                        src={imageUrl}
-                                                        alt={item.metadata?.name || 'Item'}
-                                                        className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${!showOriginalBackgrounds && processedImage ? 'p-2 object-contain' : ''}`}
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                                        <PhotoIcon className="h-12 w-12 opacity-20" />
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            {/* Hover Actions */}
-                                            <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                            <div className="absolute top-2 right-2 flex gap-1.5 translate-y-[-10px] opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); openModal(item); }}
-                                                    className="p-2 bg-white/95 backdrop-blur-sm rounded-full text-gray-600 hover:text-gray-900 shadow-lg border border-gray-100 transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <PencilIcon className="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(item.id); }}
-                                                    className="p-2 bg-white/95 backdrop-blur-sm rounded-full text-gray-600 hover:text-red-600 shadow-lg border border-gray-100 transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <TrashIcon className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Info */}
-                                        <div className="p-4">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
-                                                {item.brand?.brand || 'Generic'}
-                                            </p>
-                                            <h3 className="text-sm font-bold text-gray-900 truncate">
-                                                {item.metadata?.name || 'Untitled Piece'}
-                                            </h3>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                {item.metadata?.size && (
-                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                                        {item.metadata.size}
-                                                    </span>
-                                                )}
-                                                {item.ownership?.status && item.ownership.status !== 'owned' && (
-                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded">
-                                                        {item.ownership.status}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                    return (
+                                        <WardrobeItemCard
+                                            key={item.id}
+                                            item={cardItem}
+                                            onEdit={() => router.push(`/wardrobe/${item.vufsCode}/edit`)}
+                                            onDelete={() => handleDeleteClick(item.id)}
+                                            onToggleFavorite={() => { /* Not implemented yet */ }}
+                                            onToggleForSale={() => { /* Not implemented yet */ }}
+                                            onView={() => router.push(`/wardrobe/${item.vufsCode}`)}
+                                        />
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="text-center py-20 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
@@ -309,6 +256,11 @@ export default function WardrobeManagement({ }: WardrobeManagementProps) {
                                         mode="wardrobe"
                                         initialData={editingItem}
                                         isEditMode={!!editingItem}
+                                        onCancel={() => setShowModal(false)}
+                                        onSuccess={() => {
+                                            setShowModal(false);
+                                            fetchItems();
+                                        }}
                                     />
                                 </div>
                             </div>

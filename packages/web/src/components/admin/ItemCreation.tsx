@@ -18,9 +18,11 @@ interface ItemCreationProps {
     initialData?: any; // For edit mode
     isEditMode?: boolean;
     mode: 'sku' | 'wardrobe';
+    onCancel?: () => void;
+    onSuccess?: () => void;
 }
 
-export default function ItemCreation({ initialData, isEditMode = false, mode }: ItemCreationProps) {
+export default function ItemCreation({ initialData, isEditMode = false, mode, onCancel, onSuccess }: ItemCreationProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const queryBrandId = searchParams.get('brandId');
@@ -143,28 +145,143 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
         fetchAllVUFSData();
     }, [initialData]);
 
+    // Re-run initializeForm once VUFS data is loaded (for wardrobe items that need name-to-ID resolution)
+    useEffect(() => {
+        if (initialData && !loading && brandAccounts.length > 0) {
+            // Check if this is a wardrobe item needing re-initialization
+            const isWardrobeItem = initialData.brand?.brand && typeof initialData.brand.brand === 'string' && !initialData.brandId;
+            if (isWardrobeItem) {
+                initializeForm(initialData);
+            }
+        }
+    }, [loading, brandAccounts, apparels, colors, materials, sizes, conditions]);
+
     const initializeForm = async (sku: any) => {
         const metadata = sku.metadata || {};
+
+        // Detect if this is a wardrobe item (has brand.brand as string name) vs SKU (has brandId UUID)
+        const isWardrobeItem = sku.brand?.brand && typeof sku.brand.brand === 'string' && !sku.brandId;
+
+        // Helper to find ID by name from an options array
+        const findIdByName = (options: any[], name: string | undefined): string => {
+            if (!name) return '';
+            const match = options.find(o =>
+                o.name?.toLowerCase() === name.toLowerCase() ||
+                o.id?.toLowerCase() === name.toLowerCase()
+            );
+            return match?.id || '';
+        };
+
+        // For wardrobe items, we need to wait for VUFS data to be loaded to resolve names to IDs
+        // This function will be called again after fetchAllVUFSData completes if needed
+        // For now, set what we can and handle ID resolution in a follow-up effect
+
+        let resolvedBrandId = sku.brand?.id || sku.brandId || '';
+        let resolvedLineId = sku.lineId || sku.lineInfo?.id || '';
+        let resolvedLineName = sku.line || sku.lineInfo?.name || sku.brand?.line || '';
+        let resolvedApparelId = metadata.apparelId || '';
+        let resolvedStyleId = metadata.styleId || '';
+        let resolvedPatternId = metadata.patternId || '';
+        let resolvedMaterialId = metadata.materialId || '';
+        let resolvedFitId = metadata.fitId || '';
+        let resolvedSizeIds: string[] = metadata.sizeId ? [metadata.sizeId] : [];
+        let resolvedColorIds: string[] = metadata.colorId ? [metadata.colorId] : [];
+        let resolvedConditionId = sku.conditionId || metadata.conditionId || '';
+        let resolvedModelName = metadata.modelName || metadata.name || sku.name || '';
+        let resolvedDescription = metadata.description || sku.description || '';
+
+        let resolvedImages = (sku.images || []).map((img: any) => ({
+            ...img,
+            url: img.url || img.imageUrl // Normalize URL for MediaUploader
+        }));
+
+        // If it's a wardrobe item, we need to resolve names to IDs
+        if (isWardrobeItem) {
+            // Try to resolve brand by name
+            if (sku.brand?.brand && brandAccounts.length > 0) {
+                const brandMatch = brandAccounts.find(b =>
+                    b.name?.toLowerCase() === sku.brand.brand.toLowerCase()
+                );
+                if (brandMatch) {
+                    resolvedBrandId = brandMatch.id;
+                }
+            }
+
+            // Resolve apparel from category.page
+            if (sku.category?.page && apparels.length > 0) {
+                resolvedApparelId = findIdByName(apparels, sku.category.page);
+            }
+
+            // Resolve style from category.blueSubcategory or whiteSubcategory
+            if ((sku.category?.blueSubcategory || sku.category?.whiteSubcategory) && styles.length > 0) {
+                resolvedStyleId = findIdByName(styles, sku.category.blueSubcategory || sku.category.whiteSubcategory);
+            }
+
+            // Resolve color from metadata.colors
+            if (metadata.colors?.[0]?.primary && colors.length > 0) {
+                const colorId = findIdByName(colors, metadata.colors[0].primary);
+                if (colorId) resolvedColorIds = [colorId];
+            }
+
+            // Resolve material from metadata.composition
+            if (metadata.composition?.[0]?.material && materials.length > 0) {
+                resolvedMaterialId = findIdByName(materials, metadata.composition[0].material);
+            }
+
+            // Resolve size from metadata.size
+            if (metadata.size && sizes.length > 0) {
+                const sizeId = findIdByName(sizes, metadata.size);
+                if (sizeId) resolvedSizeIds = [sizeId];
+            }
+
+            // Resolve pattern
+            if (metadata.pattern && patterns.length > 0) {
+                resolvedPatternId = findIdByName(patterns, metadata.pattern);
+            }
+
+            // Resolve fit
+            if (metadata.fit && fits.length > 0) {
+                resolvedFitId = findIdByName(fits, metadata.fit);
+            }
+
+            // Resolve condition from condition.status or look up by name
+            if (sku.condition?.status && conditions.length > 0) {
+                // Map status codes to condition names
+                const statusToConditionName: Record<string, string> = {
+                    'dswt': 'New w/ Tag',
+                    'never_used': 'New',
+                    'used': 'Good'
+                };
+                const conditionName = statusToConditionName[sku.condition.status] || sku.condition.status;
+                const condMatch = conditions.find(c =>
+                    c.name?.toLowerCase().includes(conditionName.toLowerCase())
+                );
+                if (condMatch) resolvedConditionId = condMatch.id;
+            }
+
+            // Line is stored as brand.line (name) for wardrobe items
+            resolvedLineName = sku.brand?.line || '';
+        }
 
         // Populate standard fields
         setFormData(prev => ({
             ...prev,
-            brandId: sku.brand?.id || sku.brandId || '', // Note: we ideally need to map to VUFS brand, but ID usually matches in this codebase context or requires lookup by name
-            brandAccountId: sku.brandId || '',
-            lineId: sku.lineId || sku.lineInfo?.id || '',
-            line: sku.line || sku.lineInfo?.name || '',
-            collection: sku.collection || '',
-            modelName: metadata.modelName || sku.name,
+            brandId: resolvedBrandId,
+            brandAccountId: resolvedBrandId,
+            lineId: resolvedLineId,
+            line: resolvedLineName,
+            collection: sku.collection || metadata.collection || '',
+            modelName: resolvedModelName,
             genderId: metadata.genderId || '',
-            apparelId: metadata.apparelId || '',
-            styleId: metadata.styleId || '',
-            patternId: metadata.patternId || '',
-            materialId: metadata.materialId || '',
-            fitId: metadata.fitId || '',
-            selectedSizes: metadata.sizeId ? [metadata.sizeId] : [],
-            selectedColors: metadata.colorId ? [metadata.colorId] : [],
-            description: sku.description || '',
-            images: sku.images || [],
+            apparelId: resolvedApparelId,
+            styleId: resolvedStyleId,
+            patternId: resolvedPatternId,
+            materialId: resolvedMaterialId,
+            fitId: resolvedFitId,
+            selectedSizes: resolvedSizeIds,
+            selectedColors: resolvedColorIds,
+            description: resolvedDescription,
+            images: resolvedImages,
             videos: sku.videos || [],
             nameConfig: {
                 includeBrand: metadata.nameConfig?.includeBrand ?? true,
@@ -175,9 +292,9 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
                 includeMaterial: metadata.nameConfig?.includeMaterial ?? false,
                 includeFit: metadata.nameConfig?.includeFit ?? false
             },
-            generatedName: sku.name,
-            generatedCode: sku.code,
-            retailPriceBrl: sku.retailPriceBrl || '',
+            generatedName: sku.name || metadata.name || '',
+            generatedCode: sku.code || sku.vufsCode || '',
+            retailPriceBrl: sku.retailPriceBrl || metadata.pricing?.retailPrice || '',
             retailPriceUsd: sku.retailPriceUsd || '',
             retailPriceEur: sku.retailPriceEur || '',
             officialSkuOrInstance: metadata.officialSkuOrInstance || '',
@@ -190,35 +307,36 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
             jerseyNumber: metadata.sportContext?.jerseyNumber || '',
             playerName: metadata.sportContext?.playerName || '',
             status: metadata.sportContext?.status || 'licensed',
-            conditionId: sku.conditionId || metadata.conditionId || '',
+            conditionId: resolvedConditionId,
             releaseDate: sku.releaseDate ? new Date(sku.releaseDate).toISOString().split('T')[0] : '',
-            careInstructions: sku.careInstructions || '',
+            careInstructions: sku.careInstructions || metadata.careInstructions?.join(', ') || '',
             officialItemLink: sku.officialItemLink || ''
         }));
 
-        // Fetch measurements
-        try {
-            const skuMeasurements = await apiClient.getSKUMeasurements(sku.id);
-            const mState: Record<string, any> = {};
-            skuMeasurements.forEach((m: any) => {
-                const pomId = String(m.pom_id);
-                if (!mState[pomId]) mState[pomId] = {};
-                mState[pomId][m.size_id] = {
-                    value: m.value,
-                    tolerance: m.tolerance
-                };
-            });
-            setMeasurements(mState);
-            setSelectedPomIds(Object.keys(mState));
-        } catch (e) {
-            console.error('Failed to fetch SKU measurements', e);
+        // Fetch measurements (only for SKUs, not wardrobe items)
+        if (!isWardrobeItem && sku.id) {
+            try {
+                const skuMeasurements = await apiClient.getSKUMeasurements(sku.id);
+                const mState: Record<string, any> = {};
+                skuMeasurements.forEach((m: any) => {
+                    const pomId = String(m.pom_id);
+                    if (!mState[pomId]) mState[pomId] = {};
+                    mState[pomId][m.size_id] = {
+                        value: m.value,
+                        tolerance: m.tolerance
+                    };
+                });
+                setMeasurements(mState);
+                setSelectedPomIds(Object.keys(mState));
+            } catch (e) {
+                console.error('Failed to fetch SKU measurements', e);
+            }
         }
 
         // Trigger brand-dependent fetches if brandId exists
-        const brandId = sku.brand?.id || sku.brandId;
-        if (brandId) {
-            fetchLines(brandId);
-            fetchCollections(brandId);
+        if (resolvedBrandId) {
+            fetchLines(resolvedBrandId);
+            fetchCollections(resolvedBrandId);
         }
     };
 
@@ -546,7 +664,13 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
         if (formData.nameConfig.includeLine && line?.name) nameParts.push(line.name);
         if (formData.nameConfig.includeCollection && collectionName) nameParts.push(collectionName);
 
-        if (modelName) nameParts.push(modelName);
+        if (modelName) {
+            let cleanModelName = modelName;
+            if (formData.nameConfig.includeBrand && brand?.name && cleanModelName.toLowerCase().startsWith(brand.name.toLowerCase())) {
+                cleanModelName = cleanModelName.substring(brand.name.length).trim();
+            }
+            if (cleanModelName) nameParts.push(cleanModelName);
+        }
 
         if (formData.nameConfig.includeStyle && style?.name) nameParts.push(style.name);
         if (formData.nameConfig.includePattern && pattern?.name) nameParts.push(pattern.name);
@@ -684,7 +808,7 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
 
         const mappedStatus = selectedCondition ? (conditionMapping[selectedCondition.name] || 'used') : 'used';
 
-        return {
+        const payload: any = {
             category: {
                 page: apparel?.name || 'Apparel',
                 blueSubcategory: style?.name || apparel?.name || '',
@@ -740,6 +864,14 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
             },
             images: formData.images
         };
+
+        // Add officialItemLink to metadata if present
+        if (formData.officialItemLink) {
+            // @ts-ignore
+            payload.metadata.officialItemLink = formData.officialItemLink;
+        }
+
+        return payload;
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -757,6 +889,10 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
                 } else {
                     await apiClient.createWardrobeItem(payload);
                     toast.success('Wardrobe item created successfully');
+                }
+                if (onSuccess) {
+                    onSuccess();
+                    return;
                 }
                 router.push('/wardrobe');
                 return;
@@ -828,7 +964,13 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
             {/* Header with Miniature - Centered */}
             <div className="flex flex-col items-center text-center gap-4 mb-8 border-b pb-6 relative">
                 <div className="absolute left-0 top-0">
-                    <Button type="button" variant="secondary" onClick={() => router.push(mode === 'sku' ? '/admin/skus' : '/wardrobe')}>
+                    <Button type="button" variant="secondary" onClick={() => {
+                        if (onCancel) {
+                            onCancel();
+                        } else {
+                            router.push(mode === 'sku' ? '/admin/skus' : '/wardrobe');
+                        }
+                    }}>
                         Cancel
                     </Button>
                 </div>
@@ -1215,14 +1357,15 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Sizes (Select multiple)</label>
                         <SearchableCombobox
-                            multiple
+                            multiple={mode !== 'wardrobe'}
                             options={sizes.map(s => ({ id: s.id, name: s.name }))}
                             value={formData.selectedSizes.map(id => sizes.find(s => s.id === id)?.name).filter(Boolean) as string[]}
-                            onChange={(names: string[]) => {
+                            onChange={(val: string[] | string) => {
+                                const names = Array.isArray(val) ? val : [val];
                                 const selectedIds = names.map(name => sizes.find(s => s.name === name)?.id).filter(Boolean) as string[];
                                 setFormData(prev => ({ ...prev, selectedSizes: selectedIds }));
                             }}
-                            placeholder="Search and Select Sizes..."
+                            placeholder={mode === 'wardrobe' ? "Select Size" : "Search and Select Sizes..."}
                         />
                         {formData.selectedSizes.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-2">
@@ -1250,14 +1393,15 @@ export default function ItemCreation({ initialData, isEditMode = false, mode }: 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Colors (Select multiple)</label>
                         <SearchableCombobox
-                            multiple
+                            multiple={mode !== 'wardrobe'}
                             options={colors.map(c => ({ id: c.id, name: c.name, hex: c.hex }))}
                             value={formData.selectedColors.map(id => colors.find(c => c.id === id)?.name).filter(Boolean) as string[]}
-                            onChange={(names: string[]) => {
+                            onChange={(val: string[] | string) => {
+                                const names = Array.isArray(val) ? val : [val];
                                 const selectedIds = names.map(name => colors.find(c => c.name === name)?.id).filter(Boolean) as string[];
                                 setFormData(prev => ({ ...prev, selectedColors: selectedIds }));
                             }}
-                            placeholder="Search and Select Colors..."
+                            placeholder={mode === 'wardrobe' ? "Select Color" : "Search and Select Colors..."}
                         />
                         {formData.selectedColors.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-2">

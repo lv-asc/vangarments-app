@@ -25,6 +25,23 @@ interface WardrobeItem {
   isFavorite: boolean;
   isForSale: boolean;
   tags: string[];
+  vufsCode: string;
+  // Enriched fields
+  brandInfo?: {
+    name: string;
+    logo?: string;
+    slug?: string;
+  };
+  lineInfo?: {
+    id: string;
+    name: string;
+    logo?: string;
+  };
+  collectionInfo?: {
+    id: string;
+    name: string;
+    coverImage?: string;
+  };
 }
 
 interface WardrobeGridProps {
@@ -76,6 +93,10 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
         isFavorite: false, // Would need to fetch from API
         isForSale: false, // Would need to fetch from API
         tags: item.metadata?.tags || [],
+        vufsCode: item.vufsCode,
+        brandInfo: item.brandInfo,
+        lineInfo: item.lineInfo,
+        collectionInfo: item.collectionInfo,
       }));
 
       setItems(transformedItems);
@@ -90,7 +111,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
 
   const handleEdit = (item: WardrobeItem) => {
     // Navigate to edit page
-    window.location.href = `/wardrobe/${item.id}/edit`;
+    window.location.href = `/wardrobe/${item.vufsCode}/edit`;
   };
 
   const handleDeleteClick = (itemId: string) => {
@@ -126,7 +147,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
     if (onItemClick) {
       onItemClick(item);
     } else {
-      window.location.href = `/wardrobe/${item.id}`;
+      window.location.href = `/wardrobe/${item.vufsCode}`;
     }
   };
 

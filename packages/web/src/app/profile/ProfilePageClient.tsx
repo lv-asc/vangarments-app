@@ -2065,7 +2065,7 @@ export default function ProfilePage() {
                     {wardrobeItems.slice(0, 6).map((item) => (
                       <a
                         key={item.id}
-                        href={`/wardrobe/${item.id}`}
+                        href={`/wardrobe/${item.vufsCode}`}
                         className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
                       >
                         <div className="aspect-square bg-gray-100 relative">

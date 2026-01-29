@@ -1322,11 +1322,17 @@ class ApiClient {
     const response = await this.request<any>('/vufs-management/compositions');
     return (response as any).compositions || response.data || response;
   }
-  async addVUFSComposition(name: string, categoryId: string, description?: string) {
-    return this.request('/vufs-management/compositions', { method: 'POST', body: JSON.stringify({ name, categoryId, description }) });
+  async addVUFSComposition(name: string, categoryId: string, description?: string, careInstructions?: string) {
+    return this.request('/vufs-management/compositions', {
+      method: 'POST',
+      body: JSON.stringify({ name, categoryId, description, careInstructions })
+    });
   }
-  async updateVUFSComposition(id: string, name: string, categoryId?: string, description?: string) {
-    return this.request(`/vufs-management/compositions/${id}`, { method: 'PATCH', body: JSON.stringify({ name, categoryId, description }) });
+  async updateVUFSComposition(id: string, name: string, categoryId?: string, description?: string, careInstructions?: string) {
+    return this.request(`/vufs-management/compositions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name, categoryId, description, careInstructions })
+    });
   }
   async deleteVUFSComposition(id: string) { return this.request(`/vufs-management/compositions/${id}`, { method: 'DELETE' }); }
   async restoreVUFSComposition(id: string) { return this.request(`/vufs-management/compositions/${id}/restore`, { method: 'POST' }); }

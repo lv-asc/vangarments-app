@@ -12,6 +12,9 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import { getImageUrl } from '@/utils/imageUrl';
+import Link from 'next/link';
+
 
 interface WardrobeItem {
   id: string;
@@ -21,7 +24,7 @@ interface WardrobeItem {
   color: string;
   size?: string;
   condition: 'new' | 'excellent' | 'good' | 'fair' | 'poor';
-  images: string[];
+  images: any[]; // Changed from string[] to any[] to handle object images
   purchasePrice?: number;
   estimatedValue?: number;
   timesWorn: number;
@@ -29,6 +32,26 @@ interface WardrobeItem {
   isFavorite: boolean;
   isForSale: boolean;
   tags: string[];
+  vufsCode: string;
+  // Enriched fields
+  metadata?: {
+    name?: string;
+  };
+  brandInfo?: {
+    name: string;
+    logo?: string;
+    slug?: string;
+  };
+  lineInfo?: {
+    id: string;
+    name: string;
+    logo?: string;
+  };
+  collectionInfo?: {
+    id: string;
+    name: string;
+    coverImage?: string;
+  };
 }
 
 interface WardrobeItemCardProps {
@@ -111,14 +134,24 @@ export function WardrobeItemCard({
   };
 
   const getDisplayTitle = () => {
-    const brandStr = item.brand && typeof item.brand === 'string' ? `${item.brand}® ` :
-      item.brand && typeof item.brand === 'object' && (item.brand as any).brand ? `${(item.brand as any).brand}® ` : '';
-
-    const colorStr = typeof item.color === 'string' ? item.color : (item.color as any)?.name || '';
-    const sizeStr = item.size ? `[Size ${item.size}]` : '';
-
-    return `${brandStr}${item.name} (${colorStr}) ${sizeStr}`.trim();
+    return item.name || item.metadata?.name || 'Untitled Piece';
   };
+
+  const brandName = item.brandInfo?.name || item.brand || 'Generic';
+  const brandSlug = item.brandInfo?.slug || (brandName.toLowerCase().replace(/\s+/g, '-'));
+  const lineName = item.lineInfo?.name;
+  const lineLogo = item.lineInfo?.logo;
+  const collectionName = item.collectionInfo?.name;
+  const collectionImage = item.collectionInfo?.coverImage;
+
+  const getImgUrl = (img: any) => {
+    if (!img) return null;
+    if (typeof img === 'string') return img;
+    return img.url || img.imageUrl;
+  };
+
+  const firstImage = getImgUrl(item.images?.[0]);
+  const productUrl = `/wardrobe/${item.vufsCode}`;
 
   const displayColor = typeof item.color === 'string' ? item.color : (item.color as any)?.name || 'Unknown';
 
@@ -153,19 +186,25 @@ export function WardrobeItemCard({
         </div>
       )}
       {/* Image */}
-      <div className="relative aspect-[3/4] overflow-hidden">
-        <img
-          key={`img-${item.id}-${refreshKey}`}
-          src={(() => {
-            const base = item.images[0] || '/api/placeholder/300/400';
-            // Add cache-busting timestamp to bypass browser cache
-            if (!refreshKey) return base;
-            const sep = base.includes('?') ? '&' : '?';
-            return `${base}${sep}t=${refreshKey}`;
-          })()}
-          alt={item.name}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-        />
+      <div className="relative aspect-[3/4] overflow-hidden bg-gray-50">
+        {firstImage ? (
+          <img
+            key={`img-${item.id}-${refreshKey}`}
+            src={(() => {
+              const base = getImageUrl(firstImage) || '/api/placeholder/300/400';
+              // Add cache-busting timestamp to bypass browser cache
+              if (!refreshKey) return base;
+              const sep = base.includes('?') ? '&' : '?';
+              return `${base}${sep}t=${refreshKey}`;
+            })()}
+            alt={item.name}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <ShoppingBagIcon className="h-12 w-12" />
+          </div>
+        )}
 
         {/* Overlay */}
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300" />
@@ -271,14 +310,61 @@ export function WardrobeItemCard({
       </div>
 
       {/* Content */}
-      <div className="p-4">
+      <div className="p-4 space-y-2">
+        {/* Brand & Line Info */}
+        <div className="flex flex-col gap-1">
+          {/* Brand */}
+          <Link
+            href={`/brands/${brandSlug}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group/brand w-fit"
+          >
+            <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
+              {item.brandInfo?.logo ? (
+                <img src={getImageUrl(item.brandInfo.logo)} className="h-full w-full object-contain" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
+                  {brandName.charAt(0)}
+                </div>
+              )}
+            </div>
+            <span className="text-xs font-semibold text-gray-900 truncate max-w-[120px]">{brandName}</span>
+          </Link>
+
+          {/* Line (if exists) */}
+          {lineName && (
+            <div className="flex items-center gap-1.5 pl-0.5 opacity-80">
+              {lineLogo && (
+                <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                  <img src={getImageUrl(lineLogo)} className="h-full w-full object-contain" />
+                </div>
+              )}
+              <span className="text-[10px] font-medium text-gray-500 truncate">{lineName}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Collection Name */}
+        {collectionName && (
+          <div className="flex items-center gap-1.5 pl-0.5 opacity-80 decoration-slice">
+            {collectionImage && (
+              <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                <img src={getImageUrl(collectionImage)} className="h-full w-full object-contain" />
+              </div>
+            )}
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-50 text-gray-500">
+              {collectionName}
+            </span>
+          </div>
+        )}
+
         <div className="mb-2">
-          <h3 className="font-medium text-gray-900 leading-tight text-sm">
+          <h3 className="font-bold text-gray-900 leading-tight text-sm truncate">
             {getDisplayTitle()}
           </h3>
           {item.estimatedValue && (
-            <div className="mt-1 text-sm font-medium text-green-600">
-              R$ {item.estimatedValue.toFixed(2)}
+            <div className="mt-1 text-sm font-semibold text-gray-900">
+              R$ {item.estimatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
           )}
         </div>
@@ -287,22 +373,18 @@ export function WardrobeItemCard({
           <div className="flex items-center gap-3">
             {/* Color Circle */}
             <div
-              className="w-6 h-6 rounded-full border border-gray-200 shadow-sm"
+              className="w-4 h-4 rounded-full border border-gray-100 shadow-sm"
               style={{ backgroundColor: getColorHex(displayColor) }}
               title={displayColor}
             />
 
             {/* Size Badge */}
             {item.size && (
-              <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">
+              <span className="text-[10px] font-bold text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
                 {item.size}
               </span>
             )}
           </div>
-
-          <span className="text-xs text-gray-500">
-            {item.timesWorn}x usado
-          </span>
         </div>
       </div>
     </motion.div>
