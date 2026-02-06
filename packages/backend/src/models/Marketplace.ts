@@ -53,7 +53,7 @@ export class MarketplaceModel {
     ];
 
     const result = await db.query(query, values);
-    return this.mapToListing(result.rows[0]);
+    return this.findById(result.rows[0].id) as Promise<MarketplaceListing | any>;
   }
 
   /**
@@ -61,12 +61,38 @@ export class MarketplaceModel {
    */
   static async findById(id: string): Promise<MarketplaceListing | null> {
     const query = `
-      SELECT ml.*, vc.item_data as vufs_item_data, vc.domain as vufs_domain
+      SELECT ml.*, COALESCE(vi.vufs_code, vc.vufs_code) as vufs_code,
+             COALESCE(vi.metadata, vc.item_data) as vufs_item_data,
+             COALESCE(vi.category_hierarchy->>'domain', vc.domain) as vufs_domain
       FROM marketplace_listings ml
+      LEFT JOIN vufs_items vi ON ml.item_id = vi.id
       LEFT JOIN vufs_catalog vc ON ml.item_id = vc.id
       WHERE ml.id = $1
     `;
     const result = await db.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapToListing(result.rows[0]);
+  }
+
+  /**
+   * Find listing by Item Code (SKU)
+   */
+  static async findByCode(code: string): Promise<MarketplaceListing | null> {
+    const query = `
+      SELECT ml.*, COALESCE(vi.vufs_code, vc.vufs_code) as vufs_code,
+             COALESCE(vi.metadata, vc.item_data) as vufs_item_data,
+             COALESCE(vi.category_hierarchy->>'domain', vc.domain) as vufs_domain
+      FROM marketplace_listings ml
+      LEFT JOIN vufs_items vi ON ml.item_id = vi.id
+      LEFT JOIN vufs_catalog vc ON ml.item_id = vc.id
+      WHERE vi.vufs_code = $1 OR vc.vufs_code = $1
+      LIMIT 1
+    `;
+    const result = await db.query(query, [code]);
 
     if (result.rows.length === 0) {
       return null;
@@ -125,38 +151,41 @@ export class MarketplaceModel {
     const whereClause = whereConditions.join(' AND ');
 
     // Get total count
-    const countQuery = `SELECT COUNT(*) as total FROM marketplace_listings WHERE ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) as total FROM marketplace_listings ml WHERE ${whereClause}`;
     const countResult = await db.query(countQuery, values);
     const total = parseInt(countResult.rows[0].total);
 
     // Get listings with sorting
-    let orderBy = 'created_at DESC';
+    let orderBy = 'ml.created_at DESC';
     if (filters.sortBy) {
       switch (filters.sortBy) {
         case 'price_low':
-          orderBy = 'price ASC';
+          orderBy = 'ml.price ASC';
           break;
         case 'price_high':
-          orderBy = 'price DESC';
+          orderBy = 'ml.price DESC';
           break;
         case 'newest':
-          orderBy = 'created_at DESC';
+          orderBy = 'ml.created_at DESC';
           break;
         case 'most_watched':
-          orderBy = 'watchers DESC';
+          orderBy = 'ml.watchers DESC';
           break;
       }
     }
 
     const listingsQuery = `
-      SELECT * FROM marketplace_listings 
+      SELECT ml.*, COALESCE(vi.vufs_code, vc.vufs_code) as vufs_code
+      FROM marketplace_listings ml
+      LEFT JOIN vufs_items vi ON ml.item_id = vi.id
+      LEFT JOIN vufs_catalog vc ON ml.item_id = vc.id
       WHERE ${whereClause}
       ORDER BY ${orderBy}
       LIMIT $${paramCount} OFFSET $${paramCount + 1}
     `;
-    values.push(limit, offset);
+    const finalValues = [...values, limit, offset];
 
-    const listingsResult = await db.query(listingsQuery, values);
+    const listingsResult = await db.query(listingsQuery, finalValues);
     const listings = listingsResult.rows.map(row => this.mapToListing(row));
 
     return { listings, total };
@@ -166,15 +195,21 @@ export class MarketplaceModel {
    * Get seller's listings
    */
   static async getSellerListings(sellerId: string, status?: string): Promise<MarketplaceListing[]> {
-    let query = 'SELECT * FROM marketplace_listings WHERE seller_id = $1';
+    let query = `
+      SELECT ml.*, COALESCE(vi.vufs_code, vc.vufs_code) as vufs_code
+      FROM marketplace_listings ml
+      LEFT JOIN vufs_items vi ON ml.item_id = vi.id
+      LEFT JOIN vufs_catalog vc ON ml.item_id = vc.id
+      WHERE ml.seller_id = $1
+    `;
     const values: any[] = [sellerId];
 
     if (status) {
-      query += ' AND status = $2';
+      query += ' AND ml.status = $2';
       values.push(status);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY ml.created_at DESC';
 
     const result = await db.query(query, values);
     return result.rows.map(row => this.mapToListing(row));
@@ -413,6 +448,7 @@ export class MarketplaceModel {
     return {
       id: row.id,
       itemId: row.item_id,
+      itemCode: row.vufs_code,
       sellerId: row.seller_id,
       title: row.title,
       description: row.description,

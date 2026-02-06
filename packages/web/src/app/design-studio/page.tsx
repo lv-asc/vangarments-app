@@ -184,11 +184,11 @@ export default function DesignStudioPage() {
             } else {
                 const errorData = await res.json().catch(() => ({}));
                 console.error('Failed to create moodboard:', errorData);
-                alert(`Failed to create moodboard: ${errorData.error || res.statusText}`);
+                toast.error(`Failed to create moodboard: ${errorData.error || res.statusText}`);
             }
         } catch (error) {
             console.error('Error creating moodboard:', error);
-            alert('An unexpected error occurred while creating the moodboard.');
+            toast.error('An unexpected error occurred while creating the moodboard.');
         }
     };
 
@@ -223,11 +223,11 @@ export default function DesignStudioPage() {
                 setShowUploadMockupModal(false);
             } else {
                 const error = await res.json();
-                alert(`Upload failed: ${error.error || 'Unknown error'}. Details: ${error.details || ''}`);
+                toast.error(`Upload failed: ${error.error || 'Unknown error'}. Details: ${error.details || ''}`);
             }
         } catch (error) {
             console.error('Error uploading mockup:', error);
-            alert('Failed to upload mockup');
+            toast.error('Failed to upload mockup');
         }
     };
 
@@ -261,11 +261,11 @@ export default function DesignStudioPage() {
                 setShowUploadFileModal(false);
             } else {
                 const error = await res.json();
-                alert(`Upload failed: ${error.error || 'Unknown error'}`);
+                toast.error(`Upload failed: ${error.error || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Error uploading file:', error);
-            alert('Failed to upload file');
+            toast.error('Failed to upload file');
         }
     };
 

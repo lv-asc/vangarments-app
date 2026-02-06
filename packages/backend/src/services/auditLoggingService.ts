@@ -150,7 +150,7 @@ export class AuditLoggingService {
       metadata: {
         ...details,
         lgpdCompliant: true,
-        dataController: 'Vangarments Ltda',
+        dataController: 'Vangarments Ltd',
         timestamp: new Date().toISOString(),
       },
     });

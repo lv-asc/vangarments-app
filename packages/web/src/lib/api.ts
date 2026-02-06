@@ -221,7 +221,7 @@ class ApiClient {
 
     // Add timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30 second timeout
     config.signal = controller.signal;
 
     for (const interceptor of this.requestInterceptors) {
@@ -300,6 +300,17 @@ class ApiClient {
 
       if (error instanceof ApiErrorClass) {
         throw error;
+      }
+
+      // Handle abort error specially
+      if (error instanceof Error && error.name === 'AbortError') {
+        const timeoutError = new ApiErrorClass(
+          'Request timed out after 30 seconds. The server might be busy or down.',
+          'TIMEOUT_ERROR',
+          undefined,
+          0
+        );
+        throw timeoutError;
       }
 
       // Handle network errors
@@ -803,6 +814,27 @@ class ApiClient {
     return data.data;
   }
 
+  async uploadImage(file: File, category: 'wardrobe' | 'profiles' | 'marketplace' | 'social' | 'documents' = 'wardrobe'): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('image', file); // Field name must match backend middleware
+    formData.append('category', category);
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}/storage/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new ApiErrorClass(data.error?.message || 'Upload failed', 'UPLOAD_ERROR', data.error);
+    return data; // Backend returns { success: true, data: { url: ... }, url: ... }
+  }
+
   async adminGetUserFollows(userId: string): Promise<{ followers: any[], following: any[] }> {
     const response = await this.request<any>(`/admin/users/${userId}/follows`);
     return response.data;
@@ -1079,24 +1111,36 @@ class ApiClient {
     }
   }
 
-  async getWardrobeItems(filters?: Record<string, any>): Promise<{
-    items: any[];
-    total: number;
-    page: number;
-    totalPages: number;
-  }> {
-    const params = new URLSearchParams();
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined) {
-          params.append(key, value.toString());
+  async getWardrobeItems(filters: any = {}): Promise<{ items: any[]; total: number; page: number; totalPages: number }> {
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Special handling for the way WardrobeGrid passes filters
+          Object.entries(value as any).forEach(([subKey, subValue]) => {
+            if (subValue) queryParams.append(subKey, String(subValue));
+          });
+        } else {
+          queryParams.append(key, String(value));
         }
-      });
-    }
+      }
+    });
 
-    const endpoint = `/wardrobe/items${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await this.request<any>(endpoint);
-    return response as any; // Cast to any to bypass ApiResponse type definition mismatch
+    const response = await this.request<{ items: any[]; total: number; page: number; totalPages: number }>(
+      `/wardrobe/items?${queryParams.toString()}`
+    );
+    return response.data || response as any;
+  }
+
+  async getDiscoverItems(filters: any = {}): Promise<{ items: any[] }> {
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, String(value));
+      }
+    });
+    const response = await this.request<{ items: any[] }>(`/wardrobe/discover?${queryParams.toString()}`);
+    return response.data || response as any;
   }
 
   async getWardrobeItem(itemId: string): Promise<{ item: any }> {
@@ -1259,8 +1303,7 @@ class ApiClient {
   }
 
   async getVUFSCategories() {
-    const response = await this.request<any>('/vufs-management/categories');
-    return (response as any).categories || response.data || response;
+    return this.request<any>('/vufs-management/categories');
   }
 
   async getDeletedVUFSCategories() {
@@ -2294,6 +2337,236 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Outfit methods
+  async createOutfit(data: { name: string; description?: string; items: any[] }): Promise<any> {
+    return this.request<any>('/outfits', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getOutfits(): Promise<any[]> {
+    return this.request<any>('/outfits').then(res => (res as any).data || res);
+  }
+
+  async getOutfit(id: string): Promise<any> {
+    return this.request<any>(`/outfits/${id}`);
+  }
+
+  async getOutfitBySlug(slug: string): Promise<any> {
+    return this.request<any>(`/outfits/slug/${slug}`);
+  }
+
+  async getPublicOutfits(username: string): Promise<any[]> {
+    const response = await this.request<any>(`/outfits/public/${username}`);
+    return response as unknown as any[];
+  }
+
+  async getPublicOutfit(username: string, slug: string): Promise<any> {
+    return this.request<any>(`/outfits/public/${username}/${slug}`);
+  }
+
+  async updateOutfit(id: string, data: { name?: string; description?: string; items?: any[] }): Promise<any> {
+    return this.request<any>(`/outfits/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteOutfit(id: string): Promise<void> {
+    await this.request(`/outfits/${id}`, { method: 'DELETE' });
+  }
+
+  async getDeletedOutfits(): Promise<any[]> {
+    return this.request<any>('/outfits/trash').then(res => (res as any).data || res);
+  }
+
+  async restoreOutfit(id: string): Promise<void> {
+    await this.request(`/outfits/${id}/restore`, { method: 'POST' });
+  }
+
+  async permanentDeleteOutfit(id: string): Promise<void> {
+    await this.request(`/outfits/${id}/permanent`, { method: 'DELETE' });
+  }
+
+  // Homies methods
+  async getMyHomiesLists(): Promise<any[]> {
+    return this.request<any[]>('/homies/my').then(res => (res as any).data || res);
+  }
+
+  async createHomiesList(name: string, color?: string): Promise<any> {
+    return this.request<any>('/homies', {
+      method: 'POST',
+      body: JSON.stringify({ name, color }),
+    });
+  }
+
+  async updateHomiesList(id: string, name?: string, color?: string): Promise<any> {
+    return this.request<any>(`/homies/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, color }),
+    });
+  }
+
+  async deleteHomiesList(id: string): Promise<void> {
+    await this.request(`/homies/${id}`, { method: 'DELETE' });
+  }
+
+  async getHomiesListMembers(id: string): Promise<any[]> {
+    return this.request<any[]>(`/homies/${id}/members`).then(res => (res as any).data || res);
+  }
+
+  async searchHomiesCandidates(query: string = ''): Promise<any[]> {
+    return this.request<any[]>(`/homies/candidates?q=${encodeURIComponent(query)}`).then(res => (res as any).data || res);
+  }
+
+  async addHomiesMember(id: string, memberId: string, memberType: string = 'user'): Promise<void> {
+    await this.request(`/homies/${id}/members/${memberId}`, {
+      method: 'POST',
+      body: JSON.stringify({ memberType })
+    });
+  }
+
+  async removeMemberFromHomiesList(id: string, memberId: string): Promise<void> {
+    await this.request(`/homies/${id}/members/${memberId}`, { method: 'DELETE' });
+  }
+
+  async getTargetUserHomiesLists(userId: string): Promise<any[]> {
+    return this.request<any[]>(`/homies/user/${userId}`).then(res => (res as any).data || res);
+  }
+
+  // ============================================
+  // MARKETPLACE METHODS
+  // ============================================
+
+  async getMarketplaceListings(filters?: {
+    category?: string;
+    brand?: string;
+    condition?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    search?: string;
+    sortBy?: 'price_low' | 'price_high' | 'newest' | 'most_watched';
+    limit?: number;
+    offset?: number;
+  }): Promise<{ data: any[]; total: number }> {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, value.toString());
+        }
+      });
+    }
+    const endpoint = `/marketplace${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await this.request<any>(endpoint) as any;
+    return { data: response.data || [], total: response.total || 0 };
+  }
+
+  async getMarketplaceListing(id: string): Promise<any> {
+    const response = await this.request<any>(`/marketplace/${id}`);
+    return response.data;
+  }
+
+  async getMarketplaceListingByCode(code: string): Promise<any> {
+    const response = await this.request<any>(`/marketplace/u/${code}`);
+    return response.data;
+  }
+
+  async getSellerListings(userId: string, status?: string): Promise<{ listings: any[]; seller: any }> {
+    const params = status ? `?status=${status}` : '';
+    const response = await this.request<any>(`/marketplace/seller/${userId}${params}`);
+    return response.data;
+  }
+
+  async getMyMarketplaceListings(status?: string): Promise<any[]> {
+    const params = status ? `?status=${status}` : '';
+    const response = await this.request<any>(`/marketplace/my-listings${params}`);
+    return response.data || [];
+  }
+
+  async createMarketplaceListing(listingData: {
+    itemId: string;
+    title: string;
+    description?: string;
+    price: number;
+    condition: {
+      status: string;
+      description: string;
+      authenticity: string;
+    };
+    shipping: {
+      domestic: { available: boolean; cost: number; estimatedDays: number };
+      handlingTime: number;
+    };
+    images?: string[];
+    category?: string;
+    tags?: string[];
+    location?: { country: string; state?: string; city?: string };
+  }): Promise<any> {
+    const response = await this.request<any>('/marketplace', {
+      method: 'POST',
+      body: JSON.stringify(listingData),
+    });
+    return response.data;
+  }
+
+  async updateMarketplaceListing(id: string, updateData: Partial<{
+    title: string;
+    description: string;
+    price: number;
+    condition: any;
+    shipping: any;
+    images: string[];
+  }>): Promise<any> {
+    const response = await this.request<any>(`/marketplace/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+    return response.data;
+  }
+
+  async deleteMarketplaceListing(id: string): Promise<void> {
+    await this.request(`/marketplace/${id}`, { method: 'DELETE' });
+  }
+
+  async toggleMarketplaceLike(listingId: string): Promise<{ liked: boolean }> {
+    const response = await this.request<any>(`/marketplace/${listingId}/like`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async purchaseMarketplaceListing(listingId: string, purchaseData: {
+    shippingAddress: {
+      name: string;
+      street: string;
+      city: string;
+      state: string;
+      postalCode: string;
+      country: string;
+      phone?: string;
+    };
+    paymentMethod?: string;
+  }): Promise<any> {
+    const response = await this.request<any>(`/marketplace/${listingId}/purchase`, {
+      method: 'POST',
+      body: JSON.stringify(purchaseData),
+    });
+    return response.data;
+  }
+
+  async makeMarketplaceOffer(listingId: string, offerData: {
+    amount: number;
+    message?: string;
+  }): Promise<any> {
+    const response = await this.request<any>(`/marketplace/${listingId}/offer`, {
+      method: 'POST',
+      body: JSON.stringify(offerData),
+    });
+    return response.data;
   }
 }
 

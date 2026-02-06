@@ -120,17 +120,17 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
       onClose();
     } catch (error) {
       console.error('Failed to update profile:', error);
-      showAlert('Erro no Perfil', 'Erro ao salvar perfil. Tente novamente.');
+      showAlert('Profile Error', 'Error saving profile. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const visibilityOptions = [
-    { value: 'public', label: 'Público' },
-    { value: 'followers', label: 'Apenas Seguidores' },
-    { value: 'custom', label: 'Personalizado (Lista)' },
-    { value: 'hidden', label: 'Oculto' }
+    { value: 'public', label: 'Public' },
+    { value: 'followers', label: 'Followers Only' },
+    { value: 'custom', label: 'Custom (List)' },
+    { value: 'hidden', label: 'Hidden' }
   ];
 
   if (!isOpen) return null;
@@ -139,7 +139,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Editar Perfil</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Edit Profile</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -168,11 +168,11 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
               </label>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-gray-900">Foto do Perfil</h3>
-              <p className="text-sm text-gray-600">Recomendado: 320x320px</p>
+              <h3 className="text-sm font-medium text-gray-900">Profile Photo</h3>
+              <p className="text-sm text-gray-600">Recommended: 320x320px</p>
               <label className="mt-2 cursor-pointer">
                 <Button type="button" variant="outline" size="sm" as="span">
-                  Alterar Foto
+                  Change Photo
                 </Button>
                 <input
                   type="file"
@@ -186,11 +186,11 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
 
           {/* Basic Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Informações Básicas</h3>
+            <h3 className="text-lg font-medium text-gray-900">Basic Information</h3>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nome Completo
+                Full Name
               </label>
               <input
                 type="text"
@@ -203,7 +203,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bio (máx. 160 caracteres)
+                Bio (max. 160 characters)
               </label>
               <textarea
                 value={formData.bio}
@@ -211,22 +211,22 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                 maxLength={160}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00132d] focus:border-transparent resize-none"
-                placeholder="Conte um pouco sobre você e seu estilo..."
+                placeholder="Tell us about yourself and your style..."
               />
               <p className="text-xs text-gray-500 mt-1">
-                {formData.bio.length}/160 caracteres
+                {formData.bio.length}/160 characters
               </p>
             </div>
           </div>
 
           {/* Location */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Localização</h3>
+            <h3 className="text-lg font-medium text-gray-900">Location</h3>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cidade
+                  City
                 </label>
                 <input
                   type="text"
@@ -241,7 +241,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Estado
+                  State
                 </label>
                 <select
                   value={formData.location.state}
@@ -251,7 +251,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                   })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00132d] focus:border-transparent"
                 >
-                  <option value="">Selecione</option>
+                  <option value="">Select</option>
                   <option value="SP">São Paulo</option>
                   <option value="RJ">Rio de Janeiro</option>
                   <option value="MG">Minas Gerais</option>
@@ -269,7 +269,7 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
 
           {/* Social Links */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">Redes Sociais</h3>
+            <h3 className="text-lg font-medium text-gray-900">Social Networks</h3>
 
             <div className="space-y-3">
               <div>
@@ -337,14 +337,14 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
                 <LockClosedIcon className="h-5 w-5" />
-                Privacidade
+                Privacy
               </h3>
               <button
                 type="button"
                 onClick={() => setShowPrivacyDetails(!showPrivacyDetails)}
                 className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
               >
-                {showPrivacyDetails ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+                {showPrivacyDetails ? 'Hide details' : 'Show details'}
                 {showPrivacyDetails ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />}
               </button>
             </div>
@@ -354,15 +354,15 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
               <div>
                 <div className="font-medium text-gray-900 flex items-center gap-2">
                   {privacySettings.isPrivate ? (
-                    <><LockClosedIcon className="h-4 w-4" /> Conta Privada</>
+                    <><LockClosedIcon className="h-4 w-4" /> Private Account</>
                   ) : (
-                    <><GlobeAltIcon className="h-4 w-4" /> Conta Pública</>
+                    <><GlobeAltIcon className="h-4 w-4" /> Public Account</>
                   )}
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
                   {privacySettings.isPrivate
-                    ? 'Usuários precisam solicitar para seguir você'
-                    : 'Qualquer pessoa pode seguir você'}
+                    ? 'Users need to request to follow you'
+                    : 'Anyone can follow you'}
                 </p>
               </div>
               <button
@@ -381,11 +381,11 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
             {/* Feature Visibility Controls */}
             {showPrivacyDetails && (
               <div className="space-y-6 pt-4 border-t border-gray-200">
-                <p className="text-sm text-gray-600">Controle quem pode ver cada seção do seu perfil:</p>
+                <p className="text-sm text-gray-600">Control who can see each section of your profile:</p>
 
                 {[
-                  { id: 'wardrobe', label: 'Guarda-roupa' },
-                  { id: 'activity', label: 'Atividade' },
+                  { id: 'wardrobe', label: 'Wardrobe' },
+                  { id: 'activity', label: 'Activity' },
 
                 ].map((feature) => (
                   <div key={feature.id} className="space-y-2">
@@ -406,9 +406,9 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
                     </div>
                     {(privacySettings as any)[feature.id].visibility === 'custom' && (
                       <div className="bg-gray-50 p-3 rounded-lg border border-dashed border-gray-300">
-                        <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold">IDs de Usuários ou Usernames</p>
+                        <p className="text-[10px] text-gray-500 mb-1 uppercase font-bold">User IDs or Usernames</p>
                         <textarea
-                          placeholder="Ex: lv, joao, maria (um por linha ou vírgula)"
+                          placeholder="E.g.: lv, john, mary (one per line or comma)"
                           value={(privacySettings as any)[feature.id].exceptUsers?.join(', ') || ''}
                           onChange={(e) => {
                             const list = e.target.value.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
@@ -435,13 +435,13 @@ export function ProfileEditModal({ isOpen, onClose }: ProfileEditModalProps) {
               onClick={onClose}
               disabled={isLoading}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               type="submit"
               disabled={isLoading}
             >
-              {isLoading ? 'Salvando...' : 'Salvar Alterações'}
+              {isLoading ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>

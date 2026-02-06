@@ -169,7 +169,7 @@ export function CalendarClient() {
     }, [selectedYear, selectedMonth, isAuthenticated, selectedRegion, selectedType, filterEntity]);
 
     const handleSubscribe = async (eventId: string) => {
-        if (!isAuthenticated) return alert('Please login to subscribe to events');
+        if (!isAuthenticated) return toast.error('Please login to subscribe to events');
         try {
             const isSubscribed = subscriptions.includes(eventId);
             if (isSubscribed) {

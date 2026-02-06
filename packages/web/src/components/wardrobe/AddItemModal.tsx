@@ -136,20 +136,20 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
   };
 
   const categories = [
-    { value: 'tops', label: 'Blusas e Camisetas' },
-    { value: 'bottoms', label: 'Calças e Saias' },
-    { value: 'dresses', label: 'Vestidos' },
-    { value: 'shoes', label: 'Calçados' },
-    { value: 'accessories', label: 'Acessórios' },
-    { value: 'outerwear', label: 'Casacos e Jaquetas' },
+    { value: 'tops', label: 'Tops & Blouses' },
+    { value: 'bottoms', label: 'Pants & Skirts' },
+    { value: 'dresses', label: 'Dresses' },
+    { value: 'shoes', label: 'Footwear' },
+    { value: 'accessories', label: 'Accessories' },
+    { value: 'outerwear', label: 'Coats & Jackets' },
   ];
 
   const conditions = [
-    { value: 'new', label: 'Novo com etiqueta' },
-    { value: 'excellent', label: 'Excelente' },
-    { value: 'good', label: 'Bom' },
-    { value: 'fair', label: 'Regular' },
-    { value: 'poor', label: 'Desgastado' },
+    { value: 'new', label: 'New with tags' },
+    { value: 'excellent', label: 'Excellent' },
+    { value: 'good', label: 'Good' },
+    { value: 'fair', label: 'Fair' },
+    { value: 'poor', label: 'Worn' },
   ];
 
   return (
@@ -175,10 +175,10 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">
-                    Adicionar Nova Peça
+                    Add New Item
                   </h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    Passo {step} de 2
+                    Step {step} of 2
                   </p>
                 </div>
                 <button
@@ -194,23 +194,23 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-lg font-medium text-gray-900 mb-4">
-                        Adicionar Fotos
+                        Add Photos
                       </h3>
 
                       <div
                         {...getRootProps()}
                         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive
-                            ? 'border-[#00132d] bg-[#fff7d7]'
-                            : 'border-gray-300 hover:border-[#00132d] hover:bg-[#fff7d7]'
+                          ? 'border-[#00132d] bg-[#fff7d7]'
+                          : 'border-gray-300 hover:border-[#00132d] hover:bg-[#fff7d7]'
                           }`}
                       >
                         <input {...getInputProps()} />
                         <CloudArrowUpIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                         <p className="text-lg font-medium text-gray-900 mb-2">
-                          {isDragActive ? 'Solte as fotos aqui' : 'Arraste fotos ou clique para selecionar'}
+                          {isDragActive ? 'Drop photos here' : 'Drag photos or click to select'}
                         </p>
                         <p className="text-sm text-gray-600">
-                          PNG, JPG, WEBP até 10MB (máximo 5 fotos)
+                          PNG, JPG, WEBP up to 10MB (max 5 photos)
                         </p>
                       </div>
 
@@ -240,7 +240,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                         <div className="flex items-center">
                           <SparklesIcon className="h-5 w-5 text-blue-500 mr-3" />
                           <p className="text-sm text-blue-700">
-                            Nossa IA irá analisar as fotos e preencher automaticamente as informações da peça!
+                            Our AI will analyze the photos and automatically fill in the item information!
                           </p>
                         </div>
                         <label className="flex items-center">
@@ -250,27 +250,27 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                             onChange={(e) => setItemData(prev => ({ ...prev, useAI: e.target.checked }))}
                             className="mr-2"
                           />
-                          <span className="text-sm text-blue-700">Usar IA</span>
+                          <span className="text-sm text-blue-700">Use AI</span>
                         </label>
                       </div>
 
                       {aiSuggestions && (
                         <div className="p-4 bg-green-50 rounded-lg">
                           <h4 className="text-sm font-medium text-green-800 mb-2">
-                            Sugestões da IA:
+                            AI Suggestions:
                           </h4>
                           <div className="text-sm text-green-700 space-y-1">
                             {aiSuggestions.category && (
-                              <p>Categoria: {aiSuggestions.category.whiteSubcategory}</p>
+                              <p>Category: {aiSuggestions.category.whiteSubcategory}</p>
                             )}
                             {aiSuggestions.brand && (
-                              <p>Marca: {aiSuggestions.brand.brand}</p>
+                              <p>Brand: {aiSuggestions.brand.brand}</p>
                             )}
                             {aiSuggestions.metadata?.colors?.[0] && (
-                              <p>Cor: {aiSuggestions.metadata.colors[0].primary}</p>
+                              <p>Color: {aiSuggestions.metadata.colors[0].primary}</p>
                             )}
                             <p className="text-xs">
-                              Confiança: {aiSuggestions.confidence?.overall || 0}%
+                              Confidence: {aiSuggestions.confidence?.overall || 0}%
                             </p>
                           </div>
                         </div>
@@ -284,7 +284,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Nome da Peça *
+                          Item Name *
                         </label>
                         <input
                           type="text"
@@ -292,14 +292,14 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                           value={itemData.name}
                           onChange={handleInputChange}
                           className="fashion-input"
-                          placeholder="Ex: Blusa branca básica"
+                          placeholder="E.g.: Basic white blouse"
                           required
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Categoria *
+                          Category *
                         </label>
                         <select
                           name="category"
@@ -308,7 +308,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                           className="fashion-input"
                           required
                         >
-                          <option value="">Selecione uma categoria</option>
+                          <option value="">Select a category</option>
                           {categories.map(cat => (
                             <option key={cat.value} value={cat.value}>
                               {cat.label}
@@ -319,7 +319,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Marca
+                          Brand
                         </label>
                         <input
                           type="text"
@@ -333,7 +333,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Cor Principal
+                          Main Color
                         </label>
                         <input
                           type="text"
@@ -341,13 +341,13 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                           value={itemData.color}
                           onChange={handleInputChange}
                           className="fashion-input"
-                          placeholder="Ex: Branco, Azul marinho"
+                          placeholder="E.g.: White, Navy blue"
                         />
                       </div>
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Tamanho
+                          Size
                         </label>
                         <input
                           type="text"
@@ -361,7 +361,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Condição
+                          Condition
                         </label>
                         <select
                           name="condition"
@@ -379,7 +379,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Preço Pago (R$)
+                          Purchase Price ($)
                         </label>
                         <input
                           type="number"
@@ -394,7 +394,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Data da Compra
+                          Purchase Date
                         </label>
                         <input
                           type="date"
@@ -408,7 +408,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Descrição (Opcional)
+                        Description (Optional)
                       </label>
                       <textarea
                         name="description"
@@ -416,7 +416,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                         onChange={handleInputChange}
                         rows={3}
                         className="fashion-input"
-                        placeholder="Adicione detalhes sobre a peça, ocasiões de uso, etc."
+                        placeholder="Add details about the item, occasions to wear, etc."
                       />
                     </div>
                   </div>
@@ -431,7 +431,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                       variant="outline"
                       onClick={() => setStep(step - 1)}
                     >
-                      Voltar
+                      Back
                     </Button>
                   )}
                 </div>
@@ -441,7 +441,7 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                     variant="outline"
                     onClick={onClose}
                   >
-                    Cancelar
+                    Cancel
                   </Button>
 
                   {step === 1 ? (
@@ -449,14 +449,14 @@ export function AddItemModal({ isOpen, onClose, onSubmit }: AddItemModalProps) {
                       onClick={() => setStep(2)}
                       disabled={images.length === 0}
                     >
-                      Continuar
+                      Continue
                     </Button>
                   ) : (
                     <Button
                       onClick={handleSubmit}
                       disabled={loading || (!itemData.name && !itemData.useAI) || !itemData.category}
                     >
-                      {loading ? 'Processando...' : 'Adicionar Peça'}
+                      {loading ? 'Processing...' : 'Add Item'}
                     </Button>
                   )}
                 </div>

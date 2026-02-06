@@ -13,6 +13,7 @@ import {
     ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { processImageFiles } from '@/utils/heicConverter';
+import { toast } from 'react-hot-toast';
 import SearchableCombobox from '@/components/ui/Combobox';
 import {
     DndContext,
@@ -461,7 +462,7 @@ export default function AddWardrobeItemPage() {
         } catch (err) {
             console.error('Process images error:', err);
             setProcessing(false);
-            alert("Error processing images. Please try again.");
+            toast.error("Error processing images. Please try again.");
         }
     };
 

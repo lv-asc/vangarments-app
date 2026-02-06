@@ -1,0 +1,320 @@
+/*
+  # Content Publishing System Tables
+  
+  ## Tables Created
+  
+  1. **content_posts** - Main content storage (daily, motion, feed)
+  2. **content_views** - Story/content view tracking ("Seen" feature)
+  3. **content_drafts** - Draft posts for save/publish workflow
+  
+  ## Content Types
+  - daily: 24-hour temporary stories
+  - motion: Short-form looping videos
+  - feed: Permanent gallery posts
+*/
+
+-- Content posts table (main storage for all content types)
+CREATE TABLE IF NOT EXISTS content_posts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content_type VARCHAR(20) NOT NULL CHECK (content_type IN ('daily', 'motion', 'feed')),
+    
+    -- Media content
+    media_urls TEXT[] NOT NULL DEFAULT '{}',
+    media_type VARCHAR(20) NOT NULL CHECK (media_type IN ('image', 'video', 'mixed')),
+    thumbnail_url TEXT,
+    
+    -- Post details
+    caption TEXT,
+    aspect_ratio VARCHAR(10) DEFAULT '1:1' CHECK (aspect_ratio IN ('1:1', '4:5', '9:16')),
+    
+    -- Motion-specific: audio/sound reference
+    audio_id UUID,
+    audio_name TEXT,
+    audio_artist TEXT,
+    
+    -- Engagement stats
+    likes_count INTEGER DEFAULT 0,
+    comments_count INTEGER DEFAULT 0,
+    shares_count INTEGER DEFAULT 0,
+    views_count INTEGER DEFAULT 0,
+    
+    -- Visibility and status
+    visibility VARCHAR(20) DEFAULT 'public' CHECK (visibility IN ('public', 'followers', 'private')),
+    is_archived BOOLEAN DEFAULT FALSE,
+    
+    -- Daily-specific: expiration
+    expires_at TIMESTAMP,
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Content views table (for "Seen" tracking on Daily stories)
+CREATE TABLE IF NOT EXISTS content_views (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    content_id UUID NOT NULL REFERENCES content_posts(id) ON DELETE CASCADE,
+    viewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    viewed_at TIMESTAMP DEFAULT NOW(),
+    
+    UNIQUE(content_id, viewer_id)
+);
+
+-- Content drafts table (for save to drafts feature)
+CREATE TABLE IF NOT EXISTS content_drafts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content_type VARCHAR(20) NOT NULL CHECK (content_type IN ('daily', 'motion', 'feed')),
+    
+    -- Draft data stored as JSONB for flexibility
+    draft_data JSONB NOT NULL DEFAULT '{}',
+    
+    -- Media that's been uploaded but not published
+    media_urls TEXT[] DEFAULT '{}',
+    thumbnail_url TEXT,
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Content post likes (separate from existing post_likes for new content system)
+CREATE TABLE IF NOT EXISTS content_likes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    content_id UUID NOT NULL REFERENCES content_posts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    
+    UNIQUE(content_id, user_id)
+);
+
+-- Content comments
+CREATE TABLE IF NOT EXISTS content_comments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    content_id UUID NOT NULL REFERENCES content_posts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL CHECK (length(content) <= 500),
+    parent_comment_id UUID REFERENCES content_comments(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for content_posts
+CREATE INDEX IF NOT EXISTS idx_content_posts_user_id ON content_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_content_posts_type ON content_posts(content_type);
+CREATE INDEX IF NOT EXISTS idx_content_posts_visibility ON content_posts(visibility);
+CREATE INDEX IF NOT EXISTS idx_content_posts_created_at ON content_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_content_posts_expires_at ON content_posts(expires_at) WHERE expires_at IS NOT NULL;
+
+-- Indexes for content_views
+CREATE INDEX IF NOT EXISTS idx_content_views_content_id ON content_views(content_id);
+CREATE INDEX IF NOT EXISTS idx_content_views_viewer_id ON content_views(viewer_id);
+
+-- Indexes for content_drafts
+CREATE INDEX IF NOT EXISTS idx_content_drafts_user_id ON content_drafts(user_id);
+CREATE INDEX IF NOT EXISTS idx_content_drafts_type ON content_drafts(content_type);
+
+-- Indexes for content_likes
+CREATE INDEX IF NOT EXISTS idx_content_likes_content_id ON content_likes(content_id);
+CREATE INDEX IF NOT EXISTS idx_content_likes_user_id ON content_likes(user_id);
+
+-- Indexes for content_comments
+CREATE INDEX IF NOT EXISTS idx_content_comments_content_id ON content_comments(content_id);
+CREATE INDEX IF NOT EXISTS idx_content_comments_user_id ON content_comments(user_id);
+
+-- Update triggers
+CREATE TRIGGER update_content_posts_updated_at BEFORE UPDATE ON content_posts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_content_drafts_updated_at BEFORE UPDATE ON content_drafts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_content_comments_updated_at BEFORE UPDATE ON content_comments
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Enable RLS
+ALTER TABLE content_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE content_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE content_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE content_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE content_comments ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for content_posts
+CREATE POLICY "Users can view public content"
+  ON content_posts FOR SELECT
+  TO authenticated
+  USING (visibility = 'public' AND (expires_at IS NULL OR expires_at > NOW()));
+
+CREATE POLICY "Users can view own content"
+  ON content_posts FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view followers-only content if following"
+  ON content_posts FOR SELECT
+  TO authenticated
+  USING (
+    visibility = 'followers' AND
+    (expires_at IS NULL OR expires_at > NOW()) AND
+    EXISTS (
+      SELECT 1 FROM user_follows
+      WHERE user_follows.following_id = content_posts.user_id
+      AND user_follows.follower_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can create content"
+  ON content_posts FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own content"
+  ON content_posts FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own content"
+  ON content_posts FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- RLS Policies for content_views
+CREATE POLICY "Content owners can see who viewed"
+  ON content_views FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM content_posts
+      WHERE content_posts.id = content_views.content_id
+      AND content_posts.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can record their views"
+  ON content_views FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = viewer_id);
+
+-- RLS Policies for content_drafts
+CREATE POLICY "Users can view own drafts"
+  ON content_drafts FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create drafts"
+  ON content_drafts FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own drafts"
+  ON content_drafts FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own drafts"
+  ON content_drafts FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- RLS Policies for content_likes
+CREATE POLICY "Users can view all content likes"
+  ON content_likes FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Users can like content"
+  ON content_likes FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can unlike content"
+  ON content_likes FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- RLS Policies for content_comments
+CREATE POLICY "Users can view comments on visible content"
+  ON content_comments FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM content_posts
+      WHERE content_posts.id = content_comments.content_id
+      AND (
+        content_posts.visibility = 'public' OR
+        content_posts.user_id = auth.uid() OR
+        (content_posts.visibility = 'followers' AND EXISTS (
+          SELECT 1 FROM user_follows
+          WHERE user_follows.following_id = content_posts.user_id
+          AND user_follows.follower_id = auth.uid()
+        ))
+      )
+    )
+  );
+
+CREATE POLICY "Users can create comments"
+  ON content_comments FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own comments"
+  ON content_comments FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own comments"
+  ON content_comments FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Function to update engagement counts
+CREATE OR REPLACE FUNCTION update_content_likes_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE content_posts SET likes_count = likes_count + 1 WHERE id = NEW.content_id;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE content_posts SET likes_count = likes_count - 1 WHERE id = OLD.content_id;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION update_content_comments_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE content_posts SET comments_count = comments_count + 1 WHERE id = NEW.content_id;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE content_posts SET comments_count = comments_count - 1 WHERE id = OLD.content_id;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION update_content_views_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE content_posts SET views_count = views_count + 1 WHERE id = NEW.content_id;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Triggers for engagement count updates
+CREATE TRIGGER content_likes_count_trigger
+    AFTER INSERT OR DELETE ON content_likes
+    FOR EACH ROW EXECUTE FUNCTION update_content_likes_count();
+
+CREATE TRIGGER content_comments_count_trigger
+    AFTER INSERT OR DELETE ON content_comments
+    FOR EACH ROW EXECUTE FUNCTION update_content_comments_count();
+
+CREATE TRIGGER content_views_count_trigger
+    AFTER INSERT ON content_views
+    FOR EACH ROW EXECUTE FUNCTION update_content_views_count();

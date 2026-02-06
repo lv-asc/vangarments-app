@@ -18,8 +18,8 @@ export default function SquadModal({ orgId, deptId, onClose, onSuccess }: SquadM
     const [formData, setFormData] = useState<Partial<SportSquad>>({
         name: '',
         slug: '',
-        ageGroup: 'Open',
-        gender: 'Mens',
+        ageGroup: 'open' as AgeGroup,
+        gender: 'mens' as SquadGender,
     });
     const [loading, setLoading] = useState(false);
 

@@ -172,7 +172,7 @@ export default function EventsManagementClient() {
                                             <div className="flex items-center gap-1">
                                                 <CalendarDaysIconSolid className="h-4 w-4 text-gray-400" />
                                                 <span>
-                                                    {new Date(event.startDate).toLocaleDateString()}
+                                                    {event.startDate ? new Date(event.startDate).toLocaleDateString() : 'TBD'}
                                                     {event.endDate && ` - ${new Date(event.endDate).toLocaleDateString()}`}
                                                 </span>
                                             </div>

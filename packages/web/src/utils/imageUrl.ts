@@ -65,8 +65,8 @@ export function getImageUrl(path: string | undefined | null): string {
     cleanPath = cleanPath.substring(1);
   }
 
-  // Remove storage prefix if present
-  if (cleanPath.startsWith('storage/')) {
+  // Remove ALL storage prefixes (handles corrupted double storage/storage data)
+  while (cleanPath.startsWith('storage/')) {
     cleanPath = cleanPath.substring(8);
   }
 

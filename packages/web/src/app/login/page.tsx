@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthWrapper';
 import { useNavigation } from '@/hooks/useNavigation';
 import { GoogleButton } from '@/components/auth/GoogleButton';
@@ -75,9 +76,9 @@ export default function LoginPage() {
         throw new Error(data.error?.message || 'Failed to resend verification email');
       }
 
-      alert('Verification email sent! Please check your inbox.');
+      toast.success('Verification email sent! Please check your inbox.');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setResendLoading(false);
     }

@@ -23,6 +23,7 @@ import { SocialIcon } from '@/components/ui/social-icons';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { getSocialLinkLabel } from '@/lib/socialLinkUtils';
 import { Modal } from '@/components/ui/Modal';
+import { toast } from 'react-hot-toast';
 
 interface UserProfile {
     id: string;
@@ -55,6 +56,7 @@ interface UserProfile {
     socialLinks: { platform: string; url: string }[];
     roles: string[];
     verificationStatus?: string;
+    homiesLists?: any[];
     privacySettings?: {
         isPrivate?: boolean;
         wardrobe?: { visibility: 'public' | 'followers' | 'custom' | 'hidden'; exceptUsers?: string[] };
@@ -66,6 +68,7 @@ interface UserProfile {
 const ProfileContext = createContext<{
     profile: UserProfile | null;
     followStatus: { isFollowing: boolean; isFollower?: boolean; status?: 'pending' | 'accepted' };
+    homiesLists: any[];
     loading: boolean;
     followLoading: boolean;
     handleFollowClick: () => Promise<void>;
@@ -76,6 +79,23 @@ export const useProfile = () => {
     const context = useContext(ProfileContext);
     if (!context) throw new Error('useProfile must be used within a ProfileProvider');
     return context;
+};
+
+// --- Homies Badge Component ---
+const HomiesBadge = ({ list }: { list: any }) => {
+    return (
+        <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm"
+            style={{
+                backgroundColor: list.color + '20', // 20% opacity
+                color: list.color,
+                border: `1px solid ${list.color}40` // 40% opacity
+            }}
+        >
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: list.color }} />
+            {list.name}
+        </div>
+    );
 };
 
 export default function UserProfileLayout({
@@ -100,10 +120,9 @@ export default function UserProfileLayout({
     const [isMutualsModalOpen, setIsMutualsModalOpen] = useState(false);
     const [allMutualConnections, setAllMutualConnections] = useState<any[]>([]);
     const [loadingMutuals, setLoadingMutuals] = useState(false);
+    const [homiesLists, setHomiesLists] = useState<any[]>([]);
 
     const isOwnProfile = user?.id === profile?.id;
-
-
 
     useEffect(() => {
         async function loadProfile() {
@@ -118,6 +137,16 @@ export default function UserProfileLayout({
                 try {
                     const status = await apiClient.getFollowRelationship(data.profile.id);
                     setFollowStatus(status);
+
+                    // Fetch homies lists if viewing someone else's profile
+                    if (user?.id && data.profile.id !== user.id) {
+                        try {
+                            const lists = await apiClient.getTargetUserHomiesLists(data.profile.id);
+                            setHomiesLists(lists || []);
+                        } catch (homieErr) {
+                            console.error('Failed to load homies lists:', homieErr);
+                        }
+                    }
                 } catch (e) {
                     // Not logged in or error, ignore
                 }
@@ -130,7 +159,7 @@ export default function UserProfileLayout({
         }
 
         loadProfile();
-    }, [username]);
+    }, [username, user?.id]);
 
     // Load mutual connections
     useEffect(() => {
@@ -180,7 +209,7 @@ export default function UserProfileLayout({
             if (err.status === 401) {
                 router.push('/login');
             } else {
-                alert(err.message || 'Failed to update follow status');
+                toast.error(err.message || 'Failed to update follow status');
             }
         } finally {
             setFollowLoading(false);
@@ -284,7 +313,7 @@ export default function UserProfileLayout({
     };
 
     return (
-        <ProfileContext.Provider value={{ profile, followStatus, loading, followLoading, handleFollowClick, canViewSection }}>
+        <ProfileContext.Provider value={{ profile, followStatus, homiesLists, loading, followLoading, handleFollowClick, canViewSection }}>
             <div className="container mx-auto px-4 py-8">
                 <Link
                     href=".."
@@ -377,6 +406,13 @@ export default function UserProfileLayout({
                                         </h1>
                                         <p className="text-gray-500">@{profile.username}</p>
                                     </div>
+                                    {homiesLists.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {homiesLists.map(list => (
+                                                <HomiesBadge key={list.id} list={list} />
+                                            ))}
+                                        </div>
+                                    )}
                                     {!isOwnProfile && (
                                         <div className="flex gap-3">
                                             <button
@@ -584,3 +620,4 @@ export default function UserProfileLayout({
         </ProfileContext.Provider>
     );
 }
+

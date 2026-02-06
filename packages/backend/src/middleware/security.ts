@@ -116,7 +116,7 @@ export const lgpdCompliance = (req: Request, res: Response, next: NextFunction) 
   // Add LGPD compliance headers
   res.setHeader('X-Data-Protection', 'LGPD-Compliant');
   res.setHeader('X-Privacy-Policy', 'https://vangarments.com/privacy');
-  res.setHeader('X-Data-Controller', 'Vangarments Ltda');
+  res.setHeader('X-Data-Controller', 'Vangarments Ltd');
 
   // Log data processing activities for LGPD audit trail
   if (req.method !== 'GET' && req.user) {

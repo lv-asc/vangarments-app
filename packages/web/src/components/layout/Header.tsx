@@ -32,7 +32,8 @@ import {
   RectangleStackIcon,
   Cog6ToothIcon,
   UserCircleIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  PlusCircleIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthWrapper';
@@ -45,6 +46,7 @@ import { NotificationBadge } from '@/components/ui/NotificationBadge';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import SwitchAccountModal from '@/components/profile/SwitchAccountModal';
+import { ContentCreationModal } from '@/components/content/ContentCreationModal';
 // import { useRecentPages } from '@/components/providers/RecentPagesProvider'; // Removed unused import
 import { AnteroomAPI } from '@/lib/anteroomApi';
 
@@ -54,7 +56,7 @@ export function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isWardrobeOpen, setIsWardrobeOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { user, isAuthenticated, logout, activeAccount, setActiveAccount, isSwitchAccountModalOpen, setIsSwitchAccountModalOpen } = useAuth();
+  const { user, isAuthenticated, logout, activeAccount, setActiveAccount, isSwitchAccountModalOpen, setIsSwitchAccountModalOpen, isLoading } = useAuth();
   const { navigate, currentPath, isNavigating } = useNavigation();
   const { t } = useTranslation();
   const {
@@ -63,6 +65,8 @@ export function Header() {
     notificationPreferences
   } = useNotifications();
   const [anteroomCount, setAnteroomCount] = useState(0);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createType, setCreateType] = useState('feed');
   /* const { recentPages } = useRecentPages(); */ // Removed unused hook
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
 
@@ -100,7 +104,9 @@ export function Header() {
   const navigation = [
     { name: 'Search', href: '/search', icon: MagnifyingGlassIcon },
     { name: t('wardrobe'), href: '/wardrobe', icon: TagIcon },
+    { name: 'Outfits', href: '/outfits', icon: RectangleStackIcon },
     { name: 'Design Studio', href: '/design-studio', icon: SwatchIcon },
+    { name: 'Marketplace', href: '/marketplace', icon: BuildingStorefrontIcon },
     { name: 'DMs', href: '/messages', icon: ChatBubbleLeftRightIcon },
     { name: 'Calendar', href: '/calendar', icon: CalendarDaysIcon },
   ];
@@ -247,6 +253,18 @@ export function Header() {
 
                 const isWardrobe = link.name === t('wardrobe');
 
+                if (link.isCreate) {
+                  return (
+                    <button
+                      key={link.name}
+                      onClick={() => setIsCreateModalOpen(true)}
+                      className="focus:outline-none"
+                    >
+                      {content}
+                    </button>
+                  );
+                }
+
                 if (isSearch) {
                   return (
                     <div
@@ -362,11 +380,20 @@ export function Header() {
 
             {/* Desktop User Menu or Auth Buttons */}
             <div className="ml-6 hidden lg:flex items-center space-x-3">
-              {/* Recent Pages Dropdown Removed */}
-
-              {/* LanguageSelector Removed */}
-
-              {isAuthenticated && user ? (
+              {isLoading ? (
+                // Loading Skeleton for Header Auth Section
+                <div className="flex items-center space-x-3 animate-pulse">
+                  <div className="h-9 w-9 bg-gray-200 rounded-lg"></div>
+                  <div className="h-9 w-9 bg-gray-200 rounded-lg"></div>
+                  <div className="flex items-center space-x-2 p-1.5">
+                    <div className="h-8 w-8 bg-gray-200 rounded-full"></div>
+                    <div className="hidden xl:flex flex-col space-y-1">
+                      <div className="h-3 w-20 bg-gray-200 rounded"></div>
+                      <div className="h-2 w-16 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+              ) : isAuthenticated && user ? (
                 <>
                   {entityNavigation.length > 0 && (
                     <div className="relative">
@@ -706,6 +733,11 @@ export function Header() {
         </nav>
 
         {/* Global Modals */}
+        <ContentCreationModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          defaultType={createType}
+        />
         <SwitchAccountModal
           isOpen={isSwitchAccountModalOpen}
           onClose={() => setIsSwitchAccountModalOpen(false)}

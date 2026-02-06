@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { toast } from 'react-hot-toast';
 
 interface ConfigurationBackup {
   id: string;
@@ -46,7 +47,7 @@ export function BackupManager() {
     setRolling(true);
     try {
       const data = await apiClient.post<{ message: string }>(`/configuration/rollback/${rollbackConfirm.backupId}`);
-      alert(data.message);
+      toast.success(data.message);
 
       // Reload backups to show the new backup created during rollback
       await loadBackups();
@@ -61,7 +62,7 @@ export function BackupManager() {
   const handleReloadConfiguration = async () => {
     try {
       const data = await apiClient.post<{ message: string }>('/configuration/reload');
-      alert(data.message);
+      toast.success(data.message);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to reload configuration');
     }

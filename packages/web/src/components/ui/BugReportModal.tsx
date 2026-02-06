@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { Button } from './Button';
 import { apiClient } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface BugReportModalProps {
   isOpen: boolean;
@@ -75,7 +76,7 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
       }, 2000);
     } catch (error) {
       console.error('Failed to submit bug report:', error);
-      alert('Falha ao enviar relatório de bug. Tente novamente.');
+      toast.error('Failed to submit bug report. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -112,10 +113,10 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
             </svg>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Relatório Enviado!
+            Report Submitted!
           </h3>
           <p className="text-gray-600">
-            Obrigado por reportar o problema. Nossa equipe irá analisar e responder em breve.
+            Thank you for reporting the issue. Our team will review and respond soon.
           </p>
         </div>
       </div>
@@ -127,7 +128,7 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-gray-900">
-            Reportar Problema
+            Report Issue
           </h2>
           <button
             onClick={onClose}
@@ -144,7 +145,7 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo do Problema
+                Issue Type
               </label>
               <select
                 value={form.type}
@@ -152,17 +153,17 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="bug">Bug/Erro</option>
-                <option value="performance_issue">Problema de Performance</option>
-                <option value="ui_issue">Problema de Interface</option>
-                <option value="data_issue">Problema com Dados</option>
-                <option value="other">Outro</option>
+                <option value="bug">Bug/Error</option>
+                <option value="performance_issue">Performance Issue</option>
+                <option value="ui_issue">Interface Issue</option>
+                <option value="data_issue">Data Issue</option>
+                <option value="other">Other</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Severidade
+                Severity
               </label>
               <select
                 value={form.severity}
@@ -170,10 +171,10 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="low">Baixa</option>
-                <option value="medium">Média</option>
-                <option value="high">Alta</option>
-                <option value="critical">Crítica</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
               </select>
             </div>
           </div>
@@ -181,14 +182,14 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Título do Problema
+              Issue Title
             </label>
             <input
               type="text"
               value={form.title}
               onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Descreva brevemente o problema"
+              placeholder="Briefly describe the problem"
               required
             />
           </div>
@@ -196,14 +197,14 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Descrição Detalhada
+              Detailed Description
             </label>
             <textarea
               value={form.description}
               onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Descreva o problema em detalhes..."
+              placeholder="Describe the problem in detail..."
               required
             />
           </div>
@@ -211,7 +212,7 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
           {/* Steps to Reproduce */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Passos para Reproduzir
+              Steps to Reproduce
             </label>
             {form.steps.map((step, index) => (
               <div key={index} className="flex gap-2 mb-2">
@@ -223,7 +224,7 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
                   value={step}
                   onChange={(e) => updateStep(index, e.target.value)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder={`Passo ${index + 1}`}
+                  placeholder={`Step ${index + 1}`}
                 />
                 {form.steps.length > 1 && (
                   <button
@@ -243,7 +244,7 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
               onClick={addStep}
               className="text-blue-600 hover:text-blue-800 text-sm font-medium"
             >
-              + Adicionar Passo
+              + Add Step
             </button>
           </div>
 
@@ -251,27 +252,27 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Comportamento Esperado
+                Expected Behavior
               </label>
               <textarea
                 value={form.expectedBehavior}
                 onChange={(e) => setForm(prev => ({ ...prev, expectedBehavior: e.target.value }))}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="O que deveria acontecer?"
+                placeholder="What should happen?"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Comportamento Atual
+                Actual Behavior
               </label>
               <textarea
                 value={form.actualBehavior}
                 onChange={(e) => setForm(prev => ({ ...prev, actualBehavior: e.target.value }))}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="O que realmente acontece?"
+                placeholder="What actually happens?"
               />
             </div>
           </div>
@@ -280,19 +281,19 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
           {(context || error) && (
             <div className="bg-gray-50 p-4 rounded-md">
               <h4 className="text-sm font-medium text-gray-700 mb-2">
-                Informações do Contexto
+                Context Information
               </h4>
               <div className="text-sm text-gray-600 space-y-1">
-                {context?.page && <div>Página: {context.page}</div>}
-                {context?.feature && <div>Funcionalidade: {context.feature}</div>}
-                {context?.userAction && <div>Ação do Usuário: {context.userAction}</div>}
+                {context?.page && <div>Page: {context.page}</div>}
+                {context?.feature && <div>Feature: {context.feature}</div>}
+                {context?.userAction && <div>User Action: {context.userAction}</div>}
                 {error && (
                   <div>
-                    <div>Erro: {error.message}</div>
+                    <div>Error: {error.message}</div>
                     {error.stack && (
                       <details className="mt-2">
                         <summary className="cursor-pointer text-blue-600">
-                          Ver detalhes técnicos
+                          View technical details
                         </summary>
                         <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto">
                           {error.stack}
@@ -313,13 +314,13 @@ export function BugReportModal({ isOpen, onClose, error, context }: BugReportMod
               onClick={onClose}
               disabled={isSubmitting}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Enviando...' : 'Enviar Relatório'}
+              {isSubmitting ? 'Submitting...' : 'Submit Report'}
             </Button>
           </div>
         </form>

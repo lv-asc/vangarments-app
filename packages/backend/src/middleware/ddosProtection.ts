@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { SecurityMonitoringService } from '../services/securityMonitoringService';
+import { getSecurityConfig } from '../config/security';
 
 export interface DDoSConfig {
   windowMs: number;
@@ -30,6 +31,11 @@ export class DDoSProtectionMiddleware {
    */
   createAdaptiveRateLimit(config: DDoSConfig) {
     return async (req: Request, res: Response, next: NextFunction) => {
+      const securityConfig = getSecurityConfig();
+      if (!securityConfig.rateLimiting.enabled && !securityConfig.ddosProtection.enabled) {
+        return next();
+      }
+
       try {
         const identifier = config.keyGenerator ? config.keyGenerator(req) : this.getClientIdentifier(req);
 
@@ -101,6 +107,11 @@ export class DDoSProtectionMiddleware {
    */
   createAdvancedDDoSDetection() {
     return async (req: Request, res: Response, next: NextFunction) => {
+      const securityConfig = getSecurityConfig();
+      if (!securityConfig.ddosProtection.enabled) {
+        return next();
+      }
+
       try {
         const clientIP = req.ip || 'unknown';
         const userAgent = req.get('User-Agent') || '';
@@ -175,6 +186,11 @@ export class DDoSProtectionMiddleware {
    */
   createGeolocationProtection(allowedCountries: string[] = ['BR']) {
     return async (req: Request, res: Response, next: NextFunction) => {
+      const securityConfig = getSecurityConfig();
+      if (!securityConfig.ddosProtection.enabled || !securityConfig.ddosProtection.geolocationEnabled) {
+        return next();
+      }
+
       try {
         // In production, this would use a geolocation service
         // For now, we'll implement basic checks
@@ -217,6 +233,11 @@ export class DDoSProtectionMiddleware {
    */
   createBotDetection() {
     return async (req: Request, res: Response, next: NextFunction) => {
+      const securityConfig = getSecurityConfig();
+      if (!securityConfig.ddosProtection.enabled || !securityConfig.ddosProtection.botDetectionEnabled) {
+        return next();
+      }
+
       try {
         const userAgent = req.get('User-Agent') || '';
         const clientIP = req.ip || 'unknown';
@@ -507,24 +528,34 @@ export class DDoSProtectionMiddleware {
 export const ddosProtection = new DDoSProtectionMiddleware();
 
 // Export pre-configured middleware functions
-export const standardRateLimit = ddosProtection.createAdaptiveRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 5000,
-  blockDuration: 5 * 60 * 1000, // 5 minutes
-});
+export const standardRateLimit = (req: Request, res: Response, next: NextFunction) => {
+  const config = getSecurityConfig();
+  return ddosProtection.createAdaptiveRateLimit({
+    windowMs: config.rateLimiting.windowMs,
+    maxRequests: config.rateLimiting.maxRequests,
+    blockDuration: config.ddosProtection.blockDuration,
+  })(req, res, next);
+};
 
-export const strictRateLimit = ddosProtection.createAdaptiveRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 1000,
-  blockDuration: 15 * 60 * 1000, // 15 minutes
-});
+export const strictRateLimit = (req: Request, res: Response, next: NextFunction) => {
+  const config = getSecurityConfig();
+  return ddosProtection.createAdaptiveRateLimit({
+    windowMs: config.rateLimiting.windowMs,
+    maxRequests: Math.min(config.rateLimiting.maxRequests, 1000),
+    blockDuration: config.ddosProtection.blockDuration * 2,
+  })(req, res, next);
+};
 
-export const authRateLimit = ddosProtection.createAdaptiveRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 1000, // Greatly increased for development
-  blockDuration: 30 * 60 * 1000, // 30 minutes
-  keyGenerator: (req) => `auth_${req.ip}_${req.body?.email || req.body?.cpf || 'unknown'}`,
-});
+export const authRateLimit = (req: Request, res: Response, next: NextFunction) => {
+  const config = getSecurityConfig();
+  return ddosProtection.createAdaptiveRateLimit({
+    windowMs: config.rateLimiting.authWindowMs,
+    maxRequests: config.rateLimiting.authMaxRequests,
+    blockDuration: config.ddosProtection.blockDuration * 3,
+    keyGenerator: (req) => `auth_${req.ip}_${req.body?.email || req.body?.cpf || 'unknown'}`,
+  })(req, res, next);
+};
+
 export const advancedDDoSDetection = ddosProtection.createAdvancedDDoSDetection();
-export const geolocationProtection = ddosProtection.createGeolocationProtection(['BR']);
+export const geolocationProtection = ddosProtection.createGeolocationProtection();
 export const botDetection = ddosProtection.createBotDetection();

@@ -26,6 +26,7 @@ export interface BackendVUFSItem {
     name: string;
     logo?: string;
     slug?: string;
+    country?: string;
   };
   lineInfo?: {
     id: string;
@@ -37,6 +38,7 @@ export interface BackendVUFSItem {
     name: string;
     coverImage?: string;
   };
+  styleNames?: string[];
 }
 
 export interface CreateVUFSItemData {
@@ -170,12 +172,21 @@ export class VUFSItemModel {
              b.brand_info->>'name' as brand_account_name, 
              b.brand_info->>'logo' as brand_logo, 
              b.brand_info->>'slug' as brand_slug,
+             COALESCE(real_brand.country, b.brand_info->>'country') as brand_country,
              l.name as line_name, l.logo as line_logo,
-             c.name as collection_name, c.cover_image_url as collection_cover
+             c.name as collection_name, c.cover_image_url as collection_cover,
+             styles_lookup.names as style_names
       FROM vufs_items v
       LEFT JOIN brand_accounts b ON (v.brand_hierarchy->>'brand' ILIKE (b.brand_info->>'name'))
+      LEFT JOIN brands real_brand ON (v.brand_hierarchy->>'brand' ILIKE real_brand.name)
       LEFT JOIN brand_lines l ON (v.brand_hierarchy->>'line' = l.name AND b.id = l.brand_id)
       LEFT JOIN brand_collections c ON (v.metadata->>'collection' = c.name AND b.id = c.brand_id)
+      LEFT JOIN LATERAL (
+        SELECT array_agg(vals.name) as names
+        FROM jsonb_array_elements_text(v.metadata->'styles') as style_id
+        JOIN vufs_attribute_values vals ON vals.id::text = style_id
+        WHERE vals.type_slug = 'style'
+      ) styles_lookup ON true
       WHERE v.owner_id = $1 AND v.deleted_at IS NULL
     `;
 
@@ -183,10 +194,27 @@ export class VUFSItemModel {
     let paramCount = 2;
 
     // Apply filters
-    if (filters?.category?.page) {
-      query += ` AND category_hierarchy->>'page' ILIKE $${paramCount}`;
-      values.push(`%${filters.category.page}%`);
-      paramCount++;
+    if (filters?.category) {
+      if (filters.category.page) {
+        query += ` AND category_hierarchy->>'page' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.page}%`);
+        paramCount++;
+      }
+      if (filters.category.blueSubcategory) {
+        query += ` AND category_hierarchy->>'blueSubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.blueSubcategory}%`);
+        paramCount++;
+      }
+      if (filters.category.whiteSubcategory) {
+        query += ` AND category_hierarchy->>'whiteSubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.whiteSubcategory}%`);
+        paramCount++;
+      }
+      if (filters.category.graySubcategory) {
+        query += ` AND category_hierarchy->>'graySubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.graySubcategory}%`);
+        paramCount++;
+      }
     }
 
     if (filters?.brand) {
@@ -283,8 +311,8 @@ export class VUFSItemModel {
     }
 
     if (filters?.nationalities && filters.nationalities.length > 0) {
-      // metadata->>'origin' or 'madeIn'?
-      query += ` AND metadata->>'madeIn' = ANY($${paramCount})`;
+      // Filter by real_brand.country OR brand_accounts country
+      query += ` AND COALESCE(real_brand.country, b.brand_info->>'country') = ANY($${paramCount})`;
       values.push(filters.nationalities);
       paramCount++;
     }
@@ -528,10 +556,27 @@ export class VUFSItemModel {
     let paramCount = 3;
 
     // Apply additional filters
-    if (filters?.category?.page) {
-      query += ` AND category_hierarchy->>'page' ILIKE $${paramCount}`;
-      values.push(`%${filters.category.page}%`);
-      paramCount++;
+    if (filters?.category) {
+      if (filters.category.page) {
+        query += ` AND category_hierarchy->>'page' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.page}%`);
+        paramCount++;
+      }
+      if (filters.category.blueSubcategory) {
+        query += ` AND category_hierarchy->>'blueSubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.blueSubcategory}%`);
+        paramCount++;
+      }
+      if (filters.category.whiteSubcategory) {
+        query += ` AND category_hierarchy->>'whiteSubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.whiteSubcategory}%`);
+        paramCount++;
+      }
+      if (filters.category.graySubcategory) {
+        query += ` AND category_hierarchy->>'graySubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.graySubcategory}%`);
+        paramCount++;
+      }
     }
 
     if (filters?.brand) {
@@ -552,12 +597,117 @@ export class VUFSItemModel {
     return result.rows.map(row => this.mapToVUFSItem(row));
   }
 
+  static async findAll(filters?: VUFSItemFilters): Promise<BackendVUFSItem[]> {
+    let query = `
+      SELECT v.*, 
+             b.brand_info->>'name' as brand_account_name, 
+             b.brand_info->>'logo' as brand_logo, 
+             b.brand_info->>'slug' as brand_slug,
+             COALESCE(real_brand.country, b.brand_info->>'country') as brand_country,
+             l.name as line_name, l.logo as line_logo,
+             c.name as collection_name, c.cover_image_url as collection_cover,
+             styles_lookup.names as style_names
+      FROM vufs_items v
+      LEFT JOIN brand_accounts b ON (v.brand_hierarchy->>'brand' ILIKE (b.brand_info->>'name'))
+      LEFT JOIN brand_lines l ON (v.brand_hierarchy->>'line' = l.name AND b.id = l.brand_id)
+      LEFT JOIN brand_collections c ON (v.metadata->>'collection' = c.name AND b.id = c.brand_id)
+      LEFT JOIN LATERAL ( -- Optimization to fetch country for non-brand-account brands if possible, or just rely on text
+         SELECT NULL as country -- Placeholder or join to a 'brands' table if exists
+      ) real_brand ON true
+      LEFT JOIN LATERAL (
+         SELECT array_agg(name) as names 
+         FROM (
+             SELECT jsonb_array_elements_text(v.metadata->'styles') as name
+             UNION
+             SELECT v.metadata->>'style' as name WHERE v.metadata->>'style' IS NOT NULL
+         ) s
+      ) styles_lookup ON true
+      WHERE v.deleted_at IS NULL AND v.ownership_info->>'visibility' = 'public' -- Default to public only for global
+    `;
+
+    // We reuse the filter building logic, but 'ownerId' is not a filter here.
+    const values: any[] = [];
+    let paramCount = 1;
+
+    // Apply filters (Copy-paste logic from findByOwner but adjusted param indices)
+    if (filters?.category) {
+      if (filters.category.page) {
+        query += ` AND category_hierarchy->>'page' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.page}%`);
+        paramCount++;
+      }
+      if (filters.category.blueSubcategory) {
+        query += ` AND category_hierarchy->>'blueSubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.blueSubcategory}%`);
+        paramCount++;
+      }
+      if (filters.category.whiteSubcategory) {
+        query += ` AND category_hierarchy->>'whiteSubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.whiteSubcategory}%`);
+        paramCount++;
+      }
+      if (filters.category.graySubcategory) {
+        query += ` AND category_hierarchy->>'graySubcategory' ILIKE $${paramCount}`;
+        values.push(`%${filters.category.graySubcategory}%`);
+        paramCount++;
+      }
+    }
+
+    if (filters?.brand) {
+      query += ` AND brand_hierarchy->>'brand' ILIKE $${paramCount}`;
+      values.push(`%${filters.brand}%`);
+      paramCount++;
+    }
+
+    if (filters?.search) {
+      query += ` AND (
+        $${paramCount} = ANY(search_keywords) OR
+        category_hierarchy::text ILIKE $${paramCount + 1} OR
+        brand_hierarchy::text ILIKE $${paramCount + 1} OR
+        metadata::text ILIKE $${paramCount + 1}
+      )`;
+      values.push(filters.search.toLowerCase());
+      values.push(`%${filters.search}%`);
+      paramCount += 2;
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT 100'; // Limit logic for global
+
+    const result = await db.query(query, values);
+    const items = result.rows.map(row => this.mapToVUFSItem(row));
+
+    // Fetch images logic (Reused)
+    if (items.length > 0) {
+      const itemIds = items.map(item => item.id);
+      const imagesQuery = `
+        SELECT * FROM item_images 
+        WHERE item_id = ANY($1) AND processing_status = 'completed'
+        ORDER BY is_primary DESC, created_at DESC
+      `;
+      const imagesResult = await db.query(imagesQuery, [itemIds]);
+      const imagesByItemIdx = new Map<string, any[]>();
+      imagesResult.rows.forEach(row => {
+        if (!imagesByItemIdx.has(row.item_id)) imagesByItemIdx.set(row.item_id, []);
+        imagesByItemIdx.get(row.item_id)?.push({
+          url: row.image_url,
+          type: row.image_type,
+          isPrimary: row.is_primary
+        });
+      });
+      items.forEach(item => {
+        item.images = imagesByItemIdx.get(item.id) || [];
+      });
+    }
+
+    return items;
+  }
+
   static async getFacetsByOwner(ownerId: string): Promise<{
     brands: string[];
-    departments: string[]; // page
-    categories: string[]; // blueSubcategory
-    subcategories: string[]; // whiteSubcategory
-    apparelTypes: string[]; // graySubcategory/Item
+    departments: string[];
+    categories: string[];
+    subcategories: string[];
+    apparelTypes: string[];
     colors: string[];
     patterns: string[];
     materials: string[];
@@ -565,23 +715,43 @@ export class VUFSItemModel {
     collections: string[];
     sizes: string[];
     genders: string[];
+    fits: string[];
+    styles: string[];
+    nationalities: string[];
+    years: string[];
+    months: string[];
+    days: string[];
   }> {
     const query = `
       WITH item_data AS (
         SELECT 
-          category_hierarchy->>'page' as category,
+          category_hierarchy->>'page' as department,
+          category_hierarchy->>'blueSubcategory' as category,
+          category_hierarchy->>'whiteSubcategory' as subcategory,
+          category_hierarchy->>'graySubcategory' as apparel,
           brand_hierarchy->>'brand' as brand,
           brand_hierarchy->>'line' as line,
           metadata->>'collection' as collection,
           metadata->>'pattern' as pattern,
           metadata->'colors' as colors,
-          metadata->'composition' as composition
-        FROM vufs_items 
-        WHERE owner_id = $1 AND deleted_at IS NULL
+          metadata->'composition' as composition,
+          metadata->>'fit' as fit,
+          metadata->>'fitId' as fit_id,
+          COALESCE(real_brand.country, b.brand_info->>'country') as brand_country,
+          metadata->'acquisitionInfo'->>'purchaseDate' as purchase_date,
+          metadata->'acquisitionInfo'->>'date' as acquisition_date
+        FROM vufs_items v
+        LEFT JOIN brand_accounts b ON (v.brand_hierarchy->>'brand' ILIKE (b.brand_info->>'name'))
+        LEFT JOIN brands real_brand ON (v.brand_hierarchy->>'brand' ILIKE real_brand.name)
+        WHERE owner_id = $1 AND v.deleted_at IS NULL
       )
       SELECT 
         (SELECT jsonb_agg(DISTINCT brand) FROM item_data WHERE brand IS NOT NULL) as brands,
-        (SELECT jsonb_agg(DISTINCT category) FROM item_data WHERE category IS NOT NULL) as departments,
+        (SELECT jsonb_agg(DISTINCT brand_country) FROM item_data WHERE brand_country IS NOT NULL) as nationalities,
+        (SELECT jsonb_agg(DISTINCT department) FROM item_data WHERE department IS NOT NULL) as departments,
+        (SELECT jsonb_agg(DISTINCT category) FROM item_data WHERE category IS NOT NULL) as categories,
+        (SELECT jsonb_agg(DISTINCT subcategory) FROM item_data WHERE subcategory IS NOT NULL) as subcategories,
+        (SELECT jsonb_agg(DISTINCT apparel) FROM item_data WHERE apparel IS NOT NULL) as apparel_types,
         (SELECT jsonb_agg(DISTINCT line) FROM item_data WHERE line IS NOT NULL) as lines,
         (SELECT jsonb_agg(DISTINCT collection) FROM item_data WHERE collection IS NOT NULL) as collections,
         (SELECT jsonb_agg(DISTINCT pattern) FROM item_data WHERE pattern IS NOT NULL) as patterns,
@@ -601,12 +771,41 @@ export class VUFSItemModel {
             SELECT COALESCE(metadata->>'material', metadata->>'materialId') as val FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL
           ) t WHERE val IS NOT NULL
         ) as materials,
-        (SELECT jsonb_agg(DISTINCT category_hierarchy->>'blueSubcategory') FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND category_hierarchy->>'blueSubcategory' IS NOT NULL) as categories,
-        (SELECT jsonb_agg(DISTINCT category_hierarchy->>'whiteSubcategory') FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND category_hierarchy->>'whiteSubcategory' IS NOT NULL) as subcategories,
-        (SELECT jsonb_agg(DISTINCT category_hierarchy->>'graySubcategory') FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND category_hierarchy->>'graySubcategory' IS NOT NULL) as apparel_types,
         (SELECT jsonb_agg(DISTINCT COALESCE(metadata->>'size', metadata->>'sizeId')) FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND (metadata->>'size' IS NOT NULL OR metadata->>'sizeId' IS NOT NULL)) as sizes,
-        (SELECT jsonb_agg(DISTINCT COALESCE(metadata->>'gender', metadata->>'genderId')) FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND (metadata->>'gender' IS NOT NULL OR metadata->>'genderId' IS NOT NULL)) as genders
-
+        (SELECT jsonb_agg(DISTINCT COALESCE(metadata->>'gender', metadata->>'genderId')) FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND (metadata->>'gender' IS NOT NULL OR metadata->>'genderId' IS NOT NULL)) as genders,
+        (SELECT jsonb_agg(DISTINCT COALESCE(fit, fit_id)) FROM item_data WHERE fit IS NOT NULL OR fit_id IS NOT NULL) as fits,
+        (
+          SELECT jsonb_agg(DISTINCT val)
+          FROM (
+            -- Resolve IDs from attribute values for style array
+            SELECT vals.name as val 
+            FROM vufs_items v, jsonb_array_elements_text(v.metadata->'styles') s
+            JOIN vufs_attribute_values vals ON vals.id::text = s
+            WHERE v.owner_id = $1 AND v.deleted_at IS NULL AND vals.type_slug = 'style'
+            
+            UNION
+            
+            -- Fallback for legacy string styles or non-ID styles
+            SELECT COALESCE(metadata->>'style', metadata->>'styleId') as val 
+            FROM vufs_items 
+            WHERE owner_id = $1 AND deleted_at IS NULL 
+            -- Exclude if it looks like a uuid (very rough check, or just rely on the fact that if it was an ID it should have been in the array or handled above)
+            -- But effectively we just want names here. If 'style' stores a name directly, we take it.
+            AND NOT (metadata->>'style' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+          ) t WHERE val IS NOT NULL
+        ) as styles,
+        (
+          SELECT jsonb_agg(DISTINCT EXTRACT(YEAR FROM CAST(COALESCE(purchase_date, acquisition_date) AS TIMESTAMP))::text)
+          FROM item_data WHERE purchase_date IS NOT NULL OR acquisition_date IS NOT NULL
+        ) as years,
+         (
+          SELECT jsonb_agg(DISTINCT EXTRACT(MONTH FROM CAST(COALESCE(purchase_date, acquisition_date) AS TIMESTAMP))::text)
+          FROM item_data WHERE purchase_date IS NOT NULL OR acquisition_date IS NOT NULL
+        ) as months,
+         (
+          SELECT jsonb_agg(DISTINCT EXTRACT(DAY FROM CAST(COALESCE(purchase_date, acquisition_date) AS TIMESTAMP))::text)
+          FROM item_data WHERE purchase_date IS NOT NULL OR acquisition_date IS NOT NULL
+        ) as days
     `;
 
     const result = await db.query(query, [ownerId]);
@@ -625,6 +824,12 @@ export class VUFSItemModel {
       collections: row.collections || [],
       sizes: row.sizes || [],
       genders: row.genders || [],
+      fits: row.fits || [],
+      styles: row.styles || [],
+      nationalities: row.nationalities || [],
+      years: row.years || [],
+      months: row.months || [],
+      days: row.days || [],
     };
   }
 
@@ -712,6 +917,7 @@ export class VUFSItemModel {
         name: row.brand_account_name,
         logo: row.brand_logo,
         slug: row.brand_slug,
+        country: row.brand_country,
       } : undefined,
       lineInfo: row.line_name ? {
         id: row.line_id, // Note: we should select id if needed
@@ -723,6 +929,7 @@ export class VUFSItemModel {
         name: row.collection_name,
         coverImage: row.collection_cover,
       } : undefined,
+      styleNames: row.style_names || [], // Populate style names
     };
   }
 }

@@ -484,9 +484,9 @@ export class DataIntelligenceModel {
   private static async analyzeGeographicData(dateRange: { start: string; end: string }): Promise<any[]> {
     // Mock geographic analysis
     return [
-      { region: 'São Paulo', preferences: ['Streetwear', 'Business Casual'], volume: 2500 },
+      { region: 'Sao Paulo', preferences: ['Streetwear', 'Business Casual'], volume: 2500 },
       { region: 'Rio de Janeiro', preferences: ['Beach Wear', 'Casual'], volume: 1800 },
-      { region: 'Brasília', preferences: ['Formal', 'Business'], volume: 1200 },
+      { region: 'Brasilia', preferences: ['Formal', 'Business'], volume: 1200 },
     ];
   }
 

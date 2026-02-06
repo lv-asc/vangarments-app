@@ -25,53 +25,42 @@ const bucket = storage.bucket(GCS_BUCKET_NAME);
 /**
  * Middleware to proxy storage requests to Google Cloud Storage
  * when local files are not found.
- * 
- * This allows development to work with cloud-stored images without
- * needing to download them locally.
  */
 export const gcsStorageProxy = async (req: Request, res: Response, next: NextFunction) => {
-    // Get the relative path from the URL (remove /storage prefix)
+    // req.path already has the /storage prefix stripped by app.use('/storage', ...)
     const relativePath = req.path;
     const localPath = path.join(STORAGE_ROOT, relativePath);
 
     // Check if local file exists
     if (fs.existsSync(localPath)) {
-        // Local file exists, let express.static handle it
         return next();
     }
 
     // Local file doesn't exist, fetch from GCS
-    // Remove leading slash for GCS path
     const gcsPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
 
-    console.log(`[GCS Proxy] Local file not found: ${localPath}`);
-    console.log(`[GCS Proxy] Fetching from GCS: ${GCS_BUCKET_NAME}/${gcsPath}`);
+    console.log(`[GCS Proxy] Local file not found: ${localPath}. Checking GCS: ${GCS_BUCKET_NAME}/${gcsPath}`);
+
 
     try {
         const file = bucket.file(gcsPath);
-
-        // Check if file exists in GCS
         const [exists] = await file.exists();
 
         if (!exists) {
-            console.log(`[GCS Proxy] File not found in GCS: ${gcsPath}. Falling back to placeholder.`);
+            console.log(`[GCS Proxy] File not found in GCS: ${gcsPath}. Serving placeholder.`);
             return servePlaceholder(res, relativePath);
         }
 
-        // Get file metadata for content type
         const [metadata] = await file.getMetadata();
 
-        // Set response headers
         if (metadata.contentType) {
             res.setHeader('Content-Type', metadata.contentType);
         }
         if (metadata.size) {
             res.setHeader('Content-Length', metadata.size as string);
         }
-        // Cache for 1 year (images are static)
         res.setHeader('Cache-Control', 'public, max-age=31536000');
 
-        // Stream the file from GCS to the response
         const readStream = file.createReadStream();
 
         readStream.on('error', (error) => {
@@ -97,15 +86,14 @@ export const gcsStorageProxy = async (req: Request, res: Response, next: NextFun
 const servePlaceholder = (res: Response, relativePath: string) => {
     const filename = path.basename(relativePath);
     const text = encodeURIComponent(filename || 'Vangarments');
-    const placeholderUrl = `https://placehold.co/600x400/2563eb/ffffff?text=${text}`;
-
-    console.log(`[GCS Proxy] Serving placeholder: ${placeholderUrl}`);
+    // Using a more neutral placeholder color that doesn't look like a bug
+    const placeholderUrl = `https://placehold.co/600x400/f3f4f6/94a3b8?text=${text}`;
 
     https.get(placeholderUrl, (placeholderResponse) => {
         if (placeholderResponse.statusCode === 200) {
             const contentType = placeholderResponse.headers['content-type'];
             if (contentType) res.setHeader('Content-Type', contentType);
-            res.setHeader('Cache-Control', 'public, max-age=3600'); // Short cache for placeholders
+            res.setHeader('Cache-Control', 'public, max-age=3600');
             placeholderResponse.pipe(res);
         } else {
             res.status(404).json({
@@ -125,3 +113,4 @@ const servePlaceholder = (res: Response, relativePath: string) => {
         });
     });
 };
+

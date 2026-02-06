@@ -46,7 +46,7 @@ export default function OrgTreeView({ org, onEdit, onRefresh }: OrgTreeViewProps
             setLoading(true);
             const response = await sportOrgApi.getOrg(org.id);
             // The API returns the org with departments and squads nested
-            setDepartments(response.data.departments || []);
+            setDepartments((response as any).departments || []);
         } catch (error) {
             toast.error('Failed to load details');
         } finally {

@@ -9,6 +9,12 @@ export interface VUFSAttributeValue {
     swatchUrl?: string;
 }
 
+export interface VUFSAttributeType {
+    slug: string;
+    name: string;
+    isActive: boolean;
+}
+
 export interface VUFSBrand {
     id: string;
     name: string;
@@ -77,5 +83,18 @@ export const vufsApi = {
     getGenders: async (): Promise<VUFSAttributeValue[]> => {
         const response = await apiClient.get<{ genders: VUFSAttributeValue[] }>(`/vufs-management/genders`);
         return response.genders || [];
+    },
+
+    getAttributeTypes: async (): Promise<VUFSAttributeType[]> => {
+        const response = await apiClient.get<{ types: VUFSAttributeType[] }>(`/vufs-management/attributes`);
+        return response.types || [];
+    },
+
+    getCategories: async (): Promise<{ categories: VUFSAttributeValue[], tierLabels: Record<string, string> }> => {
+        const response = await apiClient.get<any>(`/vufs-management/categories`);
+        return {
+            categories: response.categories || [],
+            tierLabels: response.tierLabels || {}
+        };
     }
 };

@@ -55,16 +55,16 @@ export function CTASection() {
 
           {/* Headline */}
           <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
-            Sua jornada na moda{' '}
+            Your fashion journey{' '}
             <span className="text-yellow-300">
-              começa agora
+              starts now
             </span>
           </h2>
 
           {/* Subheadline */}
           <p className="text-xl sm:text-2xl text-white/90 mb-8 max-w-3xl mx-auto leading-relaxed">
-            Junte-se a milhares de pessoas que já descobriram uma nova forma
-            de organizar, expressar e monetizar seu estilo pessoal.
+            Join thousands of people who have already discovered a new way
+            to organize, express and monetize their personal style.
           </p>
 
           {/* Benefits */}
@@ -96,7 +96,7 @@ export function CTASection() {
               size="xl"
               className="bg-white text-purple-600 hover:bg-gray-100 px-8 py-4 text-lg font-semibold shadow-lg"
             >
-              Criar Conta Gratuita
+              Create Free Account
             </Button>
             <Button
               href="/search"
@@ -104,7 +104,7 @@ export function CTASection() {
               size="xl"
               className="border-white text-white hover:bg-white/10 px-8 py-4 text-lg font-semibold"
             >
-              Explorar Plataforma
+              Explore Platform
             </Button>
           </motion.div>
 
@@ -120,19 +120,19 @@ export function CTASection() {
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span>Sem cartão de crédito</span>
+              <span>No credit card required</span>
             </div>
             <div className="flex items-center space-x-2">
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span>Cancele quando quiser</span>
+              <span>Cancel anytime</span>
             </div>
             <div className="flex items-center space-x-2">
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span>Suporte em português</span>
+              <span>Customer support</span>
             </div>
           </motion.div>
         </motion.div>

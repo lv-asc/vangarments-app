@@ -147,31 +147,31 @@ export class ContentDiscoveryService {
     return [
       {
         id: 'work',
-        name: 'Trabalho',
-        description: 'Looks profissionais e corporativos',
+        name: 'Work',
+        description: 'Professional and corporate looks',
         imageUrl: '/api/placeholder/200/200',
-        postCount: await this.getCategoryPostCount('trabalho'),
+        postCount: await this.getCategoryPostCount('work'),
       },
       {
         id: 'casual',
         name: 'Casual',
-        description: 'Looks para o dia a dia',
+        description: 'Everyday looks',
         imageUrl: '/api/placeholder/200/200',
         postCount: await this.getCategoryPostCount('casual'),
       },
       {
         id: 'party',
-        name: 'Festa',
-        description: 'Looks para eventos e festas',
+        name: 'Party',
+        description: 'Looks for events and parties',
         imageUrl: '/api/placeholder/200/200',
-        postCount: await this.getCategoryPostCount('festa'),
+        postCount: await this.getCategoryPostCount('party'),
       },
       {
         id: 'date',
-        name: 'Encontro',
-        description: 'Looks românticos e especiais',
+        name: 'Date',
+        description: 'Romantic and special looks',
         imageUrl: '/api/placeholder/200/200',
-        postCount: await this.getCategoryPostCount('encontro'),
+        postCount: await this.getCategoryPostCount('date'),
       },
     ];
   }
@@ -199,7 +199,7 @@ export class ContentDiscoveryService {
         type: 'similar_style',
         confidence: 0.85,
         items: [],
-        reason: `Baseado no seu interesse por looks ${styleAnalysis.dominantStyle}`,
+        reason: `Based on your interest in ${styleAnalysis.dominantStyle} looks`,
         basedOn: {
           userPosts: userPosts.posts.slice(0, 3),
         },
@@ -211,7 +211,7 @@ export class ContentDiscoveryService {
         type: 'trending',
         confidence: 0.75,
         items: [],
-        reason: 'Tendências populares na sua rede',
+        reason: 'Trending in your network',
         basedOn: {
           followedUsers: [], // Would be populated with actual user data
         },
@@ -418,9 +418,9 @@ export class ContentDiscoveryService {
     return [
       { tag: 'blazer', postCount: 234, growth: 15.2 },
       { tag: 'jeans', postCount: 189, growth: 8.7 },
-      { tag: 'vestido', postCount: 156, growth: 22.1 },
+      { tag: 'dress', postCount: 156, growth: 22.1 },
       { tag: 'casual-chic', postCount: 134, growth: 12.5 },
-      { tag: 'trabalho', postCount: 98, growth: 18.9 },
+      { tag: 'work', postCount: 98, growth: 18.9 },
     ];
   }
 
@@ -471,10 +471,10 @@ export class ContentDiscoveryService {
   private async getRelatedTags(tag: string): Promise<string[]> {
     // Mock implementation - in reality, this would analyze tag co-occurrence
     const relatedTagsMap: Record<string, string[]> = {
-      'blazer': ['trabalho', 'formal', 'elegante', 'escritório'],
-      'jeans': ['casual', 'conforto', 'dia-a-dia', 'denim'],
-      'vestido': ['feminino', 'elegante', 'festa', 'romântico'],
-      'casual': ['conforto', 'dia-a-dia', 'relaxado', 'simples'],
+      'blazer': ['work', 'formal', 'elegant', 'office'],
+      'jeans': ['casual', 'comfort', 'everyday', 'denim'],
+      'dress': ['feminine', 'elegant', 'party', 'romantic'],
+      'casual': ['comfort', 'everyday', 'relaxed', 'simple'],
     };
 
     return relatedTagsMap[tag] || [];

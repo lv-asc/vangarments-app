@@ -8,6 +8,7 @@ import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 import { apiClient } from '@/lib/api';
 import { WardrobeItemCard } from './WardrobeItemCard';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import toast from 'react-hot-toast';
 
 interface WardrobeItem {
   id: string;
@@ -17,7 +18,7 @@ interface WardrobeItem {
   color: string;
   size?: string;
   condition: 'new' | 'excellent' | 'good' | 'fair' | 'poor';
-  images: string[];
+  images: Array<{ url: string; type: string; isPrimary: boolean }>;
   purchasePrice?: number;
   estimatedValue?: number;
   timesWorn: number;
@@ -49,9 +50,20 @@ interface WardrobeGridProps {
   searchQuery: string;
   selectedCategory: string;
   onItemClick?: (item: WardrobeItem) => void;
+  gridColumns?: string;
+  isCompact?: boolean;
+  mode?: 'wardrobe' | 'sandbox';
 }
 
-export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemClick }: WardrobeGridProps) {
+export function WardrobeGrid({
+  viewMode,
+  searchQuery,
+  selectedCategory,
+  onItemClick,
+  gridColumns = "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
+  isCompact = false,
+  mode = 'wardrobe'
+}: WardrobeGridProps) {
   const [items, setItems] = useState<WardrobeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +72,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
 
   useEffect(() => {
     loadItems();
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, mode]);
 
   const loadItems = async () => {
     setLoading(true);
@@ -74,35 +86,48 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
         filters.search = searchQuery;
       }
 
-      const response = await apiClient.getWardrobeItems(filters);
+      let response;
+      if (mode === 'sandbox') {
+        response = await apiClient.getDiscoverItems(filters);
+      } else {
+        response = await apiClient.getWardrobeItems(filters);
+      }
 
       // Transform API response to component format
-      const transformedItems: WardrobeItem[] = (response.items || []).map((item: any) => ({
-        id: item.id,
-        name: item.metadata?.name || 'Unnamed Item',
-        category: item.category?.whiteSubcategory || item.category?.page || 'unknown',
-        brand: item.brand?.brand,
-        color: item.metadata?.colors?.[0]?.name || 'Unknown',
-        size: item.metadata?.size || 'N/A',
-        condition: item.condition?.status || 'good',
-        images: item.images?.map((img: any) => img.url) || [],
-        purchasePrice: item.metadata?.acquisitionInfo?.price,
-        estimatedValue: item.metadata?.estimatedValue,
-        timesWorn: item.metadata?.wearCount || 0,
-        lastWorn: item.lastWorn ? new Date(item.lastWorn) : undefined,
-        isFavorite: false, // Would need to fetch from API
-        isForSale: false, // Would need to fetch from API
-        tags: item.metadata?.tags || [],
-        vufsCode: item.vufsCode,
-        brandInfo: item.brandInfo,
-        lineInfo: item.lineInfo,
-        collectionInfo: item.collectionInfo,
-      }));
+      const resultItems = (mode === 'sandbox' ? (response as any).items : (response as any).items) || [];
+
+      const transformedItems: WardrobeItem[] = resultItems.map((item: any) => {
+        // SKUs usually have a top-level name and brand object, 
+        // while WardrobeItems (VUFSItems) store them in metadata/specific fields.
+        const isSKU = mode === 'sandbox';
+
+        return {
+          id: item.id,
+          name: isSKU ? item.name : (item.metadata?.name || 'Unnamed Item'),
+          category: item.category?.whiteSubcategory || item.category?.page || item.category?.genderName || 'unknown',
+          brand: isSKU ? (item.brand?.name || item.brandInfo?.name) : item.brand?.brand,
+          color: item.metadata?.colors?.[0]?.name || item.metadata?.colorName || 'Unknown',
+          size: item.metadata?.size || item.metadata?.sizeName || 'N/A',
+          condition: item.condition?.status || 'new', // SKUs are effectively new
+          images: item.images || [],
+          purchasePrice: item.metadata?.acquisitionInfo?.price || item.retailPriceUsd,
+          estimatedValue: item.metadata?.estimatedValue || item.retailPriceUsd,
+          timesWorn: item.metadata?.wearCount || 0,
+          lastWorn: item.lastWorn ? new Date(item.lastWorn) : undefined,
+          isFavorite: false,
+          isForSale: false,
+          tags: item.metadata?.tags || [],
+          vufsCode: item.vufsCode || item.code,
+          brandInfo: item.brand || item.brandInfo,
+          lineInfo: item.lineInfo,
+          collectionInfo: item.collectionInfo,
+        };
+      });
 
       setItems(transformedItems);
     } catch (err: any) {
       console.error('Failed to load wardrobe items:', err);
-      setError(err.message || 'Falha ao carregar itens do guarda-roupa');
+      setError(err.message || 'Failed to load wardrobe items');
       setItems([]);
     } finally {
       setLoading(false);
@@ -126,7 +151,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
       await apiClient.deleteWardrobeItem(deleteConfirm.itemId);
       await loadItems();
     } catch (err: any) {
-      alert('Falha ao excluir item: ' + (err.message || 'Erro desconhecido'));
+      toast.error('Failed to delete item: ' + (err.message || 'Unknown error'));
     } finally {
       setDeleting(false);
       setDeleteConfirm({ isOpen: false, itemId: null });
@@ -134,13 +159,47 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
   };
 
   const handleToggleFavorite = async (itemId: string) => {
-    // This would need to be implemented in the API
-    console.log('Toggle favorite:', itemId);
+    try {
+      const item = items.find(i => i.id === itemId);
+      if (!item) return;
+
+      const newStatus = !item.isFavorite;
+      // Optimistic update
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, isFavorite: newStatus } : i));
+
+      await apiClient.updateWardrobeItem(itemId, { isFavorite: newStatus });
+      toast.success(newStatus ? 'Added to favorites' : 'Removed from favorites');
+    } catch (err: any) {
+      // Revert on failure
+      const item = items.find(i => i.id === itemId);
+      if (item) {
+        setItems(prev => prev.map(i => i.id === itemId ? { ...i, isFavorite: !item.isFavorite } : i));
+      }
+      console.error('Failed to toggle favorite', err);
+      toast.error('Failed to update favorite status');
+    }
   };
 
   const handleToggleForSale = async (itemId: string) => {
-    // This would need to be implemented in the API
-    console.log('Toggle for sale:', itemId);
+    try {
+      const item = items.find(i => i.id === itemId);
+      if (!item) return;
+
+      const newStatus = !item.isForSale;
+      // Optimistic update
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, isForSale: newStatus } : i));
+
+      await apiClient.updateWardrobeItem(itemId, { isForSale: newStatus });
+      toast.success(newStatus ? 'Item listed for sale' : 'Item removed from sale');
+    } catch (err: any) {
+      // Revert on failure
+      const item = items.find(i => i.id === itemId);
+      if (item) {
+        setItems(prev => prev.map(i => i.id === itemId ? { ...i, isForSale: !item.isForSale } : i));
+      }
+      console.error('Failed to toggle sale status', err);
+      toast.error('Failed to update sale status');
+    }
   };
 
   const handleView = (item: WardrobeItem) => {
@@ -153,7 +212,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+      <div className={`grid ${gridColumns} gap-6`}>
         {[...Array(8)].map((_, i) => (
           <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 animate-pulse">
             <div className="aspect-[3/4] bg-gray-200 rounded-lg mb-3"></div>
@@ -173,7 +232,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
           onClick={loadItems}
           className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
         >
-          Tentar Novamente
+          Try Again
         </button>
       </div>
     );
@@ -182,12 +241,12 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
   if (items.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-        <p className="text-gray-600 mb-4">Nenhum item encontrado no seu guarda-roupa.</p>
+        <p className="text-gray-600 mb-4">No items found in your wardrobe.</p>
         <button
           onClick={() => window.location.href = '/wardrobe/add'}
           className="bg-[#00132d] text-[#fff7d7] px-4 py-2 rounded-lg hover:bg-[#00132d]/90"
         >
-          Adicionar Primeiro Item
+          Add First Item
         </button>
       </div>
     );
@@ -205,6 +264,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
             onToggleFavorite={handleToggleFavorite}
             onToggleForSale={handleToggleForSale}
             onView={handleView}
+            isCompact={isCompact}
           />
         ))}
       </div>
@@ -212,7 +272,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+    <div className={`grid ${gridColumns} gap-6`}>
       {items.map((item) => (
         <WardrobeItemCard
           key={item.id}
@@ -222,6 +282,7 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
           onToggleFavorite={handleToggleFavorite}
           onToggleForSale={handleToggleForSale}
           onView={handleView}
+          isCompact={isCompact}
         />
       ))}
 
@@ -230,10 +291,10 @@ export function WardrobeGrid({ viewMode, searchQuery, selectedCategory, onItemCl
         isOpen={deleteConfirm.isOpen}
         onClose={() => setDeleteConfirm({ isOpen: false, itemId: null })}
         onConfirm={handleDeleteConfirm}
-        title="Excluir Item"
-        message="Tem certeza que deseja excluir este item do seu guarda-roupa? Esta ação não pode ser desfeita."
-        confirmLabel="Excluir"
-        cancelLabel="Cancelar"
+        title="Delete Item"
+        message="Are you sure you want to delete this item from your wardrobe? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
         variant="danger"
         loading={deleting}
       />

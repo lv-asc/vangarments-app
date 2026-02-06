@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Button } from './Button';
 import { BugReportModal } from './BugReportModal';
 import { apiClient } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 interface FeedbackWidgetProps {
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -60,7 +61,7 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
       }, 2000);
     } catch (error) {
       console.error('Failed to submit feedback:', error);
-      alert('Falha ao enviar feedback. Tente novamente.');
+      toast.error('Failed to send feedback. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,7 +93,7 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span>Feedback enviado com sucesso!</span>
+            <span>Feedback sent successfully!</span>
           </div>
         </div>
       </div>
@@ -106,7 +107,7 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
           <button
             onClick={() => setIsOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors"
-            title="Enviar Feedback"
+            title="Send Feedback"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -117,7 +118,7 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
             {!feedbackType ? (
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Como podemos ajudar?
+                  How can we help?
                 </h3>
                 <div className="space-y-3">
                   <button
@@ -131,8 +132,8 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
                         </svg>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">Enviar Feedback</div>
-                        <div className="text-sm text-gray-500">Compartilhe sua opinião</div>
+                        <div className="font-medium text-gray-900">Send Feedback</div>
+                        <div className="text-sm text-gray-500">Share your opinion</div>
                       </div>
                     </div>
                   </button>
@@ -148,8 +149,8 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
                         </svg>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">Reportar Problema</div>
-                        <div className="text-sm text-gray-500">Encontrou um bug?</div>
+                        <div className="font-medium text-gray-900">Report Issue</div>
+                        <div className="text-sm text-gray-500">Found a bug?</div>
                       </div>
                     </div>
                   </button>
@@ -159,14 +160,14 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
                   onClick={() => setIsOpen(false)}
                   className="w-full mt-4 text-gray-500 hover:text-gray-700 text-sm"
                 >
-                  Fechar
+                  Close
                 </button>
               </div>
             ) : (
               <form onSubmit={handleSubmitFeedback}>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">
-                    Seu Feedback
+                    Your Feedback
                   </h3>
                   <button
                     type="button"
@@ -182,25 +183,25 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tipo de Feedback
+                      Feedback Type
                     </label>
                     <select
                       value={form.type}
                       onChange={(e) => setForm(prev => ({ ...prev, type: e.target.value as any }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     >
-                      <option value="general">Geral</option>
-                      <option value="feature">Sugestão de Funcionalidade</option>
-                      <option value="usability">Usabilidade</option>
+                      <option value="general">General</option>
+                      <option value="feature">Feature Suggestion</option>
+                      <option value="usability">Usability</option>
                       <option value="performance">Performance</option>
-                      <option value="content">Conteúdo</option>
-                      <option value="support">Suporte</option>
+                      <option value="content">Content</option>
+                      <option value="support">Support</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Como você avalia sua experiência?
+                      How do you rate your experience?
                     </label>
                     <StarRating
                       rating={form.rating}
@@ -210,27 +211,27 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Título (opcional)
+                      Title (optional)
                     </label>
                     <input
                       type="text"
                       value={form.title || ''}
                       onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      placeholder="Resumo do seu feedback"
+                      placeholder="Summary of your feedback"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Mensagem
+                      Message
                     </label>
                     <textarea
                       value={form.message}
                       onChange={(e) => setForm(prev => ({ ...prev, message: e.target.value }))}
                       rows={4}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                      placeholder="Compartilhe seus pensamentos..."
+                      placeholder="Share your thoughts..."
                       required
                     />
                   </div>
@@ -243,14 +244,14 @@ export function FeedbackWidget({ position = 'bottom-right', context }: FeedbackW
                       className="flex-1 text-sm"
                       disabled={isSubmitting}
                     >
-                      Voltar
+                      Back
                     </Button>
                     <Button
                       type="submit"
                       className="flex-1 text-sm"
                       disabled={isSubmitting || !form.message.trim()}
                     >
-                      {isSubmitting ? 'Enviando...' : 'Enviar'}
+                      {isSubmitting ? 'Sending...' : 'Send'}
                     </Button>
                   </div>
                 </div>

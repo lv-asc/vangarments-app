@@ -8,6 +8,7 @@ import BrandDashboard from '../../../components/brands/BrandDashboard';
 import BrandCatalogManager from '../../../components/brands/BrandCatalogManager';
 import PartnershipManager from '../../../components/brands/PartnershipManager';
 import CommissionTracker from '../../../components/brands/CommissionTracker';
+import { toast } from 'react-hot-toast';
 
 interface BrandAccount {
     id: string;
@@ -118,11 +119,11 @@ export default function BrandsPage() {
                 await checkBrandAccount();
             } else {
                 const error = await response.json();
-                alert(error.error || 'Failed to create brand account');
+                toast.error(error.error || 'Failed to create brand account');
             }
         } catch (error) {
             console.error('Error creating brand account:', error);
-            alert('Failed to create brand account');
+            toast.error('Failed to create brand account');
         }
     };
 

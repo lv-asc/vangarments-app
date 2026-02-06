@@ -121,6 +121,8 @@ export class VUFSManagementController {
       const { level, parentId } = req.query;
 
       let categories;
+      const attributeTypes = await VUFSManagementService.getAttributeTypes();
+
       if (level) {
         categories = await VUFSManagementService.getCategoriesByLevel(
           level as 'page' | 'blue' | 'white' | 'gray',
@@ -130,9 +132,19 @@ export class VUFSManagementController {
         categories = await VUFSManagementService.getCategories();
       }
 
+      // Extract relevant tier labels
+      const tierLabels: Record<string, string> = {};
+      const categorySlugs = ['subcategory-1', 'subcategory-2', 'subcategory-3', 'apparel'];
+      attributeTypes.forEach((t: any) => {
+        if (categorySlugs.includes(t.slug)) {
+          tierLabels[t.slug] = t.name;
+        }
+      });
+
       res.json({
         message: 'Categories retrieved successfully',
         categories,
+        tierLabels
       });
     } catch (error: any) {
       console.error('Get categories error:', error);

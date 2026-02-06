@@ -137,15 +137,13 @@ export default function AdminColorsPage() {
                 await apiClient.updateColor(editingColor.id, {
                     name,
                     hexCode,
-                    groupIds: selectedGroupIds,
-                    skuRef
+                    groupIds: selectedGroupIds
                 });
             } else {
                 await apiClient.createColor({
                     name,
                     hexCode,
-                    groupIds: selectedGroupIds,
-                    skuRef
+                    groupIds: selectedGroupIds
                 });
             }
             setIsModalOpen(false);

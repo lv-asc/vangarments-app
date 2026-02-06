@@ -8,6 +8,7 @@ import { PWAProvider } from '@/components/providers/PWAProvider';
 import { Header } from '@/components/layout/Header';
 import { RecentPagesProvider } from '@/components/providers/RecentPagesProvider';
 import { NotificationProvider } from '@/contexts/NotificationContext';
+import { ContentProvider } from '@/contexts/ContentContext';
 import Script from 'next/script';
 
 
@@ -110,13 +111,15 @@ export default function RootLayout({
           <PWAProvider>
             <Providers>
               <NotificationProvider>
-                <RecentPagesProvider>
-                  <Header />
-                  <main className="min-h-screen pt-8">
-                    {children}
-                  </main>
-                  <PWAInstaller />
-                </RecentPagesProvider>
+                <ContentProvider>
+                  <RecentPagesProvider>
+                    <Header />
+                    <main className="min-h-screen pt-8">
+                      {children}
+                    </main>
+                    <PWAInstaller />
+                  </RecentPagesProvider>
+                </ContentProvider>
               </NotificationProvider>
             </Providers>
           </PWAProvider>

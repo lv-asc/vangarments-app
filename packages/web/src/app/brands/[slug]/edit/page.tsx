@@ -14,6 +14,7 @@ import {
   CreateLookbookData,
   CreateCollectionData
 } from '@/lib/brandApi';
+import { toast } from 'react-hot-toast';
 
 // ============ TYPES & CONSTANTS ============
 
@@ -101,10 +102,10 @@ export default function BrandProfileEditPage() {
         additionalLogos: formData.additionalLogos
       });
 
-      alert('Profile updated successfully!');
+      toast.success('Profile updated successfully!');
       loadProfile(); // Reload to get fresh data
     } catch (err: any) {
-      alert(`Failed to update profile: ${err.message}`);
+      toast.error(`Failed to update profile: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -325,7 +326,7 @@ function TeamTab({ brandId, initialMembers, onUpdate }: { brandId: string, initi
       setNewMember({ userId: '', role: 'Other', title: '', isPublic: true });
       onUpdate();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -335,7 +336,7 @@ function TeamTab({ brandId, initialMembers, onUpdate }: { brandId: string, initi
       await brandApi.removeTeamMember(brandId, memberId);
       onUpdate();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -411,7 +412,7 @@ function LookbooksTab({ brandId, initialLookbooks, onUpdate }: { brandId: string
       setEditId(null);
       onUpdate();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -421,7 +422,7 @@ function LookbooksTab({ brandId, initialLookbooks, onUpdate }: { brandId: string
       await brandApi.deleteLookbook(brandId, id);
       onUpdate();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -493,7 +494,7 @@ function CollectionsTab({ brandId, initialCollections, onUpdate }: { brandId: st
       setEditId(null);
       onUpdate();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -503,7 +504,7 @@ function CollectionsTab({ brandId, initialCollections, onUpdate }: { brandId: st
       await brandApi.deleteCollection(brandId, id);
       onUpdate();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 

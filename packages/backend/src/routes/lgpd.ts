@@ -258,9 +258,9 @@ router.get(
     try {
       const privacyInfo = {
         dataController: {
-          name: 'Vangarments Ltda',
+          name: 'Vangarments Ltd',
           cnpj: '00.000.000/0001-00', // Would be real CNPJ
-          address: 'São Paulo, SP, Brasil',
+          address: 'Sao Paulo, SP, Brazil',
           email: 'privacy@vangarments.com',
           dpo: 'dpo@vangarments.com',
         },
@@ -306,7 +306,7 @@ router.get(
         contact: {
           email: 'privacy@vangarments.com',
           phone: '+55 11 9999-9999',
-          address: 'São Paulo, SP, Brasil',
+          address: 'Sao Paulo, SP, Brazil',
           responseTime: '15 days maximum (LGPD Article 19)',
         },
         lastUpdated: '2024-01-01T00:00:00Z',

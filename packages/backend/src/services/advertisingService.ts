@@ -542,7 +542,7 @@ export class AdvertisingService {
       demographics: {
         age: 28,
         gender: 'female',
-        location: 'São Paulo',
+        location: 'Sao Paulo',
       },
       fashionProfile: {
         preferredStyles: ['casual', 'sustainable', 'vintage'],
@@ -612,7 +612,7 @@ export class AdvertisingService {
         demographics: {
           ageRange: { min: 18, max: 35 },
           gender: 'all',
-          location: ['São Paulo', 'Rio de Janeiro', 'Belo Horizonte'],
+          location: ['Sao Paulo', 'Rio de Janeiro', 'Belo Horizonte'],
         },
         interests: ['fashion', 'sustainable_fashion', 'local_brands'],
         behaviors: ['frequent_shopper', 'social_media_active'],

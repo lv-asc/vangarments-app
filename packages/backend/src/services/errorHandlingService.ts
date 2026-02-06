@@ -290,29 +290,29 @@ export class ErrorHandlingService {
     // Don't expose internal error details to users
     switch (statusCode) {
       case 400:
-        return 'A solicitação contém dados inválidos. Verifique os dados enviados.';
+        return 'The request contains invalid data. Please check your submission.';
       case 401:
-        return 'Acesso não autorizado. Faça login para continuar.';
+        return 'Unauthorized access. Please log in to continue.';
       case 403:
-        return 'Você não tem permissão para acessar este recurso.';
+        return 'You do not have permission to access this resource.';
       case 404:
-        return 'O recurso solicitado não foi encontrado.';
+        return 'The requested resource was not found.';
       case 409:
-        return 'Conflito de dados. O recurso já existe ou está sendo usado.';
+        return 'Data conflict. The resource already exists or is being used.';
       case 422:
-        return 'Os dados fornecidos são inválidos. Verifique e tente novamente.';
+        return 'The provided data is invalid. Please verify and try again.';
       case 429:
-        return 'Muitas solicitações. Tente novamente em alguns instantes.';
+        return 'Too many requests. Please try again in a few moments.';
       case 500:
-        return 'Erro interno do servidor. Tente novamente mais tarde.';
+        return 'Internal server error. Please try again later.';
       case 502:
-        return 'Erro de comunicação com o servidor. Tente novamente.';
+        return 'Communication error with the server. Please try again.';
       case 503:
-        return 'Serviço temporariamente indisponível. Tente novamente mais tarde.';
+        return 'Service temporarily unavailable. Please try again later.';
       case 504:
-        return 'Tempo limite excedido. Tente novamente.';
+        return 'Gateway timeout. Please try again.';
       default:
-        return 'Ocorreu um erro inesperado. Tente novamente mais tarde.';
+        return 'An unexpected error occurred. Please try again later.';
     }
   }
 
@@ -327,7 +327,7 @@ export class ErrorHandlingService {
 
     // Update counts
     this.errorCounts.set(minuteKey, (this.errorCounts.get(minuteKey) || 0) + 1);
-    this.errorCounts.set(`critical-${hourKey}`, 
+    this.errorCounts.set(`critical-${hourKey}`,
       (this.errorCounts.get(`critical-${hourKey}`) || 0) + (errorReport.severity === 'critical' ? 1 : 0)
     );
     if (errorReport.context.userId) {
@@ -373,7 +373,7 @@ export class ErrorHandlingService {
    */
   private triggerAlert(type: string, message: string): void {
     console.warn(`[ALERT ${type}] ${message}`);
-    
+
     // In production, this would:
     // 1. Send to alerting service (PagerDuty, Slack, etc.)
     // 2. Create incident ticket
@@ -398,7 +398,7 @@ export class ErrorHandlingService {
           parseInt(parts[2]), // day
           parseInt(parts[3])  // hour
         );
-        
+
         if (keyDate < cutoff) {
           this.errorCounts.delete(key);
         }
@@ -416,7 +416,7 @@ export class ErrorHandlingService {
     // - New Relic
     // - CloudWatch
     // - Custom monitoring endpoint
-    
+
     console.log(`[MONITORING] Sending error report ${errorReport.id} to external service`);
   }
 
@@ -433,14 +433,14 @@ export class ErrorHandlingService {
     const errors = Array.from(this.errorReports.values());
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    
+
     const recentErrors = errors.filter(error => error.createdAt > oneHourAgo);
-    
+
     const errorsByCategory = errors.reduce((acc, error) => {
       acc[error.category] = (acc[error.category] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    
+
     const errorsBySeverity = errors.reduce((acc, error) => {
       acc[error.severity] = (acc[error.severity] || 0) + 1;
       return acc;

@@ -8,6 +8,7 @@ import {
     ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
+import { toast } from 'react-hot-toast';
 import type { ItemCountResponse } from '@/lib/anteroomApi';
 
 interface AnteroomUploadModalProps {
@@ -47,7 +48,7 @@ export function AnteroomUploadModal({
         const limitedFiles = imageFiles.slice(0, effectiveMax - selectedFiles.length);
 
         if (limitedFiles.length < imageFiles.length) {
-            alert(`Only ${effectiveMax} images can be uploaded. Some files were not added.`);
+            toast.error(`Only ${effectiveMax} images can be uploaded. Some files were not added.`);
         }
 
         // Create previews
@@ -250,10 +251,10 @@ export function AnteroomUploadModal({
                                 <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                                     <div
                                         className={`h-full transition-all duration-300 ${(itemCount.current + selectedFiles.length) / itemCount.max > 0.9
-                                                ? 'bg-red-500'
-                                                : (itemCount.current + selectedFiles.length) / itemCount.max > 0.7
-                                                    ? 'bg-amber-500'
-                                                    : 'bg-emerald-500'
+                                            ? 'bg-red-500'
+                                            : (itemCount.current + selectedFiles.length) / itemCount.max > 0.7
+                                                ? 'bg-amber-500'
+                                                : 'bg-emerald-500'
                                             }`}
                                         style={{
                                             width: `${((itemCount.current + selectedFiles.length) / itemCount.max) * 100}%`

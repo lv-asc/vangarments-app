@@ -8,34 +8,34 @@ export function TestimonialsSection() {
   const testimonials = [
     {
       name: 'Ana Carolina',
-      role: 'Influenciadora Digital',
+      role: 'Digital Influencer',
       avatar: '/avatars/ana.jpg',
       rating: 5,
-      content: 'O Vangarments revolucionou como eu organizo meu guarda-roupa! Agora consigo planejar looks com antecedência e nunca mais fico sem saber o que vestir.',
+      content: 'Vangarments revolutionized how I organize my wardrobe! Now I can plan outfits in advance and never feel lost about what to wear.',
       location: 'São Paulo, SP'
     },
     {
       name: 'Mariana Santos',
-      role: 'Consultora de Moda',
+      role: 'Fashion Consultant',
       avatar: '/avatars/mariana.jpg',
       rating: 5,
-      content: 'Como consultora, uso a plataforma para ajudar minhas clientes. O sistema de análise de estilo é incrível e as sugestões são sempre certeiras!',
+      content: 'As a consultant, I use the platform to help my clients. The style analysis system is incredible and the suggestions are always spot on!',
       location: 'Rio de Janeiro, RJ'
     },
     {
       name: 'Juliana Oliveira',
-      role: 'Estudante',
+      role: 'Student',
       avatar: '/avatars/juliana.jpg',
       rating: 5,
-      content: 'Adorei poder catalogar todas as minhas roupas e descobrir novas combinações. A comunidade é super acolhedora e sempre me inspiro com os looks das outras meninas.',
+      content: 'I loved being able to catalog all my clothes and discover new combinations. The community is super welcoming and I always get inspired by outfits from other users.',
       location: 'Belo Horizonte, MG'
     },
     {
       name: 'Camila Rodrigues',
-      role: 'Empresária',
+      role: 'Entrepreneur',
       avatar: '/avatars/camila.jpg',
       rating: 5,
-      content: 'Perfeito para quem tem uma rotina corrida como eu. Consigo planejar a semana toda de looks em poucos minutos. A IA realmente entende meu estilo!',
+      content: 'Perfect for someone with a busy routine like me. I can plan my weekly outfits in just a few minutes. The AI really understands my style!',
       location: 'Brasília, DF'
     },
     {
@@ -43,15 +43,15 @@ export function TestimonialsSection() {
       role: 'Designer',
       avatar: '/avatars/fernanda.jpg',
       rating: 5,
-      content: 'A interface é linda e super intuitiva. Como designer, aprecio muito a atenção aos detalhes. É realmente a melhor plataforma de moda que já usei.',
+      content: 'The interface is beautiful and super intuitive. As a designer, I really appreciate the attention to detail. It truly is the best fashion platform I have ever used.',
       location: 'Porto Alegre, RS'
     },
     {
       name: 'Beatriz Costa',
-      role: 'Jornalista',
+      role: 'Journalist',
       avatar: '/avatars/beatriz.jpg',
       rating: 5,
-      content: 'Uso para organizar looks para eventos e viagens. O recurso de planejamento é fantástico e me ajuda muito no dia a dia profissional.',
+      content: 'I use it to organize outfits for events and trips. The planning feature is fantastic and helps me a lot in my professional daily life.',
       location: 'Salvador, BA'
     }
   ];
@@ -68,14 +68,14 @@ export function TestimonialsSection() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            O que nossos usuários{' '}
+            What our users{' '}
             <span className="text-[#00132d] font-bold">
-              estão dizendo
+              are saying
             </span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Mais de 10.000 mulheres já transformaram sua relação com a moda usando nossa plataforma.
-            Veja alguns depoimentos reais de nossa comunidade.
+            Over 10,000 users have already transformed their relationship with fashion using our platform.
+            See some real testimonials from our community.
           </p>
         </motion.div>
 
@@ -129,19 +129,19 @@ export function TestimonialsSection() {
         >
           <div>
             <div className="text-3xl font-bold text-gray-900 mb-2">10k+</div>
-            <div className="text-gray-600">Usuárias Ativas</div>
+            <div className="text-gray-600">Active Users</div>
           </div>
           <div>
             <div className="text-3xl font-bold text-gray-900 mb-2">500k+</div>
-            <div className="text-gray-600">Peças Catalogadas</div>
+            <div className="text-gray-600">Items Cataloged</div>
           </div>
           <div>
             <div className="text-3xl font-bold text-gray-900 mb-2">1M+</div>
-            <div className="text-gray-600">Looks Criados</div>
+            <div className="text-gray-600">Outfits Created</div>
           </div>
           <div>
             <div className="text-3xl font-bold text-gray-900 mb-2">4.9/5</div>
-            <div className="text-gray-600">Avaliação Média</div>
+            <div className="text-gray-600">Average Rating</div>
           </div>
         </motion.div>
       </div>

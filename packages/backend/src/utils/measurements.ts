@@ -376,7 +376,7 @@ export class MeasurementUtils {
     if (min && max && min === max) return `${min} ${standard}`;
     if (min && max) return `${min} ${standard} - ${max} ${standard}`;
     if (min) return `${min} ${standard}+`;
-    if (max) return `até ${max} ${standard}`;
+    if (max) return `up to ${max} ${standard}`;
     return '—';
   }
 }

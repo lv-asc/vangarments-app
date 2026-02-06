@@ -11,6 +11,7 @@ declare global {
 }
 
 export const authenticateToken = AuthUtils.authenticateToken;
+export const optionalAuth = AuthUtils.optionalAuth;
 export const requireRole = AuthUtils.requireRole;
 
 export { JWTPayload };

@@ -111,8 +111,7 @@ const DEFAULT_ITEMS: { [key: string]: any } = {
     stores: { id: 'stores', title: 'Stores', description: 'Manage Store Accounts and locations.', href: '/admin/stores', iconName: 'ShoppingBagIcon', gradient: 'from-purple-500 to-indigo-600' },
     suppliers: { id: 'suppliers', title: 'Suppliers', description: 'Manage Suppliers and their details.', href: '/admin/suppliers', iconName: 'TruckIcon', gradient: 'from-emerald-500 to-teal-600' },
     non_profits: { id: 'non_profits', title: 'Non Profits', description: 'Manage Non-Profit Organizations.', href: '/admin/non-profits', iconName: 'HeartIcon', gradient: 'from-rose-500 to-red-600' },
-    categories: { id: 'categories', title: 'Categories', description: 'Manage hierarchical Categories structure.', href: '/admin/categories', iconName: 'FolderIcon', gradient: 'from-orange-400 to-pink-500' },
-    apparel: { id: 'apparel', title: 'Apparel', description: 'Manage Apparel Categories and Attributes.', href: '/admin/apparel', iconName: 'TagIcon', gradient: 'from-pink-500 to-rose-500' },
+    categories: { id: 'categories', title: 'Hierarchy', description: 'Manage hierarchical Categories structure.', href: '/admin/hierarchy', iconName: 'FolderIcon', gradient: 'from-orange-400 to-pink-500' },
     skus: { id: 'skus', title: 'SKU Management', description: 'Manage Global SKUs, Images, and Videos.', href: '/admin/skus', iconName: 'BriefcaseIcon', gradient: 'from-cyan-500 to-blue-500' },
     sku_codes: { id: 'sku_codes', title: 'SKU Codes', description: 'Manage SKU reference codes for entities.', href: '/admin/sku-codes', iconName: 'QrCodeIcon', gradient: 'from-blue-500 to-indigo-600' },
     colors: { id: 'colors', title: 'Colors', description: 'Manage Colors and Color Groups.', href: '/admin/colors', iconName: 'SwatchIcon', gradient: 'from-fuchsia-500 to-purple-600' },
@@ -616,7 +615,7 @@ export default function AdminPage() {
     // Items Order State
     const [sectionsOrder, setSectionsOrder] = useState<{ [key: string]: string[] }>({
         'Entities': ['entity_config', 'brands', 'stores', 'suppliers', 'non_profits', 'sport_orgs', 'pages', 'verified_entities'],
-        'Product Catalog': ['categories', 'apparel', 'skus', 'sku_codes', 'colors', 'sizes', 'materials', 'compositions', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
+        'Product Catalog': ['categories', 'skus', 'sku_codes', 'colors', 'sizes', 'materials', 'compositions', 'patterns', 'styles', 'fits', 'occasions', 'seasons', 'genders', 'conditions', 'measurements', 'media_labels'],
         'Content & Platform': ['users', 'journalism', 'config']
     });
 

@@ -51,9 +51,9 @@ export default function BatchPreviewModal({
                 {/* Header */}
                 <div className="p-4 border-b flex items-center justify-between bg-white">
                     <div className="flex items-center gap-4">
-                        <h3 className="font-bold text-lg">Pré-visualização em Lote</h3>
+                        <h3 className="font-bold text-lg">Batch Preview</h3>
                         <span className="text-sm text-gray-500">
-                            {selectedItems.size} de {items.length} selecionadas
+                            {selectedItems.size} of {items.length} selected
                         </span>
                     </div>
 
@@ -65,14 +65,14 @@ export default function BatchPreviewModal({
                                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'side-by-side' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'
                                     }`}
                             >
-                                Lado a Lado
+                                Side by Side
                             </button>
                             <button
                                 onClick={() => setViewMode('overlay')}
                                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'overlay' ? 'bg-white shadow text-indigo-600' : 'text-gray-500'
                                     }`}
                             >
-                                Sobreposição
+                                Overlay
                             </button>
                         </div>
 
@@ -82,14 +82,14 @@ export default function BatchPreviewModal({
                                 onClick={selectAll}
                                 className="text-xs text-indigo-600 hover:underline"
                             >
-                                Selecionar Todas
+                                Select All
                             </button>
                             <span className="text-gray-300">|</span>
                             <button
                                 onClick={selectNone}
                                 className="text-xs text-gray-500 hover:underline"
                             >
-                                Limpar
+                                Clear
                             </button>
                         </div>
 
@@ -106,26 +106,26 @@ export default function BatchPreviewModal({
                 <div className="flex-1 overflow-auto p-4 bg-gray-50">
                     {items.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-400">
-                            Nenhuma imagem para pré-visualizar
+                            No images to preview
                         </div>
                     ) : (
                         <div className={`grid gap-4 ${items.length === 1 ? 'grid-cols-1' :
-                                items.length === 2 ? 'grid-cols-2' :
-                                    'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                            items.length === 2 ? 'grid-cols-2' :
+                                'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
                             }`}>
                             {items.map((item) => (
                                 <div
                                     key={item.id}
                                     className={`relative bg-white rounded-xl border-2 overflow-hidden transition-all cursor-pointer ${selectedItems.has(item.id)
-                                            ? 'border-indigo-500 shadow-lg'
-                                            : 'border-gray-200 hover:border-gray-300'
+                                        ? 'border-indigo-500 shadow-lg'
+                                        : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                     onClick={() => toggleItem(item.id)}
                                 >
                                     {/* Selection Indicator */}
                                     <div className={`absolute top-3 right-3 z-10 w-6 h-6 rounded-full flex items-center justify-center transition-all ${selectedItems.has(item.id)
-                                            ? 'bg-indigo-500 text-white'
-                                            : 'bg-white/80 border border-gray-300'
+                                        ? 'bg-indigo-500 text-white'
+                                        : 'bg-white/80 border border-gray-300'
                                         }`}>
                                         {selectedItems.has(item.id) && <CheckIcon className="w-4 h-4" />}
                                     </div>
@@ -149,11 +149,11 @@ export default function BatchPreviewModal({
                                                 backgroundSize: '10px 10px'
                                             }}>
                                                 <div className="absolute top-2 left-2 bg-indigo-500/80 text-white text-xs px-2 py-1 rounded">
-                                                    Sem Fundo
+                                                    No Background
                                                 </div>
                                                 <img
                                                     src={getImageUrl(item.processedUrl)}
-                                                    alt="Processada"
+                                                    alt="Processed"
                                                     className="w-full aspect-square object-contain p-2"
                                                 />
                                             </div>
@@ -175,12 +175,12 @@ export default function BatchPreviewModal({
                                             >
                                                 <img
                                                     src={getImageUrl(item.processedUrl)}
-                                                    alt="Processada"
+                                                    alt="Processed"
                                                     className="w-full h-full object-contain p-2"
                                                 />
                                             </div>
                                             <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded pointer-events-none">
-                                                Passe o mouse para comparar
+                                                Hover to compare
                                             </div>
                                         </div>
                                     )}
@@ -193,11 +193,11 @@ export default function BatchPreviewModal({
                 {/* Footer */}
                 <div className="p-4 border-t bg-white flex items-center justify-between">
                     <p className="text-sm text-gray-500">
-                        Clique nas imagens para selecionar/deselecionar
+                        Click on images to select/deselect
                     </p>
                     <div className="flex gap-3">
                         <Button variant="secondary" onClick={onCancel}>
-                            Cancelar
+                            Cancel
                         </Button>
                         <Button
                             onClick={() => onConfirm(Array.from(selectedItems))}
@@ -205,7 +205,7 @@ export default function BatchPreviewModal({
                             loading={isLoading}
                         >
                             <CheckIcon className="w-4 h-4 mr-2" />
-                            Confirmar {selectedItems.size > 0 && `(${selectedItems.size})`}
+                            Confirm {selectedItems.size > 0 && `(${selectedItems.size})`}
                         </Button>
                     </div>
                 </div>

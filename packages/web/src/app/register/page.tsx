@@ -13,6 +13,7 @@ import { useNavigation } from '@/hooks/useNavigation';
 import { formatPhone } from '@/lib/masks';
 import { GoogleButton } from '@/components/auth/GoogleButton';
 import { FacebookButton } from '@/components/auth/FacebookButton';
+import { toast } from 'react-hot-toast';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -76,12 +77,12 @@ export default function RegisterPage() {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
-      alert('As senhas não coincidem');
+      toast.error('As senhas não coincidem');
       return;
     }
 
     if (!formData.acceptTerms) {
-      alert('Você deve aceitar os termos de uso');
+      toast.error('Você deve aceitar os termos de uso');
       return;
     }
 

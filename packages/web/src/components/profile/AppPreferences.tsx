@@ -46,9 +46,6 @@ export function AppPreferences() {
 
     const languages = [
         { code: 'en-US', name: 'English (US)' },
-        { code: 'pt-BR', name: 'Português (Brasil)' },
-        { code: 'es-ES', name: 'Español' },
-        { code: 'fr-FR', name: 'Français' }
     ];
 
     const currencies = [

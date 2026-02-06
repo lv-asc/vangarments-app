@@ -342,7 +342,7 @@ export default function WardrobeItemDetailClient() {
             setItem(fetchedItem);
         } catch (err: any) {
             console.error('Error loading item:', err);
-            setError(err.message || 'Falha ao carregar item');
+            setError(err.message || 'Failed to load item');
             setItem(null);
         } finally {
             setLoading(false);
@@ -372,7 +372,7 @@ export default function WardrobeItemDetailClient() {
             await apiClient.deleteWardrobeItem(item.id);
             router.push('/wardrobe');
         } catch (err: any) {
-            showMessage('Erro', 'Falha ao excluir item: ' + (err.message || 'Erro desconhecido'), 'error');
+            showMessage('Error', 'Failed to delete item: ' + (err.message || 'Unknown error'), 'error');
         } finally {
             setDeleting(false);
             setShowDeleteConfirm(false);
@@ -383,13 +383,20 @@ export default function WardrobeItemDetailClient() {
         if (navigator.share) {
             navigator.share({
                 title: item?.metadata.name,
-                text: `Confira esta peça: ${item?.metadata.name} - ${item?.brand.brand}`,
+                text: `Check out this item: ${item?.metadata.name} - ${item?.brand.brand}`,
                 url: window.location.href
             });
         } else {
             navigator.clipboard.writeText(window.location.href);
-            toast.success('Link copiado!');
+            toast.success('Link copied!');
         }
+    };
+
+    const handleSellItem = () => {
+        toast('Marketplace integration coming soon!', {
+            icon: '🛍️',
+            duration: 3000
+        });
     };
 
     const handleRemoveBackground = async () => {
@@ -444,7 +451,7 @@ export default function WardrobeItemDetailClient() {
                 setShowBgOptions(false);
             }
         } catch (err: any) {
-            showMessage('Erro', 'Falha ao remover fundo: ' + (err.message || 'Erro desconhecido'), 'error');
+            showMessage('Error', 'Failed to remove background: ' + (err.message || 'Unknown error'), 'error');
         } finally {
             setIsRemovingBackground(false);
         }
@@ -460,7 +467,7 @@ export default function WardrobeItemDetailClient() {
             setShowOriginalBackground(false);
             setSelectedImages(new Set());
             setIsSelectionMode(false);
-            toast.success(`${selectedImgs.length} imagens salvas`);
+            toast.success(`${selectedImgs.length} images saved`);
         }
         setShowBatchPreview(false);
         setBatchPreviewItems([]);
@@ -471,7 +478,7 @@ export default function WardrobeItemDetailClient() {
         setShowBatchPreview(false);
         setBatchPreviewItems([]);
         setPendingBatchImages([]);
-        toast('Processamento cancelado');
+        toast('Processing cancelled');
     };
 
     const handleUndoBackgroundRemoval = async () => {
@@ -494,7 +501,7 @@ export default function WardrobeItemDetailClient() {
             setShowOriginalBackground(true);
             setShowUndoConfirm(false);
         } catch (err: any) {
-            showMessage('Erro', 'Falha ao desfazer remoção: ' + (err.message || 'Erro desconhecido'), 'error');
+            showMessage('Error', 'Failed to undo removal: ' + (err.message || 'Unknown error'), 'error');
         } finally {
             setIsDeletingImage(false);
         }

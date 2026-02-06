@@ -10,6 +10,7 @@ import {
     UserIcon,
     ClockIcon
 } from '@heroicons/react/24/outline';
+import { toast } from 'react-hot-toast';
 
 interface FollowRequest {
     id: string;
@@ -39,7 +40,7 @@ export function FollowRequestsList({ onRequestHandled }: FollowRequestsListProps
         try {
             setLoading(true);
             setError(null);
-            const response = await apiClient.getFollowRequests();
+            const response = await apiClient.getFollowRequests() as any;
             setRequests(response.requests || []);
         } catch (err: any) {
             setError(err.message || 'Failed to load follow requests');
@@ -55,7 +56,7 @@ export function FollowRequestsList({ onRequestHandled }: FollowRequestsListProps
             setRequests(prev => prev.filter(r => r.id !== requesterId));
             onRequestHandled?.();
         } catch (err: any) {
-            alert(err.message || 'Failed to accept request');
+            toast.error(err.message || 'Failed to accept request');
         } finally {
             setProcessingId(null);
         }
@@ -68,7 +69,7 @@ export function FollowRequestsList({ onRequestHandled }: FollowRequestsListProps
             setRequests(prev => prev.filter(r => r.id !== requesterId));
             onRequestHandled?.();
         } catch (err: any) {
-            alert(err.message || 'Failed to decline request');
+            toast.error(err.message || 'Failed to decline request');
         } finally {
             setProcessingId(null);
         }

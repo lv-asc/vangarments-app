@@ -13,38 +13,38 @@ import {
 
 const features = [
   {
-    name: 'Catalogação Inteligente',
-    description: 'IA avançada identifica automaticamente suas peças, cores, materiais e categorias seguindo o padrão VUFS.',
+    name: 'Smart Cataloging',
+    description: 'Advanced AI automatically identifies your pieces, colors, materials and categories following the VUFS standard.',
     icon: CameraIcon,
     color: 'from-[#00132d] to-[#00132d]/80',
   },
   {
-    name: 'Styling Automático',
-    description: 'Receba sugestões personalizadas de looks baseadas no seu guarda-roupa, ocasião e preferências.',
+    name: 'Automatic Styling',
+    description: 'Receive personalized outfit suggestions based on your wardrobe, occasion and preferences.',
     icon: SparklesIcon,
     color: 'from-[#00132d]/80 to-[#00132d]/60',
   },
   {
-    name: 'Rede Social de Moda',
-    description: 'Compartilhe seus looks, descubra tendências e conecte-se com outros apaixonados por moda.',
+    name: 'Fashion Social Network',
+    description: 'Share your looks, discover trends and connect with other fashion enthusiasts.',
     icon: UserGroupIcon,
     color: 'from-blue-500 to-cyan-500',
   },
   {
-    name: 'Marketplace Integrado',
-    description: 'Venda peças que não usa mais e descubra itens únicos de outros usuários e marcas parceiras.',
+    name: 'Integrated Marketplace',
+    description: 'Sell pieces you no longer use and discover unique items from other users and partner brands.',
     icon: ShoppingBagIcon,
     color: 'from-green-500 to-emerald-500',
   },
   {
-    name: 'Analytics de Estilo',
-    description: 'Entenda seus hábitos de consumo, peças mais usadas e otimize seu guarda-roupa.',
+    name: 'Style Analytics',
+    description: 'Understand your consumption habits, most worn pieces and optimize your wardrobe.',
     icon: ChartBarIcon,
     color: 'from-orange-500 to-red-500',
   },
   {
-    name: 'Privacidade Garantida',
-    description: 'Seus dados estão protegidos com criptografia avançada e conformidade total com a LGPD.',
+    name: 'Guaranteed Privacy',
+    description: 'Your data is protected with advanced encryption and full compliance with data protection regulations.',
     icon: ShieldCheckIcon,
     color: 'from-gray-500 to-slate-500',
   },
@@ -56,14 +56,14 @@ export function FeaturesSection() {
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-base font-semibold leading-7 text-[#00132d]">
-            Recursos Inovadores
+            Innovative Features
           </h2>
           <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-            Tudo que você precisa para revolucionar seu guarda-roupa
+            Everything you need to revolutionize your wardrobe
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            Nossa plataforma combina inteligência artificial, rede social e marketplace
-            para criar a experiência de moda mais completa do Brasil.
+            Our platform combines artificial intelligence, social networking and marketplace
+            to create the most complete fashion experience.
           </p>
         </div>
 

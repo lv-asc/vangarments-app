@@ -65,6 +65,27 @@ export interface UserFollow {
   following?: UserProfile;
 }
 
+export interface HomiesList {
+  id: string;
+  userId: string;
+  name: string;
+  color: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  memberCount?: number;
+  members?: UserProfile[];
+}
+
+export interface HomiesListMember {
+  id: string;
+  listId: string;
+  memberId: string;
+  memberType: 'user' | 'brand' | 'store' | 'supplier' | 'non_profit';
+  createdAt: string;
+  member?: UserProfile | any;
+}
+
 // Entity types that can be followed
 export type EntityType = 'brand' | 'store' | 'supplier' | 'page';
 

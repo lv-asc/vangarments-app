@@ -3,6 +3,7 @@
 export interface MarketplaceListing {
   id: string;
   itemId: string; // Reference to VUFS catalog item
+  itemCode?: string; // VUFS code for friendly URLs (username/code)
   sellerId: string;
   title: string;
   description: string;
@@ -63,7 +64,7 @@ export interface ShippingOptions {
   };
 }
 
-export type ListingStatus = 
+export type ListingStatus =
   | 'draft'
   | 'active'
   | 'sold'
@@ -100,7 +101,7 @@ export interface Transaction {
   updatedAt: Date;
 }
 
-export type TransactionStatus = 
+export type TransactionStatus =
   | 'pending_payment'
   | 'payment_confirmed'
   | 'processing'

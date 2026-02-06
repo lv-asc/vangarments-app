@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { WardrobeController } from '../controllers/wardrobeController';
 import { authenticateToken } from '../middleware/auth';
+// Trigger reload for new routes
 
 const router = Router();
 
@@ -23,6 +24,9 @@ router.post(
 
 // Get user's wardrobe items
 router.get('/items', WardrobeController.getUserWardrobe);
+
+// Get global discover items (Sandbox Mode)
+router.get('/discover', WardrobeController.getDiscoverItems);
 
 // Get wardrobe facets for filtering
 router.get('/items/facets', WardrobeController.getFacets);

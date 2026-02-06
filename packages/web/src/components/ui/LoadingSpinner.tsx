@@ -176,7 +176,7 @@ interface LoadingPageProps {
 }
 
 export function LoadingPage({
-  message = 'Carregando...',
+  message = 'Loading...',
   submessage,
   variant = 'default'
 }: LoadingPageProps) {
@@ -220,7 +220,7 @@ interface LoadingOverlayProps {
 
 export function LoadingOverlay({
   isVisible,
-  message = 'Carregando...',
+  message = 'Loading...',
   variant = 'default'
 }: LoadingOverlayProps) {
   if (!isVisible) return null;

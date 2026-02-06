@@ -1,6 +1,6 @@
 export interface SecurityConfig {
   environment: 'development' | 'staging' | 'production';
-  
+
   // Rate limiting configuration
   rateLimiting: {
     enabled: boolean;
@@ -78,24 +78,24 @@ export interface SecurityConfig {
 
 const developmentConfig: SecurityConfig = {
   environment: 'development',
-  
+
   rateLimiting: {
-    enabled: true,
+    enabled: false,
     windowMs: 15 * 60 * 1000, // 15 minutes
-    maxRequests: 1000, // Generous for development
+    maxRequests: 100000, // Extremely generous for development
     authWindowMs: 15 * 60 * 1000,
-    authMaxRequests: 20,
+    authMaxRequests: 1000,
     uploadWindowMs: 60 * 60 * 1000,
-    uploadMaxRequests: 50,
+    uploadMaxRequests: 500,
   },
 
   ddosProtection: {
-    enabled: true,
-    suspiciousActivityThreshold: 10,
-    blockDuration: 5 * 60 * 1000, // 5 minutes
+    enabled: false,
+    suspiciousActivityThreshold: 1000,
+    blockDuration: 1000, // 1 second
     geolocationEnabled: false, // Disabled for development
     allowedCountries: ['BR', 'US'],
-    botDetectionEnabled: true,
+    botDetectionEnabled: false,
   },
 
   contentSecurityPolicy: {
@@ -148,7 +148,7 @@ const developmentConfig: SecurityConfig = {
 const stagingConfig: SecurityConfig = {
   ...developmentConfig,
   environment: 'staging',
-  
+
   rateLimiting: {
     ...developmentConfig.rateLimiting,
     maxRequests: 200, // More restrictive than development
@@ -189,7 +189,7 @@ const stagingConfig: SecurityConfig = {
 const productionConfig: SecurityConfig = {
   ...stagingConfig,
   environment: 'production',
-  
+
   rateLimiting: {
     enabled: true,
     windowMs: 15 * 60 * 1000,
@@ -259,7 +259,7 @@ const productionConfig: SecurityConfig = {
 
 export function getSecurityConfig(): SecurityConfig {
   const environment = process.env.NODE_ENV as 'development' | 'staging' | 'production' || 'development';
-  
+
   switch (environment) {
     case 'production':
       return productionConfig;

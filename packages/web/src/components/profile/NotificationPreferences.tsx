@@ -56,14 +56,14 @@ export function NotificationPreferences() {
     };
 
     const notificationSettings = [
-        { key: 'newFollowers', label: 'Novos Seguidores', description: 'Quando alguém começar a te seguir' },
-        { key: 'likes', label: 'Curtidas', description: 'Quando alguém curtir seus posts' },
-        { key: 'comments', label: 'Comentários', description: 'Quando alguém comentar em seus posts' },
-        { key: 'mentions', label: 'Menções', description: 'Quando alguém te mencionar' },
-        { key: 'marketplaceActivity', label: 'Atividade do Marketplace', description: 'Vendas, compras e ofertas' },
-        { key: 'trendAlerts', label: 'Alertas de Tendências', description: 'Novas tendências baseadas no seu estilo' },
-        { key: 'priceDrops', label: 'Quedas de Preço', description: 'Quando itens da sua wishlist ficarem mais baratos' },
-        { key: 'weeklyDigest', label: 'Resumo Semanal', description: 'Resumo das suas atividades e estatísticas' }
+        { key: 'newFollowers', label: 'New Followers', description: 'When someone starts following you' },
+        { key: 'likes', label: 'Likes', description: 'When someone likes your posts' },
+        { key: 'comments', label: 'Comments', description: 'When someone comments on your posts' },
+        { key: 'mentions', label: 'Mentions', description: 'When someone mentions you' },
+        { key: 'marketplaceActivity', label: 'Marketplace Activity', description: 'Sales, purchases and offers' },
+        { key: 'trendAlerts', label: 'Trend Alerts', description: 'New trends based on your style' },
+        { key: 'priceDrops', label: 'Price Drops', description: 'When items on your wishlist get cheaper' },
+        { key: 'weeklyDigest', label: 'Weekly Digest', description: 'Summary of your activities and stats' }
     ];
 
     return (
@@ -137,7 +137,7 @@ export function NotificationPreferences() {
                         type="submit"
                         disabled={isLoading}
                     >
-                        {isLoading ? 'Salvando...' : 'Salvar Preferências'}
+                        {isLoading ? 'Saving...' : 'Save Preferences'}
                     </Button>
                 </div>
             </form>

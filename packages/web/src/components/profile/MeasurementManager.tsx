@@ -131,18 +131,18 @@ const RING_CONVERSIONS: Record<string, { US: string; EU: string; UK: string }> =
 };
 
 const STANDARDS = [
-  { key: 'BR' as const, label: 'Brasil', flag: 'BR' },
-  { key: 'US' as const, label: 'Estados Unidos', flag: 'US' },
-  { key: 'EU' as const, label: 'Europa', flag: 'EU' },
-  { key: 'UK' as const, label: 'Reino Unido', flag: 'UK' }
+  { key: 'BR' as const, label: 'Brazil', flag: 'BR' },
+  { key: 'US' as const, label: 'United States', flag: 'US' },
+  { key: 'EU' as const, label: 'Europe', flag: 'EU' },
+  { key: 'UK' as const, label: 'United Kingdom', flag: 'UK' }
 ];
 
 const FINGERS = [
-  { key: 'thumb', label: 'Polegar' },
-  { key: 'indexFinger', label: 'Indicador' },
-  { key: 'middleFinger', label: 'Médio' },
-  { key: 'ringFinger', label: 'Anelar' },
-  { key: 'pinky', label: 'Mindinho' }
+  { key: 'thumb', label: 'Thumb' },
+  { key: 'indexFinger', label: 'Index' },
+  { key: 'middleFinger', label: 'Middle' },
+  { key: 'ringFinger', label: 'Ring' },
+  { key: 'pinky', label: 'Pinky' }
 ];
 
 export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSave }: MeasurementManagerProps) {
@@ -324,8 +324,8 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Gerenciar Medidas</h2>
-            <p className="text-sm text-gray-500 mt-1">Configure seus tamanhos e medidas corporais</p>
+            <h2 className="text-xl font-semibold text-gray-900">Manage Measurements</h2>
+            <p className="text-sm text-gray-500 mt-1">Configure your sizes and body measurements</p>
           </div>
           <button
             onClick={onClose}
@@ -344,7 +344,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
               : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
           >
-            Medidas Corporais
+            Body Measurements
           </button>
           <button
             onClick={() => setActiveTab('sizes')}
@@ -353,7 +353,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
               : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
           >
-            Tamanhos de Roupas
+            Clothing Sizes
           </button>
           <button
             onClick={() => setActiveTab('rings')}
@@ -362,14 +362,14 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
               : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
           >
-            Anéis
+            Rings
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Preferred Standard Selector */}
           <div className="flex items-center space-x-2 pb-4 border-b border-gray-100">
-            <span className="text-sm text-gray-600">Padrão preferido:</span>
+            <span className="text-sm text-gray-600">Preferred standard:</span>
             {STANDARDS.map((standard) => (
               <button
                 key={standard.key}
@@ -389,13 +389,13 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
           {/* Body Measurements Tab */}
           {activeTab === 'body' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Medidas Corporais</h3>
-              <p className="text-sm text-gray-500">Insira suas medidas em centímetros (cm) e quilogramas (kg).</p>
+              <h3 className="text-lg font-medium text-gray-900">Body Measurements</h3>
+              <p className="text-sm text-gray-500">Enter your measurements in centimeters (cm) and kilograms (kg).</p>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Altura (cm)
+                    Height (cm)
                   </label>
                   <input
                     type="number"
@@ -413,7 +413,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Peso (kg)
+                    Weight (kg)
                   </label>
                   <input
                     type="number"
@@ -431,7 +431,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Busto (cm)
+                    Bust (cm)
                   </label>
                   <input
                     type="number"
@@ -449,7 +449,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cintura (cm)
+                    Waist (cm)
                   </label>
                   <input
                     type="number"
@@ -467,7 +467,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quadril (cm)
+                    Hips (cm)
                   </label>
                   <input
                     type="number"
@@ -485,7 +485,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Entrepernas (cm)
+                    Inseam (cm)
                   </label>
                   <input
                     type="number"
@@ -509,36 +509,36 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-700">
-                  <strong>Dica:</strong> Ao selecionar tamanhos no padrão brasileiro (BR), os tamanhos equivalentes nos outros padrões serão calculados automaticamente.
+                  <strong>Tip:</strong> When selecting sizes in Brazilian standard (BR), equivalent sizes in other standards will be calculated automatically.
                 </p>
               </div>
 
               {/* Shoe Sizes */}
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Calçados</h4>
-                <p className="text-sm text-gray-500">Selecione a faixa de tamanhos que você geralmente usa.</p>
+                <h4 className="font-medium text-gray-900">Footwear</h4>
+                <p className="text-sm text-gray-500">Select the size range you usually wear.</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tamanho mínimo</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Minimum size</label>
                     <select
                       value={measurements.sizes?.BR?.shoes?.min || ''}
                       onChange={(e) => convertAndSetSizes('shoes', 'min', e.target.value, SHOE_CONVERSIONS)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                     >
-                      <option value="">Selecione...</option>
+                      <option value="">Select...</option>
                       {SHOE_SIZES_BR.map(size => (
                         <option key={size} value={size}>{size} BR</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tamanho máximo</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Maximum size</label>
                     <select
                       value={measurements.sizes?.BR?.shoes?.max || ''}
                       onChange={(e) => convertAndSetSizes('shoes', 'max', e.target.value, SHOE_CONVERSIONS)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                     >
-                      <option value="">Selecione...</option>
+                      <option value="">Select...</option>
                       {SHOE_SIZES_BR.map(size => (
                         <option key={size} value={size}>{size} BR</option>
                       ))}
@@ -549,29 +549,29 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
               {/* Waist/Pants Sizes */}
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Cintura (Calças)</h4>
+                <h4 className="font-medium text-gray-900">Waist (Pants)</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tamanho mínimo</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Minimum size</label>
                     <select
                       value={measurements.sizes?.BR?.waist?.min || ''}
                       onChange={(e) => convertAndSetSizes('waist', 'min', e.target.value, WAIST_CONVERSIONS)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                     >
-                      <option value="">Selecione...</option>
+                      <option value="">Select...</option>
                       {WAIST_SIZES_BR.map(size => (
                         <option key={size} value={size}>{size} BR</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tamanho máximo</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Maximum size</label>
                     <select
                       value={measurements.sizes?.BR?.waist?.max || ''}
                       onChange={(e) => convertAndSetSizes('waist', 'max', e.target.value, WAIST_CONVERSIONS)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                     >
-                      <option value="">Selecione...</option>
+                      <option value="">Select...</option>
                       {WAIST_SIZES_BR.map(size => (
                         <option key={size} value={size}>{size} BR</option>
                       ))}
@@ -582,7 +582,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
               {/* Tops */}
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Blusas/Camisetas</h4>
+                <h4 className="font-medium text-gray-900">Tops/Shirts</h4>
                 <div className="flex flex-wrap gap-2">
                   {CLOTHING_SIZES_BR.map((size) => (
                     <button
@@ -602,7 +602,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
               {/* Bottoms */}
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Calças/Saias</h4>
+                <h4 className="font-medium text-gray-900">Pants/Skirts</h4>
                 <div className="flex flex-wrap gap-2">
                   {WAIST_SIZES_BR.map((size) => (
                     <button
@@ -622,7 +622,7 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
 
               {/* Dresses */}
               <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Vestidos</h4>
+                <h4 className="font-medium text-gray-900">Dresses</h4>
                 <div className="flex flex-wrap gap-2">
                   {CLOTHING_SIZES_BR.map((size) => (
                     <button
@@ -630,8 +630,8 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
                       type="button"
                       onClick={() => convertAndSetClothingSize('dresses', size)}
                       className={`px-4 py-2 text-sm border rounded-lg transition-colors ${Array.isArray(measurements.sizes?.BR?.dresses) && measurements.sizes.BR.dresses.includes(size)
-                          ? 'bg-pink-500 text-white border-pink-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        ? 'bg-pink-500 text-white border-pink-500'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                         }`}
                     >
                       {size}
@@ -647,11 +647,11 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-700">
-                  <strong>Dica:</strong> Para medir seu tamanho de anel, enrole um fio ao redor do dedo e meça o comprimento em milímetros. Divida por π (3.14) para obter o diâmetro interno.
+                  <strong>Tip:</strong> To measure your ring size, wrap a thread around your finger and measure the length in millimeters. Divide by π (3.14) to get the internal diameter.
                 </p>
               </div>
 
-              <h4 className="font-medium text-gray-900">Tamanhos de Anéis por Dedo</h4>
+              <h4 className="font-medium text-gray-900">Ring Sizes by Finger</h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {FINGERS.map((finger) => (
@@ -683,13 +683,13 @@ export function MeasurementManager({ isOpen, onClose, initialMeasurements, onSav
               onClick={onClose}
               disabled={isLoading}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               type="submit"
               disabled={isLoading}
             >
-              {isLoading ? 'Salvando...' : 'Salvar Medidas'}
+              {isLoading ? 'Saving...' : 'Save Measurements'}
             </Button>
           </div>
         </form>

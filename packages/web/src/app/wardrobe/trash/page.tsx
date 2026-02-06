@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { apiClient } from '@/lib/api';
 import { getImageUrl } from '@/utils/imageUrl';
+import { toast } from 'react-hot-toast';
 
 interface TrashItem {
     id: string;
@@ -104,7 +105,7 @@ export default function TrashPage() {
             }
             await loadTrashItems();
         } catch (err: any) {
-            alert(`Failed: ${err.message || 'Unknown error'}`);
+            toast.error(`Failed: ${err.message || 'Unknown error'}`);
         } finally {
             setActionLoading(false);
             setConfirmDialog({ isOpen: false, itemId: null, action: null, itemName: '' });

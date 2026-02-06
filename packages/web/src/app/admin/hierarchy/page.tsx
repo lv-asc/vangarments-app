@@ -1,11 +1,11 @@
 
 import { Metadata } from 'next';
-import AdminApparelPage from './ApparelClient';
+import CategoriesPage from './HierarchyClient';
 
 export const metadata: Metadata = {
-    title: 'Apparel',
+    title: 'Hierarchy',
 };
 
 export default function Page() {
-    return <AdminApparelPage />;
+    return <CategoriesPage />;
 }

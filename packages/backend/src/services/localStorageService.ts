@@ -19,7 +19,7 @@ export interface LocalImageUploadResult {
 }
 
 export class LocalStorageService {
-  private static readonly STORAGE_ROOT = path.join(process.cwd(), 'storage');
+  private static readonly STORAGE_ROOT = path.join(__dirname, '..', '..', 'storage');
   private static readonly IMAGES_DIR = path.join(this.STORAGE_ROOT, 'images');
   private static readonly UPLOADS_DIR = path.join(this.STORAGE_ROOT, 'uploads');
   private static readonly TEMP_DIR = path.join(this.STORAGE_ROOT, 'temp');

@@ -75,7 +75,7 @@ function OnboardingContent() {
                     telephone: formData.telephone,
                 }
             });
-            toast.success('Perfil completado com sucesso!');
+            toast.success('Profile completed successfully!');
             navigate('/wardrobe');
         } catch (error) {
             console.error('Onboarding update failed:', error);
@@ -92,9 +92,9 @@ function OnboardingContent() {
                 className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-[#00132d]/10"
             >
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-[#00132d] mb-2">Bem-vinda ao Vangarments!</h1>
+                    <h1 className="text-3xl font-bold text-[#00132d] mb-2">Welcome to Vangarments!</h1>
                     <p className="text-[#00132d]/70">
-                        Falta pouco! Precisamos de mais alguns detalhes para completar seu cadastro.
+                        Almost there! We need a few more details to complete your registration.
                     </p>
                 </div>
 
@@ -110,7 +110,7 @@ function OnboardingContent() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Telefone</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
                         <input
                             type="tel"
                             name="telephone"
@@ -123,7 +123,7 @@ function OnboardingContent() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Data de Nascimento</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth</label>
                         <input
                             type="date"
                             name="birthDate"
@@ -135,17 +135,17 @@ function OnboardingContent() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Gênero</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                         <select
                             name="gender"
                             value={formData.gender}
                             onChange={handleChange}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00132d]/20 outline-none appearance-none bg-white"
                         >
-                            <option value="female">Feminino</option>
-                            <option value="male">Masculino</option>
-                            <option value="non-binary">Não-binário</option>
-                            <option value="prefer-not-to-say">Prefiro não dizer</option>
+                            <option value="female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="non-binary">Non-binary</option>
+                            <option value="prefer-not-to-say">Prefer not to say</option>
                         </select>
                     </div>
 
@@ -154,7 +154,7 @@ function OnboardingContent() {
                         disabled={isLoading}
                         className="w-full bg-[#00132d] text-[#fff7d7] py-4 rounded-xl font-bold text-lg hover:shadow-lg transition-all"
                     >
-                        {isLoading ? 'Salvando...' : 'Completar Cadastro'}
+                        {isLoading ? 'Saving...' : 'Complete Registration'}
                     </Button>
                 </form>
             </motion.div>
@@ -164,7 +164,7 @@ function OnboardingContent() {
 
 export default function OnboardingPage() {
     return (
-        <Suspense fallback={<div className="min-h-screen bg-[#fff7d7] flex items-center justify-center font-bold text-[#00132d]">Carregando...</div>}>
+        <Suspense fallback={<div className="min-h-screen bg-[#fff7d7] flex items-center justify-center font-bold text-[#00132d]">Loading...</div>}>
             <OnboardingContent />
         </Suspense>
     );

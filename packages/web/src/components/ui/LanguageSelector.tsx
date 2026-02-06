@@ -11,10 +11,7 @@ interface Language {
 }
 
 const languages: Language[] = [
-  { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'pt', name: 'Português', flag: '🇧🇷' },
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'en', name: 'English (US)', flag: '🇺🇸' },
 ];
 
 export function LanguageSelector() {
@@ -67,8 +64,8 @@ export function LanguageSelector() {
               key={language.code}
               onClick={() => handleLanguageChange(language)}
               className={`w-full text-left px-4 py-2 text-sm hover:bg-[#fff7d7]/50 transition-colors flex items-center space-x-3 ${currentLanguage.code === language.code
-                  ? 'bg-[#fff7d7]/30 text-[#00132d] font-medium'
-                  : 'text-gray-700'
+                ? 'bg-[#fff7d7]/30 text-[#00132d] font-medium'
+                : 'text-gray-700'
                 }`}
             >
               <span className="text-lg">{language.flag}</span>

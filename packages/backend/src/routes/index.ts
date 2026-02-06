@@ -57,6 +57,10 @@ import sportOrgRoutes from './sportOrgs';
 import eventRoutes from './events';
 
 import socialRoutes from './social';
+import contentRoutes from './content';
+import outfitRoutes from './outfitRoutes';
+import homiesRoutes from './homies';
+import marketplaceRoutes from './marketplace';
 
 const router = Router();
 
@@ -65,6 +69,11 @@ router.use('/auth', authRoutes);
 router.use('/oauth', simpleOAuthRoutes);
 router.use('/users', userRoutes);
 router.use('/social', socialRoutes);
+router.use('/content', contentRoutes); // Content publishing system (Daily, Motion, Feed)
+router.use('/outfits', outfitRoutes);
+router.use('/homies', homiesRoutes);
+router.use('/marketplace', marketplaceRoutes);
+
 router.use('/admin', adminRoutes);
 router.use('/vufs', vufsRoutes);
 router.use('/brands', brandRoutes);

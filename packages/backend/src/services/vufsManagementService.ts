@@ -140,12 +140,18 @@ export class VUFSManagementService {
     parentId?: string,
     skuRef?: string
   ): Promise<VUFSCategoryOption> {
-    // We use 'apparel' type_slug to match getCategories filter
-    const result = await this.addAttributeValue('apparel', name, parentId, { skuRef });
+    const levelToSlug: Record<string, string> = {
+      'page': 'subcategory-1',
+      'blue': 'subcategory-2',
+      'white': 'subcategory-3',
+      'gray': 'apparel'
+    };
+    const slug = levelToSlug[level] || 'apparel';
+    const result = await this.addAttributeValue(slug, name, parentId, { skuRef });
     return {
       id: result.id,
       name: result.name,
-      level: 'apparel',
+      level: level,
       parentId: result.parentId,
       isActive: true,
       skuRef: result.skuRef
@@ -171,10 +177,18 @@ export class VUFSManagementService {
 
   static async updateCategory(id: string, name?: string, parentId?: string | null, skuRef?: string): Promise<VUFSCategoryOption> {
     const result = await this.updateAttributeValue(id, { name, parentId, skuRef });
+
+    const slugToLevel: Record<string, VUFSCategoryOption['level']> = {
+      'subcategory-1': 'page',
+      'subcategory-2': 'blue',
+      'subcategory-3': 'white',
+      'apparel': 'gray'
+    };
+
     return {
       id: result.id,
       name: result.name,
-      level: 'apparel', // Default/Presumed
+      level: slugToLevel[result.type_slug] || 'gray',
       parentId: result.parentId,
       isActive: true,
       skuRef: result.skuRef
@@ -311,24 +325,35 @@ export class VUFSManagementService {
     await db.query(query, [id]);
   }
 
-  /**
-   * Get all categories from vufs_attribute_values (unified data source)
-   * This reads from the same table as admin/categories for consistency
-   */
   static async getCategories(includeDeleted: boolean = false): Promise<VUFSCategoryOption[]> {
-    // Read from vufs_attribute_values where type_slug = 'apparel' (unified source)
+    // Read from vufs_attribute_values for all category tiers (unified source)
     const query = `
       SELECT id, name, type_slug, parent_id, sort_order, sku_ref 
       FROM vufs_attribute_values 
-      WHERE type_slug = 'apparel' 
-      ORDER BY sort_order ASC, name ASC
+      WHERE type_slug IN ('subcategory-1', 'subcategory-2', 'subcategory-3', 'apparel')
+      ORDER BY 
+        CASE type_slug
+          WHEN 'subcategory-1' THEN 1
+          WHEN 'subcategory-2' THEN 2
+          WHEN 'subcategory-3' THEN 3
+          WHEN 'apparel' THEN 4
+        END,
+        sort_order ASC, 
+        name ASC
     `;
     const result = await db.query(query);
+
+    const slugToLevel: Record<string, VUFSCategoryOption['level']> = {
+      'subcategory-1': 'page',
+      'subcategory-2': 'blue',
+      'subcategory-3': 'white',
+      'apparel': 'gray'
+    };
 
     return result.rows.map((row: any) => ({
       id: row.id.toString(),
       name: row.name,
-      level: 'apparel' as const,
+      level: slugToLevel[row.type_slug] || 'gray',
       parentId: row.parent_id?.toString(),
       skuRef: row.sku_ref,
       isActive: true,
@@ -845,18 +870,29 @@ export class VUFSManagementService {
    * Search methods
    */
   static async searchCategories(query: string): Promise<VUFSCategoryOption[]> {
-    const sql = 'SELECT * FROM vufs_categories WHERE name ILIKE $1 AND is_active = true';
+    const sql = `
+      SELECT id, name, type_slug, parent_id, sort_order, sku_ref 
+      FROM vufs_attribute_values 
+      WHERE name ILIKE $1 
+      AND type_slug IN ('subcategory-1', 'subcategory-2', 'subcategory-3', 'apparel')
+      ORDER BY sort_order ASC
+    `;
     const result = await db.query(sql, [`%${query}%`]);
-    // ... mapping logic similar to getCategories
-    const levelMapReverse: Record<number, 'subcategory1' | 'subcategory2' | 'apparel' | 'gray'> = {
-      1: 'subcategory1', 2: 'subcategory2', 3: 'apparel', 4: 'gray'
+
+    const slugToLevel: Record<string, VUFSCategoryOption['level']> = {
+      'subcategory-1': 'page',
+      'subcategory-2': 'blue',
+      'subcategory-3': 'white',
+      'apparel': 'gray'
     };
+
     return result.rows.map((row: any) => ({
       id: row.id.toString(),
       name: row.name,
-      level: levelMapReverse[row.level] || 'subcategory1',
+      level: slugToLevel[row.type_slug] || 'gray',
       parentId: row.parent_id?.toString(),
-      isActive: true
+      isActive: true,
+      skuRef: row.sku_ref
     }));
   }
 

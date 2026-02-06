@@ -6,13 +6,13 @@ async function run() {
     try {
         console.log('--- 1. Vivid Asc. Analysis ---');
         // Find Vivid Asc
-        const vividRes = await db.query(`SELECT id, user_id, brand_info->>'name' as name FROM brand_accounts WHERE brand_info->>'name' ILIKE '%Vivid Asc%'`);
+        const vividRes = await db.query(`SELECT id, user_id, brand_info FROM brand_accounts WHERE brand_info->>'name' ILIKE '%Vivid Asc%'`);
 
         if (vividRes.rows.length === 0) {
             console.log('Vivid Asc. not found.');
         } else {
             const vivid = vividRes.rows[0];
-            console.log('Brand Found:', vivid);
+            console.log('Brand Found:', JSON.stringify(vivid, null, 2));
 
             // Check Team Members
             const teamRes = await db.query(`SELECT * FROM brand_team_members WHERE brand_id = $1`, [vivid.id]);

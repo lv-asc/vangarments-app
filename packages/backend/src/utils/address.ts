@@ -46,7 +46,7 @@ export class AddressUtils {
     const errors: string[] = [];
 
     if (!address.cep || !this.isValidCEP(address.cep)) {
-      errors.push('Valid CEP is required');
+      errors.push('Valid postal code is required');
     }
 
     if (!address.state || address.state.length !== 2) {
@@ -78,29 +78,29 @@ export class AddressUtils {
   static readonly STATES = {
     'AC': 'Acre',
     'AL': 'Alagoas',
-    'AP': 'Amapá',
+    'AP': 'Amapa',
     'AM': 'Amazonas',
     'BA': 'Bahia',
-    'CE': 'Ceará',
-    'DF': 'Distrito Federal',
-    'ES': 'Espírito Santo',
-    'GO': 'Goiás',
-    'MA': 'Maranhão',
+    'CE': 'Ceara',
+    'DF': 'Federal District',
+    'ES': 'Espirito Santo',
+    'GO': 'Goias',
+    'MA': 'Maranhao',
     'MT': 'Mato Grosso',
     'MS': 'Mato Grosso do Sul',
     'MG': 'Minas Gerais',
-    'PA': 'Pará',
-    'PB': 'Paraíba',
-    'PR': 'Paraná',
+    'PA': 'Para',
+    'PB': 'Paraiba',
+    'PR': 'Parana',
     'PE': 'Pernambuco',
-    'PI': 'Piauí',
+    'PI': 'Piaui',
     'RJ': 'Rio de Janeiro',
     'RN': 'Rio Grande do Norte',
     'RS': 'Rio Grande do Sul',
-    'RO': 'Rondônia',
+    'RO': 'Rondonia',
     'RR': 'Roraima',
     'SC': 'Santa Catarina',
-    'SP': 'São Paulo',
+    'SP': 'Sao Paulo',
     'SE': 'Sergipe',
     'TO': 'Tocantins'
   };

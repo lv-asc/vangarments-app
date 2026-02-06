@@ -74,6 +74,7 @@ interface WardrobeItemCardProps {
   // Selection support
   isSelected?: boolean;
   onSelect?: (id: string, event: React.MouseEvent) => void;
+  isCompact?: boolean;
 }
 
 export function WardrobeItemCard({
@@ -86,6 +87,7 @@ export function WardrobeItemCard({
   refreshKey,
   isSelected = false,
   onSelect,
+  isCompact = false,
 }: WardrobeItemCardProps) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -135,11 +137,11 @@ export function WardrobeItemCard({
   };
 
   const conditionLabels = {
-    new: 'Novo',
-    excellent: 'Excelente',
-    good: 'Bom',
-    fair: 'Regular',
-    poor: 'Desgastado',
+    new: 'New',
+    excellent: 'Excellent',
+    good: 'Good',
+    fair: 'Fair',
+    poor: 'Poor',
   };
 
   const getDisplayTitle = () => {
@@ -159,7 +161,25 @@ export function WardrobeItemCard({
     return img.url || img.imageUrl;
   };
 
-  const firstImage = getImgUrl(item.images?.[0]);
+  // Prioritize background_removed images for cleaner display
+  const getPreferredImage = () => {
+    if (!item.images || item.images.length === 0) return null;
+
+    // 1. Look for background_removed type
+    const noBgImg = item.images.find((img: any) =>
+      typeof img === 'object' && (img.type === 'background_removed' || img.imageType === 'background_removed')
+    );
+    if (noBgImg) return getImgUrl(noBgImg);
+
+    // 2. Fall back to primary image
+    const primaryImg = item.images.find((img: any) => img.isPrimary);
+    if (primaryImg) return getImgUrl(primaryImg);
+
+    // 3. Fall back to first image
+    return getImgUrl(item.images[0]);
+  };
+
+  const firstImage = getPreferredImage();
   const productUrl = `/wardrobe/${item.vufsCode}`;
 
   const displayColor = typeof item.color === 'string' ? item.color : (item.color as any)?.name || 'Unknown';
@@ -171,7 +191,7 @@ export function WardrobeItemCard({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`fashion-card group cursor-pointer relative ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}
+      className={`fashion-card group cursor-pointer relative ${isSelected ? 'ring-2 ring-[#00132d] ring-offset-2' : ''} ${isCompact ? 'p-2' : ''}`}
       onClick={handleCardClick}
     >
       {/* Selection Checkbox (visible when selection is enabled) */}
@@ -233,19 +253,16 @@ export function WardrobeItemCard({
         {/* Top Actions */}
         <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
           <div className="flex flex-col space-y-2">
-            {item.isForSale && (
+            {!isCompact && item.isForSale && (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500 text-white">
-                À venda
+                For Sale
               </span>
             )}
-            {/* Condition moved to separate field as requested, but keeping badge on image is standard UI pattern. 
-                 User request said "Color, size and condition must have their own separete fields...". 
-                 I'll keep it here but ALSO show it below if needed, or maybe just here is "separate" enough from name?
-                 The user said "separate fields, apart from the name". The image overlay is definitely apart from the name.
-                 I will keep it here for now as it looks good. */}
-            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${conditionColors[item.condition]}`}>
-              {conditionLabels[item.condition]}
-            </span>
+            {!isCompact && (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${conditionColors[item.condition]}`}>
+                {conditionLabels[item.condition]}
+              </span>
+            )}
           </div>
 
           <div className="flex space-x-2">
@@ -298,7 +315,7 @@ export function WardrobeItemCard({
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
                     <ShoppingBagIcon className="h-4 w-4 mr-3" />
-                    {item.isForSale ? 'Remover da venda' : 'Colocar à venda'}
+                    {item.isForSale ? 'Remove from Sale' : 'Sell'}
                   </button>
                   {onDelete && (
                     <button
@@ -310,7 +327,7 @@ export function WardrobeItemCard({
                       className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                     >
                       <TrashIcon className="h-4 w-4 mr-3" />
-                      Excluir
+                      Delete
                     </button>
                   )}
                 </div>
@@ -320,18 +337,20 @@ export function WardrobeItemCard({
         </div>
 
         {/* Bottom Actions (visible on hover) */}
-        <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onView(item);
-            }}
-            className="w-full bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-900 py-2 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2"
-          >
-            <EyeIcon className="h-4 w-4" />
-            <span>Ver Detalhes</span>
-          </button>
-        </div>
+        {!isCompact && (
+          <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(item);
+              }}
+              className="w-full bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-900 py-2 px-4 rounded-lg font-medium transition-all flex items-center justify-center space-x-2"
+            >
+              <EyeIcon className="h-4 w-4" />
+              <span>View Details</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -339,25 +358,23 @@ export function WardrobeItemCard({
         {/* Brand & Line Info */}
         <div className="flex flex-col gap-1">
           {/* Brand */}
-          <Link
-            href={`/brands/${brandSlug}`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group/brand w-fit"
-          >
-            <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
-              {item.brandInfo?.logo ? (
-                <img src={getImageUrl(item.brandInfo.logo)} className="h-full w-full object-contain" />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
-                  {String(brandName).charAt(0)}
-                </div>
-              )}
-            </div>
-            <span className="text-xs font-semibold text-gray-900 truncate max-w-[120px]">{brandName}</span>
-          </Link>
+          <div className="flex items-center gap-1.5 hover:opacity-80 transition-opacity group/brand w-fit">
+            {!isCompact && (
+              <div className="h-4 w-4 rounded-full overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
+                {item.brandInfo?.logo ? (
+                  <img src={getImageUrl(item.brandInfo.logo)} className="h-full w-full object-contain" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-gray-400">
+                    {String(brandName).charAt(0)}
+                  </div>
+                )}
+              </div>
+            )}
+            <span className="text-[10px] font-semibold text-gray-900 truncate max-w-[120px]">{brandName}</span>
+          </div>
 
           {/* Line (if exists) */}
-          {lineName && (
+          {!isCompact && lineName && (
             <div className="flex items-center gap-1.5 pl-0.5 opacity-80">
               {lineLogo && (
                 <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
@@ -370,7 +387,7 @@ export function WardrobeItemCard({
         </div>
 
         {/* Collection Name */}
-        {collectionName && (
+        {!isCompact && collectionName && (
           <div className="flex items-center gap-1.5 pl-0.5 opacity-80 decoration-slice">
             {collectionImage && (
               <div className="h-3 w-3 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
@@ -383,11 +400,11 @@ export function WardrobeItemCard({
           </div>
         )}
 
-        <div className="mb-2">
-          <h3 className="font-bold text-gray-900 leading-tight text-sm truncate">
+        <div className={isCompact ? '' : 'mb-2'}>
+          <h3 className={`font-bold text-gray-900 leading-tight truncate ${isCompact ? 'text-[11px]' : 'text-sm'}`}>
             {getDisplayTitle()}
           </h3>
-          {item.estimatedValue && (
+          {!isCompact && item.estimatedValue && (
             <div className="mt-1 text-sm font-semibold text-gray-900">
               R$ {item.estimatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
@@ -405,7 +422,7 @@ export function WardrobeItemCard({
 
             {/* Size Text */}
             {displaySize && (
-              <span className="text-[11px] font-bold text-gray-500">
+              <span className={`font-bold text-gray-500 ${isCompact ? 'text-[9px]' : 'text-[11px]'}`}>
                 Size {displaySize}
               </span>
             )}

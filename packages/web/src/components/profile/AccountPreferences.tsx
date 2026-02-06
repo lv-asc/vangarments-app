@@ -63,23 +63,20 @@ export function ProfileSettings() {
   };
 
   const languages = [
-    { code: 'pt-BR', name: 'Português (Brasil)', flag: 'BR' },
     { code: 'en-US', name: 'English (US)', flag: 'US' },
-    { code: 'es-ES', name: 'Español', flag: 'ES' },
-    { code: 'fr-FR', name: 'Français', flag: 'FR' }
   ];
 
   const currencies = [
-    { code: 'BRL', name: 'Real Brasileiro', symbol: 'R$' },
     { code: 'USD', name: 'US Dollar', symbol: '$' },
+    { code: 'BRL', name: 'Brazilian Real', symbol: 'R$' },
     { code: 'EUR', name: 'Euro', symbol: '€' },
     { code: 'GBP', name: 'British Pound', symbol: '£' }
   ];
 
   const themes = [
-    { value: 'light', name: 'Claro', icon: <SunIcon className="h-5 w-5" /> },
-    { value: 'dark', name: 'Escuro', icon: <MoonIcon className="h-5 w-5" /> },
-    { value: 'auto', name: 'Automático', icon: <ComputerDesktopIcon className="h-5 w-5" /> }
+    { value: 'light', name: 'Light', icon: <SunIcon className="h-5 w-5" /> },
+    { value: 'dark', name: 'Dark', icon: <MoonIcon className="h-5 w-5" /> },
+    { value: 'auto', name: 'System', icon: <ComputerDesktopIcon className="h-5 w-5" /> }
   ];
 
   return (

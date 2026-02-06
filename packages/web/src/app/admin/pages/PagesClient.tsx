@@ -45,7 +45,8 @@ export default function AdminPagesPage() {
     const fetchItems = async () => {
         try {
             const data = await pageApi.getAll();
-            setItems(data);
+            // Handle both array response and paginated response shape
+            setItems(Array.isArray(data) ? data : (data as any).pages || []);
         } catch (error) {
             toast.error('Failed to fetch pages');
         } finally {
@@ -373,7 +374,7 @@ export default function AdminPagesPage() {
                                     type="submit"
                                     className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
                                 >
-                                    {editingItem ? 'Update Page' : 'Create Page'}
+                                    Create Page
                                 </button>
                             </div>
                         </form>

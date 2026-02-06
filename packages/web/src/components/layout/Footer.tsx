@@ -5,24 +5,24 @@ import { HeartIcon } from '@heroicons/react/24/outline';
 export function Footer() {
   const navigation = {
     product: [
-      { name: 'Recursos', href: '/features' },
-      { name: 'Preços', href: '/pricing' },
-      { name: 'Demonstração', href: '/demo' },
+      { name: 'Features', href: '/features' },
+      { name: 'Pricing', href: '/pricing' },
+      { name: 'Demo', href: '/demo' },
     ],
     support: [
-      { name: 'Central de Ajuda', href: '/help' },
-      { name: 'Contato', href: '/contact' },
-      { name: 'Comunidade', href: '/community' },
+      { name: 'Help Center', href: '/help' },
+      { name: 'Contact', href: '/contact' },
+      { name: 'Community', href: '/community' },
     ],
     company: [
-      { name: 'Sobre', href: '/about' },
+      { name: 'About', href: '/about' },
       { name: 'Blog', href: '/blog' },
-      { name: 'Carreiras', href: '/careers' },
+      { name: 'Careers', href: '/careers' },
     ],
     legal: [
-      { name: 'Privacidade', href: '/privacy' },
-      { name: 'Termos', href: '/terms' },
-      { name: 'LGPD', href: '/lgpd' },
+      { name: 'Privacy', href: '/privacy' },
+      { name: 'Terms', href: '/terms' },
+      { name: 'Data Protection', href: '/lgpd' },
     ],
   };
 
@@ -38,15 +38,15 @@ export function Footer() {
               <span className="text-xl font-bold text-white">Vangarments</span>
             </Link>
             <p className="text-sm leading-6 text-gray-300">
-              A plataforma brasileira que está revolucionando a forma como as pessoas
-              se relacionam com a moda.
+              The platform that is revolutionizing the way people
+              relate to fashion.
             </p>
           </div>
 
           <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm font-semibold leading-6 text-white">Produto</h3>
+                <h3 className="text-sm font-semibold leading-6 text-white">Product</h3>
                 <ul className="mt-6 space-y-4">
                   {navigation.product.map((item) => (
                     <li key={item.name}>
@@ -58,7 +58,7 @@ export function Footer() {
                 </ul>
               </div>
               <div className="mt-10 md:mt-0">
-                <h3 className="text-sm font-semibold leading-6 text-white">Suporte</h3>
+                <h3 className="text-sm font-semibold leading-6 text-white">Support</h3>
                 <ul className="mt-6 space-y-4">
                   {navigation.support.map((item) => (
                     <li key={item.name}>
@@ -72,7 +72,7 @@ export function Footer() {
             </div>
             <div className="md:grid md:grid-cols-2 md:gap-8">
               <div>
-                <h3 className="text-sm font-semibold leading-6 text-white">Empresa</h3>
+                <h3 className="text-sm font-semibold leading-6 text-white">Company</h3>
                 <ul className="mt-6 space-y-4">
                   {navigation.company.map((item) => (
                     <li key={item.name}>
@@ -102,11 +102,11 @@ export function Footer() {
         <div className="mt-8 border-t border-gray-800 pt-8 md:flex md:items-center md:justify-between">
           <div className="flex space-x-6 md:order-2">
             <p className="text-xs leading-5 text-gray-400">
-              Feito com <HeartIcon className="inline h-4 w-4 text-[#fff7d7]" /> no Brasil
+              Made with <HeartIcon className="inline h-4 w-4 text-[#fff7d7]" /> with love
             </p>
           </div>
           <p className="mt-8 text-xs leading-5 text-gray-400 md:order-1 md:mt-0">
-            &copy; 2024 Vangarments. Todos os direitos reservados.
+            &copy; 2024 Vangarments. All rights reserved.
           </p>
         </div>
       </div>

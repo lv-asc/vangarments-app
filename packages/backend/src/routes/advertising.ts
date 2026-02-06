@@ -201,7 +201,7 @@ router.get(
       // Get user profile for targeting (this would come from user service)
       const userProfile = {
         age: 25, // This would be calculated from user data
-        location: 'São Paulo',
+        location: 'Sao Paulo',
         interests: ['fashion', 'sustainable_fashion'],
       };
 

@@ -482,7 +482,7 @@ export class LGPDComplianceService {
       data: userData,
       metadata: {
         exportedBy: 'Vangarments LGPD Compliance System',
-        dataController: 'Vangarments Ltda',
+        dataController: 'Vangarments Ltd',
         exportReason: 'Data portability request (LGPD Article 18, V)',
       },
     };

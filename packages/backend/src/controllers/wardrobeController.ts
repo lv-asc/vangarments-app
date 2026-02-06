@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import { VUFSItemModel } from '../models/VUFSItem';
 import { ItemImageModel } from '../models/ItemImage';
+import { SKUItemModel } from '../models/SKUItem';
 import { AIProcessingService } from '../services/aiProcessingService';
 import { BackgroundRemovalService } from '../services/backgroundRemovalService';
 import { LocalStorageService } from '../services/localStorageService';
@@ -33,6 +34,33 @@ const upload = multer({
     }
   },
 });
+
+/**
+ * Sanitize and construct a full image URL.
+ * Handles cases where imageUrl might already contain /storage/ prefix.
+ */
+function sanitizeImageUrl(imageUrl: string): string {
+  if (!imageUrl) return '';
+
+  // If it's already a full HTTP URL, return as-is
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl;
+  }
+
+  // Remove leading slashes
+  let cleanPath = imageUrl;
+  while (cleanPath.startsWith('/')) {
+    cleanPath = cleanPath.substring(1);
+  }
+
+  // Remove ALL /storage/ prefixes to prevent doubles
+  while (cleanPath.startsWith('storage/')) {
+    cleanPath = cleanPath.substring(8);
+  }
+
+  // Construct the full URL with single /storage/ prefix
+  return `${process.env.API_URL || 'http://localhost:3001'}/storage/${cleanPath}`;
+}
 
 export interface WardrobeItemRequest {
   category?: CategoryHierarchy;
@@ -265,9 +293,7 @@ export class WardrobeController {
         ...vufsItem,
         images: imageRecords.map(img => ({
           ...img,
-          url: img.imageUrl.startsWith('http')
-            ? img.imageUrl
-            : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+          url: sanitizeImageUrl(img.imageUrl)
         })),
       };
 
@@ -291,6 +317,43 @@ export class WardrobeController {
     }
   }
 
+  private static extractFilters(req: Request): any {
+    const {
+      category,
+      brand,
+      condition,
+      visibility,
+      search,
+      // Extended search params matching ItemsFilter
+      subcategory1Id, subcategory2Id, subcategory3Id, apparelId,
+      brandId,
+      sizeId, colorId, materialId, patternId, genderId, styleId, nationality,
+    } = req.query;
+
+    return {
+      category: {
+        page: (subcategory1Id || category) as string, // Fallback to 'category' if subcategory1Id not present
+        blueSubcategory: subcategory2Id as string,
+        whiteSubcategory: subcategory3Id as string,
+        graySubcategory: apparelId as string
+      },
+      brand: (brandId || brand) as string,
+      condition: condition as string,
+      visibility: visibility as string,
+      search: search as string,
+
+      // Extended
+      sizes: sizeId ? (sizeId as string).split(',') : undefined,
+      colors: colorId ? (colorId as string).split(',') : undefined,
+      materials: materialId ? (materialId as string).split(',') : undefined,
+      patterns: patternId ? (patternId as string).split(',') : undefined,
+      genders: genderId ? (genderId as string).split(',') : undefined,
+      styles: styleId ? (styleId as string).split(',') : undefined,
+      nationalities: nationality ? (nationality as string).split(',') : undefined,
+      sortBy: req.query.sortBy as string,
+    };
+  }
+
   /**
    * Get user's wardrobe items with filtering
    */
@@ -306,46 +369,16 @@ export class WardrobeController {
         return;
       }
 
-      const {
-        category,
-        brand,
-        condition,
-        visibility,
-        search,
-        // Extended search params matching ItemsFilter
-        subcategory1Id, subcategory2Id, subcategory3Id, apparelId,
-        brandId,
-        sizeId, colorId, materialId, patternId, genderId, styleId, nationality,
-        page = 1,
-        limit = 20
-      } = req.query;
+      const filters = WardrobeController.extractFilters(req);
 
-      const filters: any = {
-        category: {
-          page: (subcategory1Id || category) as string, // Fallback to 'category' if subcategory1Id not present
-          blueSubcategory: subcategory2Id as string,
-          whiteSubcategory: subcategory3Id as string,
-          graySubcategory: apparelId as string
-        },
-        brand: (brandId || brand) as string,
-        condition: condition as string,
-        visibility: visibility as string,
-        search: search as string,
-
-        // Extended
-        sizes: sizeId ? (sizeId as string).split(',') : undefined,
-        colors: colorId ? (colorId as string).split(',') : undefined,
-        materials: materialId ? (materialId as string).split(',') : undefined,
-        patterns: patternId ? (patternId as string).split(',') : undefined,
-        genders: genderId ? (genderId as string).split(',') : undefined,
-        styles: styleId ? (styleId as string).split(',') : undefined,
-        nationalities: nationality ? (nationality as string).split(',') : undefined,
-      };
+      const { page = 1, limit = 20 } = req.query;
 
       const items = await VUFSItemModel.findByOwner(req.user.userId, filters);
 
       // Add pagination
       const pageNum = parseInt(page as string);
+      // Allow frontend to request a higher limit (e.g., for grouping) via query param
+      // but cap it reasonably to prevent abuse if needed, though 1000 is fine for wardrobe
       const limitNum = parseInt(limit as string);
       const startIndex = (pageNum - 1) * limitNum;
       const endIndex = startIndex + limitNum;
@@ -357,9 +390,7 @@ export class WardrobeController {
           const images = await ItemImageModel.findByItemId(item.id);
           const imagesWithUrls = images.map(img => ({
             ...img,
-            url: img.imageUrl.startsWith('http')
-              ? img.imageUrl
-              : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+            url: sanitizeImageUrl(img.imageUrl)
           }));
           return {
             ...item,
@@ -472,14 +503,10 @@ export class WardrobeController {
       // Fetch images
       const images = await ItemImageModel.findByItemId(item.id);
 
-      // Construct working URLs for images
-      // Assuming backend is serving 'images' statically at root
-      // and image.imageUrl is something like 'images/wardrobe/...'
+      // Construct working URLs for images using sanitizeImageUrl helper
       const imagesWithUrls = images.map(img => ({
         ...img,
-        url: img.imageUrl.startsWith('http')
-          ? img.imageUrl
-          : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+        url: sanitizeImageUrl(img.imageUrl)
       }));
 
       const itemWithImages = {
@@ -628,9 +655,7 @@ export class WardrobeController {
           // Convert to response format
           currentImages = imageRecords.map(img => ({
             ...img,
-            url: img.imageUrl.startsWith('http')
-              ? img.imageUrl
-              : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+            url: sanitizeImageUrl(img.imageUrl)
           }));
 
           console.log(`Successfully updated ${currentImages.length} images for item ${existingItem.id}`);
@@ -643,9 +668,7 @@ export class WardrobeController {
         const images = await ItemImageModel.findByItemId(existingItem.id);
         currentImages = images.map(img => ({
           ...img,
-          url: img.imageUrl.startsWith('http')
-            ? img.imageUrl
-            : `${process.env.API_URL || 'http://localhost:3001'}/${img.imageUrl}`
+          url: sanitizeImageUrl(img.imageUrl)
         }));
       }
 
@@ -1109,6 +1132,32 @@ export class WardrobeController {
   /**
    * Get wardrobe statistics
    */
+  static async getDiscoverItems(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { search, brandId, page = 1, limit = 50 } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const { skus } = await SKUItemModel.search(
+        (search as string) || '',
+        Number(limit) * 2, // Fetch more since we filter out children
+        offset,
+        {
+          brandId: brandId as string,
+        }
+      );
+
+      // Filter out child SKUs (size variants) - only show parent/standalone SKUs
+      const parentSkus = skus.filter((sku: any) => !sku.parentSkuId);
+
+      // Transform SKUs to a format compatible with WardrobeGrid if needed,
+      // but we'll adapt WardrobeGrid to handle SKU structure.
+      res.json({ items: parentSkus.slice(0, Number(limit)) });
+    } catch (error) {
+      console.error('Get discover items error:', error);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch global items' } });
+    }
+  }
+
   static async getWardrobeStats(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       if (!req.user) {

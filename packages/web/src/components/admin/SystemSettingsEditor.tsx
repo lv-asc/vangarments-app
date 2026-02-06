@@ -69,9 +69,7 @@ export function SystemSettingsEditor({ type, data, onUpdate }: SystemSettingsEdi
             onChange={(e) => handleChange('language', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="en">English</option>
-            <option value="pt">Português</option>
-            <option value="es">Español</option>
+            <option value="en">English (US)</option>
           </select>
         </div>
 

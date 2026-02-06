@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { SimpleHeader } from '@/components/layout/SimpleHeader';
+import { toast } from 'react-hot-toast';
 
 export default function SetLVProfilePage() {
   const { userProfile, updateUserProfile } = useData();
@@ -11,7 +12,7 @@ export default function SetLVProfilePage() {
     // You'll need to save the uploaded image to your public folder first
     // For now, I'll create a placeholder that you can replace with the actual image URL
     const lvImageUrl = '/assets/images/lv-profile.jpg'; // You'll need to save the image here
-    
+
     updateUserProfile({
       name: 'LV',
       username: 'lv_fashion',
@@ -19,33 +20,33 @@ export default function SetLVProfilePage() {
       bio: 'Fashion enthusiast and style creator. Always exploring new trends and combinations.',
       profileImage: lvImageUrl
     });
-    
-    alert('LV profile updated! (Note: You need to save the image to /public/assets/images/lv-profile.jpg)');
+
+    toast.success('LV profile updated! (Note: You need to save the image to /public/assets/images/lv-profile.jpg)');
   };
 
   const setLVProfileWithPlaceholder = () => {
     // Using a similar style image from Unsplash as placeholder
     const placeholderUrl = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face';
-    
+
     updateUserProfile({
       name: 'LV',
-      username: 'lv_fashion', 
+      username: 'lv_fashion',
       email: 'lv@vangarments.com',
       bio: 'Fashion enthusiast and style creator. Always exploring new trends and combinations. Green cap lover 🧢',
       profileImage: placeholderUrl
     });
-    
-    alert('LV profile updated with placeholder image!');
+
+    toast.success('LV profile updated with placeholder image!');
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <SimpleHeader />
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg p-8">
           <h1 className="text-2xl font-bold mb-6">Set LV Profile Picture</h1>
-          
+
           <div className="space-y-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
               <h2 className="text-lg font-semibold text-blue-900 mb-4">
@@ -63,9 +64,9 @@ export default function SetLVProfilePage() {
               {userProfile ? (
                 <div className="flex items-center space-x-4">
                   {userProfile.profileImage ? (
-                    <img 
-                      src={userProfile.profileImage} 
-                      alt="Current profile" 
+                    <img
+                      src={userProfile.profileImage}
+                      alt="Current profile"
                       className="w-16 h-16 rounded-full object-cover"
                     />
                   ) : (
@@ -93,7 +94,7 @@ export default function SetLVProfilePage() {
               >
                 Set LV Profile with Uploaded Image
               </button>
-              
+
               <button
                 onClick={setLVProfileWithPlaceholder}
                 className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors"
