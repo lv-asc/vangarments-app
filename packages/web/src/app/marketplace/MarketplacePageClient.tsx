@@ -17,6 +17,14 @@ import { getImageUrl } from '@/utils/imageUrl';
 import { MarketplaceListingCard } from '@/components/marketplace/MarketplaceListingCard';
 import ItemsFilter from '@/components/common/ItemsFilter';
 
+interface Condition {
+    id: string;
+    name: string;
+    rating: number;
+    group: 'new' | 'used';
+    isActive: boolean;
+}
+
 interface MarketplaceListing {
     id: string;
     itemCode?: string;
@@ -27,22 +35,26 @@ interface MarketplaceListing {
     condition: {
         status: string;
         description: string;
+        label?: string;
     };
     images: string[];
     status: string;
     views: number;
     likes: number;
     category: string;
+    brand?: string;
     sellerId: string;
     createdAt: string;
 }
 
 interface MarketplaceFilters {
     category?: string;
+    brand?: string;
     condition?: string;
     minPrice?: string;
     maxPrice?: string;
     sortBy?: string;
+    groupBy?: string;
     [key: string]: string | undefined;
 }
 
@@ -54,6 +66,19 @@ export default function MarketplacePageClient() {
     const [showFilters, setShowFilters] = useState(false);
     const [total, setTotal] = useState(0);
     const [likedListings, setLikedListings] = useState<Set<string>>(new Set());
+    const [availableConditions, setAvailableConditions] = useState<Condition[]>([]);
+
+    useEffect(() => {
+        const fetchMetadata = async () => {
+            try {
+                const conditions = await apiClient.getAllConditions();
+                setAvailableConditions(conditions);
+            } catch (error) {
+                console.error('Failed to fetch conditions:', error);
+            }
+        };
+        fetchMetadata();
+    }, []);
 
     const fetchListings = useCallback(async () => {
         setLoading(true);
@@ -64,6 +89,7 @@ export default function MarketplacePageClient() {
                 maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
                 sortBy: filters.sortBy as any,
                 search: searchQuery || undefined,
+                limit: filters.groupBy ? 1000 : 40,
             });
             setListings(result.data);
             setTotal(result.total);
@@ -134,13 +160,40 @@ export default function MarketplacePageClient() {
                             <span className="text-sm text-gray-500">({total} items)</span>
                         </div>
 
-                        <Link
-                            href="/marketplace/sell"
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl font-medium text-sm hover:bg-gray-800 transition-colors"
-                        >
-                            <PlusIcon className="h-4 w-4" />
-                            Sell Item
-                        </Link>
+                        <div className="flex items-center gap-4">
+                            {/* Sort & Group Controls */}
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={filters.sortBy || 'newest'}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value }))}
+                                    className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl focus:ring-gray-900 focus:border-gray-900 block p-2.5 font-medium"
+                                >
+                                    <option value="newest">Sort: Newest</option>
+                                    <option value="price_low">Price: Low to High</option>
+                                    <option value="price_high">Price: High to Low</option>
+                                    <option value="most_watched">Most Popular</option>
+                                </select>
+
+                                <select
+                                    value={filters.groupBy || ''}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, groupBy: e.target.value }))}
+                                    className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl focus:ring-gray-900 focus:border-gray-900 block p-2.5 font-medium"
+                                >
+                                    <option value="">No Grouping</option>
+                                    <option value="brand">Brand</option>
+                                    <option value="category">Category</option>
+                                    <option value="condition">Condition</option>
+                                </select>
+                            </div>
+
+                            <Link
+                                href="/marketplace/sell"
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl font-medium text-sm hover:bg-gray-800 transition-colors h-[42px]"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                                Sell Item
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -152,7 +205,7 @@ export default function MarketplacePageClient() {
                 onSearchChange={setSearchQuery}
                 useNameAsValue={true}
                 availableFacets={{
-                    conditions: ['new', 'dswt', 'never_used', 'excellent', 'good', 'fair', 'poor'],
+                    conditions: availableConditions.map(c => c.id),
                     // Enable other facets if needed, or leave empty to hide them
                     brands: [], // We want brands
                     categories: [], // We want categories (subcategories)
@@ -204,6 +257,48 @@ export default function MarketplacePageClient() {
                                         Sell your first item
                                     </Link>
                                 </div>
+                            </div>
+                        ) : filters.groupBy ? (
+                            <div className="space-y-12">
+                                {Object.entries(
+                                    listings.reduce((acc: Record<string, MarketplaceListing[]>, listing) => {
+                                        let key = 'Unspecified';
+                                        switch (filters.groupBy) {
+                                            case 'brand':
+                                                key = listing.brand || 'Generic';
+                                                break;
+                                            case 'category':
+                                                key = listing.category || 'Unspecified';
+                                                break;
+                                            case 'condition':
+                                                const cond = availableConditions.find(c => c.id === listing.condition.status);
+                                                key = cond?.name || listing.condition.label || listing.condition.status || 'Unspecified';
+                                                break;
+                                        }
+                                        if (!acc[key]) acc[key] = [];
+                                        acc[key].push(listing);
+                                        return acc;
+                                    }, {})
+                                ).sort((a, b) => a[0].localeCompare(b[0])).map(([groupName, groupItems]) => (
+                                    <div key={groupName}>
+                                        <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+                                            {groupName}
+                                            <span className="ml-3 text-sm font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+                                                {groupItems.length}
+                                            </span>
+                                        </h2>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                            {groupItems.map((listing) => (
+                                                <MarketplaceListingCard
+                                                    key={listing.id}
+                                                    listing={listing}
+                                                    isLiked={likedListings.has(listing.id)}
+                                                    onLike={toggleLike}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">

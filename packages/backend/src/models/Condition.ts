@@ -4,6 +4,7 @@ export interface Condition {
     id: string;
     name: string;
     rating: number;
+    sortOrder: number;
     group: 'new' | 'used';
     isActive: boolean;
     skuRef?: string;
@@ -15,13 +16,14 @@ export class ConditionModel {
         const query = `
             SELECT * FROM wardrobe_conditions
             WHERE is_active = true
-            ORDER BY rating DESC, name ASC
+            ORDER BY sort_order ASC, rating DESC, name ASC
         `;
         const result = await db.query(query);
         return result.rows.map(row => ({
             id: row.id,
             name: row.name,
             rating: parseFloat(row.rating),
+            sortOrder: row.sort_order || 0,
             group: row.group,
             isActive: row.is_active,
             skuRef: row.sku_ref,
@@ -40,6 +42,7 @@ export class ConditionModel {
             id: row.id,
             name: row.name,
             rating: parseFloat(row.rating),
+            sortOrder: row.sort_order || 0,
             group: row.group,
             isActive: row.is_active,
             skuRef: row.sku_ref,
@@ -47,19 +50,20 @@ export class ConditionModel {
         };
     }
 
-    static async create(name: string, rating: number, group: 'new' | 'used'): Promise<Condition> {
+    static async create(name: string, rating: number, group: 'new' | 'used', sortOrder: number = 0): Promise<Condition> {
         const query = `
-            INSERT INTO wardrobe_conditions (name, rating, "group")
-            VALUES ($1, $2, $3)
+            INSERT INTO wardrobe_conditions (name, rating, "group", sort_order)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
         `;
-        const result = await db.query(query, [name, rating, group]);
+        const result = await db.query(query, [name, rating, group, sortOrder]);
         const row = result.rows[0];
 
         return {
             id: row.id,
             name: row.name,
             rating: parseFloat(row.rating),
+            sortOrder: row.sort_order || 0,
             group: row.group,
             isActive: row.is_active,
             skuRef: row.sku_ref,
@@ -71,7 +75,8 @@ export class ConditionModel {
         id: string,
         name?: string,
         rating?: number,
-        group?: 'new' | 'used'
+        group?: 'new' | 'used',
+        sortOrder?: number
     ): Promise<Condition | null> {
         const updates: string[] = [];
         const values: any[] = [];
@@ -89,6 +94,10 @@ export class ConditionModel {
             updates.push(`"group" = $${paramIndex++}`);
             values.push(group);
         }
+        if (sortOrder !== undefined) {
+            updates.push(`sort_order = $${paramIndex++}`);
+            values.push(sortOrder);
+        }
 
         if (updates.length === 0) {
             return this.findById(id);
@@ -102,19 +111,26 @@ export class ConditionModel {
             RETURNING *
         `;
 
-        const result = await db.query(query, values);
+        try {
+            const result = await db.query(query, values);
 
-        if (result.rows.length === 0) return null;
+            if (result.rows.length === 0) return null;
 
-        const row = result.rows[0];
-        return {
-            id: row.id,
-            name: row.name,
-            rating: parseFloat(row.rating),
-            group: row.group,
-            isActive: row.is_active,
-            createdAt: row.created_at
-        };
+            const row = result.rows[0];
+            return {
+                id: row.id,
+                name: row.name,
+                rating: parseFloat(row.rating),
+                sortOrder: row.sort_order || 0,
+                group: row.group as 'new' | 'used',
+                isActive: row.is_active,
+                skuRef: row.sku_ref,
+                createdAt: row.created_at
+            };
+        } catch (error) {
+            console.error('Error in ConditionModel.update:', error);
+            throw error;
+        }
     }
 
     static async delete(id: string): Promise<boolean> {

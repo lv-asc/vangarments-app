@@ -1536,10 +1536,10 @@ class ApiClient {
 
   // --- CONDITIONS (Admin Page) ---
   async getAllConditions() { const res = await this.request<any[]>('/conditions'); return res as any as any[]; }
-  async createCondition(data: { name: string; rating: number; group: 'new' | 'used' }) {
+  async createCondition(data: { name: string; rating: number; group: 'new' | 'used'; sortOrder?: number }) {
     return this.request('/conditions', { method: 'POST', body: JSON.stringify(data) });
   }
-  async updateCondition(id: string, data: { name?: string; rating?: number; group?: 'new' | 'used' }) {
+  async updateCondition(id: string, data: { name?: string; rating?: number; group?: 'new' | 'used'; sortOrder?: number }) {
     return this.request(`/conditions/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
   async deleteCondition(id: string) { return this.request(`/conditions/${id}`, { method: 'DELETE' }); }

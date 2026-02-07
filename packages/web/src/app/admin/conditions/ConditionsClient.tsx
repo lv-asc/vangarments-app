@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { TrashIcon, PencilSquareIcon, PlusIcon, StarIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PencilSquareIcon, PlusIcon, ArrowUpIcon, ArrowDownIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 interface Condition {
     id: string;
     name: string;
     rating: number;
+    sortOrder?: number;
     group: 'new' | 'used';
     isActive: boolean;
 }
@@ -68,8 +69,22 @@ export default function ConditionsClient() {
             return;
         }
 
+        // Check for duplicates in the same group
+        const isDuplicate = conditions.some(c =>
+            c.group === group &&
+            c.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+            c.id !== editingCondition?.id
+        );
+
+        if (isDuplicate) {
+            toast.error(`A condition named "${name}" already exists in the ${group} group.`);
+            return;
+        }
+
         try {
-            const payload = { name, rating, group };
+            // Preserve existing sortOrder or default to 0
+            const sortOrder = editingCondition?.sortOrder ?? 0;
+            const payload = { name, rating, group, sortOrder };
 
             if (editingCondition) {
                 await apiClient.updateCondition(editingCondition.id, payload);
@@ -107,27 +122,49 @@ export default function ConditionsClient() {
         }
     };
 
-    const newConditions = conditions.filter(c => c.group === 'new').sort((a, b) => b.rating - a.rating);
-    const usedConditions = conditions.filter(c => c.group === 'used').sort((a, b) => b.rating - a.rating);
+    const newConditions = conditions
+        .filter(c => c.group === 'new')
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || b.rating - a.rating);
+    const usedConditions = conditions
+        .filter(c => c.group === 'used')
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || b.rating - a.rating);
 
-    const renderStars = (rating: number) => {
-        const fullStars = Math.floor(rating);
-        const hasHalfStar = rating % 1 !== 0;
+    const handleMove = async (id: string, direction: 'up' | 'down', group: 'new' | 'used') => {
+        const list = group === 'new' ? newConditions : usedConditions;
+        const index = list.findIndex(c => c.id === id);
+        if (index === -1) return;
 
-        return (
-            <div className="flex items-center gap-0.5">
-                {[...Array(fullStars)].map((_, i) => (
-                    <StarIcon key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                ))}
-                {hasHalfStar && (
-                    <StarIcon className="h-4 w-4 fill-yellow-400 text-yellow-400" style={{ clipPath: 'inset(0 50% 0 0)' }} />
-                )}
-                {[...Array(10 - Math.ceil(rating))].map((_, i) => (
-                    <StarIcon key={`empty-${i}`} className="h-4 w-4 text-gray-300" />
-                ))}
-            </div>
-        );
+        const otherIndex = direction === 'up' ? index - 1 : index + 1;
+        if (otherIndex < 0 || otherIndex >= list.length) return;
+
+        const currentItem = list[index];
+        const otherItem = list[otherIndex];
+
+        // Swap sort orders
+        // Use index as the base sort order to ensure continuity if numbers are messy
+        const newSortOrderCurrent = otherIndex;
+        const newSortOrderOther = index;
+
+        // Optimistic update
+        const updatedConditions = conditions.map(c => {
+            if (c.id === currentItem.id) return { ...c, sortOrder: newSortOrderCurrent };
+            if (c.id === otherItem.id) return { ...c, sortOrder: newSortOrderOther };
+            return c;
+        });
+        setConditions(updatedConditions);
+
+        try {
+            await Promise.all([
+                apiClient.updateCondition(currentItem.id, { sortOrder: newSortOrderCurrent }),
+                apiClient.updateCondition(otherItem.id, { sortOrder: newSortOrderOther })
+            ]);
+        } catch (error) {
+            console.error('Failed to update order:', error);
+            toast.error('Failed to update order');
+            fetchConditions(); // Revert on error
+        }
     };
+
 
     if (loading) return <div className="p-10 text-center">Loading...</div>;
 
@@ -141,13 +178,15 @@ export default function ConditionsClient() {
                         Manage condition ratings for wardrobe items (6/10 to 10/10 scale)
                     </p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                    <PlusIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                    Add Condition
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                        <PlusIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                        Add Condition
+                    </button>
+                </div>
             </div>
 
             {/* Conditions Grid */}
@@ -172,17 +211,35 @@ export default function ConditionsClient() {
                                                 <p className="text-sm font-medium text-indigo-600 truncate">
                                                     {condition.name}
                                                 </p>
-                                                <div className="ml-2 flex-shrink-0 flex">
+                                                <div className="ml-2 flex-shrink-0 flex items-center gap-2">
+                                                    {condition.sortOrder !== undefined && (
+                                                        <span className="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500 rounded uppercase tracking-wider">
+                                                            Order: {condition.sortOrder}
+                                                        </span>
+                                                    )}
                                                     <p className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                                                         {condition.rating}/10
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="mt-2">
-                                                {renderStars(condition.rating)}
-                                            </div>
                                         </div>
-                                        <div className="ml-4 flex-shrink-0 flex gap-2">
+                                        <div className="ml-4 flex-shrink-0 flex gap-2 items-center">
+                                            <div className="flex flex-col gap-1 mr-2">
+                                                <button
+                                                    onClick={() => handleMove(condition.id, 'up', 'new')}
+                                                    className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100"
+                                                    title="Move Up"
+                                                >
+                                                    <ArrowUpIcon className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleMove(condition.id, 'down', 'new')}
+                                                    className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100"
+                                                    title="Move Down"
+                                                >
+                                                    <ArrowDownIcon className="h-4 w-4" />
+                                                </button>
+                                            </div>
                                             <button
                                                 onClick={() => handleOpenModal(condition)}
                                                 className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-full"
@@ -223,17 +280,35 @@ export default function ConditionsClient() {
                                                 <p className="text-sm font-medium text-indigo-600 truncate">
                                                     {condition.name}
                                                 </p>
-                                                <div className="ml-2 flex-shrink-0 flex">
+                                                <div className="ml-2 flex-shrink-0 flex items-center gap-2">
+                                                    {condition.sortOrder !== undefined && (
+                                                        <span className="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500 rounded uppercase tracking-wider">
+                                                            Order: {condition.sortOrder}
+                                                        </span>
+                                                    )}
                                                     <p className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                                                         {condition.rating}/10
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="mt-2">
-                                                {renderStars(condition.rating)}
-                                            </div>
                                         </div>
-                                        <div className="ml-4 flex-shrink-0 flex gap-2">
+                                        <div className="ml-4 flex-shrink-0 flex gap-2 items-center">
+                                            <div className="flex flex-col gap-1 mr-2">
+                                                <button
+                                                    onClick={() => handleMove(condition.id, 'up', 'used')}
+                                                    className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100"
+                                                    title="Move Up"
+                                                >
+                                                    <ArrowUpIcon className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleMove(condition.id, 'down', 'used')}
+                                                    className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100"
+                                                    title="Move Down"
+                                                >
+                                                    <ArrowDownIcon className="h-4 w-4" />
+                                                </button>
+                                            </div>
                                             <button
                                                 onClick={() => handleOpenModal(condition)}
                                                 className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-full"
@@ -272,14 +347,25 @@ export default function ConditionsClient() {
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         placeholder="e.g., New w/ Tag, Used (9/10)"
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
+                                        className="mt-1 block w-full border-gray-300 rounded-xl shadow-sm focus:ring-gray-900 focus:border-gray-900 sm:text-sm border p-2.5"
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Rating: {rating}/10
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700">Rating (/10)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="10"
+                                        step="0.5"
+                                        value={rating}
+                                        onChange={(e) => setRating(parseFloat(e.target.value) || 0)}
+                                        className="mt-1 block w-full border-gray-300 rounded-xl shadow-sm focus:ring-gray-900 focus:border-gray-900 sm:text-sm border p-2.5"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Adjust Rating Slider</label>
                                     <input
                                         type="range"
                                         min="6"
@@ -292,9 +378,6 @@ export default function ConditionsClient() {
                                     <div className="flex justify-between text-xs text-gray-500 mt-1">
                                         <span>6/10</span>
                                         <span>10/10</span>
-                                    </div>
-                                    <div className="mt-2">
-                                        {renderStars(rating)}
                                     </div>
                                 </div>
 

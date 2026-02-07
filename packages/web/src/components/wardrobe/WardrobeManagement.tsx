@@ -66,7 +66,8 @@ export default function WardrobeManagement({ username, displayName }: WardrobeMa
         nationalities: [],
         years: [],
         months: [],
-        days: []
+        days: [],
+        conditions: []
     });
 
     const [tierLabels, setTierLabels] = useState<Record<string, string>>({
@@ -146,7 +147,8 @@ export default function WardrobeManagement({ username, displayName }: WardrobeMa
                 lines: [],
                 collections: [],
                 sizes: [],
-                genders: []
+                genders: [],
+                conditions: []
             });
             console.log('[DEBUG] Fetched Wardrobe Facets:', facets);
         } catch (error) {
@@ -270,6 +272,7 @@ export default function WardrobeManagement({ username, displayName }: WardrobeMa
                                 <option value="color">Color</option>
                                 <option value="pattern">Pattern</option>
                                 <option value="material">Material</option>
+                                <option value="condition">Condition</option>
                             </select>
                         </div>
 

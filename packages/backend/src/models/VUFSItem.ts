@@ -721,6 +721,7 @@ export class VUFSItemModel {
     years: string[];
     months: string[];
     days: string[];
+    conditions: string[];
   }> {
     const query = `
       WITH item_data AS (
@@ -805,7 +806,8 @@ export class VUFSItemModel {
          (
           SELECT jsonb_agg(DISTINCT EXTRACT(DAY FROM CAST(COALESCE(purchase_date, acquisition_date) AS TIMESTAMP))::text)
           FROM item_data WHERE purchase_date IS NOT NULL OR acquisition_date IS NOT NULL
-        ) as days
+        ) as days,
+        (SELECT jsonb_agg(DISTINCT condition_info->>'status') FROM vufs_items WHERE owner_id = $1 AND deleted_at IS NULL AND condition_info->>'status' IS NOT NULL) as conditions
     `;
 
     const result = await db.query(query, [ownerId]);
@@ -830,6 +832,7 @@ export class VUFSItemModel {
       years: row.years || [],
       months: row.months || [],
       days: row.days || [],
+      conditions: row.conditions || [],
     };
   }
 

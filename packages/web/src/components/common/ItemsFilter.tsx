@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { apiClient } from '@/lib/api';
 import { skuApi } from '@/lib/skuApi';
 import { vufsApi, VUFSAttributeValue, VUFSMaterial, VUFSColor, VUFSSize } from '@/lib/vufsApi';
 import { brandApi } from '@/lib/brandApi';
@@ -92,6 +93,7 @@ interface FilterOptions {
     years: number[];
     months: number[];
     days: number[];
+    conditions: any[];
 }
 
 interface ItemsFilterProps {
@@ -161,7 +163,8 @@ export default function ItemsFilter({
         brandCollections: [],
         years: [],
         months: [],
-        days: []
+        days: [],
+        conditions: []
     });
 
     const [tierLabels, setTierLabels] = useState<Record<string, string>>({
@@ -220,7 +223,8 @@ export default function ItemsFilter({
                 colorsRes,
                 sizesRes,
                 releaseDateOptions,
-                nationalitiesRes
+                nationalitiesRes,
+                conditionsRes
             ] = await Promise.all([
                 brandApi.getBrands({ limit: 50, businessType: 'brand' }),
                 vufsApi.getCategories(),
@@ -232,7 +236,8 @@ export default function ItemsFilter({
                 vufsApi.getColors(),
                 vufsApi.getSizes(),
                 skuApi.getReleaseDateOptions(),
-                brandApi.getNationalities()
+                brandApi.getNationalities(),
+                apiClient.getAllConditions()
             ]);
 
             // Update tier labels from fetched data
@@ -276,7 +281,8 @@ export default function ItemsFilter({
                 nationalities: (nationalitiesRes || []).sort(),
                 years: releaseDateOptions.years || [],
                 months: releaseDateOptions.months || [],
-                days: releaseDateOptions.days || []
+                days: releaseDateOptions.days || [],
+                conditions: (conditionsRes || [])
             }));
             setLoading(false);
         } catch (error) {
@@ -831,67 +837,7 @@ export default function ItemsFilter({
                             </div>
                         )}
 
-                        {/* Condition Dropdown (Marketplace) */}
-                        {availableFacets?.conditions && availableFacets.conditions.length > 0 && (
-                            <div
-                                className="relative group/filter"
-                                onMouseEnter={() => setExpandedGroups(prev => ({ ...prev, headerCondition: true }))}
-                                onMouseLeave={() => setExpandedGroups(prev => ({ ...prev, headerCondition: false }))}
-                            >
-                                <button className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${filters.condition ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                                    <span>Condition</span>
-                                    {filters.condition && <span className="px-1.5 py-0.5 text-[10px] bg-white text-gray-900 rounded-full">{filters.condition.split(',').length}</span>}
-                                    <ChevronDownIcon className="h-4 w-4" />
-                                </button>
-                                {expandedGroups.headerCondition && (
-                                    <>
-                                        <div className="absolute top-full left-0 w-full h-2 z-40" />
-                                        <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl z-40 max-h-64 overflow-y-auto custom-scrollbar p-1">
-                                            {availableFacets.conditions.map((cond: string) => {
-                                                const isSelected = (filters.condition?.split(',') || []).includes(cond);
-                                                // Map condition codes to nice labels if needed, or assume they are passed as {value, label} or just strings
-                                                // For now assuming strings as per availableFacets interface, but let's handle the mapping if we can
-                                                const conditionLabels: Record<string, string> = {
-                                                    new: 'New with Tags',
-                                                    dswt: 'Deadstock',
-                                                    never_used: 'Never Used',
-                                                    excellent: 'Excellent',
-                                                    good: 'Good',
-                                                    fair: 'Fair',
-                                                    poor: 'Poor'
-                                                };
-                                                const label = conditionLabels[cond] || cond;
 
-                                                return (
-                                                    <button key={cond} onClick={() => handleMultiFilterChange('condition', cond)} className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 rounded-lg transition-colors ${isSelected ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
-                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-gray-900 border-gray-900' : 'border-gray-300'}`}>
-                                                            {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-                                                        </div>
-                                                        <span className="truncate">{label}</span>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Sort Sort Dropdown */}
-                        {availableFacets?.conditions && ( // HACK: reusing conditions presence to imply marketplace mode for now, or just show if sortBy is supported
-                            <div className="relative group/filter">
-                                <select
-                                    value={filters.sortBy || ''}
-                                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-                                    className="px-4 py-2 bg-gray-100 border-0 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-gray-900 cursor-pointer hover:bg-gray-200 transition-colors"
-                                >
-                                    <option value="">Sort: Newest</option>
-                                    <option value="price_low">Price: Low to High</option>
-                                    <option value="price_high">Price: High to Low</option>
-                                    <option value="most_watched">Most Popular</option>
-                                </select>
-                            </div>
-                        )}
 
                         {/* Search Bar */}
                         <div className="flex-grow flex items-center justify-end">
@@ -947,6 +893,96 @@ export default function ItemsFilter({
                             {/* Categories in Sidebar too? Screenshot shows them */}
                             <FilterSection title="Genders" groupKey="gender" items={options.genders} filterKey="genderId" icon={UsersIcon} />
 
+                            {/* Conditions Section */}
+                            {options.conditions.length > 0 && (
+                                <div className="py-4 border-b border-gray-50">
+                                    <button
+                                        onClick={() => toggleGroup('condition')}
+                                        className="flex items-center justify-between w-full text-sm font-bold text-gray-900 mb-2 uppercase tracking-wider group"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <SparklesIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-900 transition-colors" />
+                                            Conditions
+                                            {filters.condition && (
+                                                <span className="ml-2 px-1.5 py-0.5 text-[10px] bg-gray-900 text-white rounded-full">
+                                                    {filters.condition.split(',').length}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <ChevronDownIcon className={`h-4 w-4 transition-transform ${expandedGroups.condition ? '' : '-rotate-90'}`} />
+                                    </button>
+                                    {expandedGroups.condition && (
+                                        <div className="space-y-4 mt-2">
+                                            {/* New Conditions */}
+                                            {options.conditions.filter((c: any) => c.group === 'new').length > 0 && (
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-2">New</p>
+                                                    <div className="space-y-1">
+                                                        {options.conditions
+                                                            .filter((c: any) => c.group === 'new')
+                                                            .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                                            .map((cond: any) => {
+                                                                const isSelected = (filters.condition?.split(',') || []).includes(cond.id);
+                                                                return (
+                                                                    <button
+                                                                        key={cond.id}
+                                                                        onClick={() => handleMultiFilterChange('condition', cond.id)}
+                                                                        className={`flex items-center w-full px-2 py-1.5 rounded-md text-sm transition-colors ${isSelected
+                                                                            ? 'bg-gray-900 text-white font-semibold shadow-sm'
+                                                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-left'
+                                                                            }`}
+                                                                    >
+                                                                        <div className={`w-4 h-4 rounded-md mr-2 flex-shrink-0 flex items-center justify-center ${isSelected ? 'bg-gray-900' : 'bg-gray-100'}`}>
+                                                                            {isSelected && (
+                                                                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                                </svg>
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="truncate">{cond.name}</span>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Used Conditions */}
+                                            {options.conditions.filter((c: any) => c.group === 'used').length > 0 && (
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">Used</p>
+                                                    <div className="space-y-1">
+                                                        {options.conditions
+                                                            .filter((c: any) => c.group === 'used')
+                                                            .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                                                            .map((cond: any) => {
+                                                                const isSelected = (filters.condition?.split(',') || []).includes(cond.id);
+                                                                return (
+                                                                    <button
+                                                                        key={cond.id}
+                                                                        onClick={() => handleMultiFilterChange('condition', cond.id)}
+                                                                        className={`flex items-center w-full px-2 py-1.5 rounded-md text-sm transition-colors ${isSelected
+                                                                            ? 'bg-gray-900 text-white font-semibold shadow-sm'
+                                                                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 text-left'
+                                                                            }`}
+                                                                    >
+                                                                        <div className={`w-4 h-4 rounded-md mr-2 flex-shrink-0 flex items-center justify-center ${isSelected ? 'bg-gray-900' : 'bg-gray-100'}`}>
+                                                                            {isSelected && (
+                                                                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                                </svg>
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="truncate">{cond.name}</span>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
 
                             {(() => {
